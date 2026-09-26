@@ -1,0 +1,893 @@
+# iOS uyum ve App Store hazırlık denetimi — 2026-09-26
+
+Bu belge, iOS'un Android'le eşliğini (parite) ve App Store'a çıkışa hazırlığını ölçen denetimin **kalıcı, denetlenebilir kaydıdır**. Mac (iOS) ve Windows (Android) Claude oturumlarının ikisi de işi buradan izler. Kayıt silinmez; yalnız durumu değişir (bkz. "Nasıl güncellenir").
+
+- **Tarih / dal / taban:** 2026-09-26 · `ios-hazirlik` · `e4789d4` ("Uygulama iOS simülatöründe açılır"). **Kanıttaki satır numaraları bu commit'e göredir.** Kapanan kayıtlarda kanıt tarihsel kayıttır; satırlar sonradan kaymış olabilir.
+- **Yöntem:** 7 alan — `dart-platform`, `native-config`, `auth-identity`, `purchases`, `push-deeplinks`, `backend-platform`, `review-compliance`. Her alanda bir **bulucu** ve her bulguyu kaynağı yeniden açarak sınayan **şüpheci bir doğrulayıcı**; üstüne alanların arasına düşeni arayan bir **eksik avcısı**. 7 × 2 + 1 = **15 ajan**, tamamı **salt okunur** (denetim depoya yazmadı).
+- **Sonuç:** 67 doğrulanmış bulgu (66 ONAYLANDI, 1 BELİRSİZ), **çürütülen yok**; eksik avcısından 7 ek bulgu. Alanlar arası kopyalar birleştirilince **55 kayıt**: 7 RET · 2 BOZUK · 12 YÜKSEK · 20 ORTA · 14 DÜŞÜK. Belge yazılırken `54130b9` ve `4ba7d9d` 10 kaydı kapattı (U03, U10, U12, U13, U25, U26, U27, U42, U43, U44).
+- **Düzeltme metinleri** doğrulayıcının düzeltmelerini zaten içerir (ör. "whiteOutlined koyu zeminde yanlış", "mağazaya deneme ekleme", "iptal başarısızsa silmeyi engelleme").
+- Bu denetim, CLAUDE.md §7'de anılan ve `docs/mac-devir.md`'ye işlenen 63 ajanlı envanter denetiminden **ayrıdır**.
+- **Yollar:** Dart ve iOS yolları `apps/mobile/` altındadır (`lib/…`, `ios/…`, `test/…`); diğerleri depo köküne göredir.
+
+**Lejant**
+
+- **Önem:** RET = App Review reddi getirir · BOZUK = özellik iOS'ta çalışmaz · YÜKSEK · ORTA · DÜŞÜK.
+- **Sahip:** kod = depoda düzeltilir · hesap = sahibin konsol/hesap işi · ikisi = ikisi birden.
+- **Aşama:** A1 hesap (konsol işleri) · A2 iOS kod (yalnız iOS native ya da iOS korumalı Dart) · A3 ortak kod (platformlar arası Dart, backend, kurallar, web) · A4 mağaza (metaveri, ekran görüntüsü, inceleme notları, gizlilik etiketi) · A5 test (cihaz/TestFlight doğrulaması) · Sonra (bilerek ertelendi).
+- **Durum:** ⏳ açık · ✅ kapandı + commit.
+
+---
+
+## Sahibin kararları
+
+Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılarında düzeltmenin yönünü belirler.
+
+1. **Yalnız iPhone** — `TARGETED_DEVICE_FAMILY = 1`. iPad bulguları bu kararla kapanır (U10; U07, U32, U44'ün iPad parçaları). ⚠️ **Tek yönlü kapı:** iPad'i destekleyen bir sürüm bir kez yayınlanınca sonraki sürümler iPad'i bırakamaz (ASC, öncekinden az cihaz destekleyen paketi reddeder). Karar bu yüzden ilk yayından ÖNCE verildi; ilk yayından sonra "iPad'i kaldır" yönünde geri alınamaz. Yalnız iPhone uygulaması iPad'de uyumluluk kipinde çalışır.
+2. **Yalnız Türkiye** — v1 bölgesi Türkiye. ABD yaş doğrulama yasaları ve AB DSA'nın yayın yükümlülükleri kapsam dışı (U41 → Sonra). İnceleyici yine İngilizce cihazla bakabilir; İngilizce izin metinleri bu yüzden gerekli kalır (U27).
+3. **Gerçek iPhone yok** — App Attest (simülatörde çalışmaz) ve kamera ile yüz okuma (ML Kit ve TFLite simülatörde dışlı) **ilk kez App Review'da görülecek**. Kabul edilen risk (U09, U21).
+4. **AI onay ekranı iki platformda** — 5.1.2(i) onayı ortak Dart'ta, Android'de de görünür (U06).
+5. **Ortak kodu Mac yazar, Windows yayınlar** — A3 değişiklikleri Mac'te (`ios-hazirlik`) yazılır; Android paketi Windows'ta `infra/build-aab.ps1` ile çıkar. Kayıtlardaki **Android güvenliği** satırları Windows oturumu içindir.
+6. **Abonelik cihaz kilidi: platform başına bir cihaz** — bir iPhone + bir Android aynı anda (U32).
+
+---
+
+## Özet tablo
+
+| Kimlik | Önem | Sahip | Başlık | Aşama |
+|---|---|---|---|---|
+| U01 | RET | hesap | ⏳ Firebase'de Apple sağlayıcısı kapalı | A1 hesap |
+| U02 | RET | hesap | ⏳ ASC + RevenueCat IAP önkoşulları, ilk gönderim paketi | A1 hesap |
+| U03 | RET | kod | ✅ `NSMicrophoneUsageDescription` eksik (ITMS-90683) | A2 iOS kod |
+| U04 | RET | kod | ⏳ Apple ile Giriş düğmesi HIG'e aykırı | A2 iOS kod |
+| U05 | RET | ikisi | ⏳ iOS yayın kapısı yok; `test_` anahtarı açılışta çöker | A2 iOS kod |
+| U06 | RET | ikisi | ⏳ Üçüncü taraf AI için uygulama içi onay yok (5.1.2(i)) | A3 ortak kod |
+| U07 | RET | ikisi | ⏳ App Store boyutunda ekran görüntüsü yok | A4 mağaza |
+| U08 | BOZUK | hesap | ⏳ iOS push konsol önkoşulları (APNs, App Attest kaydı) | A1 hesap |
+| U09 | BOZUK | kod | ⏳ Yüz okuma geometrisi iOS karesinde yanlış | A2 iOS kod |
+| U10 | YÜKSEK | ikisi | ✅ iPad desteği açıktı — tek yönlü kapı | A2 iOS kod |
+| U11 | YÜKSEK | kod | ⏳ Bildirim izni girişten hemen sonra soruluyor | A2 iOS kod |
+| U12 | YÜKSEK | kod | ✅ Uygulama gizlilik manifesti yok | A2 iOS kod |
+| U13 | YÜKSEK | kod | ✅ `FlutterDeepLinkingEnabled` açık: davet Safari'ye sekiyor | A2 iOS kod |
+| U14 | YÜKSEK | kod | ⏳ Ön planda gelen push iOS'ta kayboluyor | A2 iOS kod |
+| U15 | YÜKSEK | ikisi | ⏳ Hesap silmede SIWA jetonu iptal edilmiyor | A2 iOS kod |
+| U16 | YÜKSEK | kod | ⏳ App Store iadeleri webhook'ta yok sayılıyor | A3 ortak kod |
+| U17 | YÜKSEK | kod | ⏳ Engelleme uygulanmıyor (1.2) | A3 ortak kod |
+| U18 | YÜKSEK | ikisi | ⏳ Review notları yanlış/eskimiş | A4 mağaza |
+| U19 | YÜKSEK | ikisi | ⏳ 4.3(b) "fal" kategorisi savunması | A4 mağaza |
+| U20 | YÜKSEK | ikisi | ⏳ App Privacy etiket planı eksik | A4 mağaza |
+| U21 | YÜKSEK | ikisi | ⏳ TestFlight cihaz doğrulama planı yok | A5 test |
+| U22 | ORTA | hesap | ⏳ Hide My Email aktarıcısına gönderici kaydı yok | A1 hesap |
+| U23 | ORTA | kod | ⏳ Kamera izni reddi arıza sayılıyor | A2 iOS kod |
+| U24 | ORTA | kod | ⏳ Ses efektleri sessiz anahtarını yok sayıyor | A2 iOS kod |
+| U25 | ORTA | kod | ✅ Google kütüphaneleri iki kez bağlı (Pods + SwiftPM) | A2 iOS kod |
+| U26 | ORTA | kod | ✅ Crashlytics dSYM yüklemesi yok | A2 iOS kod |
+| U27 | ORTA | kod | ✅ Türkçe yerelleştirme ve izin metinleri | A2 iOS kod |
+| U28 | ORTA | ikisi | ⏳ Gizlilik politikası metni Android çerçeveli | A3 ortak kod |
+| U29 | ORTA | ikisi | ⏳ `min_build` iki platformda tek eşik | A3 ortak kod |
+| U30 | ORTA | kod | ⏳ App Check / Auth hataları iz bırakmıyor | A3 ortak kod |
+| U31 | ORTA | kod | ⏳ Apple girişinde "hesap başka yöntemle var" genel hata | A3 ortak kod |
+| U32 | ORTA | kod | ⏳ Tek cihaz kilidi 3.1.2(a) ile çelişiyor | A3 ortak kod |
+| U33 | ORTA | kod | ⏳ Satın alma hata eşlemesinde iOS kodları eksik | A3 ortak kod |
+| U34 | ORTA | ikisi | ⏳ Davet ve web sayfaları yalnız Google Play | A3 ortak kod |
+| U35 | ORTA | kod | ⏳ Hesap silme sayfası yalnız Play iptalini anlatıyor | A3 ortak kod |
+| U36 | ORTA | kod | ⏳ Paralel Android geliştirmeye karşı iOS bekçisi yok | A3 ortak kod |
+| U37 | ORTA | ikisi | ⏳ UGC yüzeyi ve yaş derecelendirmesi | A4 mağaza |
+| U38 | ORTA | ikisi | ⏳ Review notlarında yüz okuma ve TR telefon kapısı yok | A4 mağaza |
+| U39 | ORTA | ikisi | ⏳ Giriş duvarının gerekçesi notlarda yok | A4 mağaza |
+| U40 | ORTA | ikisi | ⏳ Apple ile açılan hesap Android'e giremiyor | Sonra |
+| U41 | ORTA | hesap | ⏳ AB DSA tacir beyanı ve bölge seçimi | Sonra |
+| U42 | DÜŞÜK | kod | ✅ App Attest yetkisi eksik | A2 iOS kod |
+| U43 | DÜŞÜK | ikisi | ✅ IDFA destekli Analytics yığını | A2 iOS kod |
+| U44 | DÜŞÜK | kod | ✅ Paylaşım kartı Fotoğraflar'a kaydedilemiyor | A2 iOS kod |
+| U45 | DÜŞÜK | kod | ⏳ Yeniden kurulumda anahtar zinciri oturumu yaşıyor | A2 iOS kod |
+| U46 | DÜŞÜK | kod | ⏳ Satın alma hata metinleri Google/Play diyor | A3 ortak kod |
+| U47 | DÜŞÜK | kod | ⏳ "Aboneliği yönet" kaynak mağazaya bakmıyor | A3 ortak kod |
+| U48 | DÜŞÜK | kod | ⏳ Sayısal klavye kapatılamıyor | A3 ortak kod |
+| U49 | DÜŞÜK | kod | ⏳ Sosyal giriş iptali hata gösteriyor | A3 ortak kod |
+| U50 | DÜŞÜK | kod | ⏳ 426 metni "Google Play" diyor | A3 ortak kod |
+| U51 | DÜŞÜK | kod | ⏳ Admin "iOS" filtresi eşleşmiyor | A3 ortak kod |
+| U52 | DÜŞÜK | kod | ⏳ Yazı tipleri çalışma anında indiriliyor | A3 ortak kod |
+| U53 | DÜŞÜK | hesap | ⏳ Apple silicon Mac / Vision Pro erişilebilirliği | A4 mağaza |
+| U54 | DÜŞÜK | kod | ⏳ FCM `getToken` APNs jetonundan önce (belirsiz) | A5 test |
+| U55 | DÜŞÜK | kod | ⏳ Xcode 27 SDK tabanı borcu | Sonra |
+
+**Aşama dağılımı:** A1 4 · A2 19 · A3 19 · A4 8 · A5 2 · Sonra 3.
+
+### Kaynak dizini (74 bulgu → 55 kayıt)
+
+Her kaynak bulgunun hangi kayda girdiği. "(kısım)" = bulgu iki kayda bölündü.
+
+- **dart-platform (14):** `face-ios-frame-geometry` U09 · `siwa-button-not-hig` U04 · `camera-permission-denied-ios` U23 · `ios-notif-prompt-at-signin` U11 · `apple-token-not-revoked-on-delete` U15 · `fcm-gettoken-before-apns` U54 · `min-build-gate-platform-agnostic` U29 · `ios-audio-session-ignores-silent-switch` U24 · `privacy-text-android-framed-idfa` U28 + U43 (kısım) · `store-error-wording-google` U46 · `manage-subscription-cross-store` U47 · `ipad-share-origin-and-save-image` U44 + U10 (kısım) · `ios-numeric-keyboard-no-dismiss` U48 · `social-signin-cancel-shows-error` U49
+- **native-config (11):** `missing-microphone-usage-description` U03 · `no-app-privacy-manifest-static-sdks-uncovered` U12 · `flutter-deep-linking-not-disabled` U13 · `ipad-support-enabled-one-way-door` U10 · `duplicate-google-libs-cocoapods-and-spm` U25 · `firebase-analytics-idfa-ios-vs-android` U43 · `crashlytics-dsym-upload-missing` U26 · `ios-notification-prompt-fires-at-login` U11 · `localization-tr-missing-infoplist-strings-trap` U27 · `app-attest-entitlement-and-mac-availability` U42 + U53 (kısım) · `missing-photo-library-add-usage` U44
+- **auth-identity (10):** `apple-provider-not-enabled-in-firebase` U01 · `apple-token-revocation-missing` U15 · `apple-button-not-hig-compliant` U04 · `auth-appcheck-failures-invisible` U30 · `min-build-gate-not-per-platform` U29 · `apple-account-exists-different-credential` U31 · `apple-private-relay-email-not-registered` U22 · `apple-signin-android-parity` U40 · `ios-keychain-session-survives-reinstall` U45 · `app-attest-entitlement-missing` U42
+- **purchases (6):** `ios-release-test-key-crash-no-build-gate` U05 · `asc-revenuecat-ios-prereqs-undocumented` U02 · `single-device-lock-vs-3-1-2a` U32 · `purchase-error-mapping-ios-codes` U33 · `android-specific-purchase-copy-on-ios` U46 · `manage-subscription-ignores-origin-store` U47
+- **push-deeplinks (5):** `ios-foreground-push-dropped` U14 · `ios-permission-prompt-at-login` U11 · `ios-flutter-deeplinking-not-disabled` U13 · `invite-landing-page-play-only` U34 · `ios-push-console-prereqs` U08
+- **backend-platform (9):** `revenuecat-refund-event-never-sent` U16 · `siwa-token-revocation-missing` U15 · `min-build-shared-across-platforms` U29 · `no-ios-release-gate` U05 · `store-screenshots-play-only-ipad-required` U07 + U10 (kısım) · `web-store-links-play-only` U34 · `web-deletion-page-play-only-cancel` U35 · `update-required-message-names-google-play` U50 · `admin-platform-filter-case-mismatch` U51
+- **review-compliance (12):** `third-party-ai-consent-5-1-2-i` U06 · `iap-first-submission-bundle` U02 · `block-not-enforced` U17 · `siwa-token-revocation` U15 · `review-notes-inaccurate` U18 · `spam-4-3b-fortune-telling` U19 · `privacy-label-apple-incomplete` U20 · `ugc-surface-and-age-rating` U37 · `purpose-strings-accuracy-localization` U27 · `analytics-adid-stack-ios` U43 + U28 (kısım) · `store-screenshots-ipad` U07 + U10 (kısım) · `invite-landing-play-only` U34
+- **eksik avcısı (7):** `no-real-device-verification-plan` U21 · `review-notes-omit-face-reading-and-phone-gate` U38 · `login-wall-5-1-1-v-justification` U39 · `asc-dsa-trader-and-territory-decisions` U41 · `no-ios-build-guard-for-parallel-android-dev` U36 · `google-fonts-runtime-fetch` U52 · `xcode27-sdk-floor-liability` U55
+
+---
+
+## RET — App Review reddi
+
+### U01 — Firebase Auth'ta Apple sağlayıcısı kapalı; iOS yol haritasında adımı yok
+⏳ açık · RET · hesap · A1 hesap · kaynak: `apple-provider-not-enabled-in-firebase`
+
+**Kanıt** — `docs/production-checklist.md:236` "Apple'i etkinlestir" maddesi işaretsiz; `docs/mac-devir.md` §4 (4.1–4.9) sağlayıcıyı açan bir adım içermiyor, §4.5 yalnız App ID yeteneğini anıyor.
+
+**Etki** — Sağlayıcı kapalıyken iOS'taki her Apple girişi `operation-not-allowed` ile düşer. App Review, sunulan Apple girişini her zaman dener (4.8); bozuk düğme 2.1 (App Completeness) reddi demektir.
+
+**Düzeltme** — Firebase Console → Authentication → Sign-in method → Apple → Etkin; yerel iOS girişi için yalnız bu anahtar yeter. Services ID ve "OAuth code flow configuration" (Team ID, Key ID, .p8) yalnız web/Android akışları ve jeton iptali için gerekir; Firebase'in iptal belgesi ikisini de istediğinden U15 ile aynı oturumda doldurulur. Bitince `production-checklist.md` maddesi işaretlenir.
+
+### U02 — App Store Connect + RevenueCat IAP önkoşulları hiçbir runbook'ta yok; IAP'ler ilk sürümle gönderilmeli
+⏳ açık · RET · hesap · A1 hesap · kaynak: `asc-revenuecat-ios-prereqs-undocumented`, `iap-first-submission-bundle`
+
+**Kanıt** — `docs/mac-devir.md:175-185` (§4.7) yalnız anahtarı ve ürün kimliklerini anıyor; Paid Apps Agreement, abonelik grubu, In-App Purchase Key, IAP'lerin ilk sürümle gönderilmesi ve EULA metaverisi yok. `docs/store-launch.md:390-395` KT kararı: mağazaya deneme konmaz, 3 günlük deneme sunucuda ve kartsız. Simülatörde "Satın alma tamamlanamadı" zaten görüldü.
+
+**Etki** — Bir adım atlanırsa: (a) offerings/ürünler boş ya da `configurationError` döner, inceleyici fiyat yerine hata görür → 2.1 / 3.1.2 reddi; (b) In-App Purchase Key yoksa StoreKit 2 işlemleri RevenueCat'e hiç yazılmaz, webhook tetiklenmez, backend Rytho+ ya da kredi açmaz; (c) 'RhytoAI Pro' yetkisine App Store ürünü bağlı değilse kullanıcı öder ama `purchaseEntitlementMissing` görür; (d) Kullanım Koşulları (EULA) bağlantısı yoksa otomatik yenilenen abonelik 3.1.2 ile reddedilir.
+
+**Düzeltme** (sıralı; `docs/mac-devir.md` §4.7'ye de işlenmeli)
+1. Paid Apps Agreement, vergi ve banka bilgileri etkin.
+2. Abonelik grubu + `rytho_plus_monthly`. **Tanıtım teklifi ya da ücretsiz deneme EKLEME** — sunucu denemesiyle 3+3 gün çakışır, hukuk metinleriyle çelişir.
+3. Üç consumable: `rytho_tokens_small/medium/large`. RevenueCat'te yalnız offering'e bağlanır, yetkiye değil.
+4. Dört IAP'nin dördü de ilk sürüm gönderimine iliştirilir, her biri inceleme ekran görüntüsüyle.
+5. RevenueCat'te App Store uygulaması (`ai.rytho`) → `appl_` anahtarı `dart_defines.local.json` `REVENUECAT_IOS_KEY`'e. Test Store (`test_`) ürünleri ve offering'leri taşınmaz: App Store ürünleri içe aktarılıp Current offering'in `$rc_monthly` paketine eklenir; consumable'lar ürün kimliğiyle erişilebilir olmalı (`wallet.dart` kimlikle çekiyor).
+6. In-App Purchase Key (.p8 + Key ID + Issuer ID) SDK v5 için **zorunlu**; App Store Connect API anahtarı isteğe bağlı (ürün içe aktarma).
+7. Metaveri: Kullanım Koşulları bağlantısı App Description'da ya da ASC EULA alanında, Gizlilik Politikası URL'si kendi alanında (uygulama içi bağlantılar zaten var).
+8. Sandbox ya da TestFlight satın alma testi.
+
+**Android güvenliği** — Yalnız konsol işi.
+
+### U03 — `NSMicrophoneUsageDescription` eksik
+✅ kapandı — `54130b9` · RET · kod · A2 iOS kod · kaynak: `missing-microphone-usage-description`
+
+**Kanıt** — `ios/Runner/Info.plist:9-17` yalnız rehber, kamera ve fotoğraf kütüphanesi anahtarlarını taşıyor. Android'de `android/app/src/main/AndroidManifest.xml:30-31` RECORD_AUDIO'yu `tools:node="remove"` ile söküyor; iOS'ta eklentinin kod referansını sökmenin karşılığı yok. Mikrofon API referansları hem `camera_avfoundation` hem `audioplayers`'tan geliyor.
+
+**Etki** — App Store Connect işleme sırasında ikiliyi statik tarar ve ITMS-90683 verir; mesajın kendisi, API hiç çağrılmasa bile amaç metninin zorunlu olduğunu söyler. Böyle paketler geçersiz sayılır, TestFlight'a hiç ulaşmaz.
+
+**Düzeltme** — Info.plist'e anahtar; tek çare bu. Yükleme taraması için yalnız Info.plist önemli; İngilizce satır `en.lproj/InfoPlist.strings` Xcode'a bağlanınca etkili olur (U27). `54130b9`: anahtar Info.plist'te ve en/tr varyantlarında.
+
+### U04 — Apple ile Giriş düğmesi HIG'e uymuyor
+⏳ açık · RET · kod · A2 iOS kod · kaynak: `siwa-button-not-hig`, `apple-button-not-hig-compliant`
+
+**Kanıt** — `lib/features/auth/login_screen.dart:519-528`: Apple girişi `GoldButton(text: l10n.signInWithApple, filled: false)` — altın çerçeveli metin düğmesi, Apple logosu yok. `:515-518`'deki yorum logoyu "metin tek başına kurala uygun" gerekçesiyle bilerek dışarıda bırakıyor; bu bulguyla o gerekçe çürüdü, yorum da düzeltilir. `lib/l10n/app_tr.arb:724` "Apple ile giriş" bir HIG başlığı değil; EN (`app_en.arb:724`, "Sign in with Apple") zaten uygun.
+
+**Etki** — App Review düğmeyi HIG'e göre denetler: Apple logosu, "Sign in with Apple / Continue with Apple" başlığı, siyah / beyaz / beyaz-çerçeve stili. Temalı, logosuz altın çerçeve 4.0 Design (ve 4.8) ile sıkça reddedilir; bir inceleme turu kaybettirir. Formun altında durduğu için küçük iPhone'larda kaydırma gerektirebilir.
+
+**Düzeltme**
+- Yalnız `if (appleSignInAvailable)` içinde `sign_in_with_apple` 8.1.0'ın `SignInWithAppleButton`'ı (logoyu `apple_logo_painter` ile çizer): `style: SignInWithAppleButtonStyle.white`, koyu mürekkep zemin üstünde. **`whiteOutlined` önerisi yanlış:** HIG beyaz-çerçeveyi koyu/doygun zeminde açıkça yasaklıyor.
+- `height: 52` (Google düğmesiyle eşit; HIG tabanı 30 pt yükseklik / 140 pt genişlik, önerilen 44 pt), `borderRadius: BorderRadius.circular(18)` (GoldButton ile eş), `text: l10n.signInWithApple`.
+- `onPressed` zorunlu ve null olamaz, widget'ın meşgul durumu yok: `_busy` iken `IgnorePointer` + `Opacity` ile sar ya da `_appleBusy` iken Stack üstünde spinner göster.
+- `app_tr.arb` → "Apple ile Giriş Yap" (ya da "Apple ile Devam Et"); `flutter gen-l10n`, yeniden üretilen `app_localizations_tr.dart` da commit edilir.
+- Google'ın üstünde kalır. iPhone SE (3. nesil) simülatöründe metin ölçeği 1.3 ile bakılır; katlama altındaysa sosyal blok yalnız iOS'ta formun üstüne taşınır.
+
+**Android güvenliği** — Değişiklik `appleSignInAvailable` (yalnız iOS) dalında.
+
+### U05 — iOS yayın kapısı yok: `test_` anahtarlı paket açılışta çöker
+⏳ açık · RET · ikisi · A2 iOS kod · kaynak: `ios-release-test-key-crash-no-build-gate`, `no-ios-release-gate`
+
+**Kanıt** — `infra/` altında yalnız Android'in `build-aab.ps1`'i var. `docs/mac-devir.md:177-179`: `REVENUECAT_IOS_KEY` şu an `test_…` (RevenueCat Test Store). `lib/core/subscription.dart:50-51` `billingConfigured` iki anahtardan BİRİ doluysa true; `:110-119` `initBilling` iOS'ta `kRevenueCatIosKey`'i seçip `Purchases.configure` çağırıyor — `test_` anahtarı release'te RevenueCat bilerek çöktürür, `initBilling`'deki try/catch bunu yakalayamaz. `docs/mac-devir.md:146`: pbxproj'de `DEVELOPMENT_TEAM` yok; `web/.well-known/apple-app-site-association:6`: `"TEAMID.ai.rytho"`.
+
+**Etki** — `dart_defines.local.json` (ya da son `flutter` komutunun `Generated.xcconfig`'i) `test_` anahtarı taşırken yapılan her Release/TestFlight/App Store paketi ilk ekranda bilerek çöker: TestFlight testçisi açamaz, App Review açılış çökmesiyle reddeder (2.1). Dart-define'sız Xcode derlemesinde ikinci kip: paywall geliştirici dizesini gösterir ("Bu derlemede abonelik anahtarları tanımlı değil"). Android kapısının yakaladığı öteki sessiz hatalar da iOS'ta yakalanmıyor: eksik `APPSTORE_APP_ID` (mağaza düğmesiz güncelleme ekranı), development `aps-environment`, AASA yer tutucusu (davetler uygulamayı açmaz), simülatör ML Kit taslaklarının cihaz paketine sızması, çift Google framework'leri.
+
+**Düzeltme**
+1. Konsol (U02): RevenueCat App Store uygulaması + `appl_` anahtarı → `REVENUECAT_IOS_KEY`; ASC kaydı açılınca `APPSTORE_APP_ID`.
+2. `infra/build-ipa.sh` — bash (Mac'te pwsh garanti değil), `build-aab.ps1`'in aynası:
+   - `xcodebuild -version` 26.x olmalı.
+   - `REVENUECAT_IOS_KEY` `appl_` ile başlar (boş ya da `test_` → dur); `APPSTORE_APP_ID` sayısal; `RYTHO_PLUS_ENTITLEMENT` dolu.
+   - pbxproj'de `DEVELOPMENT_TEAM` var (Xcode'da takım seçilince yazılır); AASA appID == `${DEVELOPMENT_TEAM}.ai.rytho` ve `TEAMID` literali kalmamış. `backend/tests/test_ios_config.py` da `TEAMID`'de düşecek şekilde sıkılaştırılır.
+   - Derleme: `flutter build ipa --release --dart-define-from-file=dart_defines.local.json`; `--export-options-plist` yalnız `ExportOptions.plist` (method app-store-connect) commit edilince.
+   - Derleme sonrası: `ios/Flutter/Generated.xcconfig`'teki `DART_DEFINES` base64 çözülüp `test_` içermediği doğrulanır (.xcarchive xcconfig taşımaz). `Runner.app` üstünde: `appl_` baytları `Frameworks/App.framework/App`'te; `codesign -d --entitlements :-` → `aps-environment=production`, `get-task-allow` false, applesignin ve associated-domains var; `MLKitSimulatorStubs` sembolü yok; GoogleService-Info `BUNDLE_ID == ai.rytho`; izin metni listesi beklenenle aynı.
+   - Asla otomatik yükleme. CLAUDE.md §4'e doktrin satırı.
+   - Xcode Organizer şartsa önce `flutter build ios --config-only --release --dart-define-from-file=dart_defines.local.json` — `Generated.xcconfig` gerçek anahtarı taşısın.
+3. Kod güvenlik ağı — `initBilling`'den yalnızca dönmek YETMEZ; kapı platforma özgü olmalı ve her çağrı yeri ona uymalı:
+   ```dart
+   String get _aktifRcAnahtari => defaultTargetPlatform == TargetPlatform.iOS
+       ? kRevenueCatIosKey : kRevenueCatAndroidKey;
+   bool get billingConfigured => _aktifRcAnahtari.isNotEmpty &&
+       !(!kDebugMode && _aktifRcAnahtari.startsWith('test_'));
+   ```
+   `initBilling` `_aktifRcAnahtari`'nı kullanır. Bu tek değişiklik logIn/getOfferings/purchase'ı yapılandırılmamış SDK'dan korur (hepsi zaten `billingConfigured` arkasında), boş iOS anahtarı çökmesini giderir ve release/profile'daki `test_`'i paywall'ın "satın alma kullanılamıyor" durumuna çevirir. İsteğe bağlı: `test_` koşulunda Crashlytics non-fatal.
+
+**Android güvenliği** — Android anahtarı değişmez; Android release zaten `test_` taşıyamaz (`build-aab.ps1` reddeder); debug etkilenmez; Android betiğine dokunulmaz.
+
+### U06 — Üçüncü taraf AI'ya (Google Gemini) veri gönderimi için uygulama içi açık onay yok — 5.1.2(i)
+⏳ açık · RET · ikisi · A3 ortak kod · kaynak: `third-party-ai-consent-5-1-2-i`
+
+**Kanıt** — `lib/` ve `backend/`'de AI onayı durumu ya da ekranı yok (`aiConsent` / `ai_consent` araması boş); Gemini'ye aktarım yalnız gizlilik politikasında anlatılıyor (`lib/features/profile/legal_texts.dart:213`). Günlük okuma, sohbet, raporlar, yüz okuma ve günlük — her çekirdek özellik kişisel veriyi Gemini'ye gönderiyor.
+
+**Etki** — AI sağlayıcısını adıyla anan, gönderilen veriyi listeleyen ve ilk aktarımdan önce izin isteyen ayrı bir ekran yoksa Apple 5.1.2(i) ile reddediyor. Şu an **en olası kesin red**.
+
+**Düzeltme**
+- Onay ekranı, onay verilene kadar HER açılışta ya da her AI özelliği açılışında gösterilir; "bir kez gösterildi" diye hatırlanmaz (forumdaki vaka `hasSeenConsent` kısayolu kaldırılana kadar reddedildi).
+- İnceleme demo hesabında onay önceden verilmiş OLMAMALI — inceleyici ekranı görmeli.
+- "Şimdi değil" AI özelliklerini kapatabilir; ama ekran, verinin yine de gönderildiğini iddia etmemeli.
+- App Review notlarına ekran ve geri alma yeri yazılır (U18).
+- Sunucu zorlaması `backend/core/app_gate.py` üzerinden `X-App-Build` ile kapılanır ki bugünkü Android kapalı test paketleri çalışsın; `minBuild` ancak onay arayüzlü Android paketi yayınlandıktan SONRA yükseltilir (U29).
+
+**Android güvenliği** — Sahibin kararı: ekran iki platformda. Sunucu zorlaması build numarasıyla kademelendiği için eski Android paketleri kırılmaz.
+
+### U07 — App Store boyutunda ekran görüntüsü yok
+⏳ açık · RET · ikisi · A4 mağaza · kaynak: `store-screenshots-play-only-ipad-required`, `store-screenshots-ipad`
+
+**Kanıt** — Tek hat `infra/store-screenshots.py` → `store/play/` altında 1080x1920 Play kareleri. `ios/Runner.xcodeproj/project.pbxproj:498, 629, 682` — `TARGETED_DEVICE_FAMILY = "1,2"`: iPad açıkken 13" iPad görüntüleri de zorunluydu (U10 ile kapandı).
+
+**Etki** — ASC 1080x1920 kabul etmez; 6.9" iPhone görüntüleri olmadan sürüm gönderilemez. Android durum/gezinme çubuğu taşıyan kareler 2.3.3/2.3.10 riskidir: görüntüler uygulamayı iOS'ta göstermeli, başka platformun arayüzünü içermemeli.
+
+**Düzeltme** — iPhone 17 Pro Max simülatöründen (1320x2868, 6.9") `xcrun simctl io booted screenshot`; yalnız iOS arayüzü, asla Android karesi değil; demo hesap, gerçek hesaplanmış haritalar (U19). `infra/store-screenshots.py` App Store tuvali için parametrelenir (yol ve boyut) ya da Mac uyumlu ayrı bir profil `store/appstore/`'a yazar; ham simülatör kareleri doğrudan da yüklenebilir. Yükleme ASC'de, sahibin işi. iPad görüntüsü gerekmez (U10).
+
+---
+
+## BOZUK — özellik iOS'ta çalışmaz
+
+### U08 — iOS push için konsol önkoşulları (APNs anahtarı, App Attest kaydı)
+⏳ açık · BOZUK · hesap · A1 hesap · kaynak: `ios-push-console-prereqs`
+
+**Kanıt** — `docs/mac-devir.md:170-173` (§4.6) APNs anahtarı sahibin işi olarak açık. `lib/main.dart:120-122` release'te `AppleAppAttestProvider` kullanıyor ve App Check zorlaması Firestore'da AÇIK (CLAUDE.md §6): App Attest kaydı yoksa istemci `users/{uid}.fcmToken`'ı yazamaz.
+
+**Etki** — Hiçbir push türü (günlük, check-in, seri, arkadaş, geri bildirim) iOS cihaza ulaşmaz — simülatörde de TestFlight'ta da. Anahtar yüklense bile App Attest kaydı yoksa TestFlight'ta jeton hiç yazılmaz.
+
+**Düzeltme** (sahip, sırayla)
+1. developer.apple.com → Keys → + → APNs → Configure: Environment = "Sandbox & Production", Key Restriction = "Team Scoped (All Topics)" ya da `ai.rytho`'ya konu-bağlı. .p8 **yalnız bir kez** indirilir; Key ID ve Team ID not edilir.
+2. Firebase Console (rhytoai) → Project settings → Cloud Messaging → Apple app configuration (`ai.rytho`) → APNs Authentication Key → .p8 + Key ID + Team ID.
+3. Identifiers → `ai.rytho`: Push Notifications, Associated Domains, Sign In with Apple — ve `54130b9` yorumuna göre App Attest — AÇIK.
+4. Firebase iOS uygulamasında Team ID dolu mu bakılır; sonra App Check → `ai.rytho` → App Attest sağlayıcısı kaydedilir (debug token simülatörde zaten kullanılıyor). Kod tarafı U42. App Attest simülatörde çalışmaz, yalnız TestFlight'ta doğrulanır.
+5. Simülatör (Debug, sandbox jeton): giriş → `users/{uid}.fcmToken` yazıldı mı → panelden "kendime test gönder" (`notify_runner.test_send`) → banner (uygulama ön plandayken ancak U14'ten sonra).
+6. TestFlight (Release, production): tekrar. Cloud Run günlüklerinde auth hatasıyla `failed` dönüyorsa anahtarın ortamı ya da kısıtı yanlıştır.
+
+### U09 — Yüz okuma kamera geometrisi Android sensör karesini varsayıyor
+⏳ açık · BOZUK · kod · A2 iOS kod · kaynak: `face-ios-frame-geometry`
+
+**Kanıt** — `lib/features/face/face_detection.dart:90-101` `rotatedImageSize` sensör açısı 90/270 ise genişlik ile yüksekliği yer değiştiriyor; `:107-119` `cameraRotationDegrees` ve `:121-128` `_rotation` açıyı sensör yönelimine göre hesaplıyor. `lib/features/face/face_capture_screen.dart:926-927` ön kamerada `mirrored: true`; `lib/features/face/face_segmentation.dart:528` saç çizgisi maskesi aynı açıyı kullanıyor. Galeri yolu (`face_still.dart`) etkilenmiyor.
+
+**Etki** — Gerçek iPhone'da ML Kit dik ve aynalanmış bir BGRA kare alır (ör. 480x640) ve koordinatları o uzayda döndürür. Uygulama onları yer değiştirmiş 640x480 "döndürülmüş" boyutla karşılaştırıyor — bir zamanlar Android deklanşörünü hiç açtırmayan hatanın aynısı. Saç çizgisi maskesi landmark'lara göre 90° dönük kalır: alın / San Ting ölçümü düşer ya da yanlış çıkar. Tarama noktaları iki kez aynalanıp yüzün yanlış tarafına düşer. Simülatörde görülemez (ML Kit ve TFLite orada dışlı) ve sahibin iPhone'u yok: ilk kez TestFlight'ta ya da App Review'da görünür. Yüz okumayı bitiremeyen inceleyici 2.1 ile reddedebilir.
+
+**Düzeltme**
+- iOS'ta `rotatedImageSize` → `Size(image.width, image.height)`, `cameraRotationDegrees` → 0, `mirrored = false`. Dallanma `defaultTargetPlatform` üzerinden, ki testler geçersiz kılabilsin.
+- Yatayda da doğru kalır: `camera_avfoundation` cihaz dönünce akış tamponunu yeniden yönlendiriyor, yani ham tampon boyutu her zaman ML Kit'in koordinat uzayıdır.
+- `InputImageMetadata.rotation`'a dokunulmaz (iOS onu yok sayar).
+- `test/scan_mapping_test.dart` yanına iOS geçersiz kılma testleri.
+- Tek gerçek doğrulama cihazda: deklanşör açılıyor, alın ölçülüyor, noktalar iki lenste de yüzün üstünde. Sahibin kararıyla bu ilk kez App Review'da görülebilir — kabul edilen risk.
+
+**Android güvenliği** — Değişiklik iOS dalında; Android hesaplaması aynen kalır.
+
+---
+
+## YÜKSEK
+
+### U10 — iPad desteği açıktı: tek yönlü kapı
+✅ kapandı — `54130b9` · YÜKSEK · ikisi · A2 iOS kod · kaynak: `ipad-support-enabled-one-way-door`; iPad kısımları: `store-screenshots-play-only-ipad-required`, `store-screenshots-ipad`, `ipad-share-origin-and-save-image`
+
+**Kanıt** — `ios/Runner.xcodeproj/project.pbxproj:498, 629, 682` üç yapılandırmada `TARGETED_DEVICE_FAMILY = "1,2"`. `ios/Runner/Info.plist:111-116` iPhone'da yatayı da açıyor (yön kilidi yok); `:117` `UISupportedInterfaceOrientations~ipad` dört yön.
+
+**Etki** — iPad açıkken ASC 13" iPad görüntüsü olmadan gönderimi kabul etmez; inceleyici iPad'de test edebilir (dikey öncelikli yerleşimler, yatayda yüz kamerası, Split View; 2.4.1) — sahibin iPad'i yok. iPad'i destekleyen bir sürüm bir kez yayınlanınca sonraki paketler iPad'i bırakamaz.
+
+**Düzeltme** (sahibin kararı: yalnız iPhone)
+- Runner hedefi → General → Supported Destinations → yalnız iPhone → `TARGETED_DEVICE_FAMILY = 1`. iPad'de uyumluluk kipinde çalışır; iPad görüntüsü gerekmez, paylaşım sayfası orada düz sayfa açılır. `UISupportedInterfaceOrientations~ipad` silinebilir; iPhone yatayının bilinçli olup olmadığına karar verilir.
+- `54130b9`: üç yapılandırmada `TARGETED_DEVICE_FAMILY = 1`, **yalnız dikey** yön, `~ipad` listesi kaldırıldı; derlenen `Runner.app`'te `UIDeviceFamily=[1]` ölçüldü (commit mesajı).
+- Bu kararla kapanan iPad parçaları: U07 (iPad görüntüleri), U32 (iPhone+iPad eşzamanlı abonelik senaryosu), U44 (iPad'de paylaşım balonu konumu).
+
+### U11 — iOS bildirim izni girişten hemen sonra soruluyor
+⏳ açık · YÜKSEK · kod · A2 iOS kod · kaynak: `ios-notif-prompt-at-signin`, `ios-notification-prompt-fires-at-login`, `ios-permission-prompt-at-login`
+
+**Kanıt** — `lib/core/notifications.dart:294` `iOS: DarwinInitializationSettings()`: varsayılan `request*Permission: true`, yani `flutter_local_notifications`'ın `initialize()`'ı iOS'ta sistem diyaloğunu açıyor. Planlanan yol `:171-190` `ensureNotificationPermissionAsked` → `FirebaseMessaging.requestPermission()` (onboarding `_BildirimAdimi`, `lib/features/onboarding/onboarding_wizard.dart:735`); `Analytics.notificationPermission` `:190`'da.
+
+**Etki** — Sistem bildirim diyaloğu ilk girişin hemen ardından, bağlamsız ve onboarding değeri anlatmadan çıkar. iOS yalnız bir kez sorar; refleks "İzin Verme" kalıcıdır ve push'a dayalı elde tutma döngüsü zarar görür. Zamanlanmış `ensureNotificationPermissionAsked` etkisizleşir; `Analytics.notificationPermission` ise diyalog göstermeyen bir `requestPermission` sonucunu onboarding sorusu gibi kaydeder — metrik çarpılır. Android 13+ etkilenmez: orada eklenti açık istek ister.
+
+**Düzeltme** — `notifications.dart:294`: `iOS: DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false)`. `defaultPresent*` bayrakları varsayılanda (true) kalır ki ön plan yerel bildirimleri görünsün. Tek izin isteği `ensureNotificationPermissionAsked` olur. Test: uygulamayı simülatörden sil, giriş yap → diyalog yok; onboarding'i bitir → diyalog `_BildirimAdimi`'nda.
+
+**Android güvenliği** — Darwin ayarları Android'de yok sayılır.
+
+### U12 — Uygulama düzeyinde `PrivacyInfo.xcprivacy` yok
+✅ kapandı — `54130b9` · YÜKSEK · kod · A2 iOS kod · kaynak: `no-app-privacy-manifest-static-sdks-uncovered`
+
+**Kanıt** — Tabanda `ios/Runner/PrivacyInfo.xcprivacy` yok. TFLite ve ML Kit Runner'a statik bağlanıyor ve gerekçe isteyen API'ler kullanıyor; uygulama paketinde onları kapsayan manifest yok. `docs/store-privacy-labels.md:100` Identifiers'ı yalnız "User ID" sayıyor.
+
+**Etki** — Yüklemede ITMS-91053 ("Missing API declaration … Runner") gelebilir (FileTimestamp, SystemBootTime, UserDefaults); öteki paket manifestleri aynı kategorileri beyan ettiği için toplamın kabulü belirsiz. Beyansız yüklemeler Mayıs 2024'ten beri engelleniyor. Ayrıca arşivden üretilen gizlilik raporu ML Kit'in toplanan-veri beyanlarını (Device ID, tanılama; bağlantısız) atlar; etiket eksik bir rapordan doldurulur.
+
+**Düzeltme**
+- Xcode'da File > New > File > App Privacy, hedef Runner (Copy Bundle Resources'a girsin); `NSPrivacyTracking=false`, `NSPrivacyTrackingDomains=[]`.
+- Gerçekten eksik tek beyan `NSPrivacyAccessedAPICategoryDiskSpace` + `E174.1` (MLKitCommon'un kendi manifestinin aynası). FileTimestamp `C617.1`, SystemBootTime `35F9.1`, UserDefaults `CA92.1` da zararsız ve Runner'ı kendini anlatan hâle getirir.
+- ML Kit'in manifesti DeviceID, OtherDiagnosticData, PerformanceData, OtherUserContent beyan ediyor (hepsi bağlantısız); bunların etikette "Not Linked" olarak açıklanması kararı U20'de.
+- Archive sonrası Organizer > Generate Privacy Report ile DiskSpace'in göründüğü doğrulanır (A5).
+- `54130b9`: dört gerekçe beyan edildi, izleme yok; `NSPrivacyCollectedDataTypes` bilerek boş — envanterin tek kaynağı App Privacy etiketi (U20).
+
+### U13 — `FlutterDeepLinkingEnabled` kapatılmamış: davet linki Navigator'a da itiliyor
+✅ kapandı (iOS) — `54130b9` · YÜKSEK · kod · A2 iOS kod · kaynak: `flutter-deep-linking-not-disabled`, `ios-flutter-deeplinking-not-disabled`
+
+**Kanıt** — Tabandaki `ios/Runner/Info.plist`'te `FlutterDeepLinkingEnabled` yok (app_links'in iOS kurulum şartı). `lib/main.dart:133-134` release'te her yakalanmamış hatayı `fatal: true` kaydediyor. Davetleri `app_links` işliyor (`lib/core/deep_links.dart`); Flutter derin bağlantısına dayanan adlandırılmış rota yok.
+
+**Etki** — `https://rytho.app/i/<kullanıcı>` uygulamayı açtığında (soğuk ya da ılık) app_links daveti doğru saklar; motor AYRICA `/i/<kullanıcı>`'yı Navigator'a iter. Release'te `WidgetsApp._onUnknownRoute`'tan null-check hatası çıkar ve her davette Crashlytics'e FATAL yazılır — iOS çökmesiz oranı şişer. Çatı bağlantıyı "işlenmedi" saydığından iOS motoru URL'yi `openURL` ile sisteme geri verir: kullanıcı Safari'de yalnız "Google Play'den indir" sunan sayfaya seker (U34). Yol yerel motor ve çatı kaynaklarından izlendi, cihazda koşturulmadı. Android'de de bayrak yok (ılık linkte sahte fatal), ama sisteme geri verme olmadığı için sekme yok.
+
+**Düzeltme**
+1. `ios/Runner/Info.plist`: `<key>FlutterDeepLinkingEnabled</key><false/>`. — `54130b9`'da yapıldı.
+2. Ana rotayı döndüren bir `onUnknownRoute` EKLENMEZ: her linkte mevcut `_Gate`'in (ve tüm alt ağacının) üstüne ikinci bir `_Gate` iter. Dart bekçisi istenirse kendini hemen kapatan bir rota (`addPostFrameCallback` içinde `maybePop`, gövde `SizedBox.shrink()`); daha iyisi yalnız yerel kapatmalara güvenmek.
+3. Android (kendi dalında, isteğe bağlı): `MainActivity` içine `<meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>` — sahte fatal'ları keser.
+4. AASA TEAMID düzelince (A5): `xcrun simctl openurl booted https://rytho.app/i/<kullanıcı>`, soğuk ve ılık. Beklenen: Çevrem sekmesi davetle açılır, Safari açılmaz, konsolda "Could not find a generator for route" yok.
+
+### U14 — Uygulama açıkken gelen push iOS'ta hiç görünmüyor
+⏳ açık · YÜKSEK · kod · A2 iOS kod · kaynak: `ios-foreground-push-dropped`
+
+**Kanıt** — `lib/core/notifications.dart:555` `FirebaseMessaging.onMessage.listen(_showForeground)`; `_showForeground` (`:315`) yerel bildirim gönderiyor. Bildirim merkezi delegesi `firebase_messaging`'de; eklenti kaynakları okununca `flutter_local_notifications`'ın hiç geri çağrı almadığı kesinleşti. `docs/mac-devir.md:253-258` (§6) ve CLAUDE.md §7 bu delege sorusunu "cihazda ölçülecek" diye açık bırakıyor — bu bulgu soruyu kaynak okumasıyla yanıtlıyor.
+
+**Etki** — Rytho ön plandayken FCM mesajı `onMessage`'a verir, Dart yerel bildirim gönderir; iOS sunumu delegeye (firebase_messaging) sorar ve "none" alır. Banner sessizce atılır, Bildirim Merkezi'ne de düşmez. Uygulama açıkken gelen arkadaş tepkileri, davetler, günlük/check-in push'ları iOS'ta kaybolur; Android bunları heads-up gösterir.
+
+**Düzeltme** (A seçeneği, en az hareketli parça; `handleNotificationTaps()` içinde)
+1. `if (defaultTargetPlatform == TargetPlatform.iOS) await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);` (ayar NSUserDefaults'ta kalıcı).
+2. `:555` → `FirebaseMessaging.onMessage.listen((m) { if (defaultTargetPlatform != TargetPlatform.iOS) _showForeground(m); });` — iOS banner'ı yerel olarak FCM gösterir.
+3. Bu banner'lara dokunma zaten `didReceiveNotificationResponse` → `onMessageOpenedApp` → `_bildirimAcildi` (`:580-586`) yolundan geliyor; yönlendirme değişmez.
+- AppDelegate delege satırı (B seçeneği) EKLENMEZ: `FlutterPluginAppLifeCycleDelegate.mm:471-477` `willPresent`'i İKİ eklentiye de iletir, ikisi aynı completionHandler'ı çağırır; A ile birlikte bildirim iki kez görünür.
+- Ardından `docs/mac-devir.md` §6 ve CLAUDE.md §7 güncellenir: delege sorusu çözüldü.
+- Test (simülatör, Debug; APNs anahtarı U08): uygulama açık → panelden test push (`backend/services/notify_runner.py:432`, `type=test`) → banner görünmeli → dokun, rotayı kontrol et.
+
+**Android güvenliği** — Android'de `_showForeground` aynen çağrılır; değişiklikler iOS dalında.
+
+### U15 — Hesap silmede Sign in with Apple jetonu iptal edilmiyor
+⏳ açık · YÜKSEK · ikisi · A2 iOS kod · kaynak: `apple-token-not-revoked-on-delete`, `apple-token-revocation-missing`, `siwa-token-revocation-missing`, `siwa-token-revocation`
+
+**Kanıt** — `lib/features/profile/delete_account.dart:44-73`: `_delete` doğrudan `DELETE /api/v1/account/me` (`:52`) ve `signOutEverywhere()` (`:59`) çağırıyor, Apple jetonu iptali yok; 401'de `deleteAccountReauth` (`:69`). Backend Auth kullanıcısını Admin SDK ile siliyor (`backend/services/account_service.py:273-349`); Apple tarafındaki yetki yerinde kalıyor.
+
+**Etki** — Hesabını silen Apple kullanıcısı Ayarlar → Apple Kimliği → "Apple ile Giriş" altında Rytho'ya bağlı kalır, Apple yetkisi geçerli kalır; Apple ile yeniden girişte eski yetki sessizce döner (ad/e-posta gelmez). Apple'ın hesap silme rehberi SIWA'lı uygulamalardan jeton iptali bekliyor; inceleyiciler 5.1.1(v) altında Firebase kullanıcısını silip Apple yetkisini bırakan uygulamaları reddetti ya da takip sorusu sordu.
+
+**Düzeltme**
+- Kapı: `defaultTargetPlatform == TargetPlatform.iOS` (ya da `appleSignInAvailable`) VE `currentUser.providerData` içinde `apple.com`.
+- Sıra: Apple sayfası (`SignInWithApple.getAppleIDCredential`, nonce ile) → aynı kimlik bilgisiyle `currentUser.reauthenticateWithCredential(OAuthProvider('apple.com').credential(idToken, rawNonce))` — `auth_time` tazelenir, mevcut 401 `deleteAccountReauth` yolu kalkar → `FirebaseAuth.instance.revokeTokenWithAuthorizationCode(cred.authorizationCode)` → `DELETE /account/me` → `signOutEverywhere`.
+- İptal Firebase kullanıcısı HÂLÂ varken yapılır (backend silmeden önce). Yetki kodu tek kullanımlık ve ~5 dk geçerli; iptalden hemen önce istenir.
+- İptal çağrısı başarısız olursa (OAuth code flow ayarı eksik, ağ hatası) silme ENGELLENMEZ — 5.1.1(v) silmenin çalışmasını şart koşar. `FirebaseCrashlytics.instance.recordError(reason: 'apple-revoke')` ile kaydedilip silmeye devam edilir.
+- Kullanıcı Apple sayfasını kapatırsa (`SignInWithAppleAuthorizationException`, `canceled`) **kaynaklar ayrışıyor**: `apple-token-not-revoked-on-delete` ve `apple-token-revocation-missing` silmeyi durdurmayı, `siwa-token-revocation-missing` ve `siwa-token-revocation` iptali atlayıp silmeye devam etmeyi söylüyor. Karar kodlamada verilir ve buraya yazılır.
+- Konsol (A1, U01 ile aynı oturum): Apple Developer → Keys → Sign in with Apple etkin anahtar; Services ID (yoksa); Firebase Console → Auth → Apple'da Services ID + OAuth code flow (Team ID, Key ID, .p8). Bunlar yoksa iptal çağrısı düşer.
+
+**Android güvenliği** — Yol iOS + `apple.com` kapısının arkasında; Android değişmez.
+
+### U16 — Backend, RevenueCat'in hiç göndermediği `REFUND` olayını bekliyor
+⏳ açık · YÜKSEK · kod · A3 ortak kod · kaynak: `revenuecat-refund-event-never-sent`
+
+**Kanıt** — `backend/api/billing.py:447-455`: paket dalı yalnız `NON_RENEWING_PURCHASE` (kredi) ve `REFUND` (`wallet.debit_refund`, `:451-453`) tanıyor; gerisi "Paket ürününde beklenmeyen olay" (`:455`) diye düşüyor. `:37` `REFUND`'ı `_DEACTIVATING_EVENTS`'e, `:42` `CANCELLATION`'ı "yenilenmeyecek" kümesine koyuyor.
+
+**Etki** — iOS kullanıcısı iadeyi geliştirici onayı olmadan doğrudan Apple'dan alabilir (reportaproblem.apple.com); RevenueCat bunu `CANCELLATION` + `cancel_reason=CUSTOMER_SUPPORT` olarak bildirir. `rytho_tokens_*` için webhook bunu atar; kullanıcı iadeden sonra kredileri tutar — al, harca, iade iste: bedava kredi yolu. İade gelir defterine parasal REFUND olarak da girmez, admin geliri şişkin görünür. `rytho_plus_monthly`'de iade `active=True/willRenew=False` yazılır; erişim ancak RevenueCat `expiration_at_ms`'i iade anına çekerse biter. `REFUND_REVERSED` (yalnız App Store) de yok sayılıyor. Aynı boşluk Android'de de var; ama Apple iadeleri daha sık ve geliştiricinin söz hakkı yok.
+
+**Düzeltme** (`backend/api/billing.py`)
+- Paket dalı: `NON_RENEWING_PURCHASE` üründe RevenueCat `CANCELLATION`'ı YALNIZ iade için gönderir → `event_type in ("REFUND", "CANCELLATION")` her `cancel_reason`'da iade: `wallet.debit_refund(uid, product_id, event_id)`, ardından `_record_revenue_event(event, "REFUND", uid)`.
+- `REFUND_REVERSED`: ayrı defter anahtarıyla (ör. `reversal-{event_id}`) yeniden kredi — `credit_pack`'in defter anahtarı ilk satın almayla çakışmamalı.
+- Abonelik dalı: `CANCELLATION` ve `cancel_reason` (büyük harfe çevrilmiş) `CUSTOMER_SUPPORT` ise `revenueEvents`'e `eventType "REFUND"`, `monetary=True`; aynı `event.id` doküman kimliği, çift kayıt yok. `_bump_revenue_totals` zaten `abs(price)` kullanıyor — doğru, RevenueCat'in iade fiyatı negatif olabilir. `expiration_at_ms` yoksa ya da `<= now` ise `active=False`.
+- Sabit `"REFUND"` dalları zararsız takma ad olarak kalır.
+- Testler gerçek yüklerle yeniden yazılır (paket ve abonelik için `type CANCELLATION` + `cancel_reason CUSTOMER_SUPPORT`). Güvenmeden önce gerçek şekil RevenueCat test olayı ya da sandbox iadesiyle doğrulanır.
+
+**Android güvenliği** — Play iade yolu aynı olay şeklini kullanıyor; o da düzelir.
+
+### U17 — "Kullanıcıyı engelle" kaydediliyor ama uygulanmıyor; gelen istek engellenemiyor (1.2)
+⏳ açık · YÜKSEK · kod · A3 ortak kod · kaynak: `block-not-enforced`
+
+**Kanıt** — `lib/features/friends/friends_screen.dart:1063-1065` engelleme `removeFriend` + `blockUser` yapıyor, yalnız kabul edilmiş arkadaşın sayfasında. `lib/core/friends.dart:237-242` `sendFriendRequest` iki kenarı tek batch'te yazıyor. `infra/firestore.rules:224-247` `friends` counterpart create dalı (`:237`) `blocked`'a (`:176`) bakmıyor; `backend/api/notify.py:262` `/invite` push'u engeli denetlemiyor.
+
+**Etki** — Engellemeyi deneyen inceleyici, engellenen kullanıcının yeni arkadaşlık isteği ve push gönderebildiğini görür. Kullanıcı adıyla birini bulan yabancı saldırgan bir görünen adla istek atabilir; alıcı kabul etmeden bildiremez de engelleyemez de. İkisi de 1.2'yi düşürür; Koşullar'daki söz tutulmuyor.
+
+**Düzeltme**
+- Nudge'lar için yeni kural gerekmez: nudge create kuralı zaten `users/{uid}/friends/{sender}.status == 'accepted'` istiyor ve engelleme önce `removeFriend` çağırıyor.
+- `friends` counterpart create dalına `&& !exists(/databases/$(database)/documents/users/$(uid)/blocked/$(request.auth.uid))`. İki kenar tek batch'te yazıldığı için engellenen gönderici temiz bir hata alır — eski Android paketlerinde de.
+- `/invite`: hedef göndereni engellediyse push atlanır.
+- İstek kutucuğuna Engelle + Bildir: `blockUser`'dan önce `removeFriend(uid)` (iki kenarın batch silinmesi; `counterpart()` delete kuralı izin veriyor).
+- Engellenenler listesi (engeli kaldırma), bildirim görünümü ya da uyarısı, 24 saat taahhüdü.
+
+**Android güvenliği** — Ortak ve sunucu değişiklikleri iki platforma birden uygulanır; yeni kural eski Android paketlerinde de temiz hata verir.
+
+### U18 — Hazır App Review notları yanlış ya da eskimiş; demo planı cihaz kilidini atlıyor
+⏳ açık · YÜKSEK · ikisi · A4 mağaza · kaynak: `review-notes-inaccurate`
+
+**Kanıt** — `docs/store-review-notes.md:44-45` (§2.2) ve `:125` "Ham transkript saklanmıyor / Raw transcripts are never stored" diyor (aynı iddia `docs/store-privacy-labels.md:82`'de); `:153` "A single monthly auto-renewing subscription" (consumable'lar yok); `:137-139` demo hesap planı tek cihaz kilidini anmıyor.
+
+**Etki** — İnceleyiciler notları davranışla karşılaştırır. Yanlış bir iddia ("transkript saklanmaz", "tek abonelik") 4.3 savunmasını zayıflatır ve 2.1/5.1 takip sorularını tetikleyebilir. Cihaz çakışması kapısı ya da boş arkadaş sekmesi "incelenemedi" reddine yol açabilir.
+
+**Düzeltme**
+- Notlar yeniden yazılır; yanlış transkript iddiası `store-review-notes.md:45`, `:125` ve `store-privacy-labels.md:82`'de de düzeltilir; satın almalar bölümü abonelik + consumable'larla güncellenir.
+- Cihaz kilidi: yeni cihazda giriş otomatik devralır; daha önce kullanılan cihaza dönüşte "Bu cihazda kullan" düğmesi çıkar. Ortam izin listesi isteğe bağlı: inceleme sırasında takılan kilidi `POST /admin/users/{uid}/device/release` (`backend/api/admin.py:653`) temizler. Demo hesap inceleme boyunca başka yerde açık olmamalı (U32).
+- Güvenmeden önce RevenueCat promosyon yetkisinin, `get_subscription()`'ın okuduğu aktif abonelik kaydını gerçekten yazdığı doğrulanır (`backend/core/entitlements.py:70-94`).
+- Eklenecek bölümler: AI onay ekranı (U06), yüz okuma ve telefon (U38), hesap zorunluluğu gerekçesi (U39).
+
+### U19 — 4.3(b): "fal" doygun kategori; mağaza kaydı ve notlar farkı kanıtlamalı
+⏳ açık · YÜKSEK · ikisi · A4 mağaza · kaynak: `spam-4-3b-fortune-telling`
+
+**Kanıt** — Guideline 4.3(b) "fortune telling"i doygun kategori olarak adıyla anıyor; mevcut savunma `docs/store-review-notes.md` §1–3'te.
+
+**Etki** — Astroloji/burç AI uygulamaları ilk gönderimde sıkça 4.3(b) ile reddediliyor. Ayırt edici bir kayıt ve not olmadan inceleme, kod kalitesinden bağımsız olarak spam reddiyle bitebilir.
+
+**Düzeltme** — Ad "Rytho" + falcılığı değil hesaplamayı vurgulayan alt başlık (ör. "Birth chart & live sky"); birincil kategori Lifestyle; anahtar kelimelerde "fortune/fal" doldurması yok. Ekran görüntüleri gerçek hesaplanmış haritalardan (Atlas harita çarkı, canlı gökyüzü, BaZi sütunları, arkadaş ikilisi), her altyazı neyin hesaplandığını söyler (U07). Düzeltilmiş notlar (U18) + 60–90 sn simülatör videosu. Reddedilirse değiştirmeden yeniden gönderilmez; Resolution Center'da dosya düzeyinde kanıtla (efemeris, güvenlik kapısı testleri) yanıt verilir.
+
+### U20 — Apple App Privacy etiket planı kodun topladığı veri türlerini eksik sayıyor
+⏳ açık · YÜKSEK · ikisi · A4 mağaza · kaynak: `privacy-label-apple-incomplete`
+
+**Kanıt** — `docs/store-privacy-labels.md:100` Identifiers'ı yalnız "User ID" sayıyor; §1/§2 aşağıdaki türlerin bir kısmını atlıyor. ML Kit'in kendi manifesti DeviceID ve tanılama beyan ediyor (U12); `54130b9` `NSPrivacyCollectedDataTypes`'ı bilerek bu etikete bıraktı.
+
+**Etki** — Yanlış "beslenme etiketi" App Store gizlilik beyanı kurallarını çiğner; incelemede ya da yayından sonra işaretlenebilir ve uygulamanın kendi gizlilik politikasıyla çelişir.
+
+**Düzeltme** — ASC App Privacy:
+- Tracking: hepsi HAYIR. Data Linked to You: Contact Info → Name, Email Address, Phone Number (isteğe bağlı) — App Functionality. User Content → Photos or Videos (avatar), Customer Support (geri bildirim), Other User Content (AI sohbet arşivi, günlük notları, damıtılmış hafıza, hazır tepkiler) — App Functionality + Product Personalization. Identifiers → User ID (Firebase uid; RevenueCat app_user_id=uid) ve Device ID (rastgele cihaz kimliği, FCM jetonu, Analytics örnek kimliği) — App Functionality + Analytics. Purchases → Purchase History (abonelik durumu, cüzdan defteri) — App Functionality. Usage Data → Product Interaction (Firebase Analytics olayları; uid anahtarlı sunucu `usageEvents`) — Analytics. Other Data → doğum tarihi/saati/yeri, cinsiyet, saat dilimi, dil, eklenen kişilerin doğum verisi, yüzden türetilen oranlar — App Functionality + Personalization.
+- Data Not Linked: Diagnostics → Crash Data, Performance Data (Crashlytics).
+- Contacts: özetler geçici kaldıkça (`backend/api/contacts.py:130`) atlanır; karar belgelenir.
+- ML Kit'in Device ID + tanılama beyanlarının "Not Linked" açıklanması burada karara bağlanır (U12). IDFA yığını `4ba7d9d` ile söküldü (U43); cevaplar yine Google'ın Firebase veri açıklama rehberiyle karşılaştırılır.
+- Sonra `docs/store-privacy-labels.md` §1/§2 güncellenir ki iki mağaza aynı şeyi söylesin.
+
+### U21 — TestFlight cihaz doğrulama planı yok; engelleyicilerin çoğu yalnız gerçek cihazda koşuyor
+⏳ açık · YÜKSEK · ikisi · A5 test · kaynak: `no-real-device-verification-plan` (eksik avcısı)
+
+**Kanıt** — `docs/production-checklist.md:148` tek iOS test maddesi: "iOS derlemesi (macOS gerektirir) + TestFlight". `docs/mac-devir.md:268-270` TFLite ve App Attest'in simülatörde çalışmadığını söylüyor; `ios/SimulatorStubs/MLKitSimulatorStubs.m:20` yüz algılamayı simülatörde taslakla değiştiriyor; `lib/main.dart:120-122` App Attest yolunu sahibin debug/simülatör koşularında hiç çalıştırmıyor; `backend/api/face_reading.py:96` yüz okuma için Plus istiyor.
+
+**Etki** — Onaylı engelleyicilerin çoğu yalnız fiziksel cihazdaki Release derlemesinde görünür: zorlama açıkken App Attest girişi; yüz kamerası geometrisi ve TFLite saç çizgisi; APNs push (ön plan, arka plan, kapalı); universal link (soğuk/ılık); StoreKit sandbox satın alma/restore ve Plus'ı ya da krediyi açan webhook; hesap silmede SIWA iptali; kamera izni reddi; paylaşım sayfasında "Resmi Kaydet". Yapılandırılmış bir TestFlight turu yoksa ilk gerçek cihaz koşusu App Review olur; tek bir çökme ya da çıkmaz bir red turuna mal olur.
+
+**Sahibin kararı** — Gerçek iPhone yok; App Attest ve kamera yüz okuma ilk kez App Review'da görülecek (kabul edilen risk). Plan, iPhone'u olan bir iç testçi bulunduğu an uygulanır.
+
+**Düzeltme**
+1. ASC → Users and Access: iPhone'u olan 2–3 kişi kullanıcı olarak (herhangi bir rol). TestFlight INTERNAL grubu: işlendikten dakikalar sonra ulaşır, Beta App Review yok (dış grup ister).
+2. Cihaz kapsamı: güncel iOS'lu bir Face ID iPhone + küçük/eski bir iPhone (SE sınıfı, iOS 16/17); birinde cihaz dili TR, ötekinde EN. iPad yok (U10).
+3. Her testçiye KENDİ Rytho hesabı (tek cihaz kilidi paylaşılan hesabı engeller). Plus: TestFlight sandbox satın alma (ücretlendirilmez) ya da admin yetkisi.
+4. "What to Test"e yukarıdaki her madde numaralı liste olarak; beklenen sonuçlar yazılı (ör. `users/{uid}.fcmToken` yazıldı, `revenueEvents` satırı oluştu, silmeden sonra uygulama Apple Kimliği > Apple ile Giriş'te listelenmiyor). Ek satırlar: U12 Privacy Report, U13 `simctl openurl`, U44 "Resmi Kaydet".
+5. 1. turdan önce: dSYM yüklemesi (U26), App Attest kaydı ve APNs anahtarı (U08), RevenueCat `appl_` anahtarı ve IAP'ler (U02). Yoksa tur yalnız bilinen engelleyicileri yeniden keşfeder.
+6. Crashlytics, Xcode Organizer > Crashes ve TestFlight geri bildirim ekran görüntüleri izlenir; her satır geçmeden App Review'a gönderilmez.
+
+**Android güvenliği** — Süreç ve konsol işi; kod ve Android derlemesi değişmez.
+
+---
+
+## ORTA
+
+### U22 — Hide My Email: Firebase Auth göndericisi Apple'ın özel e-posta aktarıcısına kayıtlı değil
+⏳ açık · ORTA · hesap · A1 hesap · kaynak: `apple-private-relay-email-not-registered`
+
+**Kanıt** — Firebase Auth e-postaları varsayılan göndericiden (`noreply@rhytoai.firebaseapp.com`) çıkıyor; iOS yol haritasında (`docs/mac-devir.md` §4) aktarıcı kaydı adımı yok.
+
+**Etki** — Hide My Email seçen Apple kullanıcısı sonradan "Şifremi unuttum" ya da doğrulama kullanırsa e-posta hiç gelmez: Apple'ın aktarıcısı kayıtsız göndericiden gelen postayı düşürür. Şifre yoluna muhtaç olan (ör. Android'e geçmek isteyen) kullanıcı kilitlenir.
+
+**Düzeltme** — Apple Developer → Certificates, Identifiers & Profiles → Services → Sign in with Apple for Email Communication → `noreply@rhytoai.firebaseapp.com`. Firebase e-posta şablonunun alan adı `rytho.app`'e taşınınca özel gönderici alan adı da (SPF/DKIM ile) eklenir.
+
+### U23 — iOS'ta kamera izni reddi donanım arızası sayılıyor
+⏳ açık · ORTA · kod · A2 iOS kod · kaynak: `camera-permission-denied-ios`
+
+**Kanıt** — `lib/features/face/face_capture_screen.dart:285-295`: `CameraException` yalnız `e.code.contains('Permission')` ise izin reddi sayılıyor; iOS'un `CameraAccessDeniedWithoutPrompt` kodu uymuyor → hata katmanı + `_arizaBildir` (Crashlytics). `:224-229` izin katmanında `resumed` otomatik yeniden deneme; `test/face_ariza_kanit_test.dart:67` yüklemi kaynak metniyle sabitliyor. Rehberde `lib/features/friends/contacts_screen.dart:104-110` "Tekrar dene" yalnız sağlayıcıyı geçersiz kılıyor.
+
+**Etki** — iOS kamera iznini yalnız bir kez sorar. "İzin Verme"den sonra her deneme anında `CameraAccessDeniedWithoutPrompt` ile düşer: ekran izin mesajı yerine "yüz algılama başarısız" gösterir, "Yeniden çek" sonsuza dek döner, her deneme Crashlytics'e non-fatal yazar. Ayarlar'dan dönüş de otomatik yeniden denemez. Rehberde aynı çıkmaz: "Tekrar dene" bir daha sormaz.
+
+**Düzeltme** — İki yerde de (rapor koşulu ve durum koşulu) yüklem `e.code.contains('Permission') || e.code.startsWith('CameraAccess')`; `test/face_ariza_kanit_test.dart:67` güncellenir. iOS'ta `izinYok` katmanına Ayarlar düğmesi: `launchUrl(Uri.parse('app-settings:'))` (`UIApplication.openSettingsURLString`). iOS, Ayarlar'da kamera izni değişince uygulamayı sonlandırır; iOS'ta `resumed` yeniden denemesi gerekmez. Rehbere isteğe bağlı aynı iOS'a özgü Ayarlar düğmesi.
+
+**Android güvenliği** — Android'de mevcut yeniden deneme kalır (app_settings ya da permission_handler eklenmedikçe); `Permission` içeren Android kodları aynı dala düşmeye devam eder.
+
+### U24 — UI ses efektleri iOS'ta sessiz anahtarını yok sayıyor ve müziği kesiyor
+⏳ açık · ORTA · kod · A2 iOS kod · kaynak: `ios-audio-session-ignores-silent-switch`
+
+**Kanıt** — `lib/core/sound.dart:17` `_ensureLoaded`, `:46` `AudioPlayer()`; `lib/`'de hiç `setAudioContext` yok → audioplayers'ın varsayılan iOS oturumu (playback, karıştırmasız).
+
+**Etki** — iPhone'da mesaj gönderme/beğeni "tık" sesleri Zil/Sessiz anahtarı sessizdeyken de çalar. Her ses karıştırılamayan bir playback oturumu açar ve arka plandaki Spotify / Apple Music'i durdurur. iOS alışkanlıklarını çiğner; TestFlight testçilerinden ilk gelecek şikâyetlerden biri.
+
+**Düzeltme** — Bir kez, ör. `SoundFx._ensureLoaded` içinde: `if (defaultTargetPlatform == TargetPlatform.iOS) await AudioPlayer.global.setAudioContext(AudioContext(iOS: AudioContextIOS(category: AVAudioSessionCategory.ambient, options: const {})));`. `ambient` zaten karıştırır; yanına `mixWithOthers` eklemek yapıcıdaki assert'e takılır (`audioplayers_platform_interface` 7.2.0 `audio_context.dart:177-184`) — `options` boş kalır.
+
+**Android güvenliği** — iOS koşulu Android'i garanti olarak değişmez bırakır.
+
+### U25 — Google kütüphaneleri iki kez bağlanıyor (CocoaPods + SwiftPM)
+✅ kapandı — `4ba7d9d` · ORTA · kod · A2 iOS kod · kaynak: `duplicate-google-libs-cocoapods-and-spm`
+
+**Kanıt** — GoogleDataTransport, GoogleUtilities, GTMSessionFetcher, FBLPromises ve nanopb hem CocoaPods dinamik framework'ü (ML Kit için) hem SwiftPM statik kütüphanesi (Firebase için) olarak bağlanıyor. SwiftPM tarafı: `ios/Runner.xcodeproj/project.pbxproj:61, :256` (`FlutterGeneratedPluginSwiftPackage`), `ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
+
+**Etki** — ObjC çalışma zamanı "Class X is implemented in both … Which one is used is undefined" uyarır. İki bağımsız GDTCOR kaydedici ve yükleme koordinatörü aynı olay deposunda çalışır; iki FBLPromise ve GUL kopyası bir arada durur. Sürümler şu an eşit olduğu için genelde çalışır; ama tanımsız davranıştır — yarışlı olay yüklemesi ya da teşhisi zor çökmeler; bir taraf yükselince kötüleşir. Tek başına App Review reddi değil.
+
+**Düzeltme** — Yalnız CocoaPods'a geçiş, şu çekincelerle:
+1. Firebase, RevenueCat, GoogleSignIn ve öteki eklentiler pod'a taşınır → Xcode 26.6 ile simülatör duman testi ve imzasız cihaz derlemesi yeniden. Podfile'daki `ml_kit_simulatorden_cikar` OTHER_LDFLAGS cerrahisinin hâlâ çalıştığı kontrol edilir: toplu xcconfig çok daha fazla `-framework` bayrağı taşıyacak.
+2. `flutter clean` sonrası `ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved` silinir, `FlutterGeneratedPluginSwiftPackage` paket başvurusu kaldırılır (pbxproj `:61`, `:256`).
+3. Seçim `docs/mac-devir.md`'ye yazılır — Crashlytics dSYM betiği yolu (U26) ve Analytics reklam-kimliksiz anahtarı (U43) buna bağlı.
+- `4ba7d9d`: `pubspec.yaml`'da `enable-swift-package-manager: false`, eski SwiftPM `Package.resolved` kilitleri kaldırıldı; `FlutterGeneratedPluginSwiftPackage` başvurusu bağımlılığı olmadığı için zararsız diye bırakıldı. Ölçüldü: simülatörde "implemented in both" = 0, App Check hatası yok. **Kalan (belge):** seçim `docs/mac-devir.md`'ye yazılır.
+
+**Android güvenliği** — Ayar ortak `pubspec.yaml`'da ama yalnız iOS/macOS okur (commit notu). Windows oturumu onu silmemeli: silinirse iOS'ta çift kopya geri gelir.
+
+### U26 — Crashlytics dSYM yükleme adımı yok; yerel iOS çökmeleri sembolsüz kalır
+✅ kapandı — `4ba7d9d` · ORTA · kod · A2 iOS kod · kaynak: `crashlytics-dsym-upload-missing`
+
+**Kanıt** — `ios/Runner.xcodeproj/project.pbxproj:290-360` shell betik fazları yalnız Pods ve `xcode_backend.sh`; Crashlytics yükleme betiği yok. `flutterfire configure` hiç koşulmadı (`lib/firebase_options.dart` yok). Release ayarları hazır: `DEBUG_INFORMATION_FORMAT = dwarf-with-dsym` (`:482`, `:664`), `ENABLE_USER_SCRIPT_SANDBOXING = NO` (`:485`, `:610`, `:667`).
+
+**Etki** — Yerel iOS çökmeleri (flutter_contacts/UIScene, kamera, ML Kit, TFLite, RevenueCat) Crashlytics'te "Missing dSYM" ile sembolsüz görünür. Sahibin cihazı olmadığı ve TestFlight çökme raporlarına bağlı olduğu için iOS'ta önemli. Dart hataları etkilenmez.
+
+**Düzeltme**
+- A yolu `flutterfire configure --platforms=ios`: diff gözden geçirilir — elle doğrulanmış `ai.rytho` değerli `ios/Runner/GoogleService-Info.plist`'i yeniden yazabilir (bkz. `ios/Runner/Info.plist:18-32` yorumu) ve `lib/firebase_options.dart` üretir; `android/`'e dokunmasına izin verilmez.
+- B yolu (daha az riskli): elle Run Script fazı.
+- Yol SwiftPM/CocoaPods kararına (U25) göre seçilir; ilk `flutter build ipa`'da Crashlytics konsolunda yüklenen dSYM UUID'si kontrol edilir.
+- `4ba7d9d`: B yolu — "Crashlytics dSYM yukle" Run Script fazı (Debug'da atlanır). Ölçüldü: imzasız Release derlemede "Validation succeeded. Symbol uploading will proceed in the background." **Kalan (A5):** ilk gerçek `flutter build ipa` / TestFlight sonrası Crashlytics konsolunda dSYM UUID'si.
+
+### U27 — Türkçe yerelleştirme eksik; `InfoPlist.strings` tuzağı; rehber metni gerçeği eksik anlatıyor
+✅ kapandı — `54130b9` · ORTA · kod · A2 iOS kod · kaynak: `localization-tr-missing-infoplist-strings-trap`, `purpose-strings-accuracy-localization`
+
+**Kanıt** — `ios/Runner.xcodeproj/project.pbxproj:250-252` `knownRegions = (en, Base)`, `CFBundleLocalizations` yok; l10n şablonu `app_tr.arb` (Türkçe öncelikli). `ios/Runner/Info.plist:9-10` rehber metni "rehberin sunucuya gönderilmez" diyor, oysa eşleşme için SHA-256 özetleri gönderiliyor (saklanmadan, `backend/api/contacts.py`). `docs/mac-devir.md:249` (§6) "Info.plist seç → … → Localize" diyor.
+
+**Etki** — (1) App Store ürün sayfası yalnız İngilizce listeler. (2) iOS uygulamanın dilini `en` çözer; Türkçe cihazda süreç içi sistem arayüzü (paylaşım sayfası, fotoğraf seçici vb.) İngilizce kalır. (3) **Tuzak:** §6'daki plan gibi yalnız `en.lproj/InfoPlist.strings` bağlanıp `tr` eklenmezse Türkçe cihaz `en.lproj`'a düşer ve İNGİLİZCE izin diyaloğu görür — niyetin tersi. (4) İngilizce inceleyici Türkçe sistem istemleri görüyor; rehber istemi cihazdan çıkanı eksik anlatıyor. İkisi de yinelenen 5.1.1 red nedeni.
+
+**Düzeltme**
+- Xcode'da Project > Info > Localizations'a Türkçe. YALNIZ `InfoPlist.strings` en + tr varyantlarıyla yerelleştirilir, Info.plist ASLA. `tr` varyantı Türkçe metinleri tekrarlar; `NSMicrophoneUsageDescription` ve `NSPhotoLibraryAddUsageDescription` iki varyantta da.
+- `CFBundleLocalizations = [tr, en]` (Flutter'ın iOS i18n belgesi ister); knownRegions'a `tr`.
+- Rehber metni iki dilde: numaralar eşleşme için tek yönlü özetlenip gönderilir ve saklanmaz.
+- Düşük öncelik: `NSPhotoLibraryUsageDescription` profil fotoğrafı yüklemesini de kapsasın (PHPicker şu an göstermese de).
+- `docs/mac-devir.md` §6 düzeltilir: "Info.plist'i yerelleştir" yazmasın.
+- `54130b9`: knownRegions `tr`, `CFBundleLocalizations`, en/tr `InfoPlist.strings` varyant grubu Runner'a bağlı, rehber metni düzeltildi, yeni anahtarlar iki varyantta. **Kalan (belge / isteğe bağlı):** `docs/mac-devir.md` §6 metni; fotoğraf kütüphanesi metninin profil fotoğrafını da kapsaması.
+
+### U28 — Uygulama içi gizlilik politikası Android çerçeveli (reklam kimliği; Apple ile Giriş yok)
+⏳ açık · ORTA · ikisi · A3 ortak kod · kaynak: `privacy-text-android-framed-idfa` (metin kısmı), `analytics-adid-stack-ios` (metin kısmı)
+
+**Kanıt** — `lib/features/profile/legal_texts.dart:139-142` (TR) ve `:458-461` (EN): "Android'in reklam kimliğini (Advertising ID) KULLANMAZ: bu izin uygulama paketinden çıkarıldı…"; iOS karşılığı yok. "Hesap bilgileri" (`:33`) / "Account information" (`:335`) Apple ile Giriş'ten gelen ad ve e-postayı anmıyor.
+
+**Etki** — iOS için politika bir güvenceyi (reklam kimliği yok) yalnız Android terimleriyle veriyor ve başka bir platformu adıyla anıyor; iOS ikilisi ise varsayılan olarak Apple'ın AdSupport yolunu bağlıyor (U43). Etiket ve politika iOS ikilisinin yaptığıyla eşleşmeli; 5.1.1/5.1.2 uyuşmazlığı ya da kafa karıştıran bir etiket anketi olası.
+
+**Düzeltme** — Metin platform-nötr (TR+EN): Android Advertising ID / iOS IDFA; izleme yok. "Hesap bilgileri"ne Apple ile Giriş: ad ve e-posta, muhtemelen özel aktarıcı (relay) adresi. (Web gizlilik sayfası Apple ile Giriş'i zaten anıyor.) ASC App Privacy'de izleme yok (U20). IDFA yığını `4ba7d9d` ile iOS paketinden de söküldü (U43), yani "reklam kimliği kullanılmaz" güvencesi artık iki platform için doğru yazılabilir.
+
+**Android güvenliği** — Ortak metin; Android'de de nötr ifade görünür, anlam değişmez.
+
+### U29 — Zorunlu güncelleme eşiği (`min_build`) iki platform için tek sayı
+⏳ açık · ORTA · ikisi · A3 ortak kod · kaynak: `min-build-gate-platform-agnostic`, `min-build-gate-not-per-platform`, `min-build-shared-across-platforms`
+
+**Kanıt** — `backend/core/app_gate.py:143` `current_min_build()` = max(env `RYTHO_MIN_BUILD`, `config/app.minBuild`); `:267` `AppGateMiddleware` platforma bakmadan 426 döndürüyor; `:180` `build_seen_at_or_above` ve `:202` `count_below` platform ayırmıyor. `lib/core/app_config.dart:63-79` `fetchMinBuild` `/api/v1/config/app`'i çıplak `Dio` ile çağırıyor (interceptor yok → `X-Device-Platform` yok) ve değeri `minBuildSeen`'e (`:40`) önbelleğe alıyor: istemci kendini de kilitliyor.
+
+**Etki** — Android başka makineden kendi temposuyla çıkıyor (+46, +47…); iOS paketleri App Review / TestFlight döngüsü yüzünden geride. Sahip Android'e özgü bir nedenle `minBuild`'i yükseltirse her iOS kullanıcısı ve incelemedeki paket her istekte 426 ve ForceUpdateScreen alır — App Store'da daha yeni paket yokken. `APPSTORE_APP_ID` boşken o ekranda mağaza düğmesi bile yok. İncelemede anında 2.1 reddi; canlıda Apple yeni paketi onaylayana dek tam kilit: bir Android kararından doğan tam iOS kesintisi.
+
+**Düzeltme**
+1. İstemci: `fetchMinBuild`'e `kDevicePlatformHeader: devicePlatform()` başlığı. **İLK iOS paketinde** olmalı.
+2. Backend: `current_min_build(platform)` — `p = (hdr or '').strip().lower()`; `'ios'` → `config/app.minBuildIos` (varsayılan 0 = kapı kapalı), diğer her şey ve başlıksız istek → mevcut `minBuild` / `RYTHO_MIN_BUILD`. `AppGateMiddleware` ve `GET /config/app` ikisi de kullanır. Büyük/küçük harf duyarsız (`device_session` `'iOS'`, başka yerler `'ios'` yolluyor).
+3. `build_seen_at_or_above` / `count_below` `platform ==` + `appBuild >=` sorgusuna geçerse Firestore bileşik dizini (platform ASC, appBuild ASC) `infra/firestore.indexes.json`'a eklenip dağıtılır — dizin yoksa sorgu fırlatır ve mevcut kod `False` döner (kapalı başarısız olur).
+4. Panelde iOS eşiği alanı. `APPSTORE_APP_ID` ASC kaydı açılır açılmaz doldurulur (U02).
+- **İşletme kuralı, bu yayınlanana dek:** `minBuild`, App Store'da canlı ve onaylı en yeni iOS paketinin üstüne ASLA çıkarılmaz.
+
+**Android güvenliği** — Başlıksız istek ve `android` bugünkü anahtara düşer; Android davranışı değişmez.
+
+### U30 — iOS release'te App Check ve Auth hataları iz bırakmıyor
+⏳ açık · ORTA · kod · A3 ortak kod · kaynak: `auth-appcheck-failures-invisible`
+
+**Kanıt** — `lib/main.dart:105-126`: `FirebaseAppCheck.instance.activate` hatası `catch (e)` ile yalnız `debugPrint` ediliyor (`:125`); Crashlytics işleyicileri `:130-137`'de sonradan kuruluyor.
+
+**Etki** — Gerçek cihaz sinyali yalnız TestFlight testçileri. Zorlama açıkken her App Attest sorunu (uygulama kayıtsız, Firebase'de Team ID yok, sandbox ortamı, attestation hatası) yalnız "Giriş yapılamadı" ya da Firestore izin hatası olarak görünür; App Check'i yanlış şifreden ayıracak Crashlytics izi yok.
+
+**Düzeltme** — `main.dart` catch'i `catch (e, st)` olur ve yalnız `!kDebugMode && !kIsWeb` iken Crashlytics'e kaydeder; Crashlytics `Firebase.initializeApp`'ten hemen sonra kullanılabilir, işleyiciler kurulmadan kaydetmek çalışır. Release'e özgü `getToken` yoklaması "ateşle ve unut" (`unawaited`) — açılış asla gecikmez.
+
+**Android güvenliği** — Ortak kod; Android'de de yalnız release kaydı ekler.
+
+### U31 — Apple girişi, Google ya da şifreyle kayıtlı e-postada genel hata veriyor
+⏳ açık · ORTA · kod · A3 ortak kod · kaynak: `apple-account-exists-different-credential`
+
+**Kanıt** — `lib/core/auth_service.dart:152-173` `authErrorText`'te `account-exists-with-different-credential` yok (yalnız `phone_verify_screen.dart:267` ele alıyor); varsayılan `authFailed`.
+
+**Etki** — Tipik geçiş: Google ile (x@gmail.com) kayıt olmuş Android kullanıcısı iOS'ta en üstteki Apple düğmesine basar, aynı e-postayı paylaşır. Firebase'in varsayılan "e-posta başına tek hesap" ayarıyla `account-exists-with-different-credential` fırlar; kullanıcı yalnız "Giriş yapılamadı" görür, Google'ı kullanması gerektiğine dair ipucu yok. (Proje e-posta başına çok hesaba izin veriyorsa kullanıcı sessizce ikinci, boş bir hesap alır — daha kötü.)
+
+**Düzeltme** — Yeni durum `authErrorText`'e (giriş ve öteki çağıranlar paylaşsın), TR+EN arb anahtarları, `flutter gen-l10n`. Açık kullanıcı onayı olmadan otomatik bağlama YOK: Firebase'in Apple belgesi, Apple hesaplarını başka verilere bağlamadan önce Apple'ın açık onay istediğini not ediyor.
+
+**Android güvenliği** — Ortak hata eşlemesi; Android'de de aynı durum doğru mesajı alır.
+
+### U32 — Rytho+ aynı anda tek cihazda: 3.1.2(a) ile çelişiyor
+⏳ açık · ORTA · kod · A3 ortak kod · kaynak: `single-device-lock-vs-3-1-2a`
+
+**Kanıt** — `backend/core/device.py:67` `DEVICE_CONFLICT_STATUS = 409`. Sınır Koşullar'da açıkça yazılı: `lib/features/profile/legal_texts.dart:56-57` ("Abonelik ve tek cihaz") ve `:359-360` (EN).
+
+**Etki** — İki cihaz kullanan abone (ya da iki cihazda test eden inceleyici) ikincisinde 409 "hesap başka cihazda açık" kapısına takılır ve aboneliği her seferinde geri almak zorunda kalır. İnceleyici kısıtı hem uygulamada hem hukuk metninde bulup 3.1.2(a)'yı gösterebilir. Kesin red değil, risk: abonelik her cihazda çalışıyor, yalnız aynı anda değil.
+
+**Sahibin kararı** — Platform başına bir cihaz (bir iPhone + bir Android aynı anda).
+
+**Düzeltme** — Kilit platform başına yuvaya bölünür; mevcut tek-talep dokümanı geriye uyumluluk için 1. yuva olarak okunur. Karar gereği Koşullar metni (TR+EN) yeni kurala göre güncellenir. İnceleme işletimi: demo hesap inceleme boyunca başka yerde açık olmamalı. `docs/store-review-notes.md`'ye: ücretli hesap platform başına bir etkin cihazla sınırlı, "Bu cihazda kullan" ile taşınır, deneme hesapları kısıtlı değil.
+
+**Android güvenliği** — Kuralı yalnız gevşetir.
+
+### U33 — Satın alma hata eşlemesinde iOS için önemli kodlar eksik
+⏳ açık · ORTA · kod · A3 ortak kod · kaynak: `purchase-error-mapping-ios-codes`
+
+**Kanıt** — `lib/core/purchase_errors.dart:61-85` `storeErrorText`: `paymentPendingError` ve `configurationError` varsayılana (`purchaseFailed` + kayıt) düşüyor; `purchaseNotAllowedError` "birkaç dakika sonra tekrar dene" diyen `purchaseStoreProblem`'e eşleniyor (`:74-76`). `lib/features/profile/subscription_screen.dart:89-96` `_restore` hatayı eşleyiciyi atlayıp `friendlyError` ile gösteriyor.
+
+**Etki** — iOS'ta Ask to Buy (Aile Paylaşımı çocuk hesabı) ve ek onay isteyen ödemeler `paymentPendingError` verir: kullanıcı "Satın alma tamamlanamadı" görür, oysa satın alma sonradan gerçekleşebilir; Crashlytics'e gürültü. Ekran Süresi'nde "Uygulama İçi Satın Alma: İzin Verme" varken `purchaseNotAllowedError` birkaç dakika sonra denemeyi söyler — asla işe yaramaz. Abonelik ekranında restore hataları genel "beklenmeyen hata" gösterir.
+
+**Düzeltme**
+1. `paymentPendingError` → yeni `purchasePending` (TR: "Ödemen onay bekliyor; onaylanınca Rytho+/krediler otomatik açılır."); kaydedilmez. Paywall `_buy` (`paywall_screen.dart:96`) ve kredi mağazası `_buy` (`token_store_screen.dart:56`) bunu nötr bilgi olarak (macenta hata metni değil) gösterir ve `subscriptionProvider`/`walletProvider`'ı geçersiz kılar ki sonraki webhook açsın.
+2. `purchaseNotAllowedError` kendi anahtarına, `defaultTargetPlatform`'a göre: iOS "Bu cihazda uygulama içi satın alma kapalı (Ayarlar › Ekran Süresi)."; Android mevcut `purchaseStoreProblem` metnini bayt bayt korur ya da nötr "Mağaza hesabını/uygulamasını kontrol et".
+3. `configurationError` → `billingNoPackages`; `magazaHatasiKaydedici` çağrısı KALIR (çizim yolunda `magazaVeyaAgHatasi` ile tekilleştiriliyor).
+4. `_restore`: PlatformException dalında `friendlyError(e, l10n)` yerine `storeErrorText(e, l10n)`.
+5. Yeni anahtarlar `app_tr.arb` + `app_en.arb`.
+
+**Android güvenliği** — Mevcut durumlar aynen kalır; Android davranışı yalnız iyileşir.
+
+### U34 — Davet ve web sayfaları yalnız Google Play'e bağlanıyor
+⏳ açık · ORTA · ikisi · A3 ortak kod · kaynak: `invite-landing-page-play-only`, `web-store-links-play-only`, `invite-landing-play-only`
+
+**Kanıt** — `web/i/index.html:72-79` yalnız "Google Play'den indir" sunuyor (yorum iOS'u kapsam dışı sayıyor); `web/auth/action/index.html:209` yalnız Play; `web/index.html:100, :334` ve `web/en/index.html:99, :337` App Store düğmeleri `href="#" aria-disabled="true"`.
+
+**Etki** — iOS kullanıcısı `https://rytho.app/i/<kullanıcı>`'yı uygulaması olmayan iPhone'lu arkadaşına paylaşır; arkadaş iOS'ta çıkmaz sokak olan bir Play düğmesi görür. Davet sosyal büyüme döngüsü; iOS davetlileri kaybolur. E-posta doğrulama ya da şifre sıfırlama sonrası iPhone'da da aynısı. Lansmandan sonra açılış sayfası iOS'u hâlâ "yakında" diye anar; App Store metaverisinde kullanılan site inceleyiciye iOS sürümünün olmadığını söyler. İnceleme engelleyicisi değil, parite boşluğu.
+
+**Düzeltme** (`APPSTORE_APP_ID` gerekir — U02)
+- `web/i/index.html` ve `web/auth/action/index.html`: iOS algılama `/iPhone|iPad|iPod/.test(navigator.userAgent)` ya da iPadOS için `navigator.platform==='MacIntel' && navigator.maxTouchPoints>1`. iOS'ta düğme `https://apps.apple.com/app/id<ID>`, metin "App Store'dan indir" / "Download on the App Store"; ötekilerde Play kalır. Uygulama canlı olana dek "iOS yakında" notu.
+- `/i/` ve açılış sayfalarına Safari Smart App Banner: `<meta name="apple-itunes-app" content="app-id=<ID>, app-argument=https://rytho.app/i/...">` (yalnız uygulama App Store'da canlıyken görünür).
+- Onaydan sonra `web/index.html` + `web/en/index.html`'deki devre dışı App Store düğmeleri ve SSS metni gerçek URL'ye; "iOS hazırlanıyor" metni kalkar.
+- `backend/tests/test_davet_sayfasi.py`: UA dalına izin verir, ama `href="#"` olmadığını ve App Store URL'sinin sayısal kimlik taşıdığını doğrular.
+- `APPSTORE_APP_ID` → `dart_defines.local.json`. Dağıtım AASA TEAMID düzeltmesiyle birlikte: `firebase deploy --only hosting --project rhytoai`.
+
+**Android güvenliği** — Play bağlantısı iOS dışındaki herkes için aynen kalır.
+
+### U35 — Herkese açık hesap silme sayfası aboneliği yalnız Google Play'de iptal etmeyi anlatıyor
+⏳ açık · ORTA · kod · A3 ortak kod · kaynak: `web-deletion-page-play-only-cancel`
+
+**Kanıt** — `web/legal/hesap-silme.html:55` ve `web/en/legal/delete-account.html:54`: "Google Play aboneliklerinden iptal etmelisiniz".
+
+**Etki** — Gizlilik politikasından ve mağaza kayıtlarından bu sayfaya gelen iOS Rytho+ abonesi aboneliği Google Play'de arar, bulamaz ve Apple tarafından ücretlendirilmeye devam eder: şikâyet ve iade talebi; Apple'ın silme rehberiyle çelişki.
+
+**Düzeltme** — Cümle iki mağazayı da kapsar, iki dosyada: TR örnek "iPhone'da Ayarlar → Apple Kimliği → Abonelikler (https://apps.apple.com/account/subscriptions), Android'de Google Play → Abonelikler"; EN karşılığı. Hosting yeniden dağıtılır.
+
+### U36 — Paralel Android geliştirmesine karşı otomatik iOS bekçisi yok
+⏳ açık · ORTA · kod · A3 ortak kod · kaynak: `no-ios-build-guard-for-parallel-android-dev` (eksik avcısı)
+
+**Kanıt** — Depo kökünde `.github/` yok, `infra/`'da yalnız `build-aab.ps1`. `apps/mobile/pubspec.yaml:47, :59` şapkalı aralıklar (`purchases_flutter: ^9.10.4`, `camera: ^0.11.2`): Windows'ta `flutter pub upgrade` `pubspec.lock`'u değiştirir, ama `ios/Podfile.lock` ve iki `Package.resolved` yalnız Mac'te tazelenir. `backend/tests/test_ios_config.py` bundle kimliği, Google URL şeması, aps ayrımı, Podfile/pbxproj hedefi, ihracat bayrağı ve STRIP_STYLE'ı denetliyor; eklenti başına izin metni kapsamını ve derlenebilirliği değil. `.gitignore:67` tflite modelini izlemiyor; temiz checkout derlemesi modeli önce indirmeli.
+
+**Etki** — Android tarafındaki bir değişiklik derlenip Play'e çıkarken iOS'u kırabilir; bu ancak Mac bir sonraki derlemede — belki iOS gönderim günü — görülür. Örnekler: iOS kodu kamera/mikrofon/konum/fotoğraf API'sine başvuran ama Info.plist anahtarı olmayan yeni eklenti (yüklemede ITMS-90683 ya da çalışırken TCC çökmesi); iOS tabanını 15.5'in üstüne çeken ya da Xcode 27 isteyen bir eklenti sürümü; yalnız Android'de kullanılan bir Dart API'si. Ortak pubspec sürümü (+N) iki platformun build numarası artışlarını da koordine etmeyi gerektirir; bunlar `min_build` kapısını da besler.
+
+**Düzeltme**
+1. Windows'ta zaten koşan `backend/tests/test_ios_config.py` genişletilir: `pubspec.yaml`'daki gözden geçirilmiş bağımlılıklar gerektirdikleri Info.plist anahtarlarına eşlenir — camera → `NSCameraUsageDescription` + `NSMicrophoneUsageDescription`; image_picker → `NSPhotoLibraryUsageDescription`; flutter_contacts → `NSContactsUsageDescription`; share_plus → `NSPhotoLibraryAddUsageDescription`. Gözden geçirilmemiş bir bağımlılık görünce düşer; Android makinesi iOS etkisini işaretlemeye zorlanır.
+2. İsteğe bağlı: `master`/`ios-hazirlik`'e push'ta GitHub Actions macOS işi — Xcode 26.x seçer, tflite modelini `scripts/fetch_models.ps1`'deki URL'den indirir, CI dart-define'larıyla `flutter build ios --release --no-codesign`.
+3. CLAUDE.md kuralı: Android makinesi Mac derleme kontrolü olmadan `flutter pub upgrade` koşmaz ve eklenti eklemez; `Podfile.lock` ve `Package.resolved` yalnız Mac'te güncellenir.
+4. Build numaraları: iki makinede de HER mağaza yüklemesinden önce pubspec `+N` artırılır, asla yeniden kullanılmaz. Düz tamsayı kalır — `lib/core/app_config.dart:53` `int.tryParse(buildNumber)` yapıyor; noktalı bir CFBundleVersion 0 okunur.
+
+**Android güvenliği** — Test, CI ve süreç; test yalnız dosya okur, Android derlemesi değişmez.
+
+### U37 — Görünen ad ve profil fotoğrafı UGC; belgeler "UGC yok" ve artık olmayan 12+ derecesini planlıyor
+⏳ açık · ORTA · ikisi · A4 mağaza · kaynak: `ugc-surface-and-age-rating`
+
+**Kanıt** — `docs/store-launch.md:158` "1.2 — UGC: Uygulanmıyor"; `docs/store-privacy-labels.md:147` "Other user-generated content? HAYIR"; `:220` ve `docs/production-checklist.md:175` App Store 12+. Uygulama onboarding'de 13+ beyanı istiyor.
+
+**Etki** — Yaş derecelendirmesi anketi yanlış cevaplanır (2.3.6); başka kullanıcıların profil fotoğrafını ve adını gören inceleyici 1.2'yi (filtreleme, EULA'da sıfır tolerans) uygulayabilir. Beyan edilen derece uygulamadaki 13+ sözüyle de uyuşmaz.
+
+**Düzeltme** — Yaş anketi: Messaging and Chat = Evet. User-Generated Content: Apple'ın "geniş dağıtım" tanımıyla "Hayır" savunulabilir — gerekçe yazılır; ama "Evet"in bedeli yok (4+'da izinli). Social Media = Hayır. Ardından yaş derecesi geçersiz kılmasıyla Koşullar'a uyan 13+. 1.2 için değerli sağlamlaştırma (engelleyici değil): ad kara listesi, bildirimde admin'in ad/fotoğrafı sıfırlaması, Koşullar "Davranış" bölümünde sıfır tolerans maddesi (TR+EN). Hâlâ 12+ diyen belgeler güncellenir.
+
+### U38 — Review notları yüz okumayı ve yalnız TR telefon kapısını anmıyor
+⏳ açık · ORTA · ikisi · A4 mağaza · kaynak: `review-notes-omit-face-reading-and-phone-gate` (eksik avcısı)
+
+**Kanıt** — `docs/store-review-notes.md:141-152` önerilen gezinti: Sky, Atlas, Oracle/BaZi, Chat, Bildirimler, Hesap silme — yüz okuma ve telefon/rehber yok. `backend/api/face_reading.py:96, :111, :140`: Plus şartı, biyometrik onay kontrolü, yüz oranlarının `report_service.firasa_report(...)` ile LLM'e gitmesi; Guideline 5.1.2(vi) yüz haritalama araçlarından toplanan verinin pazarlama, reklam ya da kullanım temelli veri madenciliği için kullanılmasını yasaklıyor. `lib/features/profile/phone_verify_screen.dart:73, :111-112` `_smsBolgeleri = {'TR'}` → `phoneRegionUnsupported` (`app_en.arb:874`, yalnız +90); `lib/core/contact_match.dart:209-214` doğrulanmış telefon yoksa `telefonYok`. `docs/konsol-gorevleri.md:258-261` Firebase Auth test telefon numarasını kaydediyor.
+
+**Etki** — İnceleyici kullanıcının yüzünü analiz eden bir kamera özelliği bulur, notlarda açıklama yok: böyle uygulamalar genelde 2.1 bilgi talebi alır (hangi yüz verisi, nasıl kullanılıyor, paylaşılıyor mu, ne kadar tutuluyor) — bir tur daha. Türkiye dışındaki inceleyici arkadaş eşleşmesini denerken +90 SMS adımında durur ve özelliği "çalışmıyor" diye bildirebilir (2.1).
+
+**Düzeltme**
+- `docs/store-review-notes.md` §3'e (ve ASC App Review Information notlarına) "Face reading" paragrafı: algılama cihazda (ML Kit + TFLite); hiçbir görüntü cihazdan çıkmaz; ayrı biyometrik onaydan sonra TLS üzerinden yalnız yuvarlanmış geometrik oranlar gider; oranlar yalnız o okumayı onayda adı geçen AI sağlayıcısıyla üretmek için kullanılır; kimlik tespiti, reklam ya da veri madenciliği yok (5.1.2(vi)); saklama süresi (`report_service`'in ne sakladığına bakılıp yazılır).
+- Gezintiye yüz okuma adımı: Plus ister, demo hesapta var.
+- Telefon satırı: doğrulama isteğe bağlı ve yalnız rehber eşleşmesi için; SMS yalnız +90; test numarası ve kodu ASC notlar alanına (herkese açık belgelere DEĞİL).
+- Metin U18'deki düzeltilmiş notlarla hizalanır.
+
+### U39 — Giriş duvarının gerekçesi notlarda yok (5.1.1(v) Account Sign-In)
+⏳ açık · ORTA · ikisi · A4 mağaza · kaynak: `login-wall-5-1-1-v-justification` (eksik avcısı)
+
+**Kanıt** — `lib/main.dart:279` `if (user == null) return const LoginScreen();`: canlı gökyüzü ve efemeris içeriği dahil her şey girişin arkasında. `docs/store-review-notes.md:110-163` (§3) 4.3 farkını, satın almaları ve silmeyi anlatıyor; zorunlu kaydın gerekçesi yok.
+
+**Etki** — Burç/astroloji uygulamaları "hesaba dayanmayan özellik için kayıt şartı" reddinin sık hedefi. Rytho'nun gerçek hesap özellikleri var (sunucuda doğum haritası ve hafıza, cihazlar arası abonelik ve kredi cüzdanı, arkadaş katmanı), yani savunulabilir; ama notlar söylemezse inceleyici genel görünen içeriğin önünde yalnız bir giriş duvarı görür.
+
+**Düzeltme** — Asgari: notlara kısa "Why an account is required" paragrafı — doğum haritası, damıtılmış hafıza ve okumalar kullanıcı başına sunucuda saklanıp cihazlar arası eşitlenir; Rytho+ ve kredi cüzdanı sunucuda, iPhone ve Android'de çalışır; arkadaş/uyum katmanı kimlik ister; AI kullanımı hesap başına kota ve kötüye kullanım denetimli; Apple ile Giriş bunu tek dokunuş yapar. İsteğe bağlı, daha güçlü: girişten önce sınırlı misafir önizlemesi (ör. bugünün canlı gökyüzü). Ürün değişikliği — iki platform için birlikte karar.
+
+**Android güvenliği** — Yalnız not değişikliği kodsuz. Misafir önizlemesi ortak Dart'a dokunur: bayrak arkasında ve birleştirmeden önce Android'de test.
+
+### U40 — iOS'ta Apple ile açılan hesap Android'de giremiyor
+⏳ açık · ORTA · ikisi · Sonra · kaynak: `apple-signin-android-parity`
+
+**Kanıt** — `lib/core/auth_service.dart:28-29` Apple girişi yalnız iOS'ta. `useGoogleInstead` (`app_tr.arb:742`, `app_en.arb:742`) Android'de de "Google/Apple ile açılmış olabilir — aşağıdaki düğmeleri dene" diyor, oysa orada Apple düğmesi yok. İkinci giriş yolu ekleme `linkPassword` ile mevcut (`auth_service.dart:200-214`).
+
+**Etki** — Ürün iki platformda tek hesap (devralmalı tek cihaz kilidi cihaz değiştirmek için yapıldı). iOS'ta Apple ile — özellikle Hide My Email ile — kayıt olan kullanıcının Android'de aynı hesaba yolu yok: Apple düğmesi yok, şifre yok, aktarıcı adresi bilinmiyor. Yeni boş hesap açar ya da desteğe yazar.
+
+**Düzeltme** — Kısa vade (Android'e güvenli, öne çekilebilir): iOS korumalı "şifre bağla" dürtmesi; Android'de `useGoogleInstead` var olmayan Apple düğmelerini anmasın ya da platforma duyarlı olsun. Uzun vade — **ertelendi:** Android'de Apple ile Giriş; Services ID ve dönüş URL'si ister, Android makinesinde yapılır.
+
+### U41 — AB DSA tacir beyanı ve v1 bölge seçimi için runbook yok
+⏳ açık · ORTA · hesap · Sonra · kaynak: `asc-dsa-trader-and-territory-decisions` (eksik avcısı)
+
+**Kanıt** — Apple'ın DSA tacir sayfası: AB'de dağıtım yapılmasa bile tacir durumu beyan edilmeli; doğrulanınca bilgiler AB ürün sayfasında yayınlanır. Apple haberi (23 Aralık 2025): Texas SB2420 duraklatıldı; yaş araçları 2026'da yürürlüğe giren Utah ve Louisiana yasalarına yönelik. `docs/mac-devir.md:93-207` (§4.1–4.9) DSA ya da bölge adımı içermiyor; depodaki tek DSA anışı `docs/store-review-notes.md:75` (moderasyon bağlamı).
+
+**Etki** — Uygulama abonelik ve kredi sattığı için sahip "tacir"dir. Bireysel hesapta Apple her AB ürün sayfasında bir adres (ya da posta kutusu), telefon ve e-posta yayınlar — gönderim anında doğaçlanmamalı. ABD'de dağıtım Utah/Louisiana yaş doğrulama yükümlülükleri getirebilir; henüz değerlendirilmedi.
+
+**Sahibin kararı** — Yalnız Türkiye: ABD yaş yasaları kapsam dışı; AB'de yayınlanacak iletişim bilgisinin hazırlığı AB'ye açılana dek ertelendi. Kaynağa göre tacir durumu sorusu AB dışı dağıtımda da cevaplanır; o soru ASC kurulumunda yanıtlanır.
+
+**Düzeltme** (AB'ye açılırken)
+1. ASC > Business: tacir durumu; `legal_texts.dart` `kLegalContact` ile tutarlı posta kutusu ya da iş adresi, ayrı destek telefonu ve e-postası. Apple doğrular, günler sürebilir — erken başlanır.
+2. Pricing and Availability: bölgeler bilinçli seçilir; ABD eklenecekse yaş doğrulama yükümlülükleri değerlendirilir ya da ABD ertelenir.
+3. İki adım `docs/mac-devir.md` §4'e "SEN" maddeleri olarak.
+
+---
+
+## DÜŞÜK
+
+### U42 — App Attest yetkisi iki entitlements dosyasında da yok
+✅ kapandı — `54130b9` · DÜŞÜK · kod · A2 iOS kod · kaynak: `app-attest-entitlement-missing`, `app-attest-entitlement-and-mac-availability` (yetki kısmı)
+
+**Kanıt** — Tabanda `ios/Runner/Runner.entitlements` ve `RunnerRelease.entitlements` `aps-environment`, `applesignin` ve `associated-domains` taşıyor; `com.apple.developer.devicecheck.appattest-environment` yok.
+
+**Etki** — TestFlight ve App Store paketleri etkilenmez (Apple production ortamını zorlar); bugünkü bir hatanın nedeni bu değil. Ama geliştirme ya da ad hoc imzalı bir Release/Profile paketi gerçek cihaza kurulursa (ör. ödünç telefona Xcode'dan) sandbox'a karşı attest eder; Firebase o jetonları reddeder ve zorlama açıkken giriş ve Firestore nedeni belirsiz biçimde düşer. Proje Firebase'in belgelenmiş kurulumundan da sapıyordu.
+
+**Düzeltme** — Xcode → Runner → Signing & Capabilities → + App Attest; `com.apple.developer.devicecheck.appattest-environment = production` İKİ dosyada (dosyalar `aps-environment` dışında aynı kalır — `test_ios_config.py` bunu şart koşuyor). Debug `AppleDebugProvider` kullanır, anahtarın orada etkisi yok. App Check'te App Attest kaydından önce Firebase iOS uygulamasında Team ID dolu olmalı (U08). `54130b9`: iki dosyada production, `test_ios_config.py` geçti.
+
+### U43 — iOS paketi IDFA destekli Firebase Analytics yığınını bağlıyor
+✅ kapandı — `4ba7d9d` · DÜŞÜK · ikisi · A2 iOS kod · kaynak: `firebase-analytics-idfa-ios-vs-android`, `analytics-adid-stack-ios`, `privacy-text-android-framed-idfa` (derleme kısmı)
+
+**Kanıt** — `firebase_analytics` 12.4.5 `ios/firebase_analytics.podspec:7-9`: `$FirebaseAnalyticsWithoutAdIdSupport` tanımlı değilse tam `FirebaseAnalytics` (IdentitySupport + AdsOnDeviceConversion) bağlanıyor. Android AD_ID iznini bilerek kaldırdı (`legal_texts.dart:139-142`); gizlilik belgeleri "reklam kimliği yok / cihaz kimliği yok" diyor.
+
+**Etki** — Aynı ürün kararında iki platform ayrışıyor: iOS ikilisi Android'in söktüğü IDFA okuyan kodu ve Google Ads dönüşüm kodunu taşıyor. ATT istemi olmadığı için IDFA çalışma anında sıfır döner; ama gönderilen ikili politika ve etiketteki duruşla eşleşmiyor — etiket uyuşmazlığı ya da incelemede soru (5.1.2), üstelik kullanılmayan ikili ağırlığı. İlk sürümden önce isteğe bağlı.
+
+**Düzeltme** — Bağımlılık yöneticisi seçimine (U25) bağlı:
+- Yalnız CocoaPods: `ios/Podfile`'ın en üstüne `$FirebaseAnalyticsWithoutAdIdSupport = true`.
+- SwiftPM: SwiftPM her çözümlemede ortam değişkenini görmeli — `FIREBASE_ANALYTICS_WITHOUT_ADID=true flutter build ipa` (ya da Xcode değişkeni dışa aktarmış bir kabuktan açılır); önce paket önbellekleri bir kez temizlenir (`build/ios/SourcePackages`, DerivedData). Xcode arayüzünden alınan arşivler kabuk değişkenini görmez. Kırılgan: CocoaPods geçişiyle birlikte yapılır ya da ertelenir.
+- Doğrulama: `FirebaseAnalyticsCore` çözülüyor; `GoogleAppMeasurementIdentitySupport`, `GoogleAdsOnDeviceConversion` ve AdSupport `.app`'ten gitmiş.
+- ASC App Privacy cevapları "yalnız User ID" varsayımıyla değil, Google'ın Firebase veri açıklama rehberiyle karşılaştırılır (U20).
+- `4ba7d9d`: CocoaPods yolu (U25) + Podfile'da kalıcı `$FirebaseAnalyticsWithoutAdIdSupport = true` (Xcode arşivinde de geçerli). Ölçüldü: cihaz ikilisinde `ASIdentifierManager` başvurusu 0, IdentitySupport / AdsOnDeviceConversion çerçevesi 0. Kalan: ASC cevapları U20'de.
+
+### U44 — Paylaşım kartı Fotoğraflar'a kaydedilemiyor; iPad'de paylaşım balonu konumsuz
+✅ kapandı — `54130b9` · DÜŞÜK · kod · A2 iOS kod · kaynak: `missing-photo-library-add-usage`, `ipad-share-origin-and-save-image`
+
+**Kanıt** — Tabandaki `ios/Runner/Info.plist`'te `NSPhotoLibraryAddUsageDescription` yok; `lib/features/share/share_card.dart:461-462` `SharePlus.instance.share(ShareParams(files: …))` `sharePositionOrigin` vermiyor.
+
+**Etki** — iOS'ta paylaşım sayfasının "Resmi Kaydet" seçeneği görünmez; paylaşım kartını hikâyeye koymadan önce Fotoğraflar'a kaydetmek en yaygın yol. Android'de paylaşım hedefleriyle kaydetme çalışıyor — parite boşluğu; çökme ya da red yok. iPad'de balon düğmeden kopuk, ekran ortasında açılırdı (share_plus 13.3.0 ile çökme değil).
+
+**Düzeltme** — Info.plist'e `NSPhotoLibraryAddUsageDescription`, İngilizce satır `InfoPlist.strings`'e (U27). `sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size` yalnız iPhone kararıyla (U10) gereksiz: iPad'de uyumluluk kipinde paylaşım düz sayfa. `54130b9`: anahtar TR ve en/tr varyantlarında. Paylaşım sayfasında "Resmi Kaydet"in göründüğü A5'te doğrulanır (U21).
+
+### U45 — iOS'ta Firebase oturumu yeniden kurulumdan sağ çıkıyor, cihaz kimliği çıkmıyor
+⏳ açık · DÜŞÜK · kod · A2 iOS kod · kaynak: `ios-keychain-session-survives-reinstall`
+
+**Kanıt** — Cihaz kimliği SharedPreferences'ta rastgele 128 bit (`lib/core/device_id.dart:3, :36, :53`) ve uygulama silinince gider; Firebase oturumu iOS'ta silmeden sağ çıkıyor. `lib/main.dart:154` `runApp`'ten önce yeniden kurulum işareti yok.
+
+**Etki** — Android'de olmayan iOS'a özgü davranış: silip yeniden kuran abone uygulamayı zaten girişli açar — yeni cihaz kimliği, eski `auth_time` — ve DeviceConflictScreen'de başka bir cihazın (kendi eski kurulumunun) hesabı tuttuğunu görür. "Bu cihazda kullan" ile düzelir ama kafa karıştırır. Çıkış yapılmış olmayı bekleyerek silenler de otomatik girişli açılır.
+
+**Düzeltme** — Yalnız iOS (`defaultTargetPlatform == TargetPlatform.iOS && !kIsWeb`), `runApp`'ten önce: SharedPreferences işareti yoksa ve `currentUser != null` ise doğrudan `FirebaseAuth.instance.signOut()`. `signOutEverywhere` DEĞİL — o gezgin kapsayıcısına ve backend serbest bırakmaya uzanır. Sonra işaret yazılır, kullanıcı girişli olmasa da.
+
+**Android güvenliği** — iOS korumalı; Android değişmez.
+
+### U46 — Mağaza hata metinleri iOS'ta Google hesabını ve Play test kanalını anıyor
+⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `store-error-wording-google`, `android-specific-purchase-copy-on-ios`
+
+**Kanıt** — `lib/l10n/app_tr.arb:916-917` / `app_en.arb:916-917`: `purchaseAlreadyOwned` "Bu Google hesabında…", `purchaseItemUnavailable` "Test kanalına katılan hesabın…"; `lib/core/purchase_errors.dart:64-70` ikisini platforma bakmadan döndürüyor. `docs/mac-devir.md:238-240`'taki "Mağaza metinleri nötr … 'Google Play' yazmıyor artık" iddiası bu iki anahtar için yanlış.
+
+**Etki** — `productNotAvailableForPurchaseError`'ın iOS'ta en olası anı App Review'dur (IAP'ler henüz onaysızken): inceleyici Android "test kanalı" talimatı okur; iOS satın alma akışında "Google hesabı" kafa karıştırır. Google ile Giriş uygulamada meşru olduğu için red riski küçük, ama gerçek parite boşluğu; TestFlight testçilerini de şaşırtır.
+
+**Düzeltme** — `purchaseAlreadyOwned` iki ARB'de mağaza-nötr: "Bu mağaza hesabında zaten etkin bir abonelik var — satın alımların geri yükleniyor…". `purchaseItemUnavailable` ya nötr ("Ürün şu an mağazada bulunamadı; mağaza hesabını kontrol edip tekrar dene") ya da `storeErrorText` içinde `defaultTargetPlatform` ile seçilen iOS'a özgü anahtar. `flutter gen-l10n`; `mac-devir.md:238-240` iddiası düzeltilir.
+
+**Android güvenliği** — Platform dalı seçilirse Android'in test kanalı ipucu bayt bayt korunur.
+
+### U47 — "Aboneliği yönet" aboneliğin alındığı mağazaya bakmıyor
+⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `manage-subscription-cross-store`, `manage-subscription-ignores-origin-store`
+
+**Kanıt** — `lib/features/profile/subscription_screen.dart:41-54` `storeSubscriptionUri` yalnız çalışan platforma göre dallanıyor (iOS → Apple abonelikleri, öteki → Play).
+
+**Etki** — Hesap RevenueCat ve sunucu üzerinden iki platformda ortak; Android'de abone olup iPhone'da giren kullanıcı orada da Rytho+. "Aboneliği yönet" Apple sayfasını açar, abonelik orada yok, iptal yolunu bulamaz (tersi Android'de). Red riski değil (inceleyiciler App Store'dan abone olur), ama gerçek parite ve destek sorunu.
+
+**Düzeltme** — İki yol, ikisi de iki platformu düzeltir: (a) `(await Purchases.getCustomerInfo()).managementURL` (RevenueCat kaynak mağazayı bilir); null (etkin mağaza aboneliği yok) ya da hatada `storeSubscriptionUri(productId)`'ye düşülür. (b) Backend modeline ve istemciye eklemeli `store` alanı: `APP_STORE` → Apple URL; `PLAY_STORE` → sku'lu Play URL; `PROMOTIONAL`/`STRIPE`/null → çalışan platform.
+
+**Android güvenliği** — Eski istemciler yeni alanı yok sayar.
+
+### U48 — Telefon ve SMS kodu alanlarında iOS klavyesi kapatılamıyor
+⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `ios-numeric-keyboard-no-dismiss`
+
+**Kanıt** — Kod alanı `lib/features/profile/phone_verify_screen.dart:344-347` (`TextInputType.number`), telefon alanı `lib/widgets/phone_number_field.dart:254` (`TextInputType.phone`); `phone_verify_screen.dart:319` `ListView`'da `keyboardDismissBehavior` yok.
+
+**Etki** — iPhone'da sayı tuş takımında Bitti/Return yok, sistem geri düğmesi de yok. Klavye açık kalır ve alanın altındaki "Kod gönder" / "Doğrula" düğmelerini örter; kullanıcı kaydırabileceğini tahmin etmek zorunda. Android'de geri tuşu var.
+
+**Düzeltme** — İki TextField'a `onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus()` ve/veya `:319` ListView'a `keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag`.
+
+**Android güvenliği** — Ortak kod; Android'e yalnız klavye kapatma jesti ekler.
+
+### U49 — Apple/Google giriş sayfasını kapatmak "giriş başarısız" gösteriyor ve Crashlytics'e yazıyor
+⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `social-signin-cancel-shows-error`
+
+**Kanıt** — `lib/features/auth/login_screen.dart:102-129` `_runSocial`'ın genel `catch`'i (`:110`) iptali de yakalıyor: `recordError('social-signin: …')` (`:122-124`) ve `authFailed` snack'i.
+
+**Etki** — iOS'ta Apple sayfasını kapatmak normal bir eylem. Kullanıcı (ve inceleyici) hata snack'i görür; Crashlytics gerçek hataları gizleyen sahte "social-signin" kayıtlarıyla dolar.
+
+**Düzeltme** — Genel catch'ten önce `SignInWithAppleAuthorizationException` (`code == canceled`) ve `GoogleSignInException` (`code == canceled`) yakalanır; sessizce dönülür ya da nötr "Giriş iptal edildi" gösterilir, Crashlytics'e yazılmaz. Dikkat: bazı cihaz ve simülatörlerde iCloud hesabı yokken kapatma `AuthorizationErrorCode.unknown` (1000) olarak gelir — o kod bastırılmaz.
+
+**Android güvenliği** — Google iptali Android'de de sessizleşir; genel catch'teki "[16] reauth" dalı (B1) aynen kalır.
+
+### U50 — 426 `update_required` metni "Google Play'den güncelle" diyor
+⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `update-required-message-names-google-play`
+
+**Kanıt** — `backend/core/messages.py:327-331` TR "…Google Play'den…", EN "…from Google Play."; `backend/core/app_gate.py:302` bu metni 426 gövdesinde döndürüyor.
+
+**Etki** — Sunucu güncelleme dayattığında iOS kullanıcısı kısa süre Google Play'i anan bir hata görebilir. Uygulama içinde başka mobil platformu anmak 2.3.10 ile çelişir. Metin yalnız kapı etkinken göründüğü için red olası değil.
+
+**Düzeltme** — Backend metni istemci ARB'si gibi mağaza-nötr (`docs/mac-devir.md` §5 "Mağaza metinleri nötr"): TR "Rytho'nun bu sürümü artık desteklenmiyor — uygulamayı mağazadan güncelle." EN "…update it from your app store." Eski metni doğrulayan test güncellenir.
+
+### U51 — Admin panelindeki "iOS" kullanıcı filtresi hiç eşleşmiyor
+⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `admin-platform-filter-case-mismatch`
+
+**Kanıt** — `web/rytho-admin/gorunumler/kullanicilar.js:313` filtre `deger: 'ios'`; uygulama `defaultTargetPlatform.name` ile `'iOS'` saklıyor (`lib/core/device_session.dart:47`).
+
+**Etki** — iOS lansmanından sonra kullanıcı listesi, CSV dışa aktarımı ve platform filtresi sıfır iOS kullanıcısı döner; platform analitiği ve kohort görünümleri iOS'u eksik sayar; geri bildirim ile kullanıcı verisi platforma göre birleştirilemez.
+
+**Düzeltme** — Asgari: `kullanicilar.js:313` → `{ deger: 'iOS', … }`. Daha sağlam, sunucu tarafı: `admin_service` gelen platformu Firestore eşitliğinden ve bellek içi karşılaştırmadan önce normalleştirir (`{'ios': 'iOS'}.get(p.lower(), p)`). Saklanan cihaz kayıtları ya da `X-Device-Other-Platform` küçültülmez — `device_conflict_screen.dart:90-93` "Ios" basardı. `geribildirim.js` değişmez.
+
+### U52 — UI yazı tipleri çalışma anında Google'dan indiriliyor
+⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `google-fonts-runtime-fetch` (eksik avcısı)
+
+**Kanıt** — `lib/theme/rytho_theme.dart:79, 85, 91, 99` `GoogleFonts.sora/manrope/jetBrainsMono`; `lib/`'de `GoogleFonts.config.allowRuntimeFetching = false` yok (yalnız `test/chart_wheel_test.dart:66`); pubspec'te paketlenmiş yazı tipi yok. `google_fonts` 6.3.3 `google_fonts_base.dart:110-112` yükleme future'ına hata işleyicisi bağlamıyor, `:206` indirme hatasında `rethrow` ediyor; `lib/main.dart:133-134` işlenmemiş async hatayı `fatal: true` kaydediyor.
+
+**Etki** — Ağsız ilk açılışta (ya da fonts.gstatic.com engelliyse) tüm arayüz — paylaşım kartları dahil — marka yazı tipleri yerine SF Pro ile çizilir. Başarısız her yazı tipi varyantı işlenmemiş async hata olarak Crashlytics'e FATAL düşer, TextStyle başına yeniden denendiği için tekrar tekrar — sahibin TestFlight'ta izlediği çökme oranı şişer. Her yeni kurulum Google'ın yazı tipi CDN'ine bağlanıyor; gizlilik politikası bunu anmıyor. Android'de de aynı.
+
+**Düzeltme** — Kullanılan Sora, Manrope ve JetBrains Mono ağırlıkları (hepsi OFL) google_fonts'un beklediği dosya adlarıyla `assets/google_fonts/`'a indirilir ve pubspec assets'e eklenir. `main()`'de `runApp`'ten önce `GoogleFonts.config.allowRuntimeFetching = false;`. OFL lisansları `LicenseRegistry.addLicense` ile kaydedilir. Paket ~1–2 MB büyür.
+
+**Android güvenliği** — Aynı dosyalar iki platformda aynı çizilir; Android yalnız indirmeyi bırakır. Birleştirmeden sonra Windows'ta golden ve widget testleri (zaten indirmeyi kapatıyorlar) koşulur.
+
+### U53 — Apple silicon Mac (ve Vision Pro) erişilebilirliği varsayılan açık
+⏳ açık · DÜŞÜK · hesap · A4 mağaza · kaynak: `app-attest-entitlement-and-mac-availability` (Mac kısmı)
+
+**Kanıt** — ASC iPhone/iPad uygulamalarını varsayılan olarak Apple silicon Mac'lerde sunar; uygulamanın App Check'i App Attest'e dayanıyor ve zorlama açık.
+
+**Etki** — Mac'te App Attest (ve kamera/ML Kit) kullanılamayabilir: kullanıcı uygulamayı kurup App Check'i hiç geçemeyebilir.
+
+**Düzeltme** — ASC > Pricing and Availability: App Check orada doğrulanmadıkça v1 için "iPhone and iPad Apps on Apple Silicon Macs" işareti kaldırılır; sunuluyorsa Apple Vision Pro erişilebilirliği de kaldırılır.
+
+### U54 — iOS'ta FCM `getToken`, APNs jetonundan önce çağrılınca düşüyor
+⏳ açık · DÜŞÜK · kod · A5 test · kaynak: `fcm-gettoken-before-apns` (doğrulayıcı: **BELİRSİZ**)
+
+**Kanıt** — `lib/core/notifications.dart:102` `syncNotificationContext`, `:114` `getToken()`, `:122-124` hata yalnız `debugPrint`. Geç gelen APNs jetonu `onTokenRefresh` + `ensureAPNSTokenSetting` ile yine yazılıyor (bkz. Doğrulanmış olanlar) — belirsizlik buradan.
+
+**Etki** — İlk kurulum/girişte `fcmToken`/`fcmTokenAt` sık sık `users/{uid}`'ye yazılmayabilir; sabah bildirimi ve arkadaş tepkisi push'ları `onTokenRefresh` tetiklenene ya da sonraki açılışa dek o cihaza ulaşmaz — sessizce.
+
+**Düzeltme** — Önce ölçülür: ilk TestFlight kurulumundan sonra Firestore'da `fcmToken`'a bakılır. Gerekirse yalnız sağlamlaştırma: iOS'ta `getAPNSToken()` null ise `getToken` sessizce atlanır, `onTokenRefresh`'e güvenilir. Yoklama gerekmez.
+
+### U55 — Depo Xcode 27 ile derlenmiyor; Apple asgari SDK'yı her bahar yükseltiyor
+⏳ açık · DÜŞÜK · kod · Sonra · kaynak: `xcode27-sdk-floor-liability` (eksik avcısı)
+
+**Kanıt** — `docs/mac-devir.md:279-288`: Xcode 27 depoyu derleyemiyor (purchases-ios 5.67.1 Swift 6.4'te kırık; Flutter 3.44.7'nin simülatör `lipo -verify_arch` adımı kırık); `purchases_flutter` 10.x Android'i etkilediği için seçilmedi. Apple: 28 Nisan 2026'dan beri yüklemeler Xcode 26+ ile derlenmeli (önceki tabanlar Nisan 2024'te Xcode 15, Nisan 2025'te Xcode 16).
+
+**Etki** — Bugün hiçbir şey engellenmiyor. Apple tabanı Xcode 27'ye çektiğinde — büyük olasılıkla Nisan 2027 civarı — `purchases_flutter` majör yükseltmesi (Android'in de aldığı ortak Dart API değişikliği) ve lipo sorununu aşan bir Flutter yükseltmesi olmadan acil düzeltmeler dahil hiçbir iOS güncellemesi çıkamaz. İkisi iki makine arasında koordine edilmeli.
+
+**Düzeltme** — `docs/mac-devir.md` ve production-checklist'e tarihli madde: "Xcode 27 hazırlığı, 2027 1. çeyrek". Swift 6.4'ü düzelten bir `purchases_flutter` 9.x yaması izlenir; yoksa 10.x geçişi + Flutter yükseltmesi Apple duyurusundan çok önce, iki platformda doğrulanan ortak bir dalda planlanır. Her Flutter stable sürümünden sonra Xcode 27 ile yeniden denenir.
+
+**Android güvenliği** — Şimdilik yalnız planlama; nihai `purchases_flutter` 10.x yükseltmesi birleşmeden önce Android'de (Play Billing) test edilir.
+
+---
+
+## Doğrulanmış olanlar
+
+Denetçilerin bakıp **sorun bulmadığı** yerler — kapsamın kanıtı. Kopyalar birleştirildi. Liste taban (`e4789d4`) durumunu anlatır; SwiftPM'e dair maddeler `4ba7d9d`'deki CocoaPods geçişinden öncedir.
+
+**Kimlik ve giriş**
+- Apple girişi yalnız iOS'ta (`auth_service.dart:28-29`, test `auth_service_test.dart:53-66`), Google'ın üstünde ve aynı 52 pt yükseklikte (4.8). Nonce akışı doğru: `Random.secure()` ham nonce Firebase'e, SHA-256'sı Apple'a. Apple adı ilk girişte yakalanıyor, `displayName` boşsa yazılıyor; kimse ad/e-postayı yeniden sormuyor.
+- `com.apple.developer.applesignin` iki entitlements dosyasında, `CODE_SIGN_ENTITLEMENTS` üç yapılandırmada; arşiv Release → `RunnerRelease.entitlements` (production). Google Sign-In v7: `GIDClientID` ve `REVERSED_CLIENT_ID` şeması GoogleService-Info ile eşleşiyor, `serverClientId` yalnız web istemcisi; google_sign_in_ios, firebase_auth ve sign_in_with_apple UIScene altında çalışıyor, hiçbiri `AppDelegate.window`'a bağlı değil.
+- Telefon doğrulama iOS'ta `fatalError`'a düşmez: REVERSED_CLIENT_ID şeması kayıtlı ve SDK onu geri dönüş şeması olarak kullanıyor (sessiz push doğrulaması APNs anahtarına bağlı, U08). App Check: `activate()` `runApp`'ten önce bekleniyor; release'te App Attest, debug'da debug sağlayıcı; 15.5 tabanı App Attest'in iOS 14 şartını aşıyor.
+- Backend kimlik doğrulaması sağlayıcıdan ve platformdan bağımsız (`core/auth.py` yalnız `verify_id_token`); Cloud Run API App Check doğrulamıyor, yani App Attest kaydından önce de iOS'ta çalışır; `firestore.rules` sağlayıcıya ya da `email_verified`'a bakmıyor. E-posta/şifre akışları nötr; `linkPassword` Hide My Email kullanıcısına e-postayı düzenletiyor.
+- Cihaz kimliği SharedPreferences'ta rastgele 128 bit — donanım ya da reklam kimliği değil, ATT gerekmez. `X-Device-Platform` 'iOS' gönderiyor, backend olduğu gibi saklıyor; çakışma ekranı devralma ve çıkış sunuyor (demo hesap çıkmaza girmez).
+- Hesap silme uygulama içinde bulunabilir (Profil → Hesap → Hesabı sil), yazılı onaylı, mağaza aboneliğinin ayrıca iptal edilmesi gerektiğini mağaza-nötr dille söylüyor; backend veriyi, Storage'ı, kullanıcı adını ve Auth kullanıcısını Admin SDK ile gerçekten siliyor (yakın giriş şartı yok).
+
+**Satın alma**
+- RevenueCat iOS'ta platform anahtarını seçiyor (`subscription.dart:113-115`). Ürün kimlikleri istemci, backend ve belgelerde aynı (`rytho_tokens_small/medium/large`, `rytho_plus_monthly`); `planDisplayName` iki platformun kimlik biçimini tanıyor; istemcide Play'e özgü kimlik yok.
+- Consumable kredisi App Store'da çalışır: `NON_RENEWING_PURCHASE` ürün kimliğiyle yönleniyor, `event.id` anahtarlı idempotent defter; bilinmeyen ürün kimliği ERROR + `adminAudit` olarak görünür; paket iadesi aboneliğe dokunmuyor.
+- Sandbox olayları kabul ediliyor (TestFlight ve App Review için şart); webhook sırrı yoksa 503 ile kapalı kalıyor, karşılaştırma sabit zamanlı. TRANSFER (farklı Apple ID ile geri yükleme) aboneliği ve cüzdanı taşıyor; RevenueCat kimliği satın alma ve restore'dan önce Firebase uid'ye bağlanıyor; sunucu tek doğruluk kaynağı, 'RhytoAI Pro' yetki adı panelle aynı.
+- Paywall 3.1.2 açıklaması tam: başlık, plan, mağaza `priceString`, otomatik yenileme ve iptal, Restore (paywall ve abonelik ekranında), Koşullar + Gizlilik bağlantıları, kapatma düğmesi. Mağaza denemesi olmadığı için sahte "X gün ücretsiz" iddiası yok; `purchaseCancelledError` sessiz.
+- 3.1.1: fiyatların hepsi mağazadan; satın alınan kredi hiç yanmaz ve kullanıcıya söyleniyor; kredi mağazası ücretsiz kullanıcıyı satın almadan önce uyarıyor; ortak kod kullanım arayüzü kaldırıldı, harici ödeme bağlantısı yok; sunucu tarafı 3 günlük deneme IAP atlatması değil.
+- Android'e özgü yükseltme/proration kodu yok; satın alma sonrası sunucu beklemesi 15 sn bütçeli. iOS abonelik yönetimi bağlantısı doğru (`apps.apple.com/account/subscriptions`); zorunlu güncelleme iOS dalı `APPSTORE_APP_ID` boşken düğmeyi gizliyor; yalnız `launchUrl` kullanıldığı için `LSApplicationQueriesSchemes` gerekmez.
+- Uygulama içi hukuk metinleri mağaza-nötr; barındırılan Koşullar ve Gizlilik URL'leri var; web hukuk sayfaları App Store faturalamasını ve Apple ile Giriş'i anıyor; admin gelir görünümü `APP_STORE`'u eşliyor.
+
+**Push ve derin bağlantılar**
+- Tek FCM yükü üreticisi `push_service.py`: her mesajda `notification` bloğu + `aps.sound` — arka planda/kapalıyken iOS'ta görünür; yalnız-veri mesajı yok; Android'e özgü alanları APNs yok sayar. Veri yükleri string, ayrılmış anahtar yok; rota çözümü platformdan bağımsız.
+- Ölü jeton budaması `THIRD_PARTY_AUTH_ERROR`'ı içermiyor — APNs anahtarı eksikken iOS jetonları toplu silinmez. Pazarlama push'u yok (4.5.4); tür başına anahtarlar ve sessiz saatler var.
+- APNs ortamı tutarlı (eklenti DEBUG'da Sandbox etiketliyor; Debug → development, Release → production). `UIBackgroundModes` yalnız `remote-notification`; swizzling açık; `IS_GCM_ENABLED=true`; tabanda swizzler tek kopyaydı.
+- firebase_messaging 16.4.3 ve app_links 7.2.1 UIScene destekli; `getInitialMessage` ve `onMessageOpenedApp` soğuk/ılık bağlı; ilk bağlantının çift teslimi idempotent. Geç gelen APNs jetonu yine `fcmToken`'a ulaşıyor (`onTokenRefresh` + `ensureAPNSTokenSetting`); çıkışta jeton temizliği ve saat dilimi (IANA) platformdan bağımsız.
+- AASA canlıda iki ana makinede 200, `application/json`, yönlendirmesiz; Apple CDN ikisini de çekmiş; tek sorun bilinen `TEAMID`. Yol eşliği Android intent-filter'larıyla aynı (`/i/`); `test_ios_config.py` yalnız `.ai.rytho"` sonekini denetliyor, TEAMID değişimi testi kırmaz.
+- Özel URL şeması yalnız Google REVERSED_CLIENT_ID; Android'de özel şema yok, taşınacak şey yok. Davet paylaşım metninde Play sözü yok. "Bildirimler kapalı" bandı iOS 18+ Ayarlar düzenine uyuyor.
+
+**Yerel yapılandırma**
+- Info.plist'te rehber, kamera ve fotoğraf kütüphanesi anahtarları var; `ImageSource.camera` ya da video yok. LAContext yalnız GoogleSignIn'de (biyometrik istem yok) → `NSFaceIDUsageDescription` gerekmez; CMMotionManager izin istemez. Konum, ses kaydı, Face ID, hareket ya da arka plan getirme API'si kullanılmıyor.
+- `ITSAppUsesNonExemptEncryption=false` doğru (yalnız işletim sistemi TLS'i; SHA-256 özetleme muaf). Sürüm bağlaması pubspec'le tutuyor (derlenen Info.plist 1.16.0 (45)); `CFBundleDisplayName` 'Rytho'.
+- AppIcon tam, 21 PNG'nin hiçbirinde alfa yok (1024 pazarlama ikonu dahil); başlatma ekranı koyu `#0B0710`, iki platformda beyaz parlama yok. SwiftPM Firebase framework'lerinin `MinimumOSVersion=100.0` değeri Firebase'in bilinçli düzeltmesi (firebase-ios-sdk #12476).
+- Flutter.framework ve eklentiler kendi gizlilik manifestlerini taşıyor; boşluk yalnız TFLite/ML Kit ve uygulamanın kendisiydi (U12). `STRIP_STYLE = non-global` üç yapılandırmada (tflite_flutter arşiv şartı); armv7 cihaz derlemesinden hariç (google_mlkit şartı).
+- Simülatör ML Kit hilesi `[sdk=iphonesimulator*]` kapsamlı, `MLKitSimulatorStubs.m` `#if TARGET_OS_SIMULATOR` içinde — cihaz ve arşiv etkilenmez. GoogleService-Info.plist `BUNDLE_ID=ai.rytho`, `PROJECT_ID=rhytoai`, Resources fazında.
+- UIScene yolu motorca destekleniyor; `AppDelegate.window`'u okuyan tek eklenti flutter_contacts (yamalı); share_plus `connectedScenes`, image_picker kendi penceresini kullanıyor. Release/Profile'da `dwarf-with-dsym` ve `ENABLE_USER_SCRIPT_SANDBOXING = NO` (U26 için uygun).
+- Xcode 26.6 bugünkü yükleme tabanını karşılıyor; 15.5 dağıtım hedefi yeterli. `build/ios/iphoneos`'taki 275 MB paket DEBUG derlemesi; gerçek varlıklar (tflite 16 MB, ML Kit kaynakları 9.6 MB) boyut sınırını zorlamıyor — release boyutu `flutter build ipa --analyze-size` ile bir kez ölçülmeli.
+
+**Dart platform davranışı**
+- Kamera görüntü biçimi platforma doğru (Android nv21, iOS bgra8888); segmentasyon BGRA adımını algılıyor; TFLite yalnız CPU, Android'e özgü delege yok.
+- Galeri yüz yolu nötr (EXIF iki platformda uygulanıyor); image_picker iOS 14+'ta PHPicker (izin istemi yok), HEIC yeniden kodlanıyor, seçilen kopya siliniyor. Avatar yükleme de iOS'a uygun (JPEG → PNG, `storage.rules` ile uyumlu).
+- Rehber: iOS 18 sınırlı erişim "verildi" sayılıyor; `normalizeE164` iOS'un U+00A0 boşluklarını temizliyor. Geri gezinme: iOS'ta `CupertinoPageTransitionsBuilder` (kaydırarak geri), itilen her ekranda AppBar ya da kapatma; `PopScope(canPop:false)` ekranları kök kapı ekranları.
+- Güvenli alanlar doğru; metin ölçeği yalnız üstten 1.3'te kırpılıyor; Reduce Motion animasyonları kapatıyor; koyu tema koyu durum çubuğu ve koyu klavye veriyor; SMS kodu otomatik doldurma (`oneTimeCode`), giriş alanları AutofillGroup içinde.
+- Dosya depolama iOS kurallarına uygun (yalnız `getTemporaryDirectory`); programatik pano okuma, uygulama içi değerlendirme istemi ve arb'lerde 'beta'/'yakında' yok. Firebase Dynamic Links ya da ActionCodeSettings kullanılmıyor; Auth reCAPTCHA Enterprise kapalı → iOS reCAPTCHA anahtarı gerekmez. Android'de taşınacak özel native kod yok (MainActivity çıplak FlutterActivity).
+
+**Backend ve App Review uyumu**
+- API taban adresi HTTPS ana makine adı → ATS istisnası yok, IPv6/NAT64'te çalışır (2.5.5). Hiçbir uç bilinmeyen ya da iOS platformunu reddetmiyor; `X-Device-Platform` isteğe bağlı; iOS build numarası `X-App-Build`'e Android gibi akıyor (canlı eşik bugün 0). Play'e özgü satın alma doğrulaması yok; RevenueCat webhook'u tek yazma yolu.
+- Koşullar ve gizlilik: onboarding'de tüm giriş yöntemleri için açık onay kutusu + 13+ beyanı; e-posta kaydında yaş kutusu; gizlilik politikası uygulama içinden erişilebilir; ASC URL'leri için web sürümleri var.
+- 1.4.1: "tıbbi, hukuki ya da finansal tavsiye değildir" uyarıları; deterministik kriz ve yasak konu kapısı LLM'den önce. 1.2: yayımlanmış iletişim bilgisi (`kLegalContact`) uygulama içinde ve web altbilgisinde; kullanıcılar birbirine serbest metin gönderemiyor (nudge'lar kurallarla kapalı küme); `reports` istemci için yalnız-oluştur.
+- Rehber (5.1.1 / 5.1.2(iv)): varsayılan kapalı, OS izninden önce açıklamalı opt-in; yalnız SHA-256 özetler gidiyor, isimler cihazda; sunucu opt-in istiyor ve özetleri saklamıyor; rehbere toplu mesaj yok.
+- Yüz okuma: görüntü baytı gönderilmiyor, yalnız oranlar; ayrı, geri alınabilir, sunucuda zorlanan biyometrik onay. 5.1.2 izleme: ATT gerektiren SDK uygulama kodunda kullanılmıyor; RevenueCat yalnız uid; Crashlytics'e kullanıcı kimliği yok; Analytics olaylarında kişisel veri yok. Bildirim izni zorunlu değil; ret akışı engellemiyor.
+
+---
+
+## Nasıl güncellenir
+
+- **Durum satırı:** her kaydın başlığının altındaki `⏳ açık`, kusur depoda giderilip Mac'te ölçülebildiği kadar doğrulanınca `✅ kapandı — <commit>` olur; Düzeltme'nin sonuna commit'in ne yaptığı ve neyin ölçüldüğü yazılır. Geriye yalnız cihaz doğrulaması (A5), belge ya da isteğe bağlı iş kaldıysa **Kalan:** diye anılır; düzeltmenin işlevsel bir parçası eksikse kayıt `⏳ açık (kısmen <commit>)` kalır. Özet tablodaki başlığın önündeki işaret de aynı anda değiştirilir.
+- **Kayıt silinmez.** Kod gerekmeden kapanan kayıt (karar, konsol işi, ölçümle geçersiz çıkan bulgu) `✅ kapandı — <tarih>, <gerekçe>` ile kapanır.
+- **Kanıt satırları tabana (`e4789d4`) göredir ve değiştirilmez;** yeni kanıt gerekirse commit'iyle birlikte ayrı satır olarak eklenir.
+- **Commit mesajında kimlik:** ör. `[iOS] U14: ön plan push'u iOS'ta FCM gösterir` — `git log --grep U14` kaydın geçmişini verir.
+- **Yeni bulgu** tablonun sonuna sıradaki numarayla (U56…) eklenir; mevcut numaralar asla yeniden dağıtılmaz.
+- **İki makine:** A3 kayıtları Mac'te yazılır; Windows oturumu Android paketini çıkarmadan önce ilgili kayıtların **Android güvenliği** satırını okur. A1/A4 sahibin işidir; yapıldığında sahibin sözü ya da ölçüm kanıt olarak yazılır — "ölçülmeyen söylenmez".
