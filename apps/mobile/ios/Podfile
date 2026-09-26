@@ -69,4 +69,72 @@ post_install do |installer|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
     end
   end
+
+  ml_kit_simulatorden_cikar(installer)
+end
+
+# ---------------------------------------------------------------------------
+# ML Kit'i YALNIZ SİMÜLATÖR derlemesinden çıkarır.
+#
+# NEDEN: Google ML Kit iOS ikilileri arm64-simulator dilimi taşımıyor ve
+# iOS 26+ simülatörleri yalnız arm64 çalıştırıyor. Flutter bu yüzden Runner'a
+# `EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64` yazıyor — sonuç: uygulama
+# bu Mac'teki HİÇBİR simülatörde açılmıyordu (ölçüldü 2026-09-26). iPhone'u
+# olmayan geliştirme için simülatör tek pencere.
+#
+# NE YAPAR (hepsi `[sdk=iphonesimulator*]` koşullu; gerçek cihaz ve Android
+# derlemesi DEĞİŞMEZ):
+#   1. Pod hedeflerinde arm64 simülatör dışlamasını kaldırır.
+#   2. İki eklentinin gerçek .m dosyalarını simülatörde derlemez; yerine
+#      SimulatorStubs/MLKitSimulatorStubs.m aynı sınıfları ve kanal adlarını
+#      sağlar, çağrıya AÇIK bir SIMULATORDE_YOK hatası döner.
+#   3. ML Kit çerçevelerini Runner'ın simülatör bağlamasından çıkarır.
+# Runner tarafındaki arm64 izni Flutter/Debug.xcconfig'te.
+#
+# Eklentiler yükseltilirse (dosya adları, kanal adları) bu blok ve yer
+# tutucu dosya yeniden ölçülmeli.
+# ---------------------------------------------------------------------------
+ML_KIT_CERCEVELERI = %w[MLImage MLKitCommon MLKitFaceDetection MLKitVision].freeze
+ML_KIT_GERCEK_KAYNAKLAR = {
+  'google_mlkit_commons' =>
+    'GoogleMlKitCommonsPlugin.m GenericModelManager.m MLKVisionImage+FlutterPlugin.m',
+  'google_mlkit_face_detection' => 'GoogleMlKitFaceDetectionPlugin.m',
+}.freeze
+
+def ml_kit_simulatorden_cikar(installer)
+  sim = '[sdk=iphonesimulator*]'
+  proje = installer.pods_project
+
+  proje.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings["EXCLUDED_ARCHS#{sim}"] = 'i386'
+      dislanan = ML_KIT_GERCEK_KAYNAKLAR[target.name]
+      config.build_settings["EXCLUDED_SOURCE_FILE_NAMES#{sim}"] = dislanan if dislanan
+    end
+  end
+
+  # Yer tutucu, commons hedefine eklenir; iki sınıfı da o sağlar. Cihazda
+  # dosyanın içi TARGET_OS_SIMULATOR yüzünden boş derlenir.
+  commons = proje.targets.find { |t| t.name == 'google_mlkit_commons' }
+  if commons
+    yol = File.expand_path('SimulatorStubs/MLKitSimulatorStubs.m', __dir__)
+    unless commons.source_build_phase.files_references.any? { |r| r.real_path.to_s == yol }
+      grup = proje.main_group.find_subpath('SimulatorStubs', true)
+      commons.source_build_phase.add_file_reference(grup.new_reference(yol))
+    end
+  end
+
+  installer.aggregate_targets.each do |aggregate|
+    aggregate.xcconfigs.each do |ad, xcconfig|
+      # CocoaPods'un ürettiği TAM satırdan yalnız ML Kit çerçeveleri silinir;
+      # parça parça yeniden kurmak -force_load gibi bayrakları düşürebilirdi.
+      # `$(inherited)` DA silinir: koşullu satırda o, aynı dosyadaki koşulsuz
+      # satırı (ML Kit dahil) geri miras alıyordu (ölçüldü).
+      bayraklar = xcconfig.to_hash['OTHER_LDFLAGS'].to_s.sub('$(inherited)', '').strip
+      ML_KIT_CERCEVELERI.each { |f| bayraklar.gsub!(%( -framework "#{f}"), '') }
+      xcconfig.attributes["EXCLUDED_ARCHS#{sim}"] = 'i386'
+      xcconfig.attributes["OTHER_LDFLAGS#{sim}"] = bayraklar
+      xcconfig.save_as(aggregate.xcconfig_path(ad))
+    end
+  end
 end
