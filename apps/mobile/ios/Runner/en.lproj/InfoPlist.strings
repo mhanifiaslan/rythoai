@@ -1,24 +1,25 @@
 /* Rytho — İngilizce izin metinleri (iOS).
 
-   ⚠️ BU DOSYA HENÜZ XCODE PROJESİNE BAĞLI DEĞİL. Diskte hazır duruyor ama
-   Runner hedefinin Copy Bundle Resources'ında yok ve pbxproj'de
-   `knownRegions` yalnız (en, Base) — `tr` hiç yok. Bağlanmadan hiçbir
-   etkisi olmaz. Bağlama işi Xcode'da yapılır (Windows'tan pbxproj'e
-   variant-group cerrahisi yapmak projeyi hiç açılmaz hâle getirebilir);
-   adımlar docs/mac-devir.md'de.
+   Runner hedefine VARYANT GRUP olarak bağlı (en + tr), knownRegions'ta
+   tr var (Mac, 2026-09-26). Info.plist'in kendisi yerelleştirilMEZ —
+   yalnız bu dosya; yoksa iOS eksik dilde Info.plist'e değil boşluğa düşer.
 
-   NEDEN GEREKLİ: Info.plist'teki izin metinleri Türkçe ve projenin
-   `developmentRegion = en`. Yani şu anda İNGİLİZCE cihaz da Türkçe izin
-   diyaloğu görüyor. Türkiye-öncelikli lansmanda bu kabul edilebilir;
-   dünyaya açılmadan önce düzeltilmeli. Apple bu metinleri diyalogda
-   AYNEN gösteriyor ve belirsiz/yanlış dildeki gerekçe tek başına red
+   NEDEN GEREKLİ: Info.plist'teki metinler Türkçe ve projenin
+   developmentRegion'ı en. Bu dosya olmadan İngilizce cihaz Türkçe izin
+   diyaloğu görüyordu. Apple bu metinleri diyalogda AYNEN gösteriyor;
+   belirsiz, yanlış dilde ya da GERÇEĞE UYMAYAN gerekçe tek başına red
    sebebi olabiliyor (Guideline 5.1.1).
 
-   Metinler Türkçeleriyle AYNI SÖZÜ vermeli: ne yapıldığını VE ne
-   yapılmadığını söylüyorlar. Biri değişirse diğeri de değişmeli. */
+   Metinler Türkçeleriyle (Info.plist + tr.lproj) AYNI SÖZÜ vermeli: ne
+   yapıldığını VE ne yapılmadığını söylüyorlar. Biri değişirse üçü de
+   değişir. */
 
-"NSContactsUsageDescription" = "If you turn on contact matching, numbers are hashed on your device; your contacts are never sent to our servers.";
+"NSContactsUsageDescription" = "If you turn on contact matching, phone numbers are one-way hashed on your device; only these hashes are sent for matching and they are not stored. Names and other contact details are never read.";
 
 "NSCameraUsageDescription" = "Face reading needs access to the camera. The image is processed only on your device — it is never uploaded or stored.";
 
 "NSPhotoLibraryUsageDescription" = "You can pick a photo from your library for face reading. The photo is processed only on your device — it is never uploaded or stored.";
+
+"NSMicrophoneUsageDescription" = "Rytho never records audio and does not use the microphone. This permission is declared only because the camera framework requires it.";
+
+"NSPhotoLibraryAddUsageDescription" = "Needed so you can save share cards to Photos. Rytho does not read your photos.";

@@ -1,0 +1,16 @@
+/* Rytho — Türkçe izin metinleri (iOS).
+
+   Info.plist'teki Türkçe metinlerle BİREBİR aynı. Neden ayrıca var: dil
+   listesinde en de olduğu için, bu dosya yokken Türkçe cihaz dil
+   eşleştirmesinde en.lproj'a düşebiliyordu (Flutter iOS i18n notu).
+   Biri değişirse Info.plist + en.lproj ile birlikte değişir. */
+
+"NSContactsUsageDescription" = "Rehber eşleşmesini açarsan telefon numaraları cihazında tek yönlü özetlenir; eşleşme için yalnızca bu özetler gönderilir ve saklanmaz. İsimler ve rehberin diğer bilgileri okunmaz.";
+
+"NSCameraUsageDescription" = "Yüz okuma için kameraya erişim gerekiyor. Görüntü yalnızca cihazında işlenir; hiçbir yere gönderilmez ve saklanmaz.";
+
+"NSPhotoLibraryUsageDescription" = "Yüz okuma için galeriden fotoğraf seçebilirsin. Fotoğraf yalnızca cihazında işlenir; hiçbir yere gönderilmez ve saklanmaz.";
+
+"NSMicrophoneUsageDescription" = "Rytho ses kaydı yapmaz ve mikrofonu kullanmaz. Bu izin yalnızca kamera altyapısının sistem gereği olarak tanımlıdır.";
+
+"NSPhotoLibraryAddUsageDescription" = "Paylaşım kartını Fotoğraflar'a kaydedebilmen için gerekir. Rytho fotoğraflarını okumaz.";
