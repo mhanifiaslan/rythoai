@@ -21,6 +21,15 @@
 # ve alınmadı. Paketler yükseltilirse BU SATIR yeniden ölçülmeli.
 platform :ios, '15.5'
 
+# Firebase Analytics'i reklam kimligi (IDFA) destegi OLMADAN kur.
+# NEDEN: Android AD_ID iznini 44'te kaldirdi ve gizlilik metni reklam
+# kimligi kullanilmadigini soyluyor; iOS paketinde ise varsayilan olarak
+# AdSupport + GoogleAppMeasurementIdentitySupport + GoogleAdsOnDeviceConversion
+# geliyordu (olculdu 2026-09-26). Bu degisken firebase_analytics
+# podspec'inde okunur ve FirebaseAnalyticsCore'u secer; SPM'deki ortam
+# degiskeninin aksine her derlemede (Xcode arsivi dahil) gecerlidir.
+$FirebaseAnalyticsWithoutAdIdSupport = true
+
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
