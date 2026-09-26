@@ -103,14 +103,7 @@ TOKENS_ENFORCE: bool = os.getenv("RYTHO_TOKENS_ENFORCE", "0") == "1"
 #: defteriyle hesap başına TEK SEFER yüklenir; deneme bitince kalan
 #: bakiye kullanıcıda kalır (30 jeton ≈ $0,06 tavan maliyet).
 TRIAL_PROMO_CODE = "TRIAL-WELCOME"
-#: ORTAMDAN AYARLANIR (``RYTHO_TRIAL_TOKENS``). Varsayilan 30, ama bu sayi
-#: kendi basina bir ANLATIM: yedi rapor turu 5'er jeton, yani 30 jeton
-#: ozellik listesini BIR KEZ bile dolastirmiyor. Normal kullanicida bu
-#: bilincli (deneme bir tatma, kopya degil); disaridan gelen bir QA
-#: ekibi icin ise duvara donusuyor. Kapali test boyunca abone aylik
-#: hakkina (MONTHLY_TOKEN_ALLOWANCE) cekiliyor.
-#: ⚠️ Uretime cikmadan ONCE varsayilana dondurulmeli.
-TRIAL_TOKENS: int = entitlements._pozitif_env("RYTHO_TRIAL_TOKENS", 30, 5000)
+TRIAL_TOKENS = 30
 
 
 def _wallet_ref(uid: str):
