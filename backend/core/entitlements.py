@@ -108,7 +108,38 @@ def get_subscription(uid: str) -> dict[str, Any]:
 #: Yeni hesabın tüm Plus yüzeylerini kullandığı süre (OT6, kullanıcı
 #: kararı: "ilk 3 günlük ücretsiz dönemdekiler tüm Plus özelliklerini
 #: kullanabilsin" — kartsız, sunucu taraflı).
-TRIAL_DAYS = 3
+def _pozitif_env(ad: str, varsayilan: int, tavan: int) -> int:
+    """Ortamdan pozitif tamsayi; bozuk/absurd deger VARSAYILANA duser.
+
+    Deger dogrudan kullanilsaydi bir yazim hatasi (``RYTHO_TRIAL_DAYS=300``
+    yerine ``3000``) kapali test bitse bile herkese aylarca ucretsiz Plus
+    verirdi ve bunu fark ettirecek hicbir sinyal olmazdi. Tavan o yuzden var.
+    """
+    ham = os.getenv(ad)
+    if not ham:
+        return varsayilan
+    try:
+        deger = int(ham)
+    except ValueError:
+        logger.warning("%s sayiya cevrilemedi (%r); %d kullaniliyor",
+                       ad, ham, varsayilan)
+        return varsayilan
+    if not (0 < deger <= tavan):
+        logger.warning("%s araliğin disinda (%d); %d kullaniliyor",
+                       ad, deger, varsayilan)
+        return varsayilan
+    return deger
+
+
+#: Sunucu tarafli kartsiz denemenin suresi (OT6). Varsayilan 3 gun.
+#:
+#: ORTAMDAN AYARLANIR (``RYTHO_TRIAL_DAYS``) cunku kapali test doneminde
+#: disaridan gelen bir QA ekibinin para odemeden calisabilmesi gerekiyor ve
+#: adresleri bilinmedigi icin Play'in lisans testi listesi kullanilamiyor.
+#: Deneme ``createdAt``'a bagli, yani YENI kayitlara geriye donuk isler.
+#: ⚠️ Uretime cikmadan ONCE varsayilana dondurulmeli.
+TRIAL_DAYS: int = _pozitif_env("RYTHO_TRIAL_DAYS", 3, 365)
+
 
 #: Profil okumasını kısa süre önbellekle (`_user_tz` deseni). Önbelleklenen
 #: şey KARAR DEĞİL, kararın girdisi (`createdAt`) — aşağıdaki gerekçe.

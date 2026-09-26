@@ -134,6 +134,33 @@ Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.16.0+45**. Backend rev **00096**.
 
 **Kapalı test yürüyor** (Alpha kanalı). 45 hem dahili hem kapalı testte.
 
+🔴 **GERİ ALINACAK — kapalı teste özel deneme ayarı** (rev 00097'den beri):
+`RYTHO_TRIAL_DAYS=30` ve `RYTHO_TRIAL_TOKENS=300`, `infra/deploy-backend.ps1`
+içindeki `--set-env-vars` satırında. Kod varsayılanları **3 / 30** ve öyle
+kalmalı; bir bekçi bunu sabitliyor
+(`test_entitlements.py::TestDenemeAyarlanabilirligi`).
+
+Sebep: kapalı testi dışarıdan bir QA ekibi yapıyor ve para ödememeleri
+gerekiyor. Ekip Google Grubu üzerinden eklendi, yani bireysel adresleri
+**yok**; Play'in "Lisans testi" listesi adres istediği için kullanılamadı.
+Sunucu taraflı deneme (OT6) adres istemiyor — `createdAt`'a bakıyor ve ekip
+yeni kayıt açacağı için doğal olarak kapsama giriyor.
+
+Ölçülmüş iki ayrıntı, ikisi de sezgiye aykırı:
+- **Süre tek başına yetmiyordu.** Yedi rapor türü 5'er jeton; varsayılan 30
+  jeton özellik listesini **bir kez bile** dolaştırmıyor (35 gerekiyor).
+  Süreyi 14'e çıkarmak "14 gün boyunca 6 rapor" demek olurdu.
+- **`RYTHO_FORCE_PLUS=1` bu iş için ZARARLI.** `wallet.py:347` FORCE_PLUS
+  doğruysa günlük ücretsiz kotayı **atlayıp** doğrudan `spend()`'e gidiyor;
+  orada `sub.active` false olduğu için `allowance = 0` ve `TOKENS_ENFORCE=1`
+  ile her ölçülü istek 402 döner. Testçi ücretsiz kullanıcıdan **daha az**
+  şey yapabilirdi. FORCE_PLUS bir kapı testi bayrağı, erişim bayrağı değil.
+
+Bayraklar env'de değil **betikte** duruyor, çünkü `--set-env-vars` mevcut
+değişkenleri tümüyle değiştiriyor: elle verilmiş olsalardı bir sonraki
+deploy onları sessizce siler ve QA ekibi test ortasında kilitlenirdi.
+
+
 ⚠️ **Üretim yolundaki tek kritik madde: testçi sayısı.** 12 testçi / 14 gün
 sayacı, testçiler **opt-in bağlantısını açıp "Testçi ol"a basana kadar
 başlamaz**; listeye e-posta eklemek hiçbir şey saymaz. Kök neden ölçüldü

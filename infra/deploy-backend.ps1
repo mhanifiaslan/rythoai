@@ -101,8 +101,34 @@ Invoke-Gcloud -Adim "Cloud Run deploy" -Arguments @(
     "--timeout", "300",
     "--max-instances", "3",
     "--min-instances", "1",
-    "--set-env-vars", "RYTHO_DEV_MODE=0,GOOGLE_CLOUD_PROJECT=$PROJECT,RYTHO_TOKENS_ENFORCE=1,RYTHO_SUB_PRICES_USD={rytho_plus_monthly:4.4}",
+    "--set-env-vars", "RYTHO_DEV_MODE=0,GOOGLE_CLOUD_PROJECT=$PROJECT,RYTHO_TOKENS_ENFORCE=1,RYTHO_SUB_PRICES_USD={rytho_plus_monthly:4.4},RYTHO_TRIAL_DAYS=30,RYTHO_TRIAL_TOKENS=300",
     "--set-secrets", "GEMINI_API_KEY=GEMINI_API_KEY:latest,REVENUECAT_WEBHOOK_SECRET=REVENUECAT_WEBHOOK_SECRET:latest,NOTIFY_SCHEDULER_SECRET=NOTIFY_SCHEDULER_SECRET:latest")
+
+# ==================== GECICI: KAPALI TEST ====================
+# RYTHO_TRIAL_DAYS=30 ve RYTHO_TRIAL_TOKENS=300 (varsayilanlar 3 ve 30).
+#
+# NEDEN: kapali testi disaridan bir QA ekibi yapiyor ve para odememeleri
+# gerekiyor. Ekip Google Grubu uzerinden eklendi, yani bireysel adresleri
+# YOK; Play'in "Lisans testi" listesi adres istedigi icin kullanilamiyor.
+# Sunucu taraflari deneme (OT6) adres istemiyor: `createdAt`'a bakiyor ve
+# ekip YENI kayit acacagi icin dogal olarak kapsama giriyor.
+#
+# NEDEN 30 GUN: uretime erisim 14 KESINTISIZ gun ister ve deneme sayaci
+# her testcinin KENDI kayit anindan basliyor. 14 verilseydi ilk gun
+# kaydolanin denemesi testin bitisiyle ayni ana denk gelirdi; inceleme
+# uzarsa ekip test ortasinda kilitlenirdi. Gun sayisinin maliyeti yok,
+# maliyeti jeton belirliyor.
+#
+# NEDEN 300 JETON: yedi rapor turu 5'er jeton. Varsayilan 30 jeton ozellik
+# listesini BIR KEZ bile dolastirmiyor (35 gerekiyor); uzman bir ekip ilk
+# saatte 402 duvarina carpardi. 300, gercek abonenin aylik hakkiyla ayni
+# (MONTHLY_TOKEN_ALLOWANCE) — en kotu ihtimalle testci basina ~$0,60.
+#
+# ⚠️ BU IKI BAYRAK URETIME CIKMADAN ONCE BU SATIRDAN SILINMELI.
+# Silinince kod varsayilanlarina (3 / 30) doner; ayrica kaynaktaki
+# varsayilanlarin uretim degerleri oldugunu bir bekci sabitliyor
+# (backend/tests/test_entitlements.py::TestDenemeAyarlanabilirligi).
+# =============================================================
 
 # --min-instances 1 BILINCLI VE UCRETLI bir karar.
 #
