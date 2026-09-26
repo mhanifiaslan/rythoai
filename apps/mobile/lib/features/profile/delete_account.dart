@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/analytics.dart';
-import '../../core/auth_service.dart' show signOutEverywhere;
+import '../../core/auth_service.dart'
+    show AppleIptalSonucu, appleYetkisiniIptalEt, signOutEverywhere;
 import '../../core/api.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
@@ -23,8 +24,16 @@ import '../../widgets/atlas_widgets.dart';
 /// - **Abonelik uyarısı ayrı.** Hesabı silmek mağazadaki aboneliği durdurmaz;
 ///   bunu söylememek kullanıcıya para kaybettirir.
 /// - **Yazarak onay.** Tek dokunuşla geri alınamaz bir işlem yaptırmak yanlış.
+/// - **Apple yetkisi de iptal edilir** (U15, yalnız iOS + Apple bağlı
+///   hesap): bkz. [appleYetkisiniIptalEt].
 class DeleteAccountSheet extends ConsumerStatefulWidget {
-  const DeleteAccountSheet({super.key});
+  const DeleteAccountSheet({super.key, this.appleIptali, this.cikis});
+
+  /// Test dikişi; varsayılan [appleYetkisiniIptalEt].
+  final Future<AppleIptalSonucu> Function()? appleIptali;
+
+  /// Test dikişi; varsayılan [signOutEverywhere].
+  final Future<void> Function()? cikis;
 
   @override
   ConsumerState<DeleteAccountSheet> createState() => _DeleteAccountSheetState();
@@ -34,6 +43,11 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
   final _controller = TextEditingController();
   bool _busy = false;
   String? _error;
+
+  /// Kullanıcı Apple onayını kapattı ve silme durdu (U15, yalnız iOS).
+  /// `errorText` yerine ayrı paragraf: alanın hata satırı tek satıra
+  /// kısaltılıyor, bu metin ise nedenini de anlatmak zorunda.
+  bool _appleVazgecildi = false;
 
   @override
   void dispose() {
@@ -45,10 +59,21 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
     setState(() {
       _busy = true;
       _error = null;
+      _appleVazgecildi = false;
     });
 
     final dio = ref.read(apiProvider);
     try {
+      // U15: Apple yetkisi Firebase kullanıcısı HÂLÂ varken iptal edilir —
+      // backend sildikten sonra yeniden doğrulayacak kullanıcı kalmaz.
+      // Yalnız kullanıcının Apple sayfasını kapatması silmeyi durdurur;
+      // iptalin kendisi başarısız olursa silme sürer (gerekçe orada).
+      final apple = await (widget.appleIptali ?? appleYetkisiniIptalEt)();
+      if (apple == AppleIptalSonucu.vazgecildi) {
+        if (mounted) setState(() => _appleVazgecildi = true);
+        return;
+      }
+
       await dio.delete('/api/v1/account/me');
       // Kayip analizinde en anlamli sinyal; oturum kapanmadan once gonderilir.
       Analytics.accountDeleted();
@@ -56,13 +81,14 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
       // Sunucu kimliği de sildi; yerel oturumu temizle. Sıra önemli:
       // Firebase oturumu açık kalırsa uygulama silinmiş bir hesapla
       // açılmaya çalışır. (KT4: ortak yol — devralma bayrağı da sıfırlanır.)
-      await signOutEverywhere();
+      await (widget.cikis ?? signOutEverywhere)();
 
       if (mounted) Navigator.of(context).pop();
     } on DioException catch (e) {
-      // Firebase kimliği silmek için yakın zamanda giriş yapılmış olmasını
-      // isteyebiliyor; bu durumda kullanıcıyı ne yapacağını bilir hâlde
-      // bırakmalıyız.
+      // 401 = sunucu oturum jetonunu kabul etmedi (core/auth.py). Silme uç
+      // noktası yakın zamanda giriş ŞARTI koymuyor — kullanıcıyı Admin SDK
+      // siliyor — ama geçersiz jetonun tek çaresi yeniden giriş; kullanıcıyı
+      // ne yapacağını bilir hâlde bırakmalıyız.
       final yeniden = e.response?.statusCode == 401;
       if (mounted) {
         setState(() => _error = yeniden
@@ -110,6 +136,10 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
                   RythoText.body(14, color: RythoColors.parchmentDim),
             ),
           ),
+          if (_appleVazgecildi) ...[
+            const SizedBox(height: 10),
+            _Paragraph(l10n.deleteAccountAppleCanceled, vurgu: true),
+          ],
           const SizedBox(height: 16),
           GoldButton(
             text: l10n.deleteAccountAction,

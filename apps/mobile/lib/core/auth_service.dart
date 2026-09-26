@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'
     show ProviderContainer, ProviderScope;
@@ -78,7 +79,7 @@ Future<void> signInWithApple() async {
       AppleIDAuthorizationScopes.email,
       AppleIDAuthorizationScopes.fullName,
     ],
-    nonce: sha256.convert(utf8.encode(rawNonce)).toString(),
+    nonce: _nonceOzeti(rawNonce),
   );
 
   final userCredential = await FirebaseAuth.instance.signInWithCredential(
@@ -105,6 +106,147 @@ String _randomNonce([int uzunluk = 32]) {
   final rastgele = Random.secure();
   return List.generate(
       uzunluk, (_) => harfler[rastgele.nextInt(harfler.length)]).join();
+}
+
+/// Apple'a giden yarı: ham nonce'un SHA-256 özeti (bkz. [signInWithApple]).
+String _nonceOzeti(String hamNonce) =>
+    sha256.convert(utf8.encode(hamNonce)).toString();
+
+/// Google'ın "[16] Account reauth failed" hatası mı? (iç test bulgusu B1)
+///
+/// Cihazdaki Google oturumu bayatladığında düşer ve kullanıcının uygulama
+/// içinde yapabileceği hiçbir şey yoktur; yol gösteren ayrı bir mesaj ister.
+/// Android'in Credential Manager'ı bu hatayı İPTAL sınıfıyla
+/// (`GetCredentialCancellationException`) bildirebiliyor; eklenti onu
+/// `GoogleSignInExceptionCode.canceled`'a çeviriyor (google_sign_in_android
+/// 7.2.15). Yani yalnız koda bakan bir iptal süzgeci bu hatayı da yutar —
+/// [girisIptalEdildi] bu yüzden önce buna bakar.
+bool googleYenidenDogrulamaGerekli(Object hata) {
+  final metin = hata.toString();
+  return metin.toLowerCase().contains('reauth') || metin.contains('[16]');
+}
+
+/// Kullanıcı Apple/Google giriş sayfasını KENDİSİ mi kapattı? (U49)
+///
+/// Kapatmak normal bir eylemdir; "giriş başarısız" göstermek olmamış bir
+/// hatayı beyan etmek olur ve Crashlytics'i gerçek arızaları gizleyen sahte
+/// kayıtlarla doldurur.
+///
+/// Apple'da yalnız `canceled` sayılır: iCloud hesabı olmayan cihaz ve
+/// simülatörlerde kapatma `unknown` (1000) olarak da gelebiliyor, ama aynı
+/// kod gerçek arızaları da taşıdığı için bastırılmaz.
+bool girisIptalEdildi(Object hata) {
+  if (hata is SignInWithAppleAuthorizationException) {
+    return hata.code == AuthorizationErrorCode.canceled;
+  }
+  if (hata is GoogleSignInException) {
+    return hata.code == GoogleSignInExceptionCode.canceled &&
+        !googleYenidenDogrulamaGerekli(hata);
+  }
+  return false;
+}
+
+/// Hesap silmeden önceki Apple yetkisi iptalinin sonucu (U15).
+enum AppleIptalSonucu {
+  /// Bu platformda ya da bu hesapta Apple yok — adım atlandı.
+  gerekmedi,
+
+  /// Yetki Apple tarafında iptal edildi.
+  iptalEdildi,
+
+  /// Kullanıcı Apple sayfasını kapattı — silme DURMALI.
+  vazgecildi,
+
+  /// Apple sayfası, yeniden doğrulama ya da iptal başarısız oldu; hata
+  /// kaydedildi — silme SÜRMELİ.
+  basarisiz,
+}
+
+/// Hesap silinmeden önce "Apple ile Giriş" yetkisini Apple'da iptal eder
+/// (U15, App Store 5.1.1(v)).
+///
+/// Olmasaydı: backend Firebase kullanıcısını siliyor ama Apple tarafındaki
+/// yetki yerinde kalıyordu — kullanıcı Ayarlar → Apple Kimliği → "Apple ile
+/// Giriş" altında Rytho'yu görmeye devam eder, yeniden girişte ad/e-posta
+/// bir daha gelmez. Apple, SIWA sunan uygulamalardan silmede jeton iptali
+/// bekliyor.
+///
+/// Sıra ZORUNLU ve Firebase kullanıcısı hâlâ varken koşar:
+/// 1. Apple sayfası (nonce ile, kapsam yok): taze `authorizationCode`. Kod
+///    tek kullanımlık ve kısa ömürlü, o yüzden iptalden hemen önce istenir.
+/// 2. Aynı kimlikle `reauthenticateWithCredential`: sayfada seçilen Apple
+///    Kimliğinin BU hesaba bağlı olan olduğunu kanıtlar (başkası seçildiyse
+///    Firebase `user-mismatch` verir) — başka birinin yetkisi iptal edilmez.
+/// 3. `revokeTokenWithAuthorizationCode`.
+///
+/// Kapatma ile arıza BİLEREK farklı ele alınır (sahibin kararı): kullanıcı
+/// sayfayı kapattıysa geri adım atmıştır, silme durur ([vazgecildi]). Başka
+/// her hata (ağ, Firebase'de Apple "OAuth code flow" ayarının eksikliği,
+/// `user-mismatch`) Crashlytics'e `apple-revoke` diye yazılır ve silme
+/// sürer ([basarisiz]) — 5.1.1(v) silmenin ÇALIŞMASINI şart koşar; iptal
+/// adımı silmeyi rehin alamaz.
+///
+/// Kapı: yalnız iOS ([appleSignInAvailable]) VE sağlayıcılarda `apple.com`.
+/// Android'de ve Apple'sız hesapta hiçbir şeye dokunmadan döner.
+///
+/// Parametrelerin hepsi test dikişi; varsayılanlar gerçek Firebase/Apple.
+Future<AppleIptalSonucu> appleYetkisiniIptalEt({
+  Iterable<String>? saglayicilar,
+  Future<AuthorizationCredentialAppleID> Function(String nonceOzeti)?
+      appleSayfasi,
+  Future<void> Function(AuthCredential kimlik)? yenidenDogrula,
+  Future<void> Function(String yetkiKodu)? iptalEt,
+  void Function(Object hata, StackTrace iz)? hataKaydi,
+}) async {
+  if (!appleSignInAvailable) return AppleIptalSonucu.gerekmedi;
+  final kimlikler = saglayicilar ??
+      (FirebaseAuth.instance.currentUser?.providerData
+              .map((p) => p.providerId) ??
+          const <String>[]);
+  if (!kimlikler.contains('apple.com')) return AppleIptalSonucu.gerekmedi;
+
+  final kaydet = hataKaydi ?? _appleIptalHatasiniKaydet;
+  final hamNonce = _randomNonce();
+
+  final AuthorizationCredentialAppleID apple;
+  try {
+    apple = await (appleSayfasi ?? _appleSayfasiniAc)(_nonceOzeti(hamNonce));
+  } catch (e, iz) {
+    if (girisIptalEdildi(e)) return AppleIptalSonucu.vazgecildi;
+    kaydet(e, iz);
+    return AppleIptalSonucu.basarisiz;
+  }
+
+  try {
+    await (yenidenDogrula ?? _mevcutKullaniciyiYenidenDogrula)(
+      OAuthProvider('apple.com').credential(
+        idToken: apple.identityToken,
+        rawNonce: hamNonce,
+      ),
+    );
+    await (iptalEt ?? FirebaseAuth.instance.revokeTokenWithAuthorizationCode)(
+        apple.authorizationCode);
+    return AppleIptalSonucu.iptalEdildi;
+  } catch (e, iz) {
+    kaydet(e, iz);
+    return AppleIptalSonucu.basarisiz;
+  }
+}
+
+Future<AuthorizationCredentialAppleID> _appleSayfasiniAc(String nonceOzeti) =>
+    SignInWithApple.getAppleIDCredential(scopes: const [], nonce: nonceOzeti);
+
+Future<void> _mevcutKullaniciyiYenidenDogrula(AuthCredential kimlik) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) throw StateError('Oturum yok');
+  await user.reauthenticateWithCredential(kimlik);
+}
+
+void _appleIptalHatasiniKaydet(Object hata, StackTrace iz) {
+  debugPrint('Apple yetkisi iptal edilemedi: $hata');
+  if (kDebugMode || kIsWeb) return;
+  FirebaseCrashlytics.instance
+      .recordError(hata, iz, reason: 'apple-revoke', fatal: false);
 }
 
 /// E-posta ile giriş.
@@ -167,6 +309,15 @@ String authErrorText(AppLocalizations l10n, FirebaseAuthException e) {
       return l10n.authDisabled;
     case 'network-request-failed':
       return l10n.authNetwork;
+    // U31: Google'la (ya da şifreyle) açılmış hesabın e-postasıyla Apple'a
+    // basmak tipik iOS geçişidir. Genel "giriş yapılamadı" kullanıcıya eski
+    // yöntemini kullanması gerektiğini söylemiyordu. Hangi yöntem olduğunu
+    // SORMAYIZ (bkz. aşağıdaki sağlayıcı çakışması notu) ve hesapları
+    // OTOMATİK BAĞLAMAYIZ: Apple, Apple hesabının başka verilere
+    // bağlanmasından önce kullanıcının açık onayını istiyor (Firebase'in
+    // Apple ile Giriş belgesindeki not).
+    case 'account-exists-with-different-credential':
+      return l10n.authAccountExistsOtherMethod;
     default:
       return l10n.authFailed;
   }

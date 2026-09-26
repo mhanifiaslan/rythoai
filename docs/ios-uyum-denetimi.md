@@ -38,7 +38,7 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U01 | RET | hesap | ⏳ Firebase'de Apple sağlayıcısı kapalı | A1 hesap |
 | U02 | RET | hesap | ⏳ ASC + RevenueCat IAP önkoşulları, ilk gönderim paketi | A1 hesap |
 | U03 | RET | kod | ✅ `NSMicrophoneUsageDescription` eksik (ITMS-90683) | A2 iOS kod |
-| U04 | RET | kod | ⏳ Apple ile Giriş düğmesi HIG'e aykırı | A2 iOS kod |
+| U04 | RET | kod | ✅ Apple ile Giriş düğmesi HIG'e aykırı | A2 iOS kod |
 | U05 | RET | ikisi | ⏳ iOS yayın kapısı yok; `test_` anahtarı açılışta çöker | A2 iOS kod |
 | U06 | RET | ikisi | ⏳ Üçüncü taraf AI için uygulama içi onay yok (5.1.2(i)) | A3 ortak kod |
 | U07 | RET | ikisi | ⏳ App Store boyutunda ekran görüntüsü yok | A4 mağaza |
@@ -65,7 +65,7 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U28 | ORTA | ikisi | ⏳ Gizlilik politikası metni Android çerçeveli | A3 ortak kod |
 | U29 | ORTA | ikisi | ⏳ `min_build` iki platformda tek eşik | A3 ortak kod |
 | U30 | ORTA | kod | ⏳ App Check / Auth hataları iz bırakmıyor | A3 ortak kod |
-| U31 | ORTA | kod | ⏳ Apple girişinde "hesap başka yöntemle var" genel hata | A3 ortak kod |
+| U31 | ORTA | kod | ✅ Apple girişinde "hesap başka yöntemle var" genel hata | A3 ortak kod |
 | U32 | ORTA | kod | ⏳ Tek cihaz kilidi 3.1.2(a) ile çelişiyor | A3 ortak kod |
 | U33 | ORTA | kod | ⏳ Satın alma hata eşlemesinde iOS kodları eksik | A3 ortak kod |
 | U34 | ORTA | ikisi | ⏳ Davet ve web sayfaları yalnız Google Play | A3 ortak kod |
@@ -79,11 +79,11 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U42 | DÜŞÜK | kod | ✅ App Attest yetkisi eksik | A2 iOS kod |
 | U43 | DÜŞÜK | ikisi | ✅ IDFA destekli Analytics yığını | A2 iOS kod |
 | U44 | DÜŞÜK | kod | ✅ Paylaşım kartı Fotoğraflar'a kaydedilemiyor | A2 iOS kod |
-| U45 | DÜŞÜK | kod | ⏳ Yeniden kurulumda anahtar zinciri oturumu yaşıyor | A2 iOS kod |
+| U45 | DÜŞÜK | kod | ✅ Yeniden kurulumda anahtar zinciri oturumu yaşıyor | A2 iOS kod |
 | U46 | DÜŞÜK | kod | ⏳ Satın alma hata metinleri Google/Play diyor | A3 ortak kod |
 | U47 | DÜŞÜK | kod | ⏳ "Aboneliği yönet" kaynak mağazaya bakmıyor | A3 ortak kod |
-| U48 | DÜŞÜK | kod | ⏳ Sayısal klavye kapatılamıyor | A3 ortak kod |
-| U49 | DÜŞÜK | kod | ⏳ Sosyal giriş iptali hata gösteriyor | A3 ortak kod |
+| U48 | DÜŞÜK | kod | ✅ Sayısal klavye kapatılamıyor | A3 ortak kod |
+| U49 | DÜŞÜK | kod | ✅ Sosyal giriş iptali hata gösteriyor | A3 ortak kod |
 | U50 | DÜŞÜK | kod | ⏳ 426 metni "Google Play" diyor | A3 ortak kod |
 | U51 | DÜŞÜK | kod | ⏳ Admin "iOS" filtresi eşleşmiyor | A3 ortak kod |
 | U52 | DÜŞÜK | kod | ⏳ Yazı tipleri çalışma anında indiriliyor | A3 ortak kod |
@@ -148,7 +148,7 @@ Her kaynak bulgunun hangi kayda girdiği. "(kısım)" = bulgu iki kayda bölünd
 **Düzeltme** — Info.plist'e anahtar; tek çare bu. Yükleme taraması için yalnız Info.plist önemli; İngilizce satır `en.lproj/InfoPlist.strings` Xcode'a bağlanınca etkili olur (U27). `54130b9`: anahtar Info.plist'te ve en/tr varyantlarında.
 
 ### U04 — Apple ile Giriş düğmesi HIG'e uymuyor
-⏳ açık · RET · kod · A2 iOS kod · kaynak: `siwa-button-not-hig`, `apple-button-not-hig-compliant`
+✅ kapandı · RET · kod · A2 iOS kod · kaynak: `siwa-button-not-hig`, `apple-button-not-hig-compliant`
 
 **Kanıt** — `lib/features/auth/login_screen.dart:519-528`: Apple girişi `GoldButton(text: l10n.signInWithApple, filled: false)` — altın çerçeveli metin düğmesi, Apple logosu yok. `:515-518`'deki yorum logoyu "metin tek başına kurala uygun" gerekçesiyle bilerek dışarıda bırakıyor; bu bulguyla o gerekçe çürüdü, yorum da düzeltilir. `lib/l10n/app_tr.arb:724` "Apple ile giriş" bir HIG başlığı değil; EN (`app_en.arb:724`, "Sign in with Apple") zaten uygun.
 
@@ -160,6 +160,9 @@ Her kaynak bulgunun hangi kayda girdiği. "(kısım)" = bulgu iki kayda bölünd
 - `onPressed` zorunlu ve null olamaz, widget'ın meşgul durumu yok: `_busy` iken `IgnorePointer` + `Opacity` ile sar ya da `_appleBusy` iken Stack üstünde spinner göster.
 - `app_tr.arb` → "Apple ile Giriş Yap" (ya da "Apple ile Devam Et"); `flutter gen-l10n`, yeniden üretilen `app_localizations_tr.dart` da commit edilir.
 - Google'ın üstünde kalır. iPhone SE (3. nesil) simülatöründe metin ölçeği 1.3 ile bakılır; katlama altındaysa sosyal blok yalnız iOS'ta formun üstüne taşınır.
+
+Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `login_screen.dart` `_AppleGirisDugmesi`: `SignInWithAppleButton` white / 52 / `circular(18)`, logo paketin `AppleLogoPainter`'ı, yalnız `appleSignInAvailable` dalında ve Google'ın üstünde; TR başlık "Apple ile Giriş Yap" (EN değişmedi). Meşgul durumu `IgnorePointer` + soluklaştırma + sağ kenarda `CupertinoActivityIndicator`; `onPressed: null` seçilmedi çünkü `CupertinoButton` dolguyu gri devre dışı rengine boyuyor. Başlık puntosu paket tarafından yüksekliğin %43'ü olarak veriliyor; sistem yazı ölçeği düğmeye uygulanmıyor (`MediaQuery.withNoTextScaling`). Yanlış gerekçeli eski yorum ("metin tek başına kurala uygun") düzeltildi; Google için logosuzluk gerekçesi korundu. Ölçüldü (`test/giris_ios_test.dart`): iOS'ta stil/yükseklik/yarıçap/başlık/logo ve Google'ın üstünde durduğu; Android'de Apple düğmesi hiç yok; meşgulken gösterge çıkıyor, ikinci dokunuş akış başlatmıyor, Google düğmesi kilitli.
+Kalan: A5 — iPhone SE (3. nesil) + 1,3 yazı ölçeğinde düğmenin katlama üstünde kaldığına simülatörde bakılır.
 
 **Android güvenliği** — Değişiklik `appleSignInAvailable` (yalnız iOS) dalında.
 
@@ -323,7 +326,7 @@ Her kaynak bulgunun hangi kayda girdiği. "(kısım)" = bulgu iki kayda bölünd
 **Android güvenliği** — Android'de `_showForeground` aynen çağrılır; değişiklikler iOS dalında.
 
 ### U15 — Hesap silmede Sign in with Apple jetonu iptal edilmiyor
-⏳ açık · YÜKSEK · ikisi · A2 iOS kod · kaynak: `apple-token-not-revoked-on-delete`, `apple-token-revocation-missing`, `siwa-token-revocation-missing`, `siwa-token-revocation`
+⏳ açık (kısmen — `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi`) · YÜKSEK · ikisi · A2 iOS kod · kaynak: `apple-token-not-revoked-on-delete`, `apple-token-revocation-missing`, `siwa-token-revocation-missing`, `siwa-token-revocation`
 
 **Kanıt** — `lib/features/profile/delete_account.dart:44-73`: `_delete` doğrudan `DELETE /api/v1/account/me` (`:52`) ve `signOutEverywhere()` (`:59`) çağırıyor, Apple jetonu iptali yok; 401'de `deleteAccountReauth` (`:69`). Backend Auth kullanıcısını Admin SDK ile siliyor (`backend/services/account_service.py:273-349`); Apple tarafındaki yetki yerinde kalıyor.
 
@@ -335,7 +338,11 @@ Her kaynak bulgunun hangi kayda girdiği. "(kısım)" = bulgu iki kayda bölünd
 - İptal Firebase kullanıcısı HÂLÂ varken yapılır (backend silmeden önce). Yetki kodu tek kullanımlık ve ~5 dk geçerli; iptalden hemen önce istenir.
 - İptal çağrısı başarısız olursa (OAuth code flow ayarı eksik, ağ hatası) silme ENGELLENMEZ — 5.1.1(v) silmenin çalışmasını şart koşar. `FirebaseCrashlytics.instance.recordError(reason: 'apple-revoke')` ile kaydedilip silmeye devam edilir.
 - Kullanıcı Apple sayfasını kapatırsa (`SignInWithAppleAuthorizationException`, `canceled`) **kaynaklar ayrışıyor**: `apple-token-not-revoked-on-delete` ve `apple-token-revocation-missing` silmeyi durdurmayı, `siwa-token-revocation-missing` ve `siwa-token-revocation` iptali atlayıp silmeye devam etmeyi söylüyor. Karar kodlamada verilir ve buraya yazılır.
+  - **Karar (sahibin onayladığı plan, çelişki çözüldü):** kullanıcının Apple sayfasını KAPATMASI (`canceled`) silmeyi DURDURUR — kullanıcı geri adım atmıştır; sunucuya istek gitmez, sayfada nedenini anlatan TR/EN metin (`deleteAccountAppleCanceled`) görünür. Başka HER hata (Apple sayfası `unknown`, yeniden doğrulamada `user-mismatch`, ağ, eksik OAuth code flow) `apple-revoke` diye Crashlytics'e yazılır ve silme SÜRER.
 - Konsol (A1, U01 ile aynı oturum): Apple Developer → Keys → Sign in with Apple etkin anahtar; Services ID (yoksa); Firebase Console → Auth → Apple'da Services ID + OAuth code flow (Team ID, Key ID, .p8). Bunlar yoksa iptal çağrısı düşer.
+
+Kısmen kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `auth_service.dart` `appleYetkisiniIptalEt`: kapı iOS + `apple.com`; Apple sayfası (nonce, kapsam yok) → `reauthenticateWithCredential` (aynı ham nonce) → `revokeTokenWithAuthorizationCode`; `delete_account.dart` bunu `DELETE /account/me`'den önce çağırıyor. Yeniden doğrulama başarısızsa iptal KOŞMAZ (başka bir Apple Kimliğinin yetkisi iptal edilmesin). Düzeltmedeki bir gerekçe ölçümle düzeltildi: `backend/api/account.py` `delete_me` yakın giriş şartı koymuyor (Admin SDK `delete_user`), 401 yalnız `core/auth.py`'de jeton doğrulanamayınca dönüyor — yeniden doğrulama 401 yolunu "kaldırmaz", o yol geçersiz jeton için yerinde kaldı; istemcideki "yakın zamanda giriş" yorumu da düzeltildi. Ölçüldü (`test/apple_yetki_iptali_test.dart`, 11): Android'de ve Apple'sız hesapta hiçbir adım koşmuyor; sıra sayfa → doğrulama → iptal ve nonce özeti eşleşiyor; kapatma → vazgeçildi, kayıt yok; `unknown`, `user-mismatch` ve iptal hatası → kayıt + silme sürüyor; sayfada kapatma sunucuya DELETE göndermiyor, başarısız iptal göndermeye devam ediyor.
+Kalan: yukarıdaki konsol maddesi (hesap işi; o yapılmadan iptal çağrısı düşer ve yalnız Crashlytics'te `apple-revoke` görünür). Sahibin iletisi (2026-09-27): e-postayla gelen kimlik `292WJ9TP74` — Team ID olduğu Apple Developer → Membership'te doğrulanmalı. Konsol bitince A5: TestFlight'ta Apple hesabıyla sil → Ayarlar → Apple Kimliği → "Apple ile Giriş" listesinde Rytho kalmamalı.
 
 **Android güvenliği** — Yol iOS + `apple.com` kapısının arkasında; Android değişmez.
 
@@ -543,13 +550,15 @@ Her kaynak bulgunun hangi kayda girdiği. "(kısım)" = bulgu iki kayda bölünd
 **Android güvenliği** — Ortak kod; Android'de de yalnız release kaydı ekler.
 
 ### U31 — Apple girişi, Google ya da şifreyle kayıtlı e-postada genel hata veriyor
-⏳ açık · ORTA · kod · A3 ortak kod · kaynak: `apple-account-exists-different-credential`
+✅ kapandı · ORTA · kod · A3 ortak kod · kaynak: `apple-account-exists-different-credential`
 
 **Kanıt** — `lib/core/auth_service.dart:152-173` `authErrorText`'te `account-exists-with-different-credential` yok (yalnız `phone_verify_screen.dart:267` ele alıyor); varsayılan `authFailed`.
 
 **Etki** — Tipik geçiş: Google ile (x@gmail.com) kayıt olmuş Android kullanıcısı iOS'ta en üstteki Apple düğmesine basar, aynı e-postayı paylaşır. Firebase'in varsayılan "e-posta başına tek hesap" ayarıyla `account-exists-with-different-credential` fırlar; kullanıcı yalnız "Giriş yapılamadı" görür, Google'ı kullanması gerektiğine dair ipucu yok. (Proje e-posta başına çok hesaba izin veriyorsa kullanıcı sessizce ikinci, boş bir hesap alır — daha kötü.)
 
 **Düzeltme** — Yeni durum `authErrorText`'e (giriş ve öteki çağıranlar paylaşsın), TR+EN arb anahtarları, `flutter gen-l10n`. Açık kullanıcı onayı olmadan otomatik bağlama YOK: Firebase'in Apple belgesi, Apple hesaplarını başka verilere bağlamadan önce Apple'ın açık onay istediğini not ediyor.
+
+Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `authErrorText`'e `account-exists-with-different-credential` → `authAccountExistsOtherMethod` (TR+EN): hesabın başka yöntemle var olduğunu söyler ve üç yöntemi sayar, hangisi olduğunu iddia etmez (Firebase söylemiyor); otomatik bağlama yok. Ölçüldü (`test/giris_ios_test.dart`): birim eşlemesi ve iOS giriş ekranında Apple akışından gelen hatanın bu metinle gösterildiği.
 
 **Android güvenliği** — Ortak hata eşlemesi; Android'de de aynı durum doğru mesajı alır.
 
@@ -715,13 +724,16 @@ Her kaynak bulgunun hangi kayda girdiği. "(kısım)" = bulgu iki kayda bölünd
 **Düzeltme** — Info.plist'e `NSPhotoLibraryAddUsageDescription`, İngilizce satır `InfoPlist.strings`'e (U27). `sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size` yalnız iPhone kararıyla (U10) gereksiz: iPad'de uyumluluk kipinde paylaşım düz sayfa. `54130b9`: anahtar TR ve en/tr varyantlarında. Paylaşım sayfasında "Resmi Kaydet"in göründüğü A5'te doğrulanır (U21).
 
 ### U45 — iOS'ta Firebase oturumu yeniden kurulumdan sağ çıkıyor, cihaz kimliği çıkmıyor
-⏳ açık · DÜŞÜK · kod · A2 iOS kod · kaynak: `ios-keychain-session-survives-reinstall`
+✅ kapandı · DÜŞÜK · kod · A2 iOS kod · kaynak: `ios-keychain-session-survives-reinstall`
 
 **Kanıt** — Cihaz kimliği SharedPreferences'ta rastgele 128 bit (`lib/core/device_id.dart:3, :36, :53`) ve uygulama silinince gider; Firebase oturumu iOS'ta silmeden sağ çıkıyor. `lib/main.dart:154` `runApp`'ten önce yeniden kurulum işareti yok.
 
 **Etki** — Android'de olmayan iOS'a özgü davranış: silip yeniden kuran abone uygulamayı zaten girişli açar — yeni cihaz kimliği, eski `auth_time` — ve DeviceConflictScreen'de başka bir cihazın (kendi eski kurulumunun) hesabı tuttuğunu görür. "Bu cihazda kullan" ile düzelir ama kafa karıştırır. Çıkış yapılmış olmayı bekleyerek silenler de otomatik girişli açılır.
 
 **Düzeltme** — Yalnız iOS (`defaultTargetPlatform == TargetPlatform.iOS && !kIsWeb`), `runApp`'ten önce: SharedPreferences işareti yoksa ve `currentUser != null` ise doğrudan `FirebaseAuth.instance.signOut()`. `signOutEverywhere` DEĞİL — o gezgin kapsayıcısına ve backend serbest bırakmaya uzanır. Sonra işaret yazılır, kullanıcı girişli olmasa da.
+
+Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `core/device_id.dart` `iosYenidenKurulumOturumunuKapat`, `main`'de `runApp`'ten önce. Düzeltmeden iki sapma: (1) yeniden kurulumun izi "işaret yok" değil "depo BOMBOŞ" — yalnız işarete bakılsaydı işaretten önceki sürümden güncelleyen her iOS kullanıcısı bir kez çıkarılırdı; (2) işaret çıkıştan ÖNCE yazılır, yazılamazsa çıkış yapılmaz — her açılışta çıkış imkânsız. Çıkış doğrudan `FirebaseAuth.signOut()`. Ölçüldü (`test/yeniden_kurulum_test.dart`, 6): boş depo + oturum → tek çıkış, sonraki açılışlarda yok; eski depo → çıkış yok ama işaret yazılıyor; oturumsuz ilk kurulum → sonraki girişler korunuyor; fırlatan çıkış açılışı düşürmüyor ve tekrarlanmıyor; Android'de ne çıkış ne depo yazımı.
+Kalan: A5 — simülatörde girişli iken sil + yeniden kur: uygulama giriş ekranında açılmalı; ikinci açılışta oturum korunmalı.
 
 **Android güvenliği** — iOS korumalı; Android değişmez.
 
@@ -748,7 +760,7 @@ Her kaynak bulgunun hangi kayda girdiği. "(kısım)" = bulgu iki kayda bölünd
 **Android güvenliği** — Eski istemciler yeni alanı yok sayar.
 
 ### U48 — Telefon ve SMS kodu alanlarında iOS klavyesi kapatılamıyor
-⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `ios-numeric-keyboard-no-dismiss`
+✅ kapandı · DÜŞÜK · kod · A3 ortak kod · kaynak: `ios-numeric-keyboard-no-dismiss`
 
 **Kanıt** — Kod alanı `lib/features/profile/phone_verify_screen.dart:344-347` (`TextInputType.number`), telefon alanı `lib/widgets/phone_number_field.dart:254` (`TextInputType.phone`); `phone_verify_screen.dart:319` `ListView`'da `keyboardDismissBehavior` yok.
 
@@ -756,16 +768,20 @@ Her kaynak bulgunun hangi kayda girdiği. "(kısım)" = bulgu iki kayda bölünd
 
 **Düzeltme** — İki TextField'a `onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus()` ve/veya `:319` ListView'a `keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag`.
 
-**Android güvenliği** — Ortak kod; Android'e yalnız klavye kapatma jesti ekler.
+Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `widgets/phone_number_field.dart` `sayiKlavyesiDisDokunus` (iOS'ta `onTapOutside` → odağı bırak) telefon ve SMS kodu alanlarında; `sayiKlavyesiKaydirmaDavranisi` (iOS'ta `onDrag`) doğrulama ekranının ListView'ında. Düzeltmeden sapma: ortak ekleme yerine iOS korumalı — Android'de ikisi de null, yani Flutter varsayılanı (mobilde dokunmayla odak bırakılmaz, kaydırma klavyeye dokunmaz) aynen kalır. Ölçüldü (`test/sayi_klavyesi_test.dart`, 6): iOS'ta alan dışına dokunmak odağı bırakıyor, Android'de bırakmıyor; ListView iOS'ta `onDrag`, Android'de null.
+
+**Android güvenliği** — iOS korumalı (`defaultTargetPlatform`); Android bayt bayt aynı.
 
 ### U49 — Apple/Google giriş sayfasını kapatmak "giriş başarısız" gösteriyor ve Crashlytics'e yazıyor
-⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `social-signin-cancel-shows-error`
+✅ kapandı · DÜŞÜK · kod · A3 ortak kod · kaynak: `social-signin-cancel-shows-error`
 
 **Kanıt** — `lib/features/auth/login_screen.dart:102-129` `_runSocial`'ın genel `catch`'i (`:110`) iptali de yakalıyor: `recordError('social-signin: …')` (`:122-124`) ve `authFailed` snack'i.
 
 **Etki** — iOS'ta Apple sayfasını kapatmak normal bir eylem. Kullanıcı (ve inceleyici) hata snack'i görür; Crashlytics gerçek hataları gizleyen sahte "social-signin" kayıtlarıyla dolar.
 
 **Düzeltme** — Genel catch'ten önce `SignInWithAppleAuthorizationException` (`code == canceled`) ve `GoogleSignInException` (`code == canceled`) yakalanır; sessizce dönülür ya da nötr "Giriş iptal edildi" gösterilir, Crashlytics'e yazılmaz. Dikkat: bazı cihaz ve simülatörlerde iCloud hesabı yokken kapatma `AuthorizationErrorCode.unknown` (1000) olarak gelir — o kod bastırılmaz.
+
+Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `auth_service.dart` `girisIptalEdildi`; `_runSocial` iptalde sessiz döner (nötr mesaj da yok: hata olmadı, düğmenin boşa dönmesi yeterli), Crashlytics'e yazmaz. Kodda ölçülen tuzak: google_sign_in_android 7.2.15 Credential Manager'ın `GetCredentialCancellationException`'ını `GoogleSignInExceptionCode.canceled`'a çeviriyor; B1'in "[16] Account reauth failed" hatası bu sınıfla gelebildiği için yalnız koda bakan süzgeç B1 mesajını yutardı — süzgeç önce reauth metnine bakıyor (`googleYenidenDogrulamaGerekli`). Apple `unknown` (1000) bastırılmıyor. Ortak düzeltme: Android'de Google iptali de sessiz. Ölçüldü (`test/giris_ios_test.dart`): Apple/Google iptali snack göstermiyor; Apple `unknown` hâlâ `authFailed`; iptal koduyla gelen [16] hatası `authReauthNeeded` gösteriyor. Süzgeç satırı söküldüğünde iki iptal testinin düştüğü de denendi.
 
 **Android güvenliği** — Google iptali Android'de de sessizleşir; genel catch'teki "[16] reauth" dalı (B1) aynen kalır.
 

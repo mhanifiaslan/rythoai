@@ -10,6 +10,7 @@ library;
 
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -124,6 +125,28 @@ const Map<String, Set<int>> _ulusalUzunluk = {
   'CH': {9},
   'SE': {9},
 };
+
+/// Sayı tuş takımını kapatma yolu — yalnız iOS (U48).
+///
+/// iPhone'un sayı ve telefon tuş takımında "Bitti"/Return tuşu yok, sistem
+/// geri tuşu da yok (`textInputAction` orada hiçbir tuş çizmez). Klavye açık
+/// kalıp altındaki "Kod gönder"/"Doğrula" düğmelerini örtüyordu. Alan dışına
+/// dokunmak odağı bırakır.
+///
+/// Android'de null döner, yani TextField'ın varsayılanı kalır: Flutter
+/// mobilde dokunmayla odağı bırakmıyor ve Android'in kendi geri tuşu var —
+/// davranış bayt bayt aynı.
+TapRegionCallback? get sayiKlavyesiDisDokunus =>
+    defaultTargetPlatform == TargetPlatform.iOS
+        ? (_) => FocusManager.instance.primaryFocus?.unfocus()
+        : null;
+
+/// Aynı gerekçe, kaydırma jesti: iOS'ta sayfayı sürüklemek klavyeyi kapatır.
+/// Android'de null — ScrollView'un varsayılanı (`manual`) kalır.
+ScrollViewKeyboardDismissBehavior? get sayiKlavyesiKaydirmaDavranisi =>
+    defaultTargetPlatform == TargetPlatform.iOS
+        ? ScrollViewKeyboardDismissBehavior.onDrag
+        : null;
 
 /// Alanın o anki durumu: ekranın hem numarayı hem ÜLKEYİ bilmesi gerekir
 /// (bölge kapısı ve uzunluk kontrolü için) — yalnız E.164 dizesi yetmiyor.
@@ -253,6 +276,7 @@ class _PhoneNumberFieldState extends State<PhoneNumberField> {
           style: RythoType.body,
           keyboardType: TextInputType.phone,
           autofillHints: const [AutofillHints.telephoneNumber],
+          onTapOutside: sayiKlavyesiDisDokunus,
           decoration: InputDecoration(
             labelText: l10n.phoneFieldLabel,
             hintText: '5xx xxx xx xx',

@@ -16,6 +16,7 @@ import 'core/api.dart';
 import 'core/app_config.dart';
 import 'core/auth_service.dart' show signOutEverywhere;
 import 'core/deep_links.dart';
+import 'core/device_id.dart' show iosYenidenKurulumOturumunuKapat;
 import 'core/device_session.dart' show deviceConflictProvider;
 import 'core/gate_guard.dart';
 import 'core/language_sync.dart';
@@ -150,6 +151,14 @@ Future<void> main() async {
   // Abonelik SDK'sı: anahtar tanımlı değilse sessizce atlanır, uygulama
   // ücretsiz katmanla normal çalışır.
   await initBilling();
+
+  // U45: iOS anahtar zinciri oturumu yeniden kurulumdan sağ çıkarıyor;
+  // `_Gate` onu görmeden kapatılmalı (gerekçe fonksiyonda). Android'de
+  // hiçbir şeye dokunmaz.
+  await iosYenidenKurulumOturumunuKapat(
+    oturumVar: () => FirebaseAuth.instance.currentUser != null,
+    cikis: () => FirebaseAuth.instance.signOut(),
+  );
 
   runApp(ProviderScope(retry: rythoRetry, child: const RythoApp()));
 }

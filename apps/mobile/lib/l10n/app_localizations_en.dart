@@ -961,6 +961,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authFailed => 'Something went wrong. Please try again.';
 
   @override
+  String get authAccountExistsOtherMethod =>
+      'An account with this email already exists, but it uses a different sign-in method. Sign in the way you first created it (Google, Apple, or email and password).';
+
+  @override
   String get authReauthNeeded =>
       'Your Google account needs to be re-verified on this device. Open your phone\'s Settings → Google and verify the account (remove and re-add it if needed), then try again.';
 
@@ -1362,6 +1366,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get deleteAccountFailed =>
       'The account could not be deleted. Please retry.';
+
+  @override
+  String get deleteAccountAppleCanceled =>
+      'Your account was not deleted: the Apple confirmation was closed. We ask for it so that Rytho\'s Sign in with Apple access can be removed too. To delete your account, try again and complete it.';
 
   @override
   String get deleteAccountReauth =>

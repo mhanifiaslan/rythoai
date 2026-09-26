@@ -960,6 +960,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get authFailed => 'Bir şeyler ters gitti. Tekrar dene.';
 
   @override
+  String get authAccountExistsOtherMethod =>
+      'Bu e-posta adresiyle açılmış bir hesap zaten var, ama başka bir giriş yöntemiyle. Hesabı ilk açtığın yöntemle (Google, Apple ya da e-posta ve şifre) giriş yap.';
+
+  @override
   String get authReauthNeeded =>
       'Google hesabının bu cihazda yeniden doğrulanması gerekiyor. Telefonunun Ayarlar → Google bölümüne girip hesabını doğrula (gerekirse hesabı kaldırıp yeniden ekle), sonra tekrar dene.';
 
@@ -1362,6 +1366,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get deleteAccountFailed => 'Hesap silinemedi. Lütfen tekrar dene.';
 
   @override
+  String get deleteAccountAppleCanceled =>
+      'Hesabın silinmedi: Apple onayı kapatıldı. Bu onay, Rytho\'nun Apple ile Giriş yetkisini kaldırmak için isteniyor. Silmek için tekrar dene ve onayı tamamla.';
+
+  @override
   String get deleteAccountReauth =>
       'Güvenlik için tekrar giriş yapman gerekiyor. Çıkış yapıp yeniden giriş yaptıktan sonra bu işlemi tekrarla.';
 
@@ -1382,7 +1390,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get shareFailed => 'Paylaşım kartı oluşturulamadı.';
 
   @override
-  String get signInWithApple => 'Apple ile giriş';
+  String get signInWithApple => 'Apple ile Giriş Yap';
 
   @override
   String get consentPrefix => 'Devam ederek ';

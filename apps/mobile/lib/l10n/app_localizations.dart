@@ -1820,6 +1820,12 @@ abstract class AppLocalizations {
   /// **'Bir şeyler ters gitti. Tekrar dene.'**
   String get authFailed;
 
+  /// No description provided for @authAccountExistsOtherMethod.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu e-posta adresiyle açılmış bir hesap zaten var, ama başka bir giriş yöntemiyle. Hesabı ilk açtığın yöntemle (Google, Apple ya da e-posta ve şifre) giriş yap.'**
+  String get authAccountExistsOtherMethod;
+
   /// No description provided for @authReauthNeeded.
   ///
   /// In tr, this message translates to:
@@ -2510,6 +2516,12 @@ abstract class AppLocalizations {
   /// **'Hesap silinemedi. Lütfen tekrar dene.'**
   String get deleteAccountFailed;
 
+  /// No description provided for @deleteAccountAppleCanceled.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hesabın silinmedi: Apple onayı kapatıldı. Bu onay, Rytho\'nun Apple ile Giriş yetkisini kaldırmak için isteniyor. Silmek için tekrar dene ve onayı tamamla.'**
+  String get deleteAccountAppleCanceled;
+
   /// No description provided for @deleteAccountReauth.
   ///
   /// In tr, this message translates to:
@@ -2549,7 +2561,7 @@ abstract class AppLocalizations {
   /// No description provided for @signInWithApple.
   ///
   /// In tr, this message translates to:
-  /// **'Apple ile giriş'**
+  /// **'Apple ile Giriş Yap'**
   String get signInWithApple;
 
   /// No description provided for @consentPrefix.
