@@ -1574,6 +1574,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'If you declined, you can enable camera access for Rytho in your phone settings and come back.';
 
   @override
+  String get openSystemSettings => 'Open Settings';
+
+  @override
   String get save => 'Save';
 
   @override

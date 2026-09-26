@@ -19,12 +19,14 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/ayarlar_kisayolu.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../widgets/atlas_widgets.dart' show AstrolabeSpinner;
@@ -64,6 +66,32 @@ class FaceCaptureResult {
         if (motion.confident) ...motion.toJson(),
       };
 }
+
+/// Kamera kurulum hatasının kodu kullanıcının İZİN REDDİ mi?
+///
+/// İzin reddi ARIZA DEĞİL: Crashlytics'e yazılmaz ve ekran "yüz algılama
+/// başarısız" yerine izin katmanını gösterir.
+///
+/// iOS kodları `Permission` içermiyor (`camera_avfoundation` 0.9.23+2,
+/// `CameraPermissionManager.swift`): diyalogdaki ret `CameraAccessDenied`,
+/// sonraki her deneme diyalogsuz `CameraAccessDeniedWithoutPrompt`,
+/// ebeveyn/MDM kısıtı `CameraAccessRestricted`. Yalnız `Permission`'a
+/// bakılırken iOS'ta ret donanım arızası sayılıyordu: "Yeniden çek" sonsuza
+/// dek aynı hataya dönüyor ve her deneme Crashlytics'e sahte bir kayıt
+/// yazıyordu (U23).
+///
+/// `CameraAccess` öneki bilerek YALNIZ iOS'ta. Android'in ret kodu da
+/// `CameraAccessDenied` (`camera_android_camerax` 0.6.30,
+/// `CameraPermissionsManager.java`) ama izin katmanı `resumed`'da
+/// kendiliğinden yeniden deniyor ve Android izni yeniden SORABİLİYOR: ret
+/// orada izin katmanına düşseydi, diyalog kapanınca gelen `resumed` diyaloğu
+/// yeniden açabilirdi. iOS'ta bu döngü kurulamaz — ikinci deneme diyalogsuz
+/// düşer, `resumed` üretmez. Android sınıflandırması cihazda ölçülmeden
+/// değiştirilmedi.
+bool kameraIzniReddi(String kod) =>
+    kod.contains('Permission') ||
+    (defaultTargetPlatform == TargetPlatform.iOS &&
+        kod.startsWith('CameraAccess'));
 
 class FaceCaptureScreen extends StatefulWidget {
   const FaceCaptureScreen({super.key});
@@ -278,6 +306,11 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
       await kontrolcu.initialize();
       if (!mounted) return;
 
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await _iosKareyiDikKilitle(kontrolcu);
+        if (!mounted) return;
+      }
+
       _kamera = kontrolcu;
       await kontrolcu.startImageStream(_kareGeldi);
       if (!mounted) return;
@@ -285,18 +318,41 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
     } on CameraException catch (e, iz) {
       // Izin reddi ARIZA DEGIL — kullanicinin karari; yalniz gercek ariza
       // bildirilir. Bildirim `mounted` kontrolunden ONCE: ekran sokulmusse de
-      // sebep kaybolmasin.
-      if (!e.code.contains('Permission')) {
+      // sebep kaybolmasin. Iki kosul AYNI yuklemi kullanir: ayrisirlarsa
+      // ret ya izin ekraninda Crashlytics'e yazilir ya da ariza ekraninda
+      // sessiz kalir.
+      final izinReddi = kameraIzniReddi(e.code);
+      if (!izinReddi) {
         _arizaBildir(e, iz, 'kamera-kurulum');
       }
       if (!mounted) return;
-      setState(() => _asama = e.code.contains('Permission')
-          ? _Asama.izinYok
-          : _Asama.hata);
+      setState(() => _asama = izinReddi ? _Asama.izinYok : _Asama.hata);
     } catch (e, iz) {
       _arizaBildir(e, iz, 'kamera-kurulum');
       if (!mounted) return;
       setState(() => _asama = _Asama.hata);
+    }
+  }
+
+  /// iOS'ta akış karesini arayüzle aynı yönde — DİK — tutar.
+  ///
+  /// `camera_avfoundation` 0.9.23+2 kareyi FİZİKSEL cihaz yönüne göre
+  /// çeviriyor (`UIDevice.orientationDidChangeNotification` →
+  /// `videoOrientation`, arayüz kilidine bakmadan); arayüz ise yalnız dikey
+  /// (Info.plist). Kilit olmasa telefon yan tutulunca tampon yataya döner,
+  /// önizleme dokusu (aynı tampon) dikey kutuya sığdırılırken bükülür ve
+  /// tarama noktaları ekranda gösterilen kareyle örtüşmezdi. Kilitle
+  /// tampon, önizleme ve noktalar hep aynı dikey uzayda kalır — Android'le
+  /// aynı varsayım (orada cihaz açısı sabit 0 veriliyor).
+  ///
+  /// Kilit düşerse akış DURMAZ: dik tutulan telefonda geometri kilitsiz de
+  /// doğru (bkz. face_detection.dart, `_kareDikVeAynali`). Yine de sebep
+  /// bildirilir; yan tutuşta bozulan bir ekranın izi kalmalı.
+  Future<void> _iosKareyiDikKilitle(CameraController kontrolcu) async {
+    try {
+      await kontrolcu.lockCaptureOrientation(DeviceOrientation.portraitUp);
+    } on CameraException catch (e, iz) {
+      _arizaBildir(e, iz, 'kamera-yon-kilidi');
     }
   }
 
@@ -873,7 +929,10 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
             // o bir ilerleme göstergesi, bekleme göstergesi değil.
             const Center(child: AstrolabeSpinner()),
           if (_asama == _Asama.izinYok || _asama == _Asama.hata)
-            _hataKatmani(l10n),
+            YuzKameraEngeli(
+              izinYok: _asama == _Asama.izinYok,
+              onYenidenDene: _yenidenDene,
+            ),
           if (_asama == _Asama.onizleme) _altBar(l10n),
           if (_asama == _Asama.tarama) _taramaMetni(l10n),
           if (_galeriIsleniyor) _galeriKatmani(l10n),
@@ -919,12 +978,13 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
             lines: _noktalar,
             progress: _tarama.value,
             imageSize: _goruntuBoyutu,
-            // Ön kamera önizlemesi ayna gibi gösteriliyor; ML Kit
-            // koordinatları ise aynalanmamış geliyor. Bayrak verilmezse
-            // noktalar yüzün YANINA düşüyor — cihaz testinde tam olarak
-            // "noktalar yüzümün solunda" diye görüldü.
-            mirrored: _kamera?.description.lensDirection ==
-                CameraLensDirection.front,
+            // Android'de ön kamera önizlemesi aynalı, ML Kit koordinatları
+            // aynasız: bayrak verilmezse noktalar yüzün YANINA düşüyor
+            // (cihazda "noktalar yüzümün solunda" diye görüldü). iOS'ta
+            // koordinatlar zaten aynalı tampondan geliyor; orada bayrak
+            // noktaları ikinci kez çevirirdi. Karar tek yerde.
+            mirrored: taramaNoktalariAynalanir(
+                _kamera?.description.lensDirection),
           ),
         ),
       );
@@ -1176,48 +1236,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
         ),
       );
 
-  Widget _hataKatmani(AppLocalizations l10n) => ColoredBox(
-        color: RythoColors.ink,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _asama == _Asama.izinYok
-                      ? l10n.faceCameraDenied
-                      : l10n.faceDetectFailed,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      color: RythoColors.parchment, fontSize: 16),
-                ),
-                const SizedBox(height: 20),
-                // Tekrar denemek HER İKİ hata durumunda da mümkün.
-                //
-                // Önce yalnızca `hata` durumunda vardı; izin reddedildiğinde
-                // ekranda ne düğme ne çıkış kalıyordu. Yeniden çekimde
-                // hareket ölçümü de sıfırlanır — önceki denemenin kareleri
-                // yeni okumaya karışmamalı.
-                FilledButton(
-                  onPressed: _yenidenDene,
-                  child: Text(_asama == _Asama.izinYok
-                      ? l10n.faceOpenSettings
-                      : l10n.faceRetake),
-                ),
-                if (_asama == _Asama.izinYok) ...[
-                  const SizedBox(height: 10),
-                  Text(l10n.faceCameraDeniedHint,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: RythoColors.parchmentDim, fontSize: 13)),
-                ],
-              ],
-            ),
-          ),
-        ),
-      );
-
   static String _yonerge(AppLocalizations l10n, FrameQuality q) => switch (q) {
         FrameQuality.noFace => l10n.faceGuideNoFace,
         FrameQuality.tooFar => l10n.faceGuideTooFar,
@@ -1226,4 +1244,87 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
         FrameQuality.tilted => l10n.faceGuideTilted,
         FrameQuality.ready => l10n.faceGuideReady,
       };
+}
+
+/// Kamera açılamadığında ekranın tamamını kaplayan katman: izin reddi ya da
+/// arıza.
+///
+/// Ekranın içinden çıkarıldı çünkü kameranın kendisi olmadan test
+/// edilebilmesi gereken tek parça bu — izin reddinde hangi düğmelerin
+/// çıktığı platforma göre değişiyor (U23).
+class YuzKameraEngeli extends StatelessWidget {
+  const YuzKameraEngeli({
+    super.key,
+    required this.izinYok,
+    required this.onYenidenDene,
+    this.ayarlarAcici,
+  });
+
+  /// `true`: kamera izni reddedildi; `false`: kamera ya da tespit arızası.
+  final bool izinYok;
+
+  final VoidCallback onYenidenDene;
+
+  /// Test dikişi; üretimde `url_launcher`.
+  final AyarlarAcici? ayarlarAcici;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    // iOS izni bir kez sorar: ret sonrası "Tekrar dene" bir daha diyalog
+    // açmaz, izni geri getirebilen tek yer Ayarlar. Bu yüzden iOS'ta asıl
+    // eylem Ayarlar; yeniden deneme ikincil kalır (Ayarlar'dan izni açmadan
+    // dönen kullanıcı için).
+    final ayarlarOnde = izinYok && ayarlarKisayoluVar;
+    return ColoredBox(
+      color: RythoColors.ink,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                izinYok ? l10n.faceCameraDenied : l10n.faceDetectFailed,
+                textAlign: TextAlign.center,
+                style:
+                    const TextStyle(color: RythoColors.parchment, fontSize: 16),
+              ),
+              const SizedBox(height: 20),
+              // Tekrar denemek HER İKİ hata durumunda da mümkün.
+              //
+              // Önce yalnızca `hata` durumunda vardı; izin reddedildiğinde
+              // ekranda ne düğme ne çıkış kalıyordu. Yeniden çekimde
+              // hareket ölçümü de sıfırlanır — önceki denemenin kareleri
+              // yeni okumaya karışmamalı.
+              if (ayarlarOnde) ...[
+                FilledButton(
+                  onPressed: () =>
+                      uygulamaAyarlariniAc(acici: ayarlarAcici),
+                  child: Text(l10n.openSystemSettings),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: onYenidenDene,
+                  child: Text(l10n.faceOpenSettings),
+                ),
+              ] else
+                FilledButton(
+                  onPressed: onYenidenDene,
+                  child: Text(
+                      izinYok ? l10n.faceOpenSettings : l10n.faceRetake),
+                ),
+              if (izinYok) ...[
+                const SizedBox(height: 10),
+                Text(l10n.faceCameraDeniedHint,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        color: RythoColors.parchmentDim, fontSize: 13)),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

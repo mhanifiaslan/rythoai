@@ -43,7 +43,7 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U06 | RET | ikisi | ⏳ Üçüncü taraf AI için uygulama içi onay yok (5.1.2(i)) | A3 ortak kod |
 | U07 | RET | ikisi | ⏳ App Store boyutunda ekran görüntüsü yok | A4 mağaza |
 | U08 | BOZUK | hesap | ⏳ iOS push konsol önkoşulları (APNs, App Attest kaydı) | A1 hesap |
-| U09 | BOZUK | kod | ⏳ Yüz okuma geometrisi iOS karesinde yanlış | A2 iOS kod |
+| U09 | BOZUK | kod | ✅ Yüz okuma geometrisi iOS karesinde yanlış | A2 iOS kod |
 | U10 | YÜKSEK | ikisi | ✅ iPad desteği açıktı — tek yönlü kapı | A2 iOS kod |
 | U11 | YÜKSEK | kod | ⏳ Bildirim izni girişten hemen sonra soruluyor | A2 iOS kod |
 | U12 | YÜKSEK | kod | ✅ Uygulama gizlilik manifesti yok | A2 iOS kod |
@@ -57,7 +57,7 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U20 | YÜKSEK | ikisi | ⏳ App Privacy etiket planı eksik | A4 mağaza |
 | U21 | YÜKSEK | ikisi | ⏳ TestFlight cihaz doğrulama planı yok | A5 test |
 | U22 | ORTA | hesap | ⏳ Hide My Email aktarıcısına gönderici kaydı yok | A1 hesap |
-| U23 | ORTA | kod | ⏳ Kamera izni reddi arıza sayılıyor | A2 iOS kod |
+| U23 | ORTA | kod | ✅ Kamera izni reddi arıza sayılıyor | A2 iOS kod |
 | U24 | ORTA | kod | ⏳ Ses efektleri sessiz anahtarını yok sayıyor | A2 iOS kod |
 | U25 | ORTA | kod | ✅ Google kütüphaneleri iki kez bağlı (Pods + SwiftPM) | A2 iOS kod |
 | U26 | ORTA | kod | ✅ Crashlytics dSYM yüklemesi yok | A2 iOS kod |
@@ -239,7 +239,7 @@ Kalan: A5 — iPhone SE (3. nesil) + 1,3 yazı ölçeğinde düğmenin katlama �
 6. TestFlight (Release, production): tekrar. Cloud Run günlüklerinde auth hatasıyla `failed` dönüyorsa anahtarın ortamı ya da kısıtı yanlıştır.
 
 ### U09 — Yüz okuma kamera geometrisi Android sensör karesini varsayıyor
-⏳ açık · BOZUK · kod · A2 iOS kod · kaynak: `face-ios-frame-geometry`
+✅ kapandı · BOZUK · kod · A2 iOS kod · kaynak: `face-ios-frame-geometry`
 
 **Kanıt** — `lib/features/face/face_detection.dart:90-101` `rotatedImageSize` sensör açısı 90/270 ise genişlik ile yüksekliği yer değiştiriyor; `:107-119` `cameraRotationDegrees` ve `:121-128` `_rotation` açıyı sensör yönelimine göre hesaplıyor. `lib/features/face/face_capture_screen.dart:926-927` ön kamerada `mirrored: true`; `lib/features/face/face_segmentation.dart:528` saç çizgisi maskesi aynı açıyı kullanıyor. Galeri yolu (`face_still.dart`) etkilenmiyor.
 
@@ -251,6 +251,9 @@ Kalan: A5 — iPhone SE (3. nesil) + 1,3 yazı ölçeğinde düğmenin katlama �
 - `InputImageMetadata.rotation`'a dokunulmaz (iOS onu yok sayar).
 - `test/scan_mapping_test.dart` yanına iOS geçersiz kılma testleri.
 - Tek gerçek doğrulama cihazda: deklanşör açılıyor, alın ölçülüyor, noktalar iki lenste de yüzün üstünde. Sahibin kararıyla bu ilk kez App Review'da görülebilir — kabul edilen risk.
+
+Kapandı: `[iOS] U09 U23: yuz okuma kare geometrisi ve izin reddi` — Kanıt eklenti kaynağından yeniden okundu (`pubspec.lock` sürümleri): `camera_avfoundation` 0.9.23+2 `DefaultCamera.swift` video bağlantısını ön kamerada `isVideoMirrored = true` kuruyor ve `videoOrientation`'ı cihaz yönüne çeviriyor; akış karesi ve önizleme dokusu aynı tampon; her kamera `sensorOrientation: 90` (sabit); `google_mlkit_commons` 0.11.1 `bytesToVisionImage` `rotation`'ı hiç okumuyor. `face_detection.dart`: tek anahtar `_kareDikVeAynali` (`defaultTargetPlatform == iOS`) — iOS'ta `rotatedImageSize` ham `Size(width, height)`, `cameraRotationDegrees` 0 (segmentasyon maskesi de böylece ham tampon uzayında), yeni `taramaNoktalariAynalanir` iOS'ta iki lenste `false`; `face_capture_screen.dart` aynalama bayrağını ondan alıyor. `InputImageMetadata.rotation`'a dokunulmadı. Düzeltmeye bir ek: iOS'ta `lockCaptureOrientation(portraitUp)` — eklenti tamponu arayüz kilidine bakmadan FİZİKSEL yöne çeviriyor; kilit olmasa yan tutuşta tampon yataya döner, önizleme dikey kutuda bükülür ve noktalar kareyle örtüşmezdi. Kilit düşerse akış durmaz, `kamera-yon-kilidi` diye bildirilir. Galeri yolu (`face_still.dart`) bu yardımcıların hiçbirini çağırmıyor — etkilenmediği doğrulandı. Ölçüldü (`test/scan_mapping_test.dart`, +8): Android'de ön/arka boyut, derece (270/90) ve aynalama eskisiyle aynı; iOS'ta 480x640 tampon takas edilmiyor, iki lenste derece 0 ve `sourcePixel` birebir, aynalama yok; iOS ön kamerada tamponun sol yarısındaki nokta ekranda solda, Android'de karşı tarafta.
+Kalan: A5 (U21) — gerçek iPhone'da deklanşörün açıldığı, alının ölçüldüğü ve noktaların iki lenste de yüzün üstüne düştüğü görülmeli. Cihazda ölçülmedi (sahibin 3. kararı: ilk kez TestFlight / App Review'da).
 
 **Android güvenliği** — Değişiklik iOS dalında; Android hesaplaması aynen kalır.
 
@@ -447,13 +450,16 @@ Kalan: yukarıdaki konsol maddesi (hesap işi; o yapılmadan iptal çağrısı d
 **Düzeltme** — Apple Developer → Certificates, Identifiers & Profiles → Services → Sign in with Apple for Email Communication → `noreply@rhytoai.firebaseapp.com`. Firebase e-posta şablonunun alan adı `rytho.app`'e taşınınca özel gönderici alan adı da (SPF/DKIM ile) eklenir.
 
 ### U23 — iOS'ta kamera izni reddi donanım arızası sayılıyor
-⏳ açık · ORTA · kod · A2 iOS kod · kaynak: `camera-permission-denied-ios`
+✅ kapandı · ORTA · kod · A2 iOS kod · kaynak: `camera-permission-denied-ios`
 
 **Kanıt** — `lib/features/face/face_capture_screen.dart:285-295`: `CameraException` yalnız `e.code.contains('Permission')` ise izin reddi sayılıyor; iOS'un `CameraAccessDeniedWithoutPrompt` kodu uymuyor → hata katmanı + `_arizaBildir` (Crashlytics). `:224-229` izin katmanında `resumed` otomatik yeniden deneme; `test/face_ariza_kanit_test.dart:67` yüklemi kaynak metniyle sabitliyor. Rehberde `lib/features/friends/contacts_screen.dart:104-110` "Tekrar dene" yalnız sağlayıcıyı geçersiz kılıyor.
 
 **Etki** — iOS kamera iznini yalnız bir kez sorar. "İzin Verme"den sonra her deneme anında `CameraAccessDeniedWithoutPrompt` ile düşer: ekran izin mesajı yerine "yüz algılama başarısız" gösterir, "Yeniden çek" sonsuza dek döner, her deneme Crashlytics'e non-fatal yazar. Ayarlar'dan dönüş de otomatik yeniden denemez. Rehberde aynı çıkmaz: "Tekrar dene" bir daha sormaz.
 
 **Düzeltme** — İki yerde de (rapor koşulu ve durum koşulu) yüklem `e.code.contains('Permission') || e.code.startsWith('CameraAccess')`; `test/face_ariza_kanit_test.dart:67` güncellenir. iOS'ta `izinYok` katmanına Ayarlar düğmesi: `launchUrl(Uri.parse('app-settings:'))` (`UIApplication.openSettingsURLString`). iOS, Ayarlar'da kamera izni değişince uygulamayı sonlandırır; iOS'ta `resumed` yeniden denemesi gerekmez. Rehbere isteğe bağlı aynı iOS'a özgü Ayarlar düğmesi.
+
+Kapandı: `[iOS] U09 U23: yuz okuma kare geometrisi ve izin reddi` — `face_capture_screen.dart` `kameraIzniReddi(kod)`: rapor koşulu ve durum koşulu artık TEK yüklemden (`final izinReddi = kameraIzniReddi(e.code)`), ikisi ayrışamaz. `CameraAccess` öneki (`CameraAccessDenied`, `…DeniedWithoutPrompt`, `…Restricted` — `CameraPermissionManager.swift`) yalnız iOS'ta ret sayılıyor. iOS'ta izin katmanında asıl eylem `FilledButton` "Ayarlar'ı aç" (`app-settings:`, `core/ayarlar_kisayolu.dart`; `url_launcher_ios` 6.4.1 `canOpenURL` sormadan `UIApplication.open` ile açıyor, `LSApplicationQueriesSchemes` gerekmiyor), "Tekrar dene" ikincil `TextButton`. Katman `YuzKameraEngeli` olarak ayrıldı ki kamerasız test edilebilsin. Rehberde (`contacts_screen.dart`) aynı: iOS'ta "Ayarlar'ı aç" asıl, "Tekrar dene" ikincil; Android kartı değişmedi. `resumed` yeniden denemesi olduğu gibi bırakıldı: iOS'ta ikinci deneme diyalogsuz düştüğü için döngü kurulamıyor. Yeni l10n: `openSystemSettings` (TR "Ayarlar'ı aç" / EN "Open Settings"). Ölçüldü: `test/face_ariza_kanit_test.dart` kaynak bekçisi tek yüklemi ve ham `contains('Permission')`'ın yokluğunu sabitliyor; `test/kamera_izni_ios_test.dart` (12) — iOS'ta üç `CameraAccess` kodu ret, `IOError`/`VideoError`/`Error` arıza; Ayarlar düğmesi `app-settings:` açıyor, açılış fırlatırsa ekran düşmüyor; yüz ve rehber ekranında iOS'ta Ayarlar + ikincil yeniden deneme, Android'de eski tek düğme.
+Düzeltmeden sapma: yüklem iki platformda ORTAK değil. Denetimin "Android güvenliği" satırı yanlış öncüle dayanıyordu — `camera_android_camerax` 0.6.30'un ret kodu da `CameraAccessDenied` (`CameraPermissionsManager.java`), `Permission` içermiyor. Önek Android'e de uygulansaydı Android reddi izin katmanına düşer ve oradaki `resumed` yeniden denemesi (Android izni yeniden SORABİLİYOR) diyaloğu tekrar tekrar açabilirdi; cihazda ölçülmeden Android'e taşınmadı. Android'de ret bugün de arıza sayılıyor ve Crashlytics'e yazılıyor — Windows oturumu için açık kalem.
 
 **Android güvenliği** — Android'de mevcut yeniden deneme kalır (app_settings ya da permission_handler eklenmedikçe); `Permission` içeren Android kodları aynı dala düşmeye devam eder.
 

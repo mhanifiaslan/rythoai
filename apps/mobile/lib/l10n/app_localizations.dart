@@ -2876,6 +2876,12 @@ abstract class AppLocalizations {
   /// **'İzni reddettiysen, telefon ayarlarından Rytho için kamera iznini açıp buraya dönebilirsin.'**
   String get faceCameraDeniedHint;
 
+  /// No description provided for @openSystemSettings.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ayarlar\'ı aç'**
+  String get openSystemSettings;
+
   /// No description provided for @save.
   ///
   /// In tr, this message translates to:

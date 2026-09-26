@@ -1571,6 +1571,9 @@ class AppLocalizationsTr extends AppLocalizations {
       'İzni reddettiysen, telefon ayarlarından Rytho için kamera iznini açıp buraya dönebilirsin.';
 
   @override
+  String get openSystemSettings => 'Ayarlar\'ı aç';
+
+  @override
   String get save => 'Kaydet';
 
   @override

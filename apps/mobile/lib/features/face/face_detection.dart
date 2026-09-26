@@ -9,6 +9,8 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import 'face_geometry.dart';
@@ -44,6 +46,10 @@ InputImage? inputImageFromCamera({
   required CameraDescription camera,
   required int deviceOrientationDegrees,
 }) {
+  // Meta verideki açı yalnız ANDROID'de bir şey değiştirir: ML Kit'e yatay
+  // sensör karesini dikleştirmesini söyleyen tek bilgi bu. iOS eklentisi onu
+  // hiç okumuyor (bkz. [_kareDikVeAynali]); iOS'un geometrisi bu yüzden
+  // burada değil, aşağıdaki yardımcılarda dallanıyor.
   final rotation = _rotation(camera, deviceOrientationDegrees);
   if (rotation == null) return null;
 
@@ -79,19 +85,55 @@ Uint8List _birlestir(List<Plane> planes) {
   return builder.toBytes();
 }
 
+/// Kamera akışının karesi zaten DİK ve ön kamerada zaten AYNALI mı geliyor?
+///
+/// iOS'ta evet, Android'de hayır — ve aşağıdaki üç yardımcının (boyut,
+/// döndürme, aynalama) hepsi bu tek farka dayanıyor. Kanıt eklenti
+/// kaynaklarında (sürümler `pubspec.lock`'tan):
+///
+/// * `camera_avfoundation` 0.9.23+2, `DefaultCamera.swift`: video çıkışının
+///   bağlantısı ön kamerada `isVideoMirrored = true` ile kuruluyor ve
+///   `updateOrientation()` bağlantının `videoOrientation`'ını cihaz yönüne
+///   (dik tutuşta `.portrait`) çeviriyor. Akış karesi (`handleSampleBufferStreaming`)
+///   ve önizleme dokusu (`copyPixelBuffer`) AYNI tampondan çıkıyor; yani
+///   ekranda görülen, ML Kit'e verilenin birebir aynısı.
+/// * `google_mlkit_commons` 0.11.1, `MLKVisionImage+FlutterPlugin.m`
+///   `bytesToVisionImage`: meta verideki `rotation`'ı hiç okumuyor, görüntüyü
+///   yönsüz kuruyor — koordinatlar HAM tampon uzayında dönüyor.
+/// * `camera_avfoundation` her kamerayı `sensorOrientation: 90` diye
+///   bildiriyor (`lib/src/utils.dart`, sabit). Dal olmasaydı Android hesabı
+///   iOS'ta 480x640'lık dik kareyi 640x480 sanıp en ile boyu yer
+///   değiştirirdi — Android'de deklanşörü hiç açtırmayan hatanın aynısı —
+///   ve saç çizgisi maskesi landmark'lara göre 90° dönük kalırdı.
+///
+/// Android'de (CameraX) ikisi de tersi: analiz karesi yatay sensör
+/// uzayında ve aynasız gelir; önizleme ise ayrıca döndürülüp aynalanarak
+/// çiziliyor.
+///
+/// `Platform.isIOS` değil `defaultTargetPlatform`: testte değiştirilebilen
+/// anahtar bu. Gerçek doğrulama yalnız cihazda (ML Kit ve TFLite
+/// simülatörde yok) — denetim U09.
+bool get _kareDikVeAynali => defaultTargetPlatform == TargetPlatform.iOS;
+
 /// ML Kit'in koordinat döndürdüğü uzayın boyutu.
 ///
-/// **Ham kare boyutu bunun yerine kullanılamaz.** Kamera sensörü yatay
-/// veriyor (ör. 640x480); ML Kit ise döndürme meta verisini uygulayıp
+/// **Android'de ham kare boyutu bunun yerine kullanılamaz.** Kamera sensörü
+/// yatay veriyor (ör. 640x480); ML Kit ise döndürme meta verisini uygulayıp
 /// koordinatları DİK uzayda (480x640) döndürüyor. Ham boyutla
 /// karşılaştırınca genişlik ve yükseklik yer değiştiriyor: yüz kadrajın
 /// tam ortasındayken "yüzünü ortala" uyarısı çıkıyor ve deklanşör hiç
 /// açılmıyordu.
+///
+/// iOS'ta ise tam tersine DOĞRU cevap ham boyuttur: tampon zaten dik ve ML
+/// Kit onu döndürmeden okuyor (bkz. [_kareDikVeAynali]).
 Size rotatedImageSize({
   required CameraImage image,
   required CameraDescription camera,
   required int deviceOrientationDegrees,
 }) {
+  if (_kareDikVeAynali) {
+    return Size(image.width.toDouble(), image.height.toDouble());
+  }
   final rotation = _rotation(camera, deviceOrientationDegrees);
   final ceyrek = rotation == InputImageRotation.rotation90deg ||
       rotation == InputImageRotation.rotation270deg;
@@ -100,14 +142,18 @@ Size rotatedImageSize({
       : Size(image.width.toDouble(), image.height.toDouble());
 }
 
-/// ML Kit'e uygulanan döndürme — derece cinsinden.
+/// ML Kit'in koordinat uzayına varmak için ham kareye uygulanan döndürme —
+/// derece cinsinden.
 ///
-/// Parlaklık düzlemi de aynı döndürmeden geçmeli, yoksa landmark'lar ile
-/// piksel verisi ayrı uzaylarda kalır (bkz. `face_luma.dart`).
+/// Segmentasyon karesi de aynı döndürmeden geçmeli, yoksa saç çizgisi
+/// maskesi ile landmark'lar ayrı uzaylarda kalır (bkz.
+/// `face_segmentation.dart`, `FaceSegmenter.run`). iOS'ta 0: ML Kit ham
+/// tamponu döndürmeden okuyor, maske de öyle okunmalı.
 int? cameraRotationDegrees({
   required CameraDescription camera,
   required int deviceOrientationDegrees,
 }) {
+  if (_kareDikVeAynali) return 0;
   final r = _rotation(camera, deviceOrientationDegrees);
   return switch (r) {
     InputImageRotation.rotation0deg => 0,
@@ -126,6 +172,20 @@ InputImageRotation? _rotation(CameraDescription camera, int deviceDegrees) {
       : (camera.sensorOrientation - deviceDegrees + 360) % 360;
   return InputImageRotationValue.fromRawValue(aci);
 }
+
+/// Tarama noktaları ekrana taşınırken yatayda aynalanmalı mı?
+///
+/// Ön kamera önizlemesi iki platformda da ayna gibi görünüyor; fark ML Kit
+/// koordinatlarında. Android'de koordinatlar aynasız sensör uzayında
+/// geliyor ve aynalanmazsa noktalar yüzün yanına düşüyor (cihazda
+/// "noktalar yüzümün solunda" diye görüldü). iOS'ta ML Kit zaten aynalı
+/// tamponu görüyor: bir kez daha aynalamak noktaları ikinci kez çevirip
+/// yüzün öbür yanına atardı (bkz. [_kareDikVeAynali]).
+///
+/// Kadraj kılavuzu bundan etkilenmiyor — merkeze uzaklık aynalamada
+/// değişmez — yani bu kusur kılavuz kusursuz çalışırken bile sessiz kalır.
+bool taramaNoktalariAynalanir(CameraLensDirection? yon) =>
+    !_kareDikVeAynali && yon == CameraLensDirection.front;
 
 /// ML Kit yüzünden [FaceLandmarks] çıkarır.
 ///

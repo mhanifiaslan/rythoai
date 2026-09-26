@@ -790,6 +790,7 @@
   },
   "faceOpenSettings": "Try again",
   "faceCameraDeniedHint": "If you declined, you can enable camera access for Rytho in your phone settings and come back.",
+  "openSystemSettings": "Open Settings",
   "save": "Save",
   "edit": "Edit",
   "birthRecordRowSubtitle": "The basis of every reading",

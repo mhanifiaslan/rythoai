@@ -790,6 +790,7 @@
   },
   "faceOpenSettings": "Tekrar dene",
   "faceCameraDeniedHint": "İzni reddettiysen, telefon ayarlarından Rytho için kamera iznini açıp buraya dönebilirsin.",
+  "openSystemSettings": "Ayarlar'ı aç",
   "save": "Kaydet",
   "edit": "Düzenle",
   "birthRecordRowSubtitle": "Tüm okumaların temeli",
