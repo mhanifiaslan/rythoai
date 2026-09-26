@@ -13,6 +13,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/api.dart';
+import 'core/app_check_izi.dart';
 import 'core/app_config.dart';
 import 'core/auth_service.dart' show signOutEverywhere;
 import 'core/deep_links.dart';
@@ -103,6 +104,8 @@ Future<void> main() async {
   // Hata YUTULUR: App Check kurulamazsa uygulama açılmaya devam
   // etmeli. Zorlama kapalıyken zaten bir etkisi yok; açıkken de
   // kullanıcıyı kapıda bırakmak yerine sunucunun karar vermesi doğru.
+  // Yutulan hata yayında Crashlytics'e iz bırakır (U30,
+  // core/app_check_izi.dart).
   try {
     await FirebaseAppCheck.instance.activate(
       providerAndroid: kDebugMode
@@ -122,8 +125,13 @@ Future<void> main() async {
           ? const AppleDebugProvider()
           : const AppleAppAttestProvider(),
     );
-  } catch (e) {
-    debugPrint('App Check etkinleştirilemedi: $e');
+    // iOS'ta App Attest arızası ancak jeton alınırken görünür; açılış onu
+    // BEKLEMEZ (gerekçe: core/app_check_izi.dart).
+    if (appCheckYoklamasiYapilir()) {
+      unawaited(appCheckJetonunuYokla(FirebaseAppCheck.instance.getToken));
+    }
+  } catch (e, iz) {
+    appCheckEtkinlestirmeHatasi(e, iz);
   }
 
   // Crashlytics: yalnızca gerçek cihaz/release akışında etkin;

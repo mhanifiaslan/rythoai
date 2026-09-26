@@ -250,12 +250,21 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
   Şu an `developmentRegion = en` ama Info.plist metinleri **Türkçe**, yani
   İngilizce cihaz Türkçe izin diyaloğu görüyor. Türkiye-öncelikli
   lansmanda kabul edilebilir; **dünyaya açılmadan önce** düzeltilmeli.
-- **`AppDelegate.swift`'te bildirim delegesi.** `flutter_local_notifications`
-  22.2.0 README'si (iOS setup) `UNUserNotificationCenter.current().delegate`
-  atamasını istiyor; şu an yok. **Körlemesine eklenmedi**, çünkü
-  `firebase_messaging` de aynı delegeyi sahipleniyor ve hangisinin
-  kazandığı ancak **cihazda** ölçülebilir. Mac'te gerçek cihazla
-  doğrulanarak eklenmeli — "ölçülmeyen söylenmez".
+- **Bildirim delegesi — ÇÖZÜLDÜ, `AppDelegate.swift`'e satır EKLENMEZ**
+  (`docs/ios-uyum-denetimi.md` U14). Soru kaynak okumasıyla yanıtlandı:
+  AppDelegate delege atamadığı için delegeyi `firebase_messaging` alıyor;
+  `flutter_local_notifications` `willPresent` hiç almıyor. README'nin
+  istediği `UNUserNotificationCenter.current().delegate` satırı eklenirse
+  `FlutterAppDelegate` `willPresent`'i iki eklentiye de iletir ve ikisi
+  de aynı, **bir kez** çağrılması gereken tamamlayıcıyı çağırır (denetimin
+  beklediği sonuç çift banner; cihazda ölçülmedi).
+  Ön plan push'unu iOS'ta artık FCM kendisi gösteriyor
+  (`setForegroundNotificationPresentationOptions`,
+  `lib/core/notifications.dart` `iosOnPlanSunumunuAc`); yerel bildirimle
+  gösterim yalnız Android'de. Bekçi: `test/bildirim_ios_test.dart`
+  AppDelegate'te `UNUserNotificationCenter` geçmediğini sabitliyor. Kalan
+  yalnız cihaz doğrulaması (APNs anahtarı gerekli, U08): uygulama açıkken
+  test push'u → banner → dokunuş rotası.
 
 ---
 

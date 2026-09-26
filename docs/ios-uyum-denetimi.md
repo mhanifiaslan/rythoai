@@ -45,10 +45,10 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U08 | BOZUK | hesap | ⏳ iOS push konsol önkoşulları (APNs, App Attest kaydı) | A1 hesap |
 | U09 | BOZUK | kod | ✅ Yüz okuma geometrisi iOS karesinde yanlış | A2 iOS kod |
 | U10 | YÜKSEK | ikisi | ✅ iPad desteği açıktı — tek yönlü kapı | A2 iOS kod |
-| U11 | YÜKSEK | kod | ⏳ Bildirim izni girişten hemen sonra soruluyor | A2 iOS kod |
+| U11 | YÜKSEK | kod | ✅ Bildirim izni girişten hemen sonra soruluyor | A2 iOS kod |
 | U12 | YÜKSEK | kod | ✅ Uygulama gizlilik manifesti yok | A2 iOS kod |
 | U13 | YÜKSEK | kod | ✅ `FlutterDeepLinkingEnabled` açık: davet Safari'ye sekiyor | A2 iOS kod |
-| U14 | YÜKSEK | kod | ⏳ Ön planda gelen push iOS'ta kayboluyor | A2 iOS kod |
+| U14 | YÜKSEK | kod | ✅ Ön planda gelen push iOS'ta kayboluyor | A2 iOS kod |
 | U15 | YÜKSEK | ikisi | ⏳ Hesap silmede SIWA jetonu iptal edilmiyor | A2 iOS kod |
 | U16 | YÜKSEK | kod | ⏳ App Store iadeleri webhook'ta yok sayılıyor | A3 ortak kod |
 | U17 | YÜKSEK | kod | ⏳ Engelleme uygulanmıyor (1.2) | A3 ortak kod |
@@ -58,13 +58,13 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U21 | YÜKSEK | ikisi | ⏳ TestFlight cihaz doğrulama planı yok | A5 test |
 | U22 | ORTA | hesap | ⏳ Hide My Email aktarıcısına gönderici kaydı yok | A1 hesap |
 | U23 | ORTA | kod | ✅ Kamera izni reddi arıza sayılıyor | A2 iOS kod |
-| U24 | ORTA | kod | ⏳ Ses efektleri sessiz anahtarını yok sayıyor | A2 iOS kod |
+| U24 | ORTA | kod | ✅ Ses efektleri sessiz anahtarını yok sayıyor | A2 iOS kod |
 | U25 | ORTA | kod | ✅ Google kütüphaneleri iki kez bağlı (Pods + SwiftPM) | A2 iOS kod |
 | U26 | ORTA | kod | ✅ Crashlytics dSYM yüklemesi yok | A2 iOS kod |
 | U27 | ORTA | kod | ✅ Türkçe yerelleştirme ve izin metinleri | A2 iOS kod |
 | U28 | ORTA | ikisi | ⏳ Gizlilik politikası metni Android çerçeveli | A3 ortak kod |
 | U29 | ORTA | ikisi | ⏳ `min_build` iki platformda tek eşik | A3 ortak kod |
-| U30 | ORTA | kod | ⏳ App Check / Auth hataları iz bırakmıyor | A3 ortak kod |
+| U30 | ORTA | kod | ✅ App Check / Auth hataları iz bırakmıyor | A3 ortak kod |
 | U31 | ORTA | kod | ✅ Apple girişinde "hesap başka yöntemle var" genel hata | A3 ortak kod |
 | U32 | ORTA | kod | ⏳ Tek cihaz kilidi 3.1.2(a) ile çelişiyor | A3 ortak kod |
 | U33 | ORTA | kod | ⏳ Satın alma hata eşlemesinde iOS kodları eksik | A3 ortak kod |
@@ -274,13 +274,16 @@ Kalan: A5 (U21) — gerçek iPhone'da deklanşörün açıldığı, alının öl
 - Bu kararla kapanan iPad parçaları: U07 (iPad görüntüleri), U32 (iPhone+iPad eşzamanlı abonelik senaryosu), U44 (iPad'de paylaşım balonu konumu).
 
 ### U11 — iOS bildirim izni girişten hemen sonra soruluyor
-⏳ açık · YÜKSEK · kod · A2 iOS kod · kaynak: `ios-notif-prompt-at-signin`, `ios-notification-prompt-fires-at-login`, `ios-permission-prompt-at-login`
+✅ kapandı · YÜKSEK · kod · A2 iOS kod · kaynak: `ios-notif-prompt-at-signin`, `ios-notification-prompt-fires-at-login`, `ios-permission-prompt-at-login`
 
 **Kanıt** — `lib/core/notifications.dart:294` `iOS: DarwinInitializationSettings()`: varsayılan `request*Permission: true`, yani `flutter_local_notifications`'ın `initialize()`'ı iOS'ta sistem diyaloğunu açıyor. Planlanan yol `:171-190` `ensureNotificationPermissionAsked` → `FirebaseMessaging.requestPermission()` (onboarding `_BildirimAdimi`, `lib/features/onboarding/onboarding_wizard.dart:735`); `Analytics.notificationPermission` `:190`'da.
 
 **Etki** — Sistem bildirim diyaloğu ilk girişin hemen ardından, bağlamsız ve onboarding değeri anlatmadan çıkar. iOS yalnız bir kez sorar; refleks "İzin Verme" kalıcıdır ve push'a dayalı elde tutma döngüsü zarar görür. Zamanlanmış `ensureNotificationPermissionAsked` etkisizleşir; `Analytics.notificationPermission` ise diyalog göstermeyen bir `requestPermission` sonucunu onboarding sorusu gibi kaydeder — metrik çarpılır. Android 13+ etkilenmez: orada eklenti açık istek ister.
 
 **Düzeltme** — `notifications.dart:294`: `iOS: DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false)`. `defaultPresent*` bayrakları varsayılanda (true) kalır ki ön plan yerel bildirimleri görünsün. Tek izin isteği `ensureNotificationPermissionAsked` olur. Test: uygulamayı simülatörden sil, giriş yap → diyalog yok; onboarding'i bitir → diyalog `_BildirimAdimi`'nda.
+
+Kapandı: `[iOS] U11 U14 U24 U30 U54: bildirim izni, on plan push, ses oturumu, App Check izi` — `notifications.dart` `yerelBildirimAyarlari`: Darwin `requestAlert/Badge/SoundPermission: false`, `defaultPresent*` varsayılanda; kurulum artık bu sabiti kullanıyor. Kaynakta ölçülen: flutter_local_notifications 22.2.0 `FlutterLocalNotificationsPlugin.m` `initialize:` bayrakları okuyup `requestPermissionsImpl`'e veriyor, o da hepsi kapalıysa diyalog açmadan dönüyor. Tek istek yolu `ensureNotificationPermissionAsked` (onboarding `_BildirimAdimi` ve Gökyüzü'ndeki ilk değer anı). `defaultPresent*` gerekçesi düzeltildi: iOS'ta ön plan sunumuna bu eklenti değil, bildirim merkezi delegesi firebase_messaging karar veriyor (U14) — bayraklar yalnız varsayılanda bırakıldı. Ölçüldü (`test/bildirim_ios_test.dart`): ayar nesnesinde altı `request*` bayrağı kapalı, beş sunum bayrağı açık; kanala giden `initialize` argümanlarında altı `request*` anahtarı `false` ve `requestPermissions` çağrısı yok; kaynak bekçisi kurulumun bu sabiti kullandığını ve varsayılan `DarwinInitializationSettings()`'in geri gelmediğini sabitliyor.
+Kalan: A5 — simülatörde uygulamayı sil, giriş yap → diyalog yok; onboarding'i bitir → diyalog `_BildirimAdimi`'nda.
 
 **Android güvenliği** — Darwin ayarları Android'de yok sayılır.
 
@@ -312,7 +315,7 @@ Kalan: A5 (U21) — gerçek iPhone'da deklanşörün açıldığı, alının öl
 4. AASA TEAMID düzelince (A5): `xcrun simctl openurl booted https://rytho.app/i/<kullanıcı>`, soğuk ve ılık. Beklenen: Çevrem sekmesi davetle açılır, Safari açılmaz, konsolda "Could not find a generator for route" yok.
 
 ### U14 — Uygulama açıkken gelen push iOS'ta hiç görünmüyor
-⏳ açık · YÜKSEK · kod · A2 iOS kod · kaynak: `ios-foreground-push-dropped`
+✅ kapandı · YÜKSEK · kod · A2 iOS kod · kaynak: `ios-foreground-push-dropped`
 
 **Kanıt** — `lib/core/notifications.dart:555` `FirebaseMessaging.onMessage.listen(_showForeground)`; `_showForeground` (`:315`) yerel bildirim gönderiyor. Bildirim merkezi delegesi `firebase_messaging`'de; eklenti kaynakları okununca `flutter_local_notifications`'ın hiç geri çağrı almadığı kesinleşti. `docs/mac-devir.md:253-258` (§6) ve CLAUDE.md §7 bu delege sorusunu "cihazda ölçülecek" diye açık bırakıyor — bu bulgu soruyu kaynak okumasıyla yanıtlıyor.
 
@@ -325,6 +328,9 @@ Kalan: A5 (U21) — gerçek iPhone'da deklanşörün açıldığı, alının öl
 - AppDelegate delege satırı (B seçeneği) EKLENMEZ: `FlutterPluginAppLifeCycleDelegate.mm:471-477` `willPresent`'i İKİ eklentiye de iletir, ikisi aynı completionHandler'ı çağırır; A ile birlikte bildirim iki kez görünür.
 - Ardından `docs/mac-devir.md` §6 ve CLAUDE.md §7 güncellenir: delege sorusu çözüldü.
 - Test (simülatör, Debug; APNs anahtarı U08): uygulama açık → panelden test push (`backend/services/notify_runner.py:432`, `type=test`) → banner görünmeli → dokun, rotayı kontrol et.
+
+Kapandı: `[iOS] U11 U14 U24 U30 U54: bildirim izni, on plan push, ses oturumu, App Check izi` — A seçeneği aynen: `handleNotificationTaps` önce `iosOnPlanSunumunuAc()` (yalnız iOS; `setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true)`; hata yutuluyor: fırlatsaydı arkasındaki ön plan dinleyicisi ve dokunuş yolları hiç kurulmazdı, hata da kimsenin beklemediği Future'dan yayında FATAL diye düşerdi), sonra `onMessage.listen(onPlanMesajiniIsle)` — iOS'ta yerel bildirim yok, Android'de `_showForeground` aynen. AppDelegate'e delege satırı eklenmedi. Kaynakta ölçülen (firebase_messaging 16.4.3 `FLTFirebaseMessagingPlugin.m`): `willPresentNotification` kayıtlı seçeneği FCM olmayan bildirime de uyguluyor — iOS'ta yerel bildirim de gönderilseydi iki banner çıkardı; `didReceiveNotificationResponse` yalnız `gcm.message_id` taşıyan dokunuşu `onMessageOpenedApp`'e veriyor (soğuk açılışta `getInitialMessage`), yani FCM banner'ına dokunuş `_bildirimAcildi`'ye arka plan push'uyla aynı yoldan geliyor, yerel bir banner'a dokunuş ise hiçbir yere gitmezdi. İki eklentinin sunum seçenekleri ayrı `NSUserDefaults` anahtarlarında (`flutter_firebase_messaging_presentation_options` / `flutter_local_notifications_presentation_options`). `docs/mac-devir.md` §6'daki delege maddesi "çözüldü" diye güncellendi; CLAUDE.md §7'deki aynı not proje talimat dosyası olduğu için bu turda değiştirilmedi, sahibe bırakıldı. Ölçüldü (`test/bildirim_ios_test.dart`): iOS'ta sunum seçenekleri üçü de `true` ve bir kez, Android'de hiç; ayar fırlatırsa yutuluyor; iOS'ta ön plan mesajı yerel gösterimi çağırmıyor, Android'de aynı mesajla çağırıyor; kaynak bekçileri kurulum sırasını, `onMessageOpenedApp` / `getInitialMessage` bağlantısını ve AppDelegate'te `UNUserNotificationCenter` yokluğunu (yorumlar atılarak) sabitliyor.
+Kalan: A5 — APNs anahtarı (U08) yüklendikten sonra yukarıdaki test: uygulama açık → panelden test push → banner → dokun, rota.
 
 **Android güvenliği** — Android'de `_showForeground` aynen çağrılır; değişiklikler iOS dalında.
 
@@ -464,13 +470,16 @@ Düzeltmeden sapma: yüklem iki platformda ORTAK değil. Denetimin "Android güv
 **Android güvenliği** — Android'de mevcut yeniden deneme kalır (app_settings ya da permission_handler eklenmedikçe); `Permission` içeren Android kodları aynı dala düşmeye devam eder.
 
 ### U24 — UI ses efektleri iOS'ta sessiz anahtarını yok sayıyor ve müziği kesiyor
-⏳ açık · ORTA · kod · A2 iOS kod · kaynak: `ios-audio-session-ignores-silent-switch`
+✅ kapandı · ORTA · kod · A2 iOS kod · kaynak: `ios-audio-session-ignores-silent-switch`
 
 **Kanıt** — `lib/core/sound.dart:17` `_ensureLoaded`, `:46` `AudioPlayer()`; `lib/`'de hiç `setAudioContext` yok → audioplayers'ın varsayılan iOS oturumu (playback, karıştırmasız).
 
 **Etki** — iPhone'da mesaj gönderme/beğeni "tık" sesleri Zil/Sessiz anahtarı sessizdeyken de çalar. Her ses karıştırılamayan bir playback oturumu açar ve arka plandaki Spotify / Apple Music'i durdurur. iOS alışkanlıklarını çiğner; TestFlight testçilerinden ilk gelecek şikâyetlerden biri.
 
 **Düzeltme** — Bir kez, ör. `SoundFx._ensureLoaded` içinde: `if (defaultTargetPlatform == TargetPlatform.iOS) await AudioPlayer.global.setAudioContext(AudioContext(iOS: AudioContextIOS(category: AVAudioSessionCategory.ambient, options: const {})));`. `ambient` zaten karıştırır; yanına `mixWithOthers` eklemek yapıcıdaki assert'e takılır (`audioplayers_platform_interface` 7.2.0 `audio_context.dart:177-184`) — `options` boş kalır.
+
+Kapandı: `[iOS] U11 U14 U24 U30 U54: bildirim izni, on plan push, ses oturumu, App Check izi` — `sound.dart` `_iosOturumunuHazirla`: iOS'ta ilk çalıştan ÖNCE bir kez `AudioPlayer.global.setAudioContext(SoundFx.iosSesBaglami)` (`ambient`, `options` boş). Kurulum bayrağı `_loaded`'dan ayrı tutuldu: `setEnabled` `_loaded`'ı çalışsız kapatıyor, `_ensureLoaded`'a bağlansaydı Profil'deki "Sesler" anahtarı yolu (`setEnabled` → `like`) bağlamı hiç kurmazdı. Eşzamanlı ilk çalışlar tek kurulumu paylaşıyor. Kurulum düşerse o ses çalınmıyor, sonraki çalış yeniden deniyor — varsayılan `playback` ile çalmak kusurun kendisi. Kaynakta ölçülen: audioplayers_darwin 6.5.0 eklenti kaydında `playback` uyguluyor (`AudioplayersDarwinPlugin.swift` `globalContext.apply()`) ve çalış sırasında oturumu etkinleştiriyor; iOS'ta bağlam globaldir. Uygulamada başka ses kaynağı yok (kamera `enableAudio: false`). Ölçüldü (`test/ses_oturumu_ios_test.dart`, 7): bağlam `ambient` + boş seçenek; iOS'ta kurulum ilk çalıştan önce ve bir kez, eşzamanlı ilk çalışlarda da tek; anahtar yolunda da kuruluyor; kurulum düşünce ses susuyor, ikinci çalış yeniden deneyip çalıyor; sesler kapalıyken hiçbir şey yok; Android'de bağlama hiç dokunulmuyor ve çalış sırası aynı.
+Kalan: A5 — gerçek iPhone'da: Sessiz anahtarı açıkken mesaj gönder → ses yok; Apple Music çalarken beğeni → müzik durmuyor (simülatörde Zil/Sessiz anahtarı yok).
 
 **Android güvenliği** — iOS koşulu Android'i garanti olarak değişmez bırakır.
 
@@ -545,13 +554,17 @@ Düzeltmeden sapma: yüklem iki platformda ORTAK değil. Denetimin "Android güv
 **Android güvenliği** — Başlıksız istek ve `android` bugünkü anahtara düşer; Android davranışı değişmez.
 
 ### U30 — iOS release'te App Check ve Auth hataları iz bırakmıyor
-⏳ açık · ORTA · kod · A3 ortak kod · kaynak: `auth-appcheck-failures-invisible`
+✅ kapandı · ORTA · kod · A3 ortak kod · kaynak: `auth-appcheck-failures-invisible`
 
 **Kanıt** — `lib/main.dart:105-126`: `FirebaseAppCheck.instance.activate` hatası `catch (e)` ile yalnız `debugPrint` ediliyor (`:125`); Crashlytics işleyicileri `:130-137`'de sonradan kuruluyor.
 
 **Etki** — Gerçek cihaz sinyali yalnız TestFlight testçileri. Zorlama açıkken her App Attest sorunu (uygulama kayıtsız, Firebase'de Team ID yok, sandbox ortamı, attestation hatası) yalnız "Giriş yapılamadı" ya da Firestore izin hatası olarak görünür; App Check'i yanlış şifreden ayıracak Crashlytics izi yok.
 
 **Düzeltme** — `main.dart` catch'i `catch (e, st)` olur ve yalnız `!kDebugMode && !kIsWeb` iken Crashlytics'e kaydeder; Crashlytics `Firebase.initializeApp`'ten hemen sonra kullanılabilir, işleyiciler kurulmadan kaydetmek çalışır. Release'e özgü `getToken` yoklaması "ateşle ve unut" (`unawaited`) — açılış asla gecikmez.
+
+Kapandı: `[iOS] U11 U14 U24 U30 U54: bildirim izni, on plan push, ses oturumu, App Check izi` — yeni `lib/core/app_check_izi.dart`. `main.dart`'ta `activate` catch'i `catch (e, iz)` → `appCheckEtkinlestirmeHatasi` (reason `app-check-activate`, non-fatal). `activate` başarılıysa iOS yayında `unawaited(appCheckJetonunuYokla(FirebaseAppCheck.instance.getToken))`: düşen ya da boş jeton reason `app-check-token` ile kaydediliyor; yoklama asla fırlatmıyor. Kayıt kanalı yalnız `!kDebugMode && !kIsWeb`; Crashlytics işleyicileri kurulmadan `recordError` çalışıyor. Kaynakta ölçülen: iOS'ta `activate` yalnız sağlayıcıyı kaydediyor (firebase_app_check 0.4.5+2 `FirebaseAppCheckPlugin.swift`; Firebase uygulaması bulunamazsa düşer, başka hiçbir şey denemez) — App Attest arızası ancak jeton alınırken görünür, yoklamasız düzeltme iOS'ta neredeyse hiç iz üretmezdi. AppCheckCore `GACAppCheck.m` eşzamanlı jeton isteklerini tek istekte birleştiriyor (`ongoingRetrieveOrRefreshTokenPromise`), yoklama Firestore'un isteğinin yanında ikinci attestation doğurmaz. Ölçüldü (`test/app_check_izi_test.dart`, 13): yoklama yalnız iOS + yayın (Android, debug, web kapalı); düşen ve boş jeton kaydediliyor, gelen jeton kaydedilmiyor; senkron fırlatma da yutuluyor; varsayılan kanal debug'da Crashlytics'e dokunmuyor (Firebase kurulu değilken fırlatmadı); etkinleştirme hatası kendi nedeni ve yığınıyla; kaynak bekçileri `main.dart`'ta catch'in yığınla kaydettiğini, yoklamanın `unawaited` olduğunu ve `activate`'ten sonra, `runApp`'ten önce kurulduğunu sabitliyor.
+Düzeltmeden sapma: jeton yoklaması yalnız iOS. Android'de yoklama yeni bir Play Integrity isteği demek (günlük kotalı); Android SDK'sında eşzamanlı istek birleşmesi burada doğrulanamadı ve Android davranışı Windows oturumunun. Android'de değişen tek şey: yayında `activate` hatası artık Crashlytics'e non-fatal yazılıyor.
+Kalan: A5 — ilk TestFlight kurulumunda Crashlytics'te `app-check-token` / `app-check-activate` kaydı aranır; kayıt yoksa ve giriş çalışıyorsa App Attest jetonu alınmıştır.
 
 **Android güvenliği** — Ortak kod; Android'de de yalnız release kaydı ekler.
 
@@ -830,13 +843,16 @@ Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `auth_
 **Düzeltme** — ASC > Pricing and Availability: App Check orada doğrulanmadıkça v1 için "iPhone and iPad Apps on Apple Silicon Macs" işareti kaldırılır; sunuluyorsa Apple Vision Pro erişilebilirliği de kaldırılır.
 
 ### U54 — iOS'ta FCM `getToken`, APNs jetonundan önce çağrılınca düşüyor
-⏳ açık · DÜŞÜK · kod · A5 test · kaynak: `fcm-gettoken-before-apns` (doğrulayıcı: **BELİRSİZ**)
+⏳ açık (kısmen) · DÜŞÜK · kod · A5 test · kaynak: `fcm-gettoken-before-apns` (doğrulayıcı: **BELİRSİZ**)
 
 **Kanıt** — `lib/core/notifications.dart:102` `syncNotificationContext`, `:114` `getToken()`, `:122-124` hata yalnız `debugPrint`. Geç gelen APNs jetonu `onTokenRefresh` + `ensureAPNSTokenSetting` ile yine yazılıyor (bkz. Doğrulanmış olanlar) — belirsizlik buradan.
 
 **Etki** — İlk kurulum/girişte `fcmToken`/`fcmTokenAt` sık sık `users/{uid}`'ye yazılmayabilir; sabah bildirimi ve arkadaş tepkisi push'ları `onTokenRefresh` tetiklenene ya da sonraki açılışa dek o cihaza ulaşmaz — sessizce.
 
 **Düzeltme** — Önce ölçülür: ilk TestFlight kurulumundan sonra Firestore'da `fcmToken`'a bakılır. Gerekirse yalnız sağlamlaştırma: iOS'ta `getAPNSToken()` null ise `getToken` sessizce atlanır, `onTokenRefresh`'e güvenilir. Yoklama gerekmez.
+
+Kısmen: `[iOS] U11 U14 U24 U30 U54: bildirim izni, on plan push, ses oturumu, App Check izi` — sağlamlaştırma yapıldı: `notifications.dart` `cihazFcmJetonu`; iOS'ta `getAPNSToken()` null ise `getToken` hiç çağrılmıyor, `null` dönülüyor ve `syncNotificationContext` sessizce geçiyor; Android'de APNs sorulmuyor. Kaynakta ölçülen: firebase_messaging_platform_interface 4.9.2 `_APNSTokenCheck` bu durumda `getToken`'da `apns-token-not-set` fırlatıyordu — olağan bir ilk kurulum anı hata yolundan geçiyordu. Ölçüldü (`test/bildirim_ios_test.dart`): iOS'ta APNs yokken FCM jetonu istenmiyor; APNs varken jeton dönüyor; Android'de APNs hiç sorulmuyor; kaynak bekçisi senkron yolunun bu kapıdan geçtiğini ve doğrudan `getToken()` çağrısı kalmadığını sabitliyor.
+Kalan: TestFlight'ta fcmToken yazıldığı ölçülecek.
 
 ### U55 — Depo Xcode 27 ile derlenmiyor; Apple asgari SDK'yı her bahar yükseltiyor
 ⏳ açık · DÜŞÜK · kod · Sonra · kaynak: `xcode27-sdk-floor-liability` (eksik avcısı)

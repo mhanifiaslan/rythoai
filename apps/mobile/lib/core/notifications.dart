@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart'
@@ -109,9 +109,9 @@ Future<void> syncNotificationContext() async {
   if (tz != null && tz.isNotEmpty) guncelleme['timezone'] = tz;
 
   try {
-    // Token yalnızca izin verilmişse alınabilir; izin yoksa sessizce geçilir
-    // ve kullanıcı izni sonradan verdiğinde bir sonraki açılışta yazılır.
-    final token = await FirebaseMessaging.instance.getToken();
+    // Jeton alınamazsa sessizce geçilir: `onTokenRefresh`
+    // ([listenForTokenRefresh]) ya da bir sonraki açılış yazar.
+    final token = await cihazFcmJetonu();
     if (token != null) {
       guncelleme['fcmToken'] = token;
       // JT: jetonun bu hesaba EN SON ne zaman yazıldığı — sunucu aynı
@@ -132,6 +132,32 @@ Future<void> syncNotificationContext() async {
   } catch (e) {
     debugPrint('Bildirim bağlamı yazılamadı: $e');
   }
+}
+
+/// Cihazın FCM jetonu; iOS'ta APNs jetonu henüz gelmediyse `null` (U54).
+///
+/// firebase_messaging'in Dart kanalı iOS'ta `getToken`'dan önce APNs
+/// jetonuna bakıyor ve yoksa `apns-token-not-set` FIRLATIYOR
+/// (firebase_messaging_platform_interface 4.9.2
+/// `method_channel_messaging.dart` `_APNSTokenCheck`). İlk kurulumda APNs
+/// jetonu açılıştan bir süre sonra gelebildiği için bu olağan durum hata
+/// yolundan geçiyordu. Jetonu o anda zorlamanın yolu yok; APNs jetonu
+/// gelince FCM jetonu `onTokenRefresh` ile yazılır (denetimin kaynak
+/// okuması, "Doğrulanmış olanlar"). Bu yolun cihazda ilk kurulumda
+/// `fcmToken` yazdığı henüz ÖLÇÜLMEDİ — U54 o yüzden açık.
+///
+/// Android'de APNs yok; oraya hiç bakılmaz, eski çağrı aynen koşar.
+/// İki kanca test dikişidir.
+Future<String?> cihazFcmJetonu({
+  Future<String?> Function()? apnsJetonu,
+  Future<String?> Function()? fcmJetonu,
+}) async {
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    final apns =
+        await (apnsJetonu ?? FirebaseMessaging.instance.getAPNSToken)();
+    if (apns == null) return null;
+  }
+  return (fcmJetonu ?? FirebaseMessaging.instance.getToken)();
 }
 
 const String _kPermissionAskedKey = 'notificationPermissionAsked';
@@ -267,6 +293,10 @@ Future<void> _jetonuProfildenSil(String uid) =>
 // bağlar ve FCM'in varsayılan kanalı "default" öneme sahiptir. Yüksek
 // öncelikli kanal olmadan bildirim ekranın üstünde belirmez, sessizce
 // tepsiye düşer.
+//
+// iOS'ta ön plan banner'ını YEREL bildirim değil FCM'in kendisi çıkarır
+// (U14, bkz. [iosOnPlanSunumunuAc]); bu bölümün yerel gösterimi yalnız
+// Android içindir.
 // ---------------------------------------------------------------------------
 
 const AndroidNotificationChannel _kChannel = AndroidNotificationChannel(
@@ -281,6 +311,36 @@ final FlutterLocalNotificationsPlugin _localNotifications =
 
 bool _yerelBildirimHazir = false;
 
+/// Yerel bildirim kurulum ayarları.
+///
+/// iOS'ta üç izin bayrağı KAPALI (U11). `DarwinInitializationSettings`'in
+/// varsayılanı üçünü de `true` getiriyor ve flutter_local_notifications
+/// 22.2.0 bunu `initialize()` anında sistem diyaloğuna çeviriyor
+/// (`FlutterLocalNotificationsPlugin.m` `initialize:` →
+/// `requestPermissionsImpl`; üçü de kapalıysa diyalog açmadan döner).
+/// `initialize` oturum açılır açılmaz koşuyor ([notificationSyncProvider]),
+/// yani diyalog girişin hemen ardından, bildirimlerin neye yarayacağı hiç
+/// anlatılmadan çıkıyordu. iOS bir kez sorar; o anki refleks "İzin Verme"
+/// kalıcıdır.
+///
+/// Tek istek yolu [ensureNotificationPermissionAsked] kalır (onboarding'in
+/// bildirim adımı ve Gökyüzü'ndeki ilk değer anı). O yol
+/// `Analytics.notificationPermission`'ı da yazıyor: diyalog önceden çıkmış
+/// olsaydı metrik, diyalog GÖSTERMEYEN bir isteğin sonucunu onboarding
+/// cevabı gibi sayardı.
+///
+/// `defaultPresent*` bayraklarına dokunulmadı: iOS'ta ön plan sunumuna bu
+/// eklenti değil, bildirim merkezi delegesi olan firebase_messaging karar
+/// veriyor (U14). Android ayarı değişmedi; Darwin ayarı Android'de okunmaz.
+const InitializationSettings yerelBildirimAyarlari = InitializationSettings(
+  android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+  iOS: DarwinInitializationSettings(
+    requestAlertPermission: false,
+    requestBadgePermission: false,
+    requestSoundPermission: false,
+  ),
+);
+
 /// Yerel bildirim altyapısını kurar (kanal + dokunma yönlendirmesi).
 Future<void> _initLocalNotifications(ValueChanged<int> onSelectTab,
     ValueChanged<Map<String, dynamic>> onIntent) async {
@@ -289,10 +349,7 @@ Future<void> _initLocalNotifications(ValueChanged<int> onSelectTab,
 
   try {
     await _localNotifications.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        iOS: DarwinInitializationSettings(),
-      ),
+      settings: yerelBildirimAyarlari,
       onDidReceiveNotificationResponse: (yanit) {
         final ham = yanit.payload;
         if (ham == null || ham.isEmpty) return;
@@ -339,6 +396,62 @@ Future<void> _showForeground(RemoteMessage mesaj) async {
     );
   } catch (e) {
     debugPrint('Ön plan bildirimi gösterilemedi: $e');
+  }
+}
+
+/// Ön planda gelen FCM mesajı: Android'de yerel bildirimle gösterilir,
+/// iOS'ta hiçbir şey yapılmaz (U14).
+///
+/// iOS'ta bildirim merkezinin delegesi firebase_messaging (AppDelegate'te
+/// delege satırı yok). Yerel bildirim gönderildiğinde iOS sunumu yine ona
+/// soruyordu ve sunum seçeneği kayıtlı değilken cevap "hiçbiri"ydi: banner
+/// sessizce atılıyor, Bildirim Merkezi'ne de düşmüyordu. Artık banner'ı FCM
+/// gösteriyor ([iosOnPlanSunumunuAc]); burada ayrıca yerel bildirim
+/// gönderilseydi İKİ banner çıkardı, çünkü delege kayıtlı seçeneği FCM
+/// olmayan bildirime de uyguluyor (firebase_messaging 16.4.3
+/// `FLTFirebaseMessagingPlugin.m` `willPresentNotification`). O ikinci
+/// banner'a dokunmak da hiçbir yere gitmezdi: delege `gcm.message_id`
+/// taşımayan dokunuşu Dart'a iletmiyor.
+///
+/// [goster] test dikişidir; üretimde yerel gösterim.
+Future<void> onPlanMesajiniIsle(RemoteMessage mesaj,
+    {Future<void> Function(RemoteMessage mesaj)? goster}) async {
+  if (defaultTargetPlatform == TargetPlatform.iOS) return;
+  await (goster ?? _showForeground)(mesaj);
+}
+
+/// iOS'ta ön plan push'unu FCM'in kendisi göstersin (U14).
+///
+/// Seçenek firebase_messaging'in iOS delegesinde `NSUserDefaults`'a yazılır
+/// ve kalıcıdır; her kurulumda yeniden yazmak zararsız. Bu banner'a dokunuş
+/// delegenin `didReceiveNotificationResponse`'undan `onMessageOpenedApp`'e
+/// (soğuk açılışta `getInitialMessage`'a) gelir — arka plandaki push'la
+/// aynı yol, yönlendirme değişmez.
+///
+/// Delege satırı AppDelegate'e EKLENMEZ: `FlutterAppDelegate` delege
+/// olursa `willPresent` iki eklentiye de iletilir
+/// (`FlutterPluginAppLifeCycleDelegate.mm`) ve ikisi de aynı, bir kez
+/// çağrılması gereken tamamlayıcıyı çağırır. Denetimin beklediği sonuç çift
+/// banner; cihazda ölçülmedi, ölçmeye de gerek yok — bu yol tek delegeyle
+/// çalışıyor.
+///
+/// Hata yutulur: fırlatsaydı [handleNotificationTaps]'in arkasındaki
+/// kurulum (ön plan dinleyicisi, dokunuş yolları) hiç koşmazdı ve hata,
+/// kimsenin beklemediği bir Future'dan ([notificationSyncProvider])
+/// yayında Crashlytics'e FATAL diye düşerdi. [ayarla] test dikişidir.
+Future<void> iosOnPlanSunumunuAc({
+  Future<void> Function(
+          {required bool alert, required bool badge, required bool sound})?
+      ayarla,
+}) async {
+  if (defaultTargetPlatform != TargetPlatform.iOS) return;
+  try {
+    await (ayarla ??
+        FirebaseMessaging
+            .instance.setForegroundNotificationPresentationOptions)(
+        alert: true, badge: true, sound: true);
+  } catch (e) {
+    debugPrint('iOS ön plan sunumu ayarlanamadı: $e');
   }
 }
 
@@ -543,16 +656,19 @@ final pendingNotificationProvider =
 /// Bildirim alımını ve dokunma yönlendirmesini kurar.
 ///
 /// Üç yol da bağlanır, çünkü Android üçünü farklı ele alıyor:
-/// - **Ön plan:** sistem hiçbir şey göstermez, biz gösteririz.
+/// - **Ön plan:** sistem hiçbir şey göstermez, biz gösteririz. iOS'ta
+///   FCM gösterir ve dokunuş arka plan yolundan gelir (U14).
 /// - **Arka plan:** sistem gösterir, dokunma `onMessageOpenedApp`'e gelir.
 /// - **Kapalı:** sistem gösterir, dokunma uygulamayı açar ve
 ///   `getInitialMessage` ile okunur.
 Future<void> handleNotificationTaps(ValueChanged<int> onSelectTab,
     ValueChanged<Map<String, dynamic>> onIntent) async {
   await _initLocalNotifications(onSelectTab, onIntent);
+  await iosOnPlanSunumunuAc();
 
-  // Ön planda gelen bildirim: göstermezsek kullanıcı hiçbir şey görmez.
-  FirebaseMessaging.onMessage.listen(_showForeground);
+  // Ön planda gelen bildirim: Android'de göstermezsek kullanıcı hiçbir şey
+  // görmez; iOS'ta FCM zaten gösteriyor.
+  FirebaseMessaging.onMessage.listen(onPlanMesajiniIsle);
 
   // BY-turu onarımı — DÖRDÜNCÜ yol eksikti: ön plandayken gösterdiğimiz
   // YEREL bildirim tepside dururken süreç ölür, kullanıcı sonra dokunursa
