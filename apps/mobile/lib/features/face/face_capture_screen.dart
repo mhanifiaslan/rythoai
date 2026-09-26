@@ -83,11 +83,14 @@ class FaceCaptureResult {
 /// `CameraAccess` öneki bilerek YALNIZ iOS'ta. Android'in ret kodu da
 /// `CameraAccessDenied` (`camera_android_camerax` 0.6.30,
 /// `CameraPermissionsManager.java`) ama izin katmanı `resumed`'da
-/// kendiliğinden yeniden deniyor ve Android izni yeniden SORABİLİYOR: ret
-/// orada izin katmanına düşseydi, diyalog kapanınca gelen `resumed` diyaloğu
-/// yeniden açabilirdi. iOS'ta bu döngü kurulamaz — ikinci deneme diyalogsuz
-/// düşer, `resumed` üretmez. Android sınıflandırması cihazda ölçülmeden
-/// değiştirilmedi.
+/// kendiliğinden yeniden deniyor ve Android ilk retten sonra izni yeniden
+/// SORABİLİYOR (platform kuralı: 11+'da bir kez daha, 7–10'da "Bir daha
+/// sorma" işaretlenene dek): ret orada izin katmanına düşseydi, diyalog
+/// kapanınca gelen `resumed` diyaloğu yeniden açabilirdi. iOS'ta bu döngü
+/// kurulamaz — ikinci deneme diyalogsuz düşer, `resumed` üretmez. Android
+/// sınıflandırması cihazda ölçülmeden değiştirilmedi; bugün Android reddi
+/// ARIZA sayılıyor ve Crashlytics'e yazılıyor — açık kalem
+/// `docs/test-raporu.md` B11.
 bool kameraIzniReddi(String kod) =>
     kod.contains('Permission') ||
     (defaultTargetPlatform == TargetPlatform.iOS &&

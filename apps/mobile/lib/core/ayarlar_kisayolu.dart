@@ -7,8 +7,13 @@
 /// kullanıcı çıkışı olmayan bir döngüde kalıyordu. İzni geri vermenin tek
 /// yolu Ayarlar; yolu tarif etmek yerine kullanıcıyı oraya götürüyoruz.
 ///
-/// Yalnız iOS: Android'de ret sonrası izin yeniden sorulabiliyor ve mevcut
-/// "Tekrar dene" akışı orada iş görüyor. Android ekranlarına dokunulmadı.
+/// Yalnız iOS — ama bu, Android'de sorun olmadığı anlamına GELMİYOR. Android
+/// davranışı bu turda bilerek değiştirilmedi: o ekranlar Windows oturumunun
+/// ve Android tarafı cihazda ölçülmedi. Android 11+ da bir izni ikinci
+/// retten sonra diyalogsuz reddediyor (platform kuralı; bu uygulamada
+/// ölçülmedi), yani oradaki "Tekrar dene" de aynı çıkmaza varıyor. Kamera
+/// reddi ise Android'de izin katmanına hiç ulaşmıyor, arıza katmanına
+/// düşüyor (`docs/test-raporu.md` B11).
 library;
 
 import 'package:flutter/foundation.dart';
@@ -37,7 +42,12 @@ Future<bool> _varsayilanAcici(Uri adres) => launchUrl(adres);
 ///
 /// Düğmenin yanında yolu tarif eden metin zaten duruyor (kamera ve rehber
 /// ekranlarının ikisinde de); açılış düşerse kullanıcı o metinle yine
-/// ilerleyebilir. Fırlatan bir düğme ise ekranı düşürürdü.
+/// ilerleyebilir. Hata yutulmasaydı ekran düşmezdi ama `onPressed`'in
+/// Future'ı yakalanmamış hatayla biterdi: `main.dart` bölge korumasız,
+/// hata `PlatformDispatcher.onError`'a çıkar ve release'de Crashlytics'e
+/// FATAL diye yazılırdı — U23'ün temizlediği sahte kaydın ta kendisi.
+/// Fırlatma yolu gerçek: `url_launcher_ios` 6.4.1 `LaunchResult.invalidUrl`
+/// sonucunda `PlatformException` atıyor.
 Future<bool> uygulamaAyarlariniAc({AyarlarAcici? acici}) async {
   try {
     return await (acici ?? _varsayilanAcici)(iosAyarlarAdresi);

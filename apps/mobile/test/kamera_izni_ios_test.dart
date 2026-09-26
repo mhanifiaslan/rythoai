@@ -8,8 +8,12 @@
 // sahte kayıt yazıyordu. Rehberde aynı çıkmaz: "Tekrar dene" bir daha
 // sormuyor. İki ekranda da iOS'ta tek çıkış Ayarlar.
 //
-// Android'e dokunulmadı: orada izin yeniden sorulabiliyor ve mevcut
-// "Tekrar dene" akışı iş görüyor.
+// Android'e bu turda bilerek dokunulmadı — orası sağlıklı olduğu için DEĞİL:
+// Android ekranları Windows oturumunun ve orada cihazda ölçüm yok. Android
+// 11+ da ikinci retten sonra diyalogsuz reddediyor (aynı çıkmaz), kamera
+// reddi ise izin katmanına hiç ulaşmayıp arıza sayılıyor
+// (`docs/test-raporu.md` B11). Aşağıdaki Android testleri bir düzeltmeyi
+// değil, BUGÜNKÜ davranışın bu turda değişmediğini sabitliyor.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -86,8 +90,8 @@ void main() {
       // `camera_android_camerax` 0.6.30'un ret kodu da `CameraAccessDenied`
       // ve bugün arıza sayılıyor. Onu izin katmanına almak Android'in
       // `resumed` yeniden denemesiyle diyalog döngüsü kurabilir; cihazda
-      // ölçülmeden değiştirilmedi. Bu test Android açık kalemi DEĞİŞİRSE
-      // bilinçli güncellensin diye var.
+      // ölçülmeden değiştirilmedi. Bu test Android açık kalemi (B11)
+      // kapatılırken bilinçli güncellensin diye var.
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       expect(kameraIzniReddi('CameraAccessDenied'), isFalse);
       expect(kameraIzniReddi('IOError'), isFalse);
@@ -101,7 +105,10 @@ void main() {
       expect(acici.acilanlar, [Uri.parse('app-settings:')]);
     });
 
-    test('açılış fırlatırsa düğme ekranı DÜŞÜRMEZ', () async {
+    test("açılış fırlatırsa hata yutulur, Crashlytics'e sahte FATAL gitmez",
+        () async {
+      // Yutulmayan hata `onPressed`'in Future'ından `PlatformDispatcher
+      // .onError`'a çıkar; `main.dart` onu release'de FATAL diye yazar.
       final sonuc = await uygulamaAyarlariniAc(
           acici: (_) async => throw StateError('açılamadı'));
       expect(sonuc, isFalse);

@@ -358,6 +358,51 @@ silinmeleri sahibin kararı.
   Bulgunun kendisi (harcamadan sonra bayat bakiye; ödemiş kullanıcıya
   paywall) GERÇEK ve açık kalıyor.
 
+### B11 — Android'de kamera izni reddi ARIZA sayılıyor (2026-09-27, kaynaktan ölçüldü, cihazda DEĞİL)
+
+- Ekran/akış: Yüz okuma → kamera kurulumu
+  (`features/face/face_capture_screen.dart`, `kameraIzniReddi`). iOS
+  turunda (U23) bulundu; Android tarafı **Windows oturumunun**.
+- Kanıt (eklenti kaynağı, `pubspec.lock` sürümü): `camera_android_camerax`
+  0.6.30 reddi `CameraAccessDenied` koduyla bildiriyor
+  (`CameraPermissionsManager.java:36` ve `:114`); Dart tarafı kodu olduğu
+  gibi `CameraException(error.errorCode, …)` yapıyor
+  (`android_camera_camerax.dart:381`). `kameraIzniReddi` Android'de yalnız
+  `Permission` içeren kodu ret sayıyor — bu eklentide `Permission` içeren
+  tek kod `CameraPermissionsRequestOngoing` (eşzamanlı istek), gerçek ret
+  DEĞİL.
+- Gözlenen (koddan, cihazda değil): Android'de kamera izni reddedilince
+  izin katmanı yerine arıza katmanı çıkıyor — "Yüz tespit edilemedi.
+  Işığın yeterli olduğundan …" (`faceDetectFailed`) + "Yeniden çek"; izin
+  ipucu (`faceCameraDeniedHint`) görünmüyor, yani kullanıcıya YANLIŞ sebep
+  söyleniyor. Her denemede `_arizaBildir(…, 'kamera-kurulum')` Crashlytics'e
+  sahte bir non-fatal yazıyor.
+- Beklenen: ret izin katmanına düşmeli, Crashlytics'e yazılmamalı.
+- Neden U23'te düzeltilmedi — düzelten ÖNCE bunu ölçsün: düz düzeltme
+  (`CameraAccess` önekini Android'e de açmak) bir diyalog döngüsü riski
+  taşıyor. İzin katmanı `didChangeAppLifecycleState`'te `resumed` gelince
+  kendiliğinden `_yenidenDene()` çağırıyor; aynı yerdeki yoruma göre
+  Android izin diyaloğu kapanınca uygulama `resumed` alıyor. Ret izin
+  katmanına düşerse o `resumed` yeniden `initialize()` → yeni izin isteği →
+  yeni diyalog zinciri kurabilir. Platform kuralına göre Android 11+'da
+  ikinci retten sonra istek diyalogsuz döner (zincir en çok iki diyalogda
+  kesilir); 7–10'da (minSdk 24) "Bir daha sorma" işaretlenene dek
+  sürebilir. Ret sonucunun mu `resumed`'ın mı önce geldiği de ölçülmedi.
+  Ölçülecekler: Android 11+ ve ≤10 cihazda (ya da emülatörde) retten sonra
+  kaç diyalog açılıyor ve olayların sırası. Sonra `kameraIzniReddi`'deki
+  iOS koşulu genişletilir ve `test/kamera_izni_ios_test.dart`'taki
+  "Android sınıflandırması bu turda DEĞİŞMEDİ" testi bilinçli güncellenir.
+- Yan kalem: Android 11+'da ikinci retten sonra "Yeniden çek"/"Tekrar dene"
+  bir daha diyalog açmıyor — rehberde de (`flutter_contacts` 1.1.9+2
+  `ActivityCompat.requestPermissions`). iOS'taki çıkmazın aynısı. iOS'un
+  çözümü "Ayarlar'ı aç" (`core/ayarlar_kisayolu.dart`); oradaki
+  `app-settings:` adresi iOS'a özgü (`UIApplication.openSettingsURLString`),
+  Android karşılığı ayrı bir yol ister (uygulama ayrıntıları ayar ekranı).
+- Önem: orta (kullanıcı ayarlardan izni açıp "Yeniden çek"le dönebiliyor,
+  ama ekran bunu söylemiyor; Crashlytics'te sahte kayıt).
+- Durum: ⬜ açık. Kod değişikliği YOK. Kaynak:
+  `docs/ios-uyum-denetimi.md` U23, "Düzeltmeden sapma".
+
 ## 2. tur kapsamı
 
 - RYTHO_TOKENS_ENFORCE=1 → jeton tükenme/yetersiz bakiye UX'i
