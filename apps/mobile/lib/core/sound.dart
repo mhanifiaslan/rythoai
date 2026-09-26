@@ -14,9 +14,16 @@ class SoundFx {
 
   /// iOS ses oturumu `ambient`'e çekildi mi? (U24)
   ///
-  /// [_loaded]'dan AYRI: [setEnabled] `_loaded`'ı çalış olmadan da
-  /// kapatıyor; oturum kurulumu ona bağlansaydı Profil'deki anahtara ilk
-  /// dokunan kullanıcıda hiç koşmazdı.
+  /// [_loaded]'dan AYRI, çünkü [_ensureLoaded] `_loaded`'ı tercihleri
+  /// okumadan ÖNCE true yapıyor ve hiç geri almıyor: kurulum oraya
+  /// bağlansaydı tek hakkı olurdu. Düşen tek bir AVAudioSession çağrısı
+  /// süreci ömür boyu `playback`'te bırakırdı — müziği keser, Sessiz
+  /// anahtarını çiğner, yeniden denenmez. Ayrı bayrak + düşünce
+  /// [_iosOturumKurulumu]'nun sıfırlanması o yeniden denemeyi veriyor.
+  /// Kurulumu [loadEnabled] / [setEnabled] hangisinin önce koştuğundan da
+  /// bağımsız kılıyor ([setEnabled] de `_loaded`'ı true yapıyor); bugün Profil
+  /// ekranı `initState`'te [loadEnabled]'ı anahtardan önce çağırdığı için o
+  /// sıra uygulamada ters dönmüyor.
   static bool _iosOturumuHazir = false;
   static Future<void>? _iosOturumKurulumu;
 

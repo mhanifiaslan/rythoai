@@ -72,10 +72,13 @@ void main() {
     expect(kayit.sira.where((s) => s.startsWith('cal:')), hasLength(3));
   });
 
-  test('iOS: anahtarla açılan seste de bağlam kurulur', () async {
-    // setEnabled `_loaded`'ı çalışsız kapatıyor; kurulum ona bağlı olsaydı
-    // Profil'deki anahtar yolu (profile_sections.dart: setEnabled → like)
-    // bağlamı hiç kurmazdı.
+  test('iOS: bağlam kurulumu loadEnabled/setEnabled sırasından bağımsız',
+      () async {
+    // Sıra bağımsızlığı bekçisi. Uygulama bu sırayı bugün üretmiyor: Profil
+    // ekranı `initState`'te loadEnabled'ı anahtardan önce çağırıyor
+    // (profile_sections.dart). Ama setEnabled de `_loaded`'ı true yaptığı
+    // için kurulum `_loaded`'a bağlanırsa bu sıra bağlamı hiç kurmaz; bu
+    // test o bağı geri getiren bir değişikliği yakalar.
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     await SoundFx.setEnabled(true);
     await SoundFx.like();
