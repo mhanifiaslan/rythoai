@@ -287,6 +287,111 @@ hesap, LLM yok). Sinastri yanıtına eklenen points/houses alanları aynı
 hesabın zaten ürettiği veridir — ek maliyet sıfır. Canlı onarım (gökyüzü
 açı ağı) da maliyetsiz: yalnız yerelleştirme sözleşmesi düzeldi.
 
+## 6k. OP-turu: ortaklık programı — ortak edinme maliyeti — 2026-09-27
+
+Ortak (affiliate) programı, getirdiği kişi ilk kez abone olduğunda ortağa
+sabit bir ₺ tutar borçlandırıyor. Bu kalemin bu belgedeki tüm diğer
+kalemlerden ayrıldığı yer: gelirden pay ya da altyapı gideri değil,
+**kasadan çıkan doğrudan ödeme** — ve ₺ cinsinden. Kullanıcıya
+ödül/indirim YOK, o yüzden gelir tarafı değişmiyor; değişen yalnız
+maliyet.
+
+| Kalem | Değer | Kaynak |
+|---|---|---|
+| Ödül (varsayılan, ortak başına ayarlanır) | **₺30** = ~$0,71 | `api/admin.py` `rewardTry` varsayılanı; panelde de 30 |
+| Ödül tavanı (yazım hatası kapısı) | ₺500 ≈ $11,9 | `partner_service.MAX_REWARD_TRY` |
+| Tetiklenme | abone başına **BİR KEZ** (ilk abonelik) | `partnerQualifications/{uid}` — kimlik uid, ikinci kayıt açılamaz |
+| Ödül DOĞURMAYAN alımlar | jeton paketi · yenileme · SANDBOX/test | `REWARD_EVENT_TYPES` + `PRODUCTION` süzgeci |
+| Deneme BAŞLATMA da ödül doğurmaz | ayrı kapı | `period_type == TRIAL` — `REWARD_EVENT_TYPES` bunu KAÇIRIR, çünkü denemeli bir `INITIAL_PURCHASE` hem o kümede hem `monetary=True`dır (`api/billing.py::_ortaklik_hakedisi`, 4. koşul) |
+| ⚠️ Denemeden DÖNÜŞÜM ödül doğurur | `TRIAL_CONVERTED` de sayılır | yalnız `INITIAL_PURCHASE`a bakan kural onu kaçırırdı |
+| Kesinleşme | satın almadan **15 gün** sonra | iade/erken sona erme penceresi; iade gelirse ödül `void` |
+
+### Abone başına etki (bu belgedeki sayılarla)
+
+§2'ye göre abonenin ilk ay neti **₺127,5 ≈ $3,0**, §4'e göre aylık net
+katkısı **~$2,3-2,9** (senaryoya göre; LLM maliyeti düşülmüş).
+
+| | Ortaksız | Ortaklı (₺30) |
+|---|---|---|
+| İlk ay net katkı | ~$2,3-2,9 | **~$1,6-2,2** |
+| Sonraki her ay | ~$2,3-2,9 | ~$2,3-2,9 (**değişmez**) |
+| Ödülün ilk ay netine oranı | — | ~%24 (₺30 / ₺127,5) |
+| Ödülün ilk ay KATKISINA oranı | — | ~%25-31 |
+
+**Ödül TEK SEFERLİK olduğu için marj matematiği bozulmuyor: ilk ay
+içinde kendini geri ödüyor.** İkinci aydan itibaren atıflı abonenin
+AYLIK katkısı ortaksız aboneyle birebir aynı; kümülatifte ise kalıcı
+olarak ₺30 geride kalıyor (bir kez ödendi, geri gelmiyor). Kıyas: §6i'deki 3 günlük
+deneme edinim maliyeti ~$0,10/yeni kullanıcı — ortak ödülü onun ~7 katı
+ama yalnız **paraya dönmüş** kullanıcıda doğuyor, her kayıtta değil.
+
+Tavandaki (₺500) bir ödül ~4-5 ayın net katkısını yerdi; tavan bir plan
+değil yazım hatası kapısıdır (30 yerine 3000 yazılması).
+
+### Kur: tek bir yerde adlandırılmış
+
+Ödül ₺, gelir ve AI maliyeti $ cinsinden ölçülüyor; ikisini çıkarmak için
+kur ŞART. **Bu belgenin başındaki 1 USD ≈ 42 ₺ varsayımı artık koddaki
+tek kur kaynağıyla aynı**: `admin_service.USD_TRY_DEFAULT`, ortam
+değişkeni `RYTHO_USD_TRY` ile ezilir. Belgedeki varsayım değişirse env de
+değişir — iki yerde iki farklı kur, iki farklı marj demektir.
+
+⚠️ **Kuru KALICI değiştirmenin tek yolu `infra/deploy-backend.ps1`
+düzenlemektir, gcloud değil** (ölçüldü 2026-09-27). Gerekçe: o bayrak
+(`--set-env-vars`) mevcut değişkenleri TÜMÜYLE değiştiriyor, yani elle
+verilen kur bir sonraki deploy'da SESSİZCE silinir —
+`RYTHO_MIN_BUILD` yarasının aynısı (34 sürüm boyunca kapı hiç
+kurulmadı). Bayrak artık o satırda **YAZILI** ve varsayılan değeriyle
+(`RYTHO_USD_TRY=42`, belgedeki varsayımla aynı sayı) duruyor; bir önceki
+turda hiç yoktu. Kur değişecekse **üç yer birlikte** değişir: bu
+belgenin başındaki varsayım · `admin_service.USD_TRY_DEFAULT` ·
+deploy betiğindeki bayrak.
+
+Son ikisinin birlikte kalması artık **bekçili**
+(`test_deploy_bayragi_varsayilan_kurla_ayni_kalir`): bayrak satırdan
+düşerse ya da `USD_TRY_DEFAULT`tan farklı bir sayı yazarsa test kırmızı
+olur. Bekçi betiği çalıştırmaz, metin olarak okur ve **yorum satırlarını
+atar** — bayrağı anlatan yorum aynı dosyada ve içinde `RYTHO_USD_TRY=42`
+yazıyor; atılmazsa bayrak komuttan silinse bile bekçi yeşil kalırdı.
+
+Kur **makul bant** kapısından geçiyor (`USD_TRY_MIN`..`USD_TRY_MAX` =
+**5-200**). Bant bir tahmin aralığı değil yazım hatası kapısıdır —
+`partner_service.MAX_REWARD_TRY` tavanıyla aynı gerekçe. Ölçülen iki
+kırılma: `420` (fazladan sıfır) ₺30 ödülü **$0,07**'ye düşürüp programı
+bedava gösteriyordu, `4,2` (ondalık ayracı kayması) **$7,14**'e çıkarıp
+kârlı programı zararlı gösteriyordu; ikisi de "sayıya çevrilebiliyor ve
+pozitif" olduğu için eski kapıdan geçiyordu. Bandın dışı **uyarı logu
+ile varsayılana** düşer — belgedeki 40-45 duyarlılık aralığı bandın çok
+içinde olduğu için gerçek bir değer kaybı (60, 80, 120) kapıya
+takılmaz. Bekçi: `backend/tests/test_admin_kur_bandi.py`.
+
+Kur çözümlenemezse ya da pozitif değilse panel marjı **−1 sentinel**
+("—") gösterir; uydurma kurla hesaplanmış bir sayı "marj" adıyla
+sunulmaz. "Çevrilemeyen değer" ile "basamağı kaymış değer" ayrı
+davranır: birincisi hiçbir okumayla kur değildir ("—"), ikincisinde
+operatörün ne demek istediği bellidir ve belgelenmiş varsayım "—"den
+iyi bir cevaptır.
+
+### Sayı nereden okunuyor
+
+Kullanıcı 360 **yanıtı** (`admin_service.user_360` → `economics`) ortak
+maliyetini marjdan düşer ve **neyi** düştüğünü ayrı alanlarla söyler:
+`partnerCostUsd`, `partnerRewardTry`, `partnerStatus`, `usdTryRate`.
+Alanlar yanıtta VAR; panelin bunları ekranda gösterecek okuyucusu
+(`web/rytho-admin/`) henüz yazılmadı — yani `marginUsd` şimdiden doğru,
+ama farkın gerekçesi ekranda ayrı satır olarak görünmüyor.
+
+⚠️ **Panelde bekleyen bir yalan var:** `gorunumler/kullanicilar.js` 360
+ekonomi kutusunda formülü METİN olarak yazıyor — *"gelir × (1 − mağaza
+payı) − AI maliyeti = …"*. Atıflı bir kullanıcıda o eşitlik artık
+tutmuyor (ortak maliyeti de düşülüyor). Sayı doğru, **cümle yanlış**;
+panel okuyucusu yazılırken ilk düzeltilecek yer burasıdır.
+
+⚠️ Ekonomi TABLOSUNUN (top-200) marjı bu
+kalemi İÇERMEZ — orası gecelik rollup'tan okunuyor ve kullanıcı başına
+ek okuma ölçek doktrinini çiğnerdi; atıflı abonelerde o tablo marjı
+olduğundan yüksektir, gerçeği 360 söyler.
+
 ## 7. İzlenecek metrikler (canlıda)
 
 **AP-turu (2026-08-29) itibarıyla bu bölümdeki tahminler CANLI ÖLÇÜMLE

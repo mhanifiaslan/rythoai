@@ -138,6 +138,165 @@ def test_360_onboarding_rozeti_bool_doner(depo):
 
 
 # ---------------------------------------------------------------------------
+# 360 ekonomisi: ortak (affiliate) edinme maliyeti (OP13)
+# ---------------------------------------------------------------------------
+#
+# Bu bekçilerin varlık sebebi SESSİZ bir kusurdur: ortaklık programı
+# açıldıktan sonra her atıflı abone gerçek bir ₺ ödemesi doğuruyor ama
+# marj formülü onu düşmüyordu. Panel marjı olduğundan yüksek gösteriyor,
+# hiçbir yerde hata görünmüyordu ve sahibi fiyat kararını o sayıyla
+# veriyordu.
+
+#: 360 ekonomisinin hesaplanabilmesi için gereken iki rollup dokümanı.
+#: Yokken tüm ekonomi alanları −1 olur (o dal ayrıca test ediliyor).
+_GELIR_TOPLAM = {"PRODUCTION": {"grossUsd": 10.0, "refundsUsd": 0.0}}
+_KULLANIM_TOPLAM = {"estCostUsd": 0.5, "calls": 7}
+
+
+def _ekonomi_kur(depo, *, hakedis: dict | None = None):
+    """u1'e rollup toplamlarını, istenirse hakediş kaydını yazar."""
+    depo.docs["users/u1/private/revenueTotals"] = dict(_GELIR_TOPLAM)
+    depo.docs["users/u1/private/usageTotals"] = dict(_KULLANIM_TOPLAM)
+    if hakedis is not None:
+        depo.docs["partnerQualifications/u1"] = hakedis
+
+
+def test_360_ortak_maliyeti_marji_dusurur(depo, monkeypatch):
+    """Kesinleşmiş hakediş: marj ORTAK MALİYETİ KADAR düşük çıkar.
+
+    84 ₺ / 42 = $2 — kur `USD_TRY`den geliyor, koddan değil."""
+    monkeypatch.setattr(admin_service, "USD_TRY", 42.0)
+    _ekonomi_kur(depo, hakedis={"partnerId": "p1", "status": "qualified",
+                                "rewardTry": 84.0, "purchasedAt": _SIMDI})
+
+    e = admin_service.user_360("u1")["economics"]
+
+    assert e["partnerRewardTry"] == pytest.approx(84.0)
+    assert e["partnerCostUsd"] == pytest.approx(2.0)
+    assert e["partnerStatus"] == "qualified"
+    assert e["usdTryRate"] == pytest.approx(42.0)
+    assert e["marginUsd"] == pytest.approx(10.0 * 0.85 - 0.5 - 2.0)
+    # Sözleşme kırılmadı: eski alanlar aynen duruyor.
+    assert e["revenueUsd"] == pytest.approx(10.0)
+    assert e["aiCostUsd"] == pytest.approx(0.5)
+    assert e["calls"] == 7
+    assert e["storeCutRate"] == 0.15
+
+
+def test_360_bekleyen_hakedis_de_dusulur(depo, monkeypatch):
+    """`pending` muhtemel bir yükümlülüktür: sayılmazsa her atıflı abone
+    ilk 15 gün boyunca olduğundan kârlı görünür."""
+    monkeypatch.setattr(admin_service, "USD_TRY", 42.0)
+    _ekonomi_kur(depo, hakedis={"partnerId": "p1", "status": "pending",
+                                "rewardTry": 42.0})
+
+    e = admin_service.user_360("u1")["economics"]
+
+    assert e["partnerStatus"] == "pending"
+    assert e["partnerCostUsd"] == pytest.approx(1.0)
+    assert e["marginUsd"] == pytest.approx(10.0 * 0.85 - 0.5 - 1.0)
+
+
+def test_360_iptal_hakedis_marji_dusurmez(depo, monkeypatch):
+    """`void`ta yükümlülük gerçekten ortadan kalktı (iade/erken sona erme)
+    — tutar dokümanda DURUYOR ama marjdan düşülmez."""
+    monkeypatch.setattr(admin_service, "USD_TRY", 42.0)
+    _ekonomi_kur(depo, hakedis={"partnerId": "p1", "status": "void",
+                                "rewardTry": 84.0, "voidReason": "REFUND"})
+
+    e = admin_service.user_360("u1")["economics"]
+
+    assert e["partnerStatus"] == "void"
+    assert e["partnerCostUsd"] == 0.0
+    assert e["partnerRewardTry"] == 0.0
+    assert e["marginUsd"] == pytest.approx(10.0 * 0.85 - 0.5)
+
+
+def test_360_ortaksiz_kullanicinin_marji_degismedi(depo, monkeypatch):
+    """Atfı olmayan kullanıcıda formül BİREBİR eski davranışta kalmalı —
+    yoksa düzeltme, düzelttiğinden çok sayıyı bozar."""
+    monkeypatch.setattr(admin_service, "USD_TRY", 42.0)
+    _ekonomi_kur(depo)
+
+    e = admin_service.user_360("u1")["economics"]
+
+    assert e["partnerCostUsd"] == 0.0
+    assert e["partnerStatus"] is None
+    assert e["marginUsd"] == pytest.approx(10.0 * 0.85 - 0.5)
+
+
+def test_360_kur_bilinmiyorsa_sentinel(depo, monkeypatch):
+    """Kur çözümlenemediyse ₺ yükümlülük dolara çevrilemez: `−1` sentinel
+    doktrini (panelde "—"), uydurma kurla hesaplanmış bir marj DEĞİL.
+    ₺ tutarı ham hâliyle yine döner."""
+    monkeypatch.setattr(admin_service, "USD_TRY", 0.0)
+    _ekonomi_kur(depo, hakedis={"partnerId": "p1", "status": "qualified",
+                                "rewardTry": 84.0})
+
+    e = admin_service.user_360("u1")["economics"]
+
+    assert e["partnerCostUsd"] == -1.0
+    assert e["partnerRewardTry"] == pytest.approx(84.0)
+    assert e["usdTryRate"] == -1
+    assert e["marginUsd"] == -1.0
+    # Gelir/maliyet ölçüldü, onlar sentinel'e düşmez.
+    assert e["revenueUsd"] == pytest.approx(10.0)
+    assert e["aiCostUsd"] == pytest.approx(0.5)
+
+
+def test_360_kur_bozukken_ortaksiz_marj_hesaplanir(depo, monkeypatch):
+    """Kur yoksa bile ATFI OLMAYAN kullanıcının marjı hesaplanabilir:
+    çevrilecek bir ₺ tutarı yok. Sentinel'i buraya da yaymak, kusuru
+    olmayan kullanıcıların marjını sebepsiz "—" yapardı."""
+    monkeypatch.setattr(admin_service, "USD_TRY", 0.0)
+    _ekonomi_kur(depo)
+
+    e = admin_service.user_360("u1")["economics"]
+
+    assert e["partnerCostUsd"] == 0.0
+    assert e["marginUsd"] == pytest.approx(10.0 * 0.85 - 0.5)
+
+
+def test_360_cozumlenemeyen_odul_tutari_sentinel(depo, monkeypatch):
+    """Hakediş dokümanı VAR ama tutarı sayıya çevrilemiyor: bu "maliyet
+    sıfır" değil "maliyet bilinmiyor"dur. 0 dönmek marjı olduğundan
+    yüksek gösterirdi ve hiçbir yerde hata görünmezdi. Somut senaryo:
+    Firestore'da elle düzeltilmiş `rewardTry: "30,00"` (Türkçe ondalık)."""
+    monkeypatch.setattr(admin_service, "USD_TRY", 42.0)
+    _ekonomi_kur(depo, hakedis={"partnerId": "p1", "status": "pending",
+                                "rewardTry": "30,00"})
+
+    e = admin_service.user_360("u1")["economics"]
+
+    assert e["partnerCostUsd"] == -1.0
+    assert e["partnerRewardTry"] == -1.0
+    assert e["partnerStatus"] == "pending"
+    assert e["marginUsd"] == -1.0
+    # Ölçülmüş olanlar sentinel'e düşmez.
+    assert e["revenueUsd"] == pytest.approx(10.0)
+
+
+def test_kur_oku_bozuk_degerde_sifira_duser(monkeypatch):
+    """`_kur_oku` bozuk değerde VARSAYILANA DÜŞMEZ (config._int_env'in
+    tersi): kimsenin niyet etmediği bir kurla hesaplanmış sayıyı "marj"
+    adıyla sunmak, "—" göstermekten daha kötüdür. Boş env bozuk değil,
+    yalnız ayarlanmamıştır."""
+    monkeypatch.delenv("RYTHO_USD_TRY", raising=False)
+    assert admin_service._kur_oku() == admin_service.USD_TRY_DEFAULT
+
+    monkeypatch.setenv("RYTHO_USD_TRY", "43.5")
+    assert admin_service._kur_oku() == pytest.approx(43.5)
+    # Türkçe klavye alışkanlığı: virgüllü ondalık da okunur.
+    monkeypatch.setenv("RYTHO_USD_TRY", "43,5")
+    assert admin_service._kur_oku() == pytest.approx(43.5)
+
+    for bozuk in ("kirk-iki", "", "0", "-42"):
+        monkeypatch.setenv("RYTHO_USD_TRY", bozuk)
+        beklenen = (admin_service.USD_TRY_DEFAULT if bozuk == "" else 0.0)
+        assert admin_service._kur_oku() == beklenen, bozuk
+
+
+# ---------------------------------------------------------------------------
 # Uç katmanı
 # ---------------------------------------------------------------------------
 

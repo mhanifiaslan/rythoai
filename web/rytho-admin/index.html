@@ -115,13 +115,18 @@
   <script src="/__/firebase/10.12.2/firebase-app-compat.js"></script>
   <script src="/__/firebase/10.12.2/firebase-auth-compat.js"></script>
   <!-- App Check: identitytoolkit ZORLANIYOR (2026-09-26); jetonsuz giris
-       reddediliyor. init.js'den ONCE yuklenmez, SONRA kurulur (app.js). -->
+       reddediliyor. init.js'den ONCE yuklenmez, SONRA kurulur
+       (/assets/ry-auth.js; OP9 oncesi bu is app.js icindeydi). -->
   <script src="/__/firebase/10.12.2/firebase-app-check-compat.js"></script>
   <script src="/__/firebase/init.js"></script>
   <script src="/assets/appcheck.js?v=1"></script>
+  <!-- ORTAK modüller (OP9): kimlik kurulumu ve API katmanı ortak panosuyla
+       (/ortak/) AYNI dosyalar. Kopyalanmadı, paylaşıldı — iki kopya
+       zamanla ayrışır ve içindeki acı dersler tek kopyada onarılır. -->
+  <script src="/assets/ry-auth.js?v=1"></script>
+  <script src="/assets/ry-api.js?v=1"></script>
 
   <script src="/assets/starfield.js"></script>
-  <script src="/rytho-admin/api.js?v=3"></script>
   <script src="/rytho-admin/ikonlar.js?v=3"></script>
   <script src="/rytho-admin/bilesenler.js?v=3"></script>
   <script src="/rytho-admin/charts.js?v=3"></script>

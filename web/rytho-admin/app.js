@@ -11,21 +11,11 @@
   var RY = window.RY;
   var b = RY.b;
 
-  /* Kimlik işleyicisi AYNI ORIGIN'den (AP onarımı): authDomain'i bulunduğumuz
-     Hosting alanına çevirince popup el sıkışması same-origin olur. Yalnız
-     varsayılan Hosting alanlarında yapılır. */
-  var auth = (function () {
-    var ana = location.hostname;
-    var uygun = /\.web\.app$|\.firebaseapp\.com$/.test(ana);
-    /* App Check HER örnek için ayrı etkinleştirilir; jetonsuz kalan örneğin
-       istekleri reddedilir (bkz. /assets/appcheck.js). */
-    if (window.RY_appCheckKur) RY_appCheckKur();
-    if (!uygun) return firebase.auth();
-    var cfg = Object.assign({}, firebase.app().options, { authDomain: ana });
-    var yonetim = firebase.initializeApp(cfg, 'yonetim');
-    if (window.RY_appCheckKur) RY_appCheckKur(yonetim);
-    return yonetim.auth();
-  })();
+  /* Kimlik kurulumu ORTAK modülde: authDomain onarımı (aynı origin popup)
+     ve App Check'in örnek başına etkinleştirilmesi ortak panosuyla
+     birebir aynı olmak zorunda — bkz. /assets/ry-auth.js. İkinci örneğin
+     adı burada 'yonetim'. */
+  var auth = RY_authKur('yonetim');
   RY.auth = auth;
 
   /* ---------------- Rotalar ---------------- */

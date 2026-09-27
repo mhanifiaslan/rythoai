@@ -12,7 +12,9 @@ Panel binlerce kullanıcıda da AÇILIŞTA TARAMA YAPMAZ:
 * Kullanıcı listesi Firestore sorgusudur (arama aynası öneki ya da
   eşitlik süzgeçleri) + `core.cursor` imleciyle sayfalanır; tavan 100.
 * Kullanıcı 360 sınırlı okur: son 50 gelir olayı, son 30 kullanım kaydı,
-  toplamlar `private/usageTotals` + `private/revenueTotals` dokümanından.
+  toplamlar `private/usageTotals` + `private/revenueTotals` dokümanından,
+  ortak edinme maliyeti `partnerQualifications/{uid}` TEK dokümanından
+  (kimlik uid olduğu için sorgu değil doğrudan okuma).
 * Ekonomi / gelir / kullanım özetleri `adminEconomics` ve `adminStats`
   rollup'larından birleştirilir (stats_service); canlı tarama yalnız
   sahibin "yeniden hesapla"sında.
@@ -28,6 +30,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import os
 from typing import Any
 
 from core import app_gate, cache, config
@@ -65,6 +68,93 @@ ECON_CACHE_TTL = 600
 #: oranı). Panelde her yerde "tahmini" etiketiyle sunulur — gerçek
 #: hakediş mağaza raporundan gelir.
 STORE_CUT = 0.15
+
+#: Ortak (affiliate) ödülünün varsayılan USD/₺ kuru. Değer uydurma DEĞİL:
+#: `docs/maliyet-calismasi.md` başındaki kur varsayımıyla (1 USD ≈ 42 ₺)
+#: birebir aynı — iki yerde iki farklı kur, iki farklı marj demek olurdu.
+USD_TRY_DEFAULT = 42.0
+
+#: Kurun kabul edilen bandı. Bu bir TAHMİN aralığı değil YAZIM HATASI
+#: kapısıdır — gerekçesi `partner_service.MAX_REWARD_TRY` tavanıyla birebir
+#: aynı: alan gerçek para hesabına giriyor ve yanlış yazılmış bir basamak
+#: hiçbir ekranda göze çarpmıyor.
+#:
+#: NEDEN 5 ve 200: sınırlar belgedeki varsayımın (42) bir büyüklük
+#: mertebesi altı ve üstü seçildi — kur uygulamanın var olduğu dönemde hiç
+#: 30'un altına inmedi, 200 ise belgedeki 40-45 duyarlılık bandının ve
+#: makul bir yakın vade tahmininin çok üstünde. Yani gerçek bir değer
+#: kaybı (60, 80, hatta 120) bandan GEÇER — kapıya yalnız iki bilinen
+#: yazım hatası takılır: 42 yerine "4,2" (ondalık ayracı kayması) ve 42
+#: yerine "420" (fazladan sıfır). Bant bunları geçirseydi ₺30 ödül panelde
+#: $7,14 ya da $0,07 olarak düşülür, sahibi kârlı programı zararlı ya da
+#: bedava sanardı — iki yönde de hiçbir yerde hata görünmeden.
+USD_TRY_MIN = 5.0
+USD_TRY_MAX = 200.0
+
+
+def _kur_oku() -> float:
+    """`RYTHO_USD_TRY` → USD/₺ kuru; sayıya çevrilemezse 0.0 ("bilinmiyor").
+
+    NEDEN kur KODA SABİT DEĞİL: ortak ödülü ₺, gelir ve AI maliyeti $
+    cinsinden ölçülüyor; ikisini çıkarmak için kur ŞART. Kuru kaynağa
+    gömmek onu deploy'a kilitler ve kur oynadığında panel marjı sessizce
+    yanlışa kayar — hiçbir yerde hata görünmez.
+
+    Kalıcılık: bu env `infra/deploy-backend.ps1`'in `--set-env-vars`
+    satırında ARTIK VAR (varsayılan değeriyle, 2026-09-27). Satır mevcut
+    değişkenleri TÜMÜYLE değiştirdiği için gcloud'la ELLE verilen kur bir
+    sonraki deploy'da yine SESSİZCE silinir — `RYTHO_MIN_BUILD` yarasının
+    aynısı. Kuru kalıcı değiştirmenin tek yolu o satırı düzenlemektir;
+    "env ile ezilir" yalnız TEK deploy dönemi için doğrudur.
+
+    Üç farklı girdi, üç farklı sonuç — ayrım kasıtlı:
+
+    * **Boş env** bozuk DEĞİL, yalnız "ayarlanmadı"dır → belgedeki
+      varsayım (`USD_TRY_DEFAULT`).
+    * **Sayıya çevrilemeyen ya da pozitif olmayan değer** hiçbir okumayla
+      kur DEĞİLDİR → 0.0, yani panelde "—". Burada varsayılana düşmek
+      (`config._int_env`'in fail-open davranışı) YANLIŞ olurdu: sürüm
+      kapısı fail-open olmak zorundadır çünkü yanlış bir env tüm
+      kullanıcıları kilitleyebilir; burada risk ters yönde — kimsenin
+      niyet etmediği bir kurla hesaplanmış sayıyı "marj" adıyla sunmak,
+      "—" göstermekten daha kötüdür (ölçülmeyen söylenmez).
+    * **Bandın (`USD_TRY_MIN`..`USD_TRY_MAX`) dışındaki pozitif değer**
+      bir kur yazma DENEMESİDİR, yalnız basamağı kaymıştır → uyarı logu +
+      varsayılan. Operatörün ne demek istediği belli olduğu için burada
+      belgelenmiş varsayım "—"den iyi bir cevaptır; ölçülmeyen bir şey de
+      söylenmiş olmaz, çünkü varsayım belgede yazılı.
+    """
+    ham = os.getenv("RYTHO_USD_TRY", "").strip()
+    if not ham:
+        return USD_TRY_DEFAULT
+    try:
+        # Virgüllü ondalık (Türkçe klavye alışkanlığı) da kabul: "42,5".
+        kur = float(ham.replace(",", "."))
+    except ValueError:
+        logger.warning("RYTHO_USD_TRY çözümlenemedi (%r) — ortak maliyeti ve "
+                       "marj panelde '—' gösterilecek.", ham)
+        return 0.0
+    if kur <= 0:
+        logger.warning("RYTHO_USD_TRY pozitif değil (%r) — ortak maliyeti ve "
+                       "marj panelde '—' gösterilecek.", ham)
+        return 0.0
+    # Bant kontrolü pozitiflik kapısından SONRA: "kur değil" (0, negatif)
+    # ile "kur ama basamağı kaymış" (4,2 / 420) iki ayrı olgudur ve iki
+    # ayrı sonuç doğurur. Sıra bozulursa 0 ve negatif değerler de
+    # varsayılana düşer, yani ölçülmemiş bir marj ölçülmüş gibi sunulur.
+    if not (USD_TRY_MIN <= kur <= USD_TRY_MAX):
+        logger.warning("RYTHO_USD_TRY makul bandın dışında (%r; kabul edilen "
+                       "%.0f-%.0f) — yazım hatası varsayılıyor, kur %.1f "
+                       "kullanılacak.", ham, USD_TRY_MIN, USD_TRY_MAX,
+                       USD_TRY_DEFAULT)
+        return USD_TRY_DEFAULT
+    return kur
+
+
+#: Marj hesabında kullanılan kur. Modül yüklenirken bir kez okunur
+#: (Cloud Run env'i deploy'da sabitlenir); testler bunu doğrudan
+#: monkeypatch eder, emsal `ECONOMICS_TOP_N`.
+USD_TRY = _kur_oku()
 
 #: Rollup bu kadar saatten eskiyse "bayat" (gecelik iş kaçmış demektir).
 ROLLUP_STALE_HOURS = 30
@@ -244,6 +334,58 @@ def _env_net(toplamlar: dict[str, Any] | None, env: str) -> float:
                  - float(kova.get("refundsUsd") or 0), 4)
 
 
+def _ortak_maliyeti(client, uid: str) -> tuple[float, float, str | None]:
+    """Bu kullanıcının ortak edinme maliyeti → (USD, ₺, hakediş durumu).
+
+    Kaynak `partnerQualifications/{uid}` — doküman kimliği UID olduğu için
+    TEK okuma yeter, sorgu gerekmez (partner_service bunu bilinçli böyle
+    kurdu: "kullanıcı başına tek ödül" yapısal garanti).
+
+    NEDEN `pending` de sayılıyor: ödül tutarı hakediş ânında dokümana
+    DONDURULMUŞ gerçek bir ₺ yükümlülüktür; `pending` yalnız 15 günlük
+    iade penceresinin dolmasını bekler. Saymazsak her atıflı abone
+    hayatının ilk 15 gününde olduğundan kârlı görünür — üstelik sahibin
+    o aboneye tam o günlerde baktığı pencerede. `void` ASLA sayılmaz:
+    orada yükümlülük gerçekten ortadan kalkmıştır (iade/erken sona erme).
+
+    Kur bilinmiyorsa USD değeri −1 döner: ₺ yükümlülük VAR ama dolara
+    çevrilemiyor demektir ve çağıran marjı da −1'e (panelde "—") düşürür.
+    ₺ tutarı yine ham hâliyle döner — ölçülen sayı, çevrilemese de
+    kendi birimiyle dürüsttür. Okuma düşerse ya da `rewardTry`
+    çözümlenemezse İKİSİ de −1'dir: orada ₺ tutarı da ölçülmemiştir.
+    """
+    try:
+        anlik = client.collection("partnerQualifications").document(uid).get()
+    except Exception as exc:
+        # Okuma düşerse 360 düşmez; maliyet "bilinmiyor" olur.
+        logger.warning("partnerQualifications okunamadı (%s): %s", uid, exc)
+        return -1.0, -1.0, None
+    if not getattr(anlik, "exists", False):
+        return 0.0, 0.0, None
+    veri = anlik.to_dict() or {}
+    durum = str(veri.get("status") or "pending")
+    if durum == "void":
+        return 0.0, 0.0, durum
+    try:
+        odul_try = float(veri.get("rewardTry") or 0)
+    except (TypeError, ValueError):
+        # Çözümlenemeyen tutar "sıfır maliyet" DEĞİLDİR: hakediş dokümanı
+        # var, yani yükümlülük var; yalnız tutarı okunamıyor. 0 dönmek
+        # marjı olduğundan yüksek gösterir ve hiçbir yerde hata görünmez —
+        # "bilinmiyor" sentinel'i (−1, panelde "—") dürüst olanıdır.
+        # Somut senaryo: Firestore'da elle düzeltilen bir kayıtta
+        # `rewardTry: "30,00"` (Türkçe ondalık, dize).
+        logger.warning("partnerQualifications/%s rewardTry çözümlenemedi "
+                       "(%r) — maliyet 'bilinmiyor'.",
+                       uid, veri.get("rewardTry"))
+        return -1.0, -1.0, durum
+    if odul_try <= 0:
+        return 0.0, 0.0, durum
+    if USD_TRY <= 0:
+        return -1.0, round(odul_try, 2), durum
+    return round(odul_try / USD_TRY, 4), round(odul_try, 2), durum
+
+
 def user_360(uid: str) -> dict[str, Any] | None:
     """Tek kullanıcının destek görünümü; kullanıcı yoksa None (AD6).
 
@@ -385,8 +527,15 @@ def user_360(uid: str) -> dict[str, Any] | None:
     else:
         maliyet = round(float(usage_totals.get("estCostUsd") or 0), 6)
         cagri = int(usage_totals.get("calls") or 0)
-    marj = (round(gelir_prod * (1 - STORE_CUT) - maliyet, 4)
-            if gelir_prod >= 0 and maliyet >= 0 else -1.0)
+    # Ortak edinme maliyeti (OP13): atıflı bir abone ortağa GERÇEK bir ₺
+    # ödemesi doğurur. Düşülmediği sürece marj olduğundan yüksek çıkar ve
+    # sahibi fiyat/pazarlama kararını o sayıyla verir — sessiz bir kusur,
+    # çünkü hiçbir yerde hata görünmez. Kapsam uyuyor: `revenueTotals` da,
+    # ödül de kullanıcının ÖMÜR BOYU toplamıdır (ödül kullanıcı başına bir
+    # kez doğar), yani iki taraf aynı pencereye bakıyor.
+    ortak_usd, ortak_try, ortak_durum = _ortak_maliyeti(client, uid)
+    marj = (round(gelir_prod * (1 - STORE_CUT) - maliyet - ortak_usd, 4)
+            if gelir_prod >= 0 and maliyet >= 0 and ortak_usd >= 0 else -1.0)
     ekonomi = {
         "revenueUsd": round(gelir_prod, 2) if gelir_prod >= 0 else -1,
         "sandboxUsd": round(gelir_sandbox, 2) if gelir_sandbox >= 0 else -1,
@@ -394,6 +543,15 @@ def user_360(uid: str) -> dict[str, Any] | None:
         "calls": cagri,
         "marginUsd": marj,
         "storeCutRate": STORE_CUT,
+        # Ortak maliyeti AYRI alan: panel neyin düşüldüğünü gösterebilsin,
+        # yoksa marjdaki fark açıklanamaz bir eksilme olarak görünür.
+        # ₺ tutarı da dönüyor çünkü ölçülen birim odur — dolara çevrilmiş
+        # hâl bir TÜRETMEdir ve hangi kurla türetildiği söylenmeden
+        # sunulmamalı (`usdTryRate`).
+        "partnerCostUsd": ortak_usd,
+        "partnerRewardTry": ortak_try,
+        "partnerStatus": ortak_durum,
+        "usdTryRate": USD_TRY if USD_TRY > 0 else -1,
     }
 
     return {
@@ -470,6 +628,14 @@ def economics(days: int = 90, env: str = "PRODUCTION") -> dict[str, Any]:
 
     Kâr formülü TAHMİNİDİR ve dürüstçe etiketlenir:
     marj = gelir × (1 − mağaza kesintisi) − tahmini AI maliyeti.
+
+    ⚠️ Bu TABLONUN marjı ortak (affiliate) edinme maliyetini İÇERMEZ —
+    yalnız Kullanıcı 360 içerir (`partnerCostUsd`). Buraya koymanın tek
+    yolu 200 satır için 200 ayrı `partnerQualifications` okuması ya da
+    rollup'ı (stats_service) yazarken toplamaktır; birincisi yukarıdaki
+    ölçek doktrinini çiğner, ikincisi bu dosyanın işi değil. Yani bu
+    tablodaki marj atıflı abonelerde OLDUĞUNDAN YÜKSEKTİR ve tek
+    kullanıcının gerçek marjı 360'tan okunur.
     """
     env = str(env or "PRODUCTION").upper()
     anahtar = f"adm-econ-{int(days)}-{env}"

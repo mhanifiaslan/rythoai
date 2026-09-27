@@ -1,6 +1,6 @@
 # Rytho Kullanım Şartları
 
-Son güncelleme: 5 Ağustos 2026
+Son güncelleme: 27 Eylül 2026
 
 Rytho'yu ("Uygulama") kullanarak aşağıdaki şartları kabul etmiş olursunuz.
 
@@ -76,6 +76,33 @@ Bu şartları ihlal eden hesaplar önceden bildirimle veya ağır ihlallerde
 derhal kapatılabilir. Hesabınızı uygulama içinden (Profil → Hesap → Hesabı
 sil) istediğiniz zaman kapatabilirsiniz.
 
-## 9. İletişim
+## 9. Ortaklık programı
+
+Rytho'yu tanıtan kişi ve kurumlar için bir ortaklık programı yürütülür.
+Başvuru veya davet üzerine, **kabulümüz ve ayrı bir ortaklık anlaşmasıyla**
+katılınır; başvurmak tek başına katılım hakkı vermez. Ortağın paylaştığı
+bağlantı, bağlantıyı kullanan kişiye **indirim veya ödül sağlamaz**; fiyatlar
+herkes için aynıdır.
+
+- **Ödül.** Ortak, bağlantısı üzerinden gelen bir kullanıcının **ilk Rytho+
+  aboneliği** başına ödül kazanır. Tutar ortaklık anlaşmasında belirlenir ve
+  ortağa göre değişebilir. Jeton paketleri, ücretsiz deneme, abonelik
+  yenilemeleri ve mağaza test (sandbox) alımları ödül doğurmaz.
+- **Kesinleşme.** Hakediş, satın almadan **15 gün** sonra kesinleşir. Bu süre
+  içinde iade, ödemenin tahsil edilememesi veya aboneliğin erken sona ermesi
+  halinde hakediş iptal edilir.
+- **Devredilemezlik ve ödeme.** Ödül kişiye özeldir ve **devredilemez**. Nakde
+  çevrilme talebi, anlaşmada belirtilen ödeme eşiğine ulaşılmasına bağlıdır.
+- **Kötüye kullanım.** Şunlar programdan çıkarılma sebebidir: ortağın kendi
+  kodunu kendi hesabında kullanması, ödül üretmek amacıyla sahte hesap
+  açılması, **yanıltıcı tanıtım** (kazanç garantisi vaat etmek, uygulamaya ait
+  olmayan özellikler ya da profesyonel tavsiye iddiası dahil) ve istenmeyen
+  toplu ileti (spam). Programdan çıkarılma halinde **henüz kesinleşmemiş
+  hakedişler düşer**.
+- **Vergi.** Kazanılan ödüle ilişkin vergi yükümlülükleri ortağa aittir.
+- **Değişiklik.** Program değiştirilebilir veya kapatılabilir; bu durumda
+  **kesinleşmiş hakedişler ödenir**.
+
+## 10. İletişim
 
 Sorular ve talepler için: **aslan.mh@gmail.com**

@@ -1,0 +1,275 @@
+/* Ortak panosu (OP9) — ortağın KENDİ küçük panosu.
+ *
+ * NEDEN AYRI BİR CSS: yönetim panelinin admin.css'i 54 KB ve bilesenler.js
+ * 53 KB; bu pano tek sayfa, iki tablo ve yedi KPI'dan oluşuyor. O ikisini
+ * yüklemek sayfanın ağırlığını on katına çıkarırdı ve hiçbir bileşenini
+ * kullanmayacaktı. Ortak olan şey TOKEN katmanı: renk/tipografi/hareket
+ * değişkenleri /assets/rytho.css'ten gelir, burada çıplak hex YOK —
+ * gereken ara tonlar color-mix() ile türetilir.
+ */
+
+:root {
+  /* rytho.css'te olmayan ara tonlar — türetim, çıplak renk değil. */
+  --ort-metin-orta: color-mix(in srgb, var(--parchment) 70%, var(--parchment-dim));
+  --ort-yuzey: color-mix(in srgb, var(--ink-light) 92%, transparent);
+  --ort-yuzey-2: color-mix(in srgb, var(--ink-lighter) 80%, transparent);
+  --ort-cizgi: color-mix(in srgb, var(--line) 85%, transparent);
+  --ort-cizgi-guclu: color-mix(in srgb, var(--lilac) 30%, transparent);
+  --ort-altin-zemin: color-mix(in srgb, var(--gold) 12%, transparent);
+  --ort-celadon-zemin: color-mix(in srgb, var(--celadon) 14%, transparent);
+  --ort-madder-zemin: color-mix(in srgb, var(--madder) 14%, transparent);
+  --ort-lilac-zemin: color-mix(in srgb, var(--lilac) 12%, transparent);
+  /* Dokunma hedefi tabanı: erişilebilirlik kuralı 44px. */
+  --ort-hedef: 44px;
+}
+
+/* rytho.css çakışmaları (admin.css'teki aynı gerekçeler):
+   html{scroll-behavior:smooth} pano yenilenince sıçratır; ÇIPLAK `section`
+   pazarlama sayfası dolgusu alıyor (`padding: clamp(76px,8vw,112px) 0`)
+   ve panoda KPI ızgaraları arasına 100px'lik boşluk açıyordu — ölçüldü,
+   yerel duman testinde görüldü. */
+html { scroll-behavior: auto; }
+.govde section { padding: 0; scroll-margin-top: 0; }
+body { font-size: 14.5px; min-height: 100vh; overflow-x: clip; }
+[hidden] { display: none !important; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  border: 0; padding: 0; margin: -1px;
+}
+.atla {
+  position: absolute; left: -999px; top: 8px; z-index: 90;
+  color: var(--parchment); font-weight: 700; text-decoration: none;
+}
+.atla:focus {
+  left: 12px; background: var(--ink-lighter); padding: 10px 14px;
+  border-radius: var(--r-md); outline: 2px solid var(--lilac);
+}
+
+/* ================= Tam ekran durumlar (jenerik 404 + giriş) ================= */
+.orta-ekran {
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  padding: 24px; gap: 18px;
+}
+.orta-ekran img { width: 64px; height: 64px; }
+.orta-ekran h1 { font-family: 'Sora', system-ui, sans-serif; font-size: 22px; }
+.orta-ekran .yildiz { font-size: 40px; color: var(--gold); line-height: 1; }
+
+.giris-kart {
+  width: min(340px, 92vw); display: flex; flex-direction: column; gap: 12px;
+  background: var(--ort-yuzey); border: 1px solid var(--ort-cizgi);
+  border-radius: var(--r-card); padding: 22px; text-align: left;
+}
+.giris-kart h1 { font-size: 19px; text-align: center; }
+.giris-form { display: flex; flex-direction: column; gap: 10px; }
+.giris-ayrac {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--ort-metin-orta); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 1.2px;
+}
+.giris-ayrac::before, .giris-ayrac::after {
+  content: ''; flex: 1; height: 1px; background: var(--ort-cizgi);
+}
+.giris-unut {
+  background: none; border: 0; color: var(--ort-metin-orta);
+  font-family: inherit; font-size: 12.5px; cursor: pointer;
+  min-height: var(--ort-hedef); border-radius: 8px;
+}
+.giris-unut:hover { color: var(--lilac); }
+.giris-mesaj { font-size: 13px; max-width: 340px; }
+.giris-mesaj.hata { color: var(--madder); }
+.giris-mesaj.bilgi { color: var(--celadon); }
+
+/* ================= Girdi + düğme ================= */
+.girdi {
+  min-height: var(--ort-hedef); width: 100%;
+  background: var(--ort-yuzey-2); border: 1px solid var(--ort-cizgi);
+  border-radius: 10px; color: var(--parchment); padding: 8px 12px;
+  font-family: inherit; font-size: 14px; min-width: 0;
+  transition: border-color var(--fast);
+}
+.girdi::placeholder { color: var(--ort-metin-orta); }
+.girdi:hover { border-color: var(--ort-cizgi-guclu); }
+.girdi:read-only { color: var(--ort-metin-orta); }
+
+/* rytho.css .buton 50px yüksek degrade CTA; panoda yoğunluk için
+   küçültülür ama hedef 44px'in ALTINA inmez. */
+.buton {
+  min-height: var(--ort-hedef); padding: 0 18px; font-size: 14px;
+  cursor: pointer; font-family: inherit; box-shadow: none;
+}
+.buton:hover { transform: none; filter: brightness(1.08); }
+.buton.ikincil:hover { border-color: var(--lilac); filter: none; }
+.buton.kucuk { min-height: var(--ort-hedef); padding: 0 14px; font-size: 13px; }
+.buton:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+
+/* ================= Pano kabuğu ================= */
+.pano-ust {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px clamp(16px, 4vw, 32px);
+  /* Yapışkan başlık: altından kayan tablo satırları OKUNUYORDU (yerel
+     duman testinde görüldü). Bulanıklık desteklenmeyen tarayıcıda da
+     okunaklı kalsın diye zemin neredeyse opak. */
+  background: color-mix(in srgb, var(--ink) 94%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ort-cizgi);
+}
+.pano-ust .marka { display: flex; align-items: center; gap: 10px; }
+.pano-ust .marka img { width: 30px; height: 30px; }
+.pano-ust .marka b { font-family: 'Sora', system-ui, sans-serif; font-size: 15px; }
+.pano-ust .marka span {
+  display: block; font-size: 11px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--lilac);
+}
+.pano-ust .bosluk { flex: 1; }
+.pano-ust .kim {
+  font-size: 12.5px; color: var(--ort-metin-orta);
+  max-width: 44vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.govde {
+  max-width: 1020px; margin: 0 auto;
+  padding: clamp(18px, 3vw, 30px) clamp(16px, 4vw, 32px) 60px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+.sayfa-bas h1 {
+  font-family: 'Sora', system-ui, sans-serif;
+  font-size: clamp(22px, 3vw, 28px); letter-spacing: -0.4px;
+}
+.sayfa-bas p { color: var(--ort-metin-orta); font-size: 13.5px; margin-top: 4px; }
+
+/* ================= Bant ================= */
+/* Akış (block) BİLEREK: flex olduğunda cümle içindeki <b> ayrı bir esnek
+   öğe olup kendi sütununa düşüyordu ("Hesabın şu anda | pasif | : …").
+   Dar ekranda ölçüldü. */
+.bant {
+  display: block; padding: 12px 16px; border-radius: var(--r-md);
+  border: 1px solid var(--ort-cizgi); background: var(--ort-yuzey);
+  font-size: 13.5px; line-height: 1.5;
+}
+.bant.bilgi { border-color: var(--ort-cizgi-guclu); background: var(--ort-lilac-zemin); }
+.bant.uyari {
+  border-color: color-mix(in srgb, var(--gold) 40%, transparent);
+  background: var(--ort-altin-zemin);
+}
+.bant.hata {
+  border-color: color-mix(in srgb, var(--madder) 40%, transparent);
+  background: var(--ort-madder-zemin);
+}
+
+/* ================= KPI ================= */
+.izgara-kpi {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.kpi {
+  background: var(--ort-yuzey); border: 1px solid var(--ort-cizgi);
+  border-radius: var(--r-md); padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.kpi .ad {
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.8px;
+  text-transform: uppercase; color: var(--lilac);
+}
+.kpi .deger {
+  font-family: 'Sora', system-ui, sans-serif; font-size: 25px;
+  font-variant-numeric: tabular-nums; line-height: 1.15;
+}
+.kpi.altin .deger { color: var(--gold-bright); }
+.kpi .alt { font-size: 12.5px; color: var(--ort-metin-orta); }
+
+/* ================= Modül (başlıklı kutu) ================= */
+.modul {
+  background: var(--ort-yuzey); border: 1px solid var(--ort-cizgi);
+  border-radius: var(--r-card); overflow: hidden;
+}
+.modul > .bas {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 14px 18px; border-bottom: 1px solid var(--ort-cizgi);
+}
+.modul > .bas h2 { font-family: 'Sora', system-ui, sans-serif; font-size: 15px; }
+.modul > .bas .alt { font-size: 12.5px; color: var(--ort-metin-orta); }
+.modul > .ic { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+.dipnot { font-size: 13px; color: var(--ort-metin-orta); }
+
+/* ================= Tablo ================= */
+.tablo-sar { overflow-x: auto; }
+table.tablo { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.tablo th, table.tablo td {
+  text-align: left; padding: 10px 12px;
+  border-bottom: 1px solid var(--ort-cizgi); vertical-align: middle;
+}
+table.tablo thead th {
+  font-size: 11.5px; letter-spacing: 0.6px; text-transform: uppercase;
+  color: var(--lilac); white-space: nowrap;
+}
+/* Son satırın çizgisi kalkarken `th` UNUTULMAMALI: satır başlığı da bir
+   hücre, atlanınca tablonun altında yarım bir çizgi kalıyordu. */
+table.tablo tbody tr:last-child td,
+table.tablo tbody tr:last-child th { border-bottom: 0; }
+table.tablo .sag { text-align: right; font-variant-numeric: tabular-nums; }
+.mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.bos-durum { padding: 18px 0; text-align: center; color: var(--ort-metin-orta); font-size: 13.5px; }
+
+/* Rozet */
+.rozet {
+  display: inline-flex; align-items: center; padding: 3px 10px;
+  border-radius: var(--r-pill); font-size: 11.5px; font-weight: 700;
+  border: 1px solid var(--ort-cizgi); color: var(--ort-metin-orta);
+  white-space: nowrap;
+}
+.rozet.aktif {
+  color: var(--celadon); background: var(--ort-celadon-zemin);
+  border-color: color-mix(in srgb, var(--celadon) 40%, transparent);
+}
+.rozet.dolmus {
+  color: var(--gold); background: var(--ort-altin-zemin);
+  border-color: color-mix(in srgb, var(--gold) 40%, transparent);
+}
+
+/* Paylaşılabilir bağlantı satırı */
+.bag-satir { display: flex; gap: 8px; align-items: center; min-width: 260px; }
+.bag-satir .girdi { font-size: 12.5px; min-height: 38px; }
+
+/* ================= Toast ================= */
+.toast-kap {
+  position: fixed; right: 20px; bottom: 20px; z-index: 80;
+  display: flex; flex-direction: column; gap: 8px;
+  width: min(360px, calc(100vw - 40px)); pointer-events: none;
+}
+.toast {
+  pointer-events: auto; padding: 12px 14px; border-radius: var(--r-md);
+  background: var(--ink-light); border: 1px solid var(--ort-cizgi-guclu);
+  border-left-width: 3px; font-size: 13.5px;
+  animation: toast-gir var(--base) var(--enter);
+}
+.toast.basari { border-left-color: var(--celadon); }
+.toast.uyari { border-left-color: var(--gold); }
+.toast.hata { border-left-color: var(--madder); }
+@keyframes toast-gir { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* İskelet (yükleniyor) */
+.iskelet {
+  height: 86px; border-radius: var(--r-md);
+  background: linear-gradient(90deg, var(--ort-yuzey), var(--ort-yuzey-2), var(--ort-yuzey));
+  background-size: 200% 100%; animation: kay 1.3s linear infinite;
+}
+@keyframes kay { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ================= Odak + hareket ================= */
+:focus-visible { outline: 2px solid var(--lilac); outline-offset: 2px; }
+
+/* Tasarım sistemi kuralı: azaltılmış hareket isteyen kullanıcıda HİÇ
+   hareket olmaz (starfield.js da tek statik kare çizer). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .iskelet { background: var(--ort-yuzey); }
+}

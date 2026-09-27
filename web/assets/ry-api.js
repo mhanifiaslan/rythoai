@@ -1,5 +1,12 @@
-/* Panel API katmanı v3 (AD18): her veri backend'den, Firestore'a doğrudan
-   erişim YOK (kurallar kapalı kalır). Kimlik: Firebase ID token.
+/* Web panellerinin ORTAK API katmanı (v3, AD18 → OP9): her veri
+   backend'den, Firestore'a doğrudan erişim YOK (kurallar kapalı kalır).
+   Kimlik: Firebase ID token.
+
+   NEDEN /assets/ ALTINDA: iki panel bunu kullanıyor — yönetim paneli
+   (/rytho-admin/) ve ortağın kendi panosu (/ortak/). Dosya OP9'da
+   `rytho-admin/api.js`'ten buraya TAŞINDI, kopyalanmadı: iki kopya
+   zamanla ayrışır ve aşağıdaki acı derslerden biri yalnız bir kopyada
+   onarılırsa diğer panel sessizce bozuk kalır.
 
    v2'den farklar: AbortController (sinyal), 429 → toast + err.retryAfter,
    RY.sorgu (boş parametreleri atlayan sorgu dizesi), RY.indir (yetkili
@@ -27,6 +34,17 @@
 
   /* Son 429 uyarısı: aynı anda 5 istek düşünce 5 toast basılmasın. */
   var son429 = 0;
+
+  /* Toast kabı panele göre değişir: yönetim panelinde bileşen kitaplığı
+     (RY.b.toast, 53 KB'lik bilesenler.js), ortak panosunda o kitaplık
+     YÜKLENMEZ ve kendi küçük kabını RY.toast olarak kaydeder. Bu kanca
+     olmadan 429 uyarısı ortak panosunda sessizce yutulurdu — kullanıcı
+     "veri gelmiyor" sanırdı. */
+  function toastBas(metin) {
+    if (RY.b && RY.b.toast) { RY.b.toast(metin, 'uyari', { sure: 6000 }); return true; }
+    if (RY.toast) { RY.toast(metin, 'uyari'); return true; }
+    return false;
+  }
 
   /* Sunucu `detail`i: düz metin olduğu gibi; pydantic 422 listesi
      ("[{type, loc, msg}]") alan adı + mesaj olarak — ham JSON basılmaz. */
@@ -77,8 +95,10 @@
     }
     if (yanit.status === 401) {
       // Kimlik düştü: oturumu kapat, jenerik görünüme dön. 403 BURAYA
-      // GİRMEZ: "kimlikli ama sahip değil" (destek rolü, propagasyon
-      // bekleyen claim) normal bir hatadır — oturumu yok etmek yanlıştı.
+      // GİRMEZ: "kimlikli ama yetkili değil" (destek rolü, propagasyon
+      // bekleyen claim, pasifleştirilmiş ortak) normal bir hatadır —
+      // oturumu yok etmek yanlıştı. Çağıran taraf ne yapacağına kendi
+      // karar verir: ortak panosu 403'te jenerik ekrana düşüyor.
       if (RY.yetkisiz) RY.yetkisiz();
       throw new Error('yetkisiz');
     }
@@ -93,9 +113,8 @@
         var ra = Number(yanit.headers.get('Retry-After'));
         hata.retryAfter = isFinite(ra) && ra > 0 ? ra : 60;
         var simdi = Date.now();
-        if (RY.b && RY.b.toast && simdi - son429 > 5000) {
+        if (simdi - son429 > 5000 && toastBas(hataMetni(hata))) {
           son429 = simdi;
-          RY.b.toast(hataMetni(hata), 'uyari', { sure: 6000 });
         }
       }
       throw hata;

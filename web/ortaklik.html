@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ortaklık programı · RythoAI</title>
+  <!-- "pay" sözcüğü BİLEREK kullanılmıyor: Türkçede yüzde payı çağrıştırır,
+       oysa model sabit tutar (`rewardTry`) ve yüzde hesabı kodda kullanım
+       dışı. Paylaşım kartında gövde metni görünmediği için buradaki adın
+       tek başına doğru olması gerekiyor. -->
+  <meta name="description" content="Rytho ortaklık programı: kendi bağlantını paylaş, getirdiğin kişi ilk aboneliğini aldığında sabit bir tutar kazan. Kullanıcı hiçbir kod yazmaz.">
+  <link rel="canonical" href="https://rytho.app/ortaklik.html">
+  <link rel="alternate" hreflang="tr" href="https://rytho.app/ortaklik.html">
+  <link rel="alternate" hreflang="en" href="https://rytho.app/en/partners.html">
+  <!-- x-default TR'yi gösterir: ürün TR-öncelikli ve uygulamada da
+       desteklenmeyen dil `kSupportedLocales.first` = tr'ye düşüyor. -->
+  <link rel="alternate" hreflang="x-default" href="https://rytho.app/ortaklik.html">
+  <link rel="icon" href="/assets/rytho_logo.svg" type="image/svg+xml">
+  <meta property="og:title" content="Rytho Ortaklık Programı">
+  <meta property="og:description" content="Bağlantını paylaş; getirdiğin kişi ilk aboneliğini aldığında sabit tutarını kazan. Kullanıcı hiçbir kod yazmaz.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rytho.app/ortaklik.html">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/rytho.css?v=2">
+  <style>
+    /* Sayfaya ÖZEL olan yalnızca üç şey: sinematik hero'nun yerine geçen
+       sade giriş, üç adımlık şerit ve madde listeleri. Geri kalan her şey
+       (.sarici, .panel, .buton, .akordiyon, .sss, footer) ana sayfanın
+       kabuğundan gelir — ayrı bir görsel dil kurmamak için. */
+    .ortak-giris { text-align: center; padding: clamp(60px, 8vw, 104px) 0 clamp(20px, 3vw, 36px); }
+    .ortak-giris .rozet {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid var(--glass-stroke); border-radius: var(--r-pill);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 7px 16px; font-size: 12.5px; color: var(--parchment-dim);
+      margin-bottom: 22px;
+    }
+    .ortak-giris h1 { font-size: clamp(31px, 5.4vw, 52px); line-height: 1.12; }
+    .ortak-giris .slogan {
+      color: var(--parchment-dim); max-width: 620px;
+      margin: 18px auto 28px; font-size: 16px;
+    }
+    .ortak-cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+    .adimlar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(16px, 2vw, 26px); }
+    .adimlar .panel h3 { font-size: 16.5px; margin: 9px 0 8px; }
+    .adimlar .panel p { color: var(--parchment-dim); font-size: 14px; }
+    .adim-no {
+      font-family: 'Sora', sans-serif; font-weight: 700;
+      font-size: 12.5px; letter-spacing: 1.4px; color: var(--gold);
+    }
+
+    .ortak-liste { list-style: none; display: grid; gap: 11px; margin-top: 4px; }
+    .ortak-liste li {
+      position: relative; padding-left: 25px;
+      color: var(--parchment-dim); font-size: 14.5px;
+    }
+    .ortak-liste li::before {
+      content: '✦'; position: absolute; left: 0; top: 2px;
+      color: var(--gold); font-size: 11px;
+    }
+    .ortak-liste.yok li::before { content: '✕'; color: var(--madder); font-size: 12px; }
+    .ortak-liste strong { color: var(--parchment); }
+
+    /* Örnek bağlantı 375 px'te satırı taşırmasın — tek uzun dize yatay
+       kaydırma üretebilen az sayıdaki şeyden biri. */
+    .ornek-baglanti {
+      display: inline-block; margin-top: 4px; padding: 9px 14px;
+      border: 1px solid var(--glass-stroke); border-radius: var(--r-md);
+      background: rgba(255, 255, 255, 0.03);
+      font-size: 13px; color: var(--gold-bright);
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 900px) { .adimlar { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="gokyuzu"><canvas id="yildizlar"></canvas></div>
+
+  <!-- ---------- ÜST GEZİNTİ ---------- -->
+  <header class="gezinti">
+    <div class="ic">
+      <a class="marka" href="/">
+        <img src="/assets/rytho_logo.svg" alt="RythoAI">
+        <span>RYTHO</span>
+      </a>
+      <nav>
+        <a href="#nasil">Nasıl işliyor</a>
+        <a href="#odul">Ödül</a>
+        <a href="#saymayan">Ne saymaz</a>
+        <a href="#android">Android koşulu</a>
+        <a href="#basvuru">Başvuru</a>
+      </nav>
+      <div class="sag">
+        <a class="dil-sec" href="/en/partners.html">EN</a>
+        <a class="buton kucuk" href="#basvuru">Başvur</a>
+        <details class="mobil-menu">
+          <summary aria-label="Menüyü aç"><span class="menu-cizgileri" aria-hidden="true"><i></i><i></i><i></i></span></summary>
+          <nav class="mobil-menu-panel" aria-label="Mobil gezinme">
+            <a href="#nasil">Nasıl işliyor</a>
+            <a href="#odul">Ödül</a>
+            <a href="#saymayan">Ne saymaz</a>
+            <a href="#android">Android koşulu</a>
+            <a href="#sss">SSS</a>
+            <a class="mobil-menu-cta" href="#basvuru">Başvur</a>
+          </nav>
+        </details>
+      </div>
+    </div>
+  </header>
+
+  <!-- ---------- GİRİŞ ---------- -->
+  <section class="ortak-giris sarici">
+    <span class="rozet acil">✦ Rytho ortaklık programı</span>
+    <h1 class="acil" style="--i:1">Anlattığın kişi abone olduğunda<br><span class="altin">sabit tutarını kazanırsın.</span></h1>
+    <p class="slogan acil" style="--i:2">Sana ait bir bağlantı veriyoruz. Onu paylaşırsın, insanlar Rytho'yu
+    Google Play'den kurar. Kuran kişi ilk aboneliğini aldığında, o abone
+    için sabit bir tutar kazanırsın. Kullanıcı hiçbir kod yazmaz, hiçbir
+    ekstra adım atmaz.</p>
+    <div class="ortak-cta acil" style="--i:3">
+      <a class="buton" href="#basvuru">Başvuru gönder</a>
+      <a class="buton ikincil" href="#nasil">Önce programı oku</a>
+    </div>
+  </section>
+
+  <main>
+    <!-- ---------- NASIL İŞLİYOR ---------- -->
+    <section id="nasil" class="sarici">
+      <div class="orta" style="margin-bottom:44px">
+        <div class="bolum-etiket acil">Nasıl işliyor</div>
+        <h2 class="bolum-baslik acil" style="--i:1">Üç adım, hepsi ölçülüyor</h2>
+        <p class="bolum-alt acil" style="--i:2">Zincirin her halkası sunucu tarafında kayıt bırakır; "sanırım o
+        kişi senden geldi" diye bir aşama yok.</p>
+      </div>
+      <div class="adimlar">
+        <div class="panel acil" style="--i:1">
+          <div class="adim-no">01</div>
+          <h3>Bağlantın oluşturulur</h3>
+          <p>Kodunu ve bağlantını biz açarız. Biçimi hep aynı:</p>
+          <span class="ornek-baglanti">https://rytho.app/r/KODUN</span>
+        </div>
+        <div class="panel acil" style="--i:2">
+          <div class="adim-no">02</div>
+          <h3>Paylaşırsın, kullanıcı kurar</h3>
+          <p>Bağlantı kullanıcıyı Google Play'e götürür ve kodu mağaza
+          bağlantısının içinde taşır. Kurulum bitince uygulama kodu
+          kendisi okur — <strong>kullanıcının yazacağı bir kod yok</strong>,
+          uygulamada kod alanı da yok.</p>
+        </div>
+        <div class="panel acil" style="--i:3">
+          <div class="adim-no">03</div>
+          <h3>İlk abonelikte hakediş açılır</h3>
+          <p>O kullanıcı ilk kez abone olduğunda hakedişin <strong>bekleyen</strong>
+          olarak kaydedilir. Satın almadan <strong>15 gün</strong> sonra,
+          iade gelmediyse kesinleşir.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- ÖDÜL ---------- -->
+    <section id="odul" class="sarici">
+      <div class="ikili">
+        <div>
+          <div class="bolum-etiket acil">Ödül</div>
+          <h2 class="bolum-baslik acil" style="--i:1">Kazanılan abone başına<br><span class="altin">sabit bir tutar</span></h2>
+          <p class="bolum-alt acil" style="--i:2">Yüzde hesabı, kademe tablosu ya da hedef yok. Kazanılan her abone
+          için tek bir sabit tutar ödenir.</p>
+          <!-- ⚠️ SAYFAYA HİÇBİR RAKAM YAZILMAZ ve bu bilinçli: tutar ortak
+               başına ayarlanıyor (`partners/{id}.rewardTry`). Sabit bir
+               rakam yazmak, farklı tutar anlaşılan ortağa karşı yanlış
+               beyan olurdu. Aynı gerekçeyle burada kazanç vaadi de yok:
+               gelir, getirdiğin kişilerin abone olup olmamasına bağlı. -->
+          <div class="akordiyon acil" style="--i:3">
+            <details open>
+              <summary>Tutar nasıl belli oluyor?</summary>
+              <p>Tutar anlaşmada belirlenir ve kaydına yazılır. Ortaklar
+              arasında farklı olabilir; bu yüzden burada bir rakam
+              yazmıyoruz — yazsak bazı ortaklar için yanlış olurdu.</p>
+            </details>
+            <details>
+              <summary>Sonradan değişirse geçmişe işler mi?</summary>
+              <p>İşlemez. Tutar, hakediş açıldığı anda kaydın içine
+              kopyalanır. Daha sonra tutarın değişmesi, önceki
+              hakedişlerini yeniden fiyatlamaz.</p>
+            </details>
+            <!-- Bu cümlenin NİYET BEYANI değil yapısal bir kısıt olması,
+                 sıfır dışı `bonusTokens` kabul etmeyen bir kapıya bağlı:
+                 kod oluşturma ucu (backend/api/admin.py, `CodeCreate`) ve
+                 servis (`partner_service.create_code`). Alan veri modelinde
+                 uyuyor durumda kalır — hedef "promo jeton vermiyoruz"
+                 değil, "veremiyoruz".
+                 ⚠️ ÖLÇÜLDÜ 2026-09-28: o kapı ağaçta HENÜZ YOKTU — uç
+                 `bonusTokens` için `ge=0, le=5000` kabul ediyordu ve
+                 `partner_service.redeem` içindeki `bonus > 0` dalı
+                 `wallet.credit_promo` çağırıyordu. Yani cümle o an yalnızca
+                 niyet beyanıydı; aynı iddia kullanım şartlarının dört
+                 kopyasında da yazılı.
+                 Okuyan ÖNCE ÖLÇSÜN: kapı inmişse cümle yapısaldır, hâlâ
+                 inmemişse düzeltilecek yer bu sayfa değil, uçtur. -->
+            <details>
+              <summary>Kullanıcı bir indirim ya da ödül alıyor mu?</summary>
+              <p>Almıyor ve bunu saklamıyoruz: program kullanıcının
+              ödediği fiyatı değiştirmez, ona jeton ya da indirim vermez.
+              Mağaza fiyatı koddan değiştirilemez. Bağlantını paylaşırken
+              kullanıcıya avantaj vaat etmemen bu yüzden önemli.</p>
+            </details>
+            <details>
+              <summary>Kaç kişi getirebilirim?</summary>
+              <p>Kodunda bir kullanım sınırı ya da son tarih
+              tanımlanabilir; ikisi de anlaşmada konuşulur ve senin
+              kaydında durur.</p>
+            </details>
+          </div>
+        </div>
+        <div class="panel acil">
+          <div class="etiket">Hakedişin yolculuğu</div>
+          <ul class="ortak-liste">
+            <li><strong>Kuruldu</strong> — kullanıcı bağlantınla geldi, atıf
+            yazıldı. Bu aşamada henüz kazanç yok.</li>
+            <li><strong>Bekliyor</strong> — kullanıcı ilk aboneliğini aldı.
+            Tutar donduruldu, 15 günlük iade penceresi başladı.</li>
+            <li><strong>Kesinleşti</strong> — 15 gün geçti, iade gelmedi.
+            Bu tutar ödenecekler arasına girer.</li>
+            <li><strong>İptal</strong> — pencere içinde iade oldu ya da
+            abonelik erken sona erdi.</li>
+          </ul>
+          <p style="margin-top:16px;font-size:13.5px;color:var(--parchment-dim)">
+          Kullanıcının aboneliğini <strong>iptal etmesi</strong> (otomatik
+          yenilemeyi kapatması) hakedişini düşürmez — o abone gerçekten
+          senin getirdiğin abonedir.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- NE SAYMAZ ---------- -->
+    <section id="saymayan" class="sarici">
+      <div class="orta" style="margin-bottom:40px">
+        <div class="bolum-etiket acil">Dürüst liste</div>
+        <h2 class="bolum-baslik acil" style="--i:1">Neler kazanç üretmez</h2>
+        <p class="bolum-alt acil" style="--i:2">Bunları başta yazıyoruz. Sonradan öğrenilen bir kural, sistemin
+        bozuk olduğu izlenimi bırakır.</p>
+      </div>
+      <div class="kanit">
+        <div class="panel acil" style="--i:1">
+          <h3>Abonelik olmayan her şey</h3>
+          <ul class="ortak-liste yok">
+            <li><strong>Jeton paketleri.</strong> Tek seferlik paket alımı
+            abonelik değildir; ödül üretmez.</li>
+            <li><strong>Denemenin kendisi.</strong> Deneme dönemi kazanç
+            saymaz. Deneme <em>ücretli aboneliğe dönerse</em> o an sayılır.</li>
+            <li><strong>Yenilemeler.</strong> Abonenin ikinci, üçüncü ayı
+            yeni bir ödül açmaz.</li>
+            <li><strong>Aynı kullanıcının sonraki abonelikleri.</strong>
+            Kullanıcı başına tek hakediş vardır — bu kural yapısal, sonradan
+            gevşetilemez.</li>
+          </ul>
+        </div>
+        <div class="panel acil" style="--i:2">
+          <h3>Atfı hiç oluşmayan durumlar</h3>
+          <ul class="ortak-liste yok">
+            <!-- "Uç bunu reddeder" iddiası TEK bir bağa dayanıyor:
+                 partner_service.redeem, `partners/{partnerId}.uid` alanını
+                 kodu giren uid ile karşılaştırıp 403 self_referral atıyor
+                 (ölçüldü). Yani kapı uid bağının var olmasına bağlı.
+                 SINIR: `uid` alanı boş kalmış bir ortak kaydında
+                 karşılaştırma HİÇ eşleşmez ve kapı sessizce geçilir — ortak
+                 kendi kodunu kendi hesabında kullanabilir. Bu yüzden ortak
+                 oluştururken uid zorunlu tutulur; zorunluluk kalkarsa ya da
+                 uid'siz ESKİ kayıtlar varsa bu cümle o kayıtlar için
+                 geçersizdir.
+                 Ziyaretçi için gürültü olduğundan sayfa metnine yazılmadı;
+                 iddianın sınırı kayıtsız kalmasın diye buraya yazıldı. -->
+            <li><strong>Kendi hesabın.</strong> Ortak kendi kodunu kendi
+            hesabında kullanamaz; uç bunu reddeder.</li>
+            <li><strong>Test alımları.</strong> Mağazanın test (sandbox)
+            ortamındaki satın almalar sayılmaz.</li>
+            <li><strong>Kod satın almadan sonra geldiyse.</strong> Atıf
+            alımdan önce yazılmış olmalı; geçmiş alımlar sonradan
+            atfedilmez.</li>
+            <li><strong>Kaydın pasifse.</strong> Pasif bir ortak yeni
+            hakediş kazanmaz; kesinleşmiş geçmişi durur.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- ANDROID KOŞULU ---------- -->
+    <!-- Bu bölüm SAKLANAMAZ. Ortak iPhone kullanıcısına bağlantı atıp
+         hiçbir şey kazanmayınca sistemi bozuk sanar; asıl sebep Play
+         Install Referrer'ın iOS'ta bir dengi olmaması. -->
+    <section id="android" class="sarici">
+      <div class="panel acil">
+        <div class="etiket">Bilmen gereken sınır</div>
+        <h2 class="bolum-baslik" style="font-size:clamp(23px,3.2vw,32px)">Atıf şu an yalnız
+        <span class="lila">Android kurulumlarında</span> sayılıyor</h2>
+        <p style="color:var(--parchment-dim);margin-top:14px;max-width:760px">
+        Kodun, Google Play'in kurulum yönlendirmesiyle taşınıyor. iPhone ve
+        masaüstünde bunun bir dengi yok; uygulamada elle kod girme alanı da
+        olmadığı için kod oradan hiçbir yere taşınamıyor. Yani
+        <strong>iPhone kullanıcısına gönderdiğin bağlantı kurulumu
+        başlatabilir ama sana atfedilmez.</strong></p>
+        <p style="color:var(--parchment-dim);margin-top:12px;max-width:760px">
+        Bağlantı sayfası bu durumu kullanıcıya da söylüyor: Android dışı bir
+        cihazda açıldığında mağaza bağlantısı gösterilir ve atfın
+        sayılmadığı açıkça yazılır. iOS sürümü hazırlanıyor; çözüm
+        kurulduğunda bu sayfa güncellenecek.</p>
+      </div>
+    </section>
+
+    <!-- ---------- ÖDEME ---------- -->
+    <section id="odeme" class="sarici">
+      <div class="ikili">
+        <div>
+          <div class="bolum-etiket acil">Ödeme</div>
+          <h2 class="bolum-baslik acil" style="--i:1">Elle, ₺ olarak,<br>kesinleşen tutar üzerinden</h2>
+          <p class="bolum-alt acil" style="--i:2">Kesinleşen hakedişler bakiyene eklenir; ödeme Türk lirası olarak
+          elle yapılır ve kaydına işlenir.</p>
+        </div>
+        <div class="panel acil">
+          <ul class="ortak-liste">
+            <!-- Panonun ADRESİ bilerek yazılmıyor: giriş arkasında duran
+                 özel bir yüzey ve hiçbir yerden linklenmiyor (kendi
+                 sayfasındaki noindex + firebase.json'daki /ortak/**
+                 başlığı bu kararın kanıtı). ⚠️ Bu madde OP9'un pano
+                 sayfasına bağlıdır — o yüzey yayından kalkarsa bu cümle
+                 ölçülmeyen bir şeyi anlatır hâle gelir ve silinmelidir. -->
+            <li>Kendi sayıların <strong>girişle açılan bir ortak panosunda</strong>
+            durur: kaç kişi geldi, kaçı abone oldu, bekleyen ve kesinleşen
+            tutarın. Pano herkese açık değil; erişim ortak kaydına
+            bağlıdır.</li>
+            <li>Ödeme takvimi, alt sınır ve ödeme kanalı anlaşmada
+            yazılır.</li>
+            <li>Ödenen her tutar kaydında satır olarak durur; bakiye
+            kesinleşen eksi ödenen olarak hesaplanır.</li>
+            <li>Kazanç, getirdiğin kişilerin abone olup olmamasına bağlıdır;
+            önceden bir tutar taahhüt edilmez.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- DİL KURALI ---------- -->
+    <!-- Ortağın ağzından çıkan cümle de bizim beyanımız sayılır: mağaza
+         metinlerindeki yasak dil kuralı aynen ortağa da geçer
+         (docs/store-launch.md). -->
+    <section id="dil" class="sarici">
+      <div class="orta" style="margin-bottom:40px">
+        <div class="bolum-etiket acil">Anlatırken</div>
+        <h2 class="bolum-baslik acil" style="--i:1">Söylemeyeceğimiz şeyler<br>senin için de geçerli</h2>
+        <p class="bolum-alt acil" style="--i:2">Rytho'nun tek ilkesi var: ölçülmeyen söylenmez. Bu ilke ürün
+        metinlerinde de, senin paylaşımında da aynı.</p>
+      </div>
+      <div class="kanit">
+        <div class="panel acil" style="--i:1">
+          <h3>Sağlık ve tedavi iddiası yok</h3>
+          <p>Rytho bir eğlence ve içgörü uygulamasıdır. "İyileştirir",
+          "şifa", "tedavi eder" gibi ifadeler kullanılamaz; tıbbi, hukuki,
+          finansal ve psikolojik tavsiye vermez.</p>
+        </div>
+        <div class="panel acil" style="--i:2">
+          <h3>Kesin kehanet dili yok</h3>
+          <p>"Şu tarihte şu olacak" biçiminde bir vaat yok. Uygulama
+          hesaplanmış bir gökyüzünü yorumlar; kesin gelecek iddiasında
+          bulunmaz.</p>
+        </div>
+        <div class="panel acil" style="--i:3">
+          <h3>Kurum adıyla güven devşirme yok</h3>
+          <p>Hesabın kaynağı açıkça söylenir: gerçek astronomik efemeris
+          verisi (Swiss Ephemeris). Hiçbir uzay ya da araştırma kurumunun
+          Rytho'yu desteklediği ima edilemez.</p>
+        </div>
+        <div class="panel acil" style="--i:4">
+          <h3>Kullanıcıya olmayan avantaj vaat etme</h3>
+          <p>Bağlantın kullanıcıya indirim, ödül ya da ekstra jeton
+          getirmiyor. "Bu linkten gir, indirim alırsın" demek doğru
+          olmadığı gibi, kullanıcıyı da hayal kırıklığına uğratır.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- BAŞVURU ---------- -->
+    <section id="basvuru" class="sarici">
+      <div class="indir-bandi acil" style="grid-template-columns:1fr">
+        <div>
+          <h2>Programa katılmak istiyorsan<br><span class="altin">bir e-posta yeter.</span></h2>
+          <p>Başvurular elle değerlendiriliyor: kodunu ve bağlantını biz
+          açıyoruz, ödül tutarını birlikte konuşuyoruz. Yazarken Rytho'yu
+          nerede anlatacağını ve kime ulaştığını kısaca ekle.</p>
+          <div class="ortak-cta" style="justify-content:flex-start">
+            <a class="buton" href="mailto:aslan.mh@gmail.com?subject=Rytho%20ortaklik%20basvurusu">aslan.mh@gmail.com</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- SSS ---------- -->
+    <section id="sss" class="sarici sss">
+      <div class="bolum-etiket acil">Sık sorulanlar</div>
+      <h2 class="bolum-baslik acil" style="--i:1;margin-bottom:22px">Ortakların sorduğu</h2>
+      <details class="acil" style="--i:2">
+        <summary>Kullanıcının kodu bir yere yazması gerekiyor mu?</summary>
+        <p>Hayır. Kod, bağlantıdan mağazaya ve mağazadan uygulamaya
+        kendiliğinden taşınıyor. Uygulamada kod girme alanı yok — bu yüzden
+        "kurulumdan sonra kodu gir" gibi bir yönlendirme yapmamalısın.</p>
+      </details>
+      <details class="acil" style="--i:3">
+        <summary>Uygulama zaten kuruluysa ne oluyor?</summary>
+        <p>Bağlantı doğrudan uygulamayı açar ve kod yine kaydedilir. Aynı
+        cihazda iki kez denenmez; atıf kullanıcı başına bir kez yazılır.</p>
+      </details>
+      <details class="acil" style="--i:4">
+        <summary>Aynı kullanıcı iki ortağın bağlantısına tıklarsa?</summary>
+        <p>İlk yazılan atıf kalır. Atıf kullanıcı başına tek sefer
+        yazılır; sonradan gelen kod onu değiştirmez.</p>
+      </details>
+      <details class="acil" style="--i:5">
+        <summary>Kullanıcının kim olduğunu görebilir miyim?</summary>
+        <p>Göremezsin. Panonda yalnızca sayılar görünür: kaç kişi geldi,
+        kaçı abone oldu, bekleyen ve kesinleşen tutarın ne. Kullanıcı
+        kimlikleri ve kişisel verileri hiçbir ortakla paylaşılmaz.</p>
+      </details>
+      <details class="acil" style="--i:6">
+        <summary>Sosyal medyada reklam verebilir miyim?</summary>
+        <p>Rytho adına ücretli reklam vermek için ayrıca yazılı onay
+        gerekir — mağaza ve marka kuralları bizim sorumluluğumuzda. Organik
+        paylaşım, içerik ve birebir öneri için böyle bir kısıt yok.</p>
+      </details>
+    </section>
+  </main>
+
+  <!-- ---------- FOOTER ---------- -->
+  <footer>
+    <div class="sarici">
+      <div class="ust-alan">
+        <div class="marka-blok">
+          <img src="/assets/rytho_logo.svg" alt="RythoAI">
+          <p style="max-width:320px">Kadim bilgelik, hassas gökyüzü
+          hesabıyla buluşur. Haritan çizilir, yolun aydınlanır.</p>
+        </div>
+        <div>
+          <h4>Uygulama</h4>
+          <ul>
+            <li><a href="/#neler-var">Neler var</a></li>
+            <li><a href="/#nasil">Nasıl çalışır</a></li>
+            <li><a href="/#motor">Motorun içi</a></li>
+            <li><a href="/#plan">Rytho+</a></li>
+            <li><a href="/ortaklik.html">Ortaklık programı</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>İletişim &amp; hukuk</h4>
+          <ul>
+            <li><a href="mailto:aslan.mh@gmail.com">aslan.mh@gmail.com</a></li>
+            <li><a href="/legal/gizlilik.html">Gizlilik Politikası</a></li>
+            <li><a href="/legal/kullanim.html">Kullanım Şartları</a></li>
+            <li><a href="/legal/hesap-silme.html">Hesap ve Veri Silme</a></li>
+            <li><a href="/en/partners.html">English</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="satir">
+        <span>© 2026 RythoAI · Efemeris: Swiss Ephemeris (© Astrodienst AG)</span>
+        <a class="buton kucuk" href="https://play.google.com/store/apps/details?id=ai.rytho">Uygulamayı indir</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/assets/starfield.js" defer></script>
+  <script src="/assets/mobile-nav.js" defer></script>
+  <script>
+    // Kaydırmayla kademeli giriş — ana sayfadaki gözcünün aynısı.
+    // prefers-reduced-motion'da CSS zaten her şeyi görünür kılıyor.
+    (function () {
+      'use strict';
+      var gozcu = new IntersectionObserver(function (girisler) {
+        girisler.forEach(function (g) {
+          if (g.isIntersecting) {
+            g.target.classList.add('gorunur');
+            gozcu.unobserve(g.target);
+          }
+        });
+      }, { threshold: 0.12 });
+      document.querySelectorAll('.acil').forEach(function (el) {
+        gozcu.observe(el);
+      });
+    })();
+  </script>
+</body>
+</html>

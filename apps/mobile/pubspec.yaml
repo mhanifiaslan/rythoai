@@ -2,7 +2,7 @@ name: rytho
 description: "RythoAI - Kisisel Kozmik Zeka Platformu"
 publish_to: 'none'
 # Play yÃ¼klemeleri: versionCode (+N) her yÃ¼klemede artmalÄ±, benzersizdir.
-version: 1.16.0+45
+version: 1.17.0+46
 
 environment:
   sdk: ^3.12.0

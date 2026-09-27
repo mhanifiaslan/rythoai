@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Partner programme · RythoAI</title>
+  <meta name="description" content="The Rytho partner programme: share your own link and earn a fixed amount when someone you brought in takes their first subscription. The user never types a code.">
+  <link rel="canonical" href="https://rytho.app/en/partners.html">
+  <link rel="alternate" hreflang="tr" href="https://rytho.app/ortaklik.html">
+  <link rel="alternate" hreflang="en" href="https://rytho.app/en/partners.html">
+  <!-- x-default points at Turkish: the product is TR-first, and an
+       unsupported locale falls back to `kSupportedLocales.first` = tr in
+       the app as well. -->
+  <link rel="alternate" hreflang="x-default" href="https://rytho.app/ortaklik.html">
+  <link rel="icon" href="/assets/rytho_logo.svg" type="image/svg+xml">
+  <meta property="og:title" content="Rytho Partner Programme">
+  <meta property="og:description" content="Share your link; earn when the person you brought in takes their first subscription. The user never types a code.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rytho.app/en/partners.html">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/rytho.css?v=2">
+  <style>
+    /* Only three things are page-specific: the plain intro that stands in
+       for the cinematic hero, the three-step strip and the bullet lists.
+       Everything else (.sarici, .panel, .buton, .akordiyon, .sss, footer)
+       comes from the home page shell — no second visual language. */
+    .ortak-giris { text-align: center; padding: clamp(60px, 8vw, 104px) 0 clamp(20px, 3vw, 36px); }
+    .ortak-giris .rozet {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid var(--glass-stroke); border-radius: var(--r-pill);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 7px 16px; font-size: 12.5px; color: var(--parchment-dim);
+      margin-bottom: 22px;
+    }
+    .ortak-giris h1 { font-size: clamp(31px, 5.4vw, 52px); line-height: 1.12; }
+    .ortak-giris .slogan {
+      color: var(--parchment-dim); max-width: 620px;
+      margin: 18px auto 28px; font-size: 16px;
+    }
+    .ortak-cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+    .adimlar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(16px, 2vw, 26px); }
+    .adimlar .panel h3 { font-size: 16.5px; margin: 9px 0 8px; }
+    .adimlar .panel p { color: var(--parchment-dim); font-size: 14px; }
+    .adim-no {
+      font-family: 'Sora', sans-serif; font-weight: 700;
+      font-size: 12.5px; letter-spacing: 1.4px; color: var(--gold);
+    }
+
+    .ortak-liste { list-style: none; display: grid; gap: 11px; margin-top: 4px; }
+    .ortak-liste li {
+      position: relative; padding-left: 25px;
+      color: var(--parchment-dim); font-size: 14.5px;
+    }
+    .ortak-liste li::before {
+      content: '✦'; position: absolute; left: 0; top: 2px;
+      color: var(--gold); font-size: 11px;
+    }
+    .ortak-liste.yok li::before { content: '✕'; color: var(--madder); font-size: 12px; }
+    .ortak-liste strong { color: var(--parchment); }
+
+    /* The sample link must not push the line past 375 px — a single long
+       string is one of the few things that can cause a horizontal scroll. */
+    .ornek-baglanti {
+      display: inline-block; margin-top: 4px; padding: 9px 14px;
+      border: 1px solid var(--glass-stroke); border-radius: var(--r-md);
+      background: rgba(255, 255, 255, 0.03);
+      font-size: 13px; color: var(--gold-bright);
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 900px) { .adimlar { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="gokyuzu"><canvas id="yildizlar"></canvas></div>
+
+  <!-- ---------- NAV ---------- -->
+  <header class="gezinti">
+    <div class="ic">
+      <a class="marka" href="/en/">
+        <img src="/assets/rytho_logo.svg" alt="RythoAI">
+        <span>RYTHO</span>
+      </a>
+      <nav>
+        <a href="#how">How it works</a>
+        <a href="#reward">The reward</a>
+        <a href="#excluded">What doesn't count</a>
+        <a href="#android">Android only</a>
+        <a href="#apply">Apply</a>
+      </nav>
+      <div class="sag">
+        <a class="dil-sec" href="/ortaklik.html">TR</a>
+        <a class="buton kucuk" href="#apply">Apply</a>
+        <details class="mobil-menu">
+          <summary aria-label="Open navigation"><span class="menu-cizgileri" aria-hidden="true"><i></i><i></i><i></i></span></summary>
+          <nav class="mobil-menu-panel" aria-label="Mobile navigation">
+            <a href="#how">How it works</a>
+            <a href="#reward">The reward</a>
+            <a href="#excluded">What doesn't count</a>
+            <a href="#android">Android only</a>
+            <a href="#faq">FAQ</a>
+            <a class="mobil-menu-cta" href="#apply">Apply</a>
+          </nav>
+        </details>
+      </div>
+    </div>
+  </header>
+
+  <!-- ---------- INTRO ---------- -->
+  <section class="ortak-giris sarici">
+    <span class="rozet acil">✦ Rytho partner programme</span>
+    <h1 class="acil" style="--i:1">When the person you told<br><span class="altin">subscribes, you earn.</span></h1>
+    <p class="slogan acil" style="--i:2">We give you a link of your own. You share it, people install Rytho
+    from Google Play, and when one of them takes their first subscription
+    you earn a fixed amount for that subscriber. The user types no code and
+    takes no extra step.</p>
+    <div class="ortak-cta acil" style="--i:3">
+      <a class="buton" href="#apply">Send an application</a>
+      <a class="buton ikincil" href="#how">Read the programme first</a>
+    </div>
+  </section>
+
+  <main>
+    <!-- ---------- HOW IT WORKS ---------- -->
+    <section id="how" class="sarici">
+      <div class="orta" style="margin-bottom:44px">
+        <div class="bolum-etiket acil">How it works</div>
+        <h2 class="bolum-baslik acil" style="--i:1">Three steps, all of them measured</h2>
+        <p class="bolum-alt acil" style="--i:2">Every link in the chain leaves a record on the server. There is no
+        stage where someone decides "I think that one came from you".</p>
+      </div>
+      <div class="adimlar">
+        <div class="panel acil" style="--i:1">
+          <div class="adim-no">01</div>
+          <h3>Your link is created</h3>
+          <p>We issue your code and your link. The shape is always the same:</p>
+          <span class="ornek-baglanti">https://rytho.app/r/YOURCODE</span>
+        </div>
+        <div class="panel acil" style="--i:2">
+          <div class="adim-no">02</div>
+          <h3>You share it, they install</h3>
+          <p>The link sends them to Google Play and carries your code inside
+          the store link. After the install the app reads that code itself —
+          <strong>there is nothing for the user to type</strong>, and the app
+          has no code field at all.</p>
+        </div>
+        <div class="panel acil" style="--i:3">
+          <div class="adim-no">03</div>
+          <h3>The first subscription opens a claim</h3>
+          <p>When that user subscribes for the first time, your claim is
+          recorded as <strong>pending</strong>. It settles
+          <strong>15 days</strong> after the purchase, if no refund arrives.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- REWARD ---------- -->
+    <section id="reward" class="sarici">
+      <div class="ikili">
+        <div>
+          <div class="bolum-etiket acil">The reward</div>
+          <h2 class="bolum-baslik acil" style="--i:1">A fixed amount<br><span class="altin">per subscriber earned</span></h2>
+          <p class="bolum-alt acil" style="--i:2">No percentages, no tier table, no targets. One fixed amount for
+          each subscriber you earn.</p>
+          <!-- ⚠️ NO FIGURE APPEARS ON THIS PAGE, deliberately: the amount is
+               set per partner (`partners/{id}.rewardTry`). Printing one
+               number here would misstate the deal for a partner on a
+               different amount. Same reason there is no income promise:
+               earnings depend on whether the people you bring subscribe. -->
+          <div class="akordiyon acil" style="--i:3">
+            <details open>
+              <summary>How is the amount set?</summary>
+              <p>It is agreed with you and written onto your record. It can
+              differ between partners, which is exactly why no figure is
+              printed here — any single number would be wrong for someone.</p>
+            </details>
+            <details>
+              <summary>If it changes later, does it apply backwards?</summary>
+              <p>No. The amount is copied into the claim at the moment the
+              claim opens. Changing it afterwards never re-prices your
+              earlier claims.</p>
+            </details>
+            <!-- Bu cümlenin NİYET BEYANI değil yapısal bir kısıt olması,
+                 sıfır dışı `bonusTokens` kabul etmeyen bir kapıya bağlı:
+                 kod oluşturma ucu (backend/api/admin.py, `CodeCreate`) ve
+                 servis (`partner_service.create_code`). Alan veri modelinde
+                 uyuyor durumda kalır — hedef "promo jeton vermiyoruz"
+                 değil, "veremiyoruz".
+                 ⚠️ ÖLÇÜLDÜ 2026-09-28: o kapı ağaçta HENÜZ YOKTU — uç
+                 `bonusTokens` için `ge=0, le=5000` kabul ediyordu ve
+                 `partner_service.redeem` içindeki `bonus > 0` dalı
+                 `wallet.credit_promo` çağırıyordu. Yani cümle o an yalnızca
+                 niyet beyanıydı; aynı iddia kullanım şartlarının dört
+                 kopyasında da yazılı.
+                 Okuyan ÖNCE ÖLÇSÜN: kapı inmişse cümle yapısaldır, hâlâ
+                 inmemişse düzeltilecek yer bu sayfa değil, uçtur.
+                 Türkçe karşılığı: web/ortaklik.html, aynı SSS girdisi. -->
+            <details>
+              <summary>Does the user get a discount or a bonus?</summary>
+              <p>They don't, and we don't hide it: the programme does not
+              change the price the user pays and gives them no tokens or
+              discount. Store pricing cannot be altered by a code. That is
+              why you should not promise the user any advantage.</p>
+            </details>
+            <details>
+              <summary>How many people can I bring?</summary>
+              <p>Your code can carry a usage limit or an expiry date. Both
+              are discussed in the agreement and stored on your record.</p>
+            </details>
+          </div>
+        </div>
+        <div class="panel acil">
+          <div class="etiket">The life of a claim</div>
+          <ul class="ortak-liste">
+            <li><strong>Installed</strong> — the user arrived through your
+            link and the attribution was written. Nothing is earned yet.</li>
+            <li><strong>Pending</strong> — the user took their first
+            subscription. The amount is frozen and the 15-day refund window
+            starts.</li>
+            <li><strong>Settled</strong> — 15 days passed with no refund.
+            The amount joins what is payable to you.</li>
+            <li><strong>Void</strong> — a refund landed inside the window, or
+            the subscription ended early.</li>
+          </ul>
+          <p style="margin-top:16px;font-size:13.5px;color:var(--parchment-dim)">
+          A user <strong>cancelling</strong> their subscription (turning off
+          auto-renewal) does not void your claim — you did bring that
+          subscriber.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- WHAT DOESN'T COUNT ---------- -->
+    <section id="excluded" class="sarici">
+      <div class="orta" style="margin-bottom:40px">
+        <div class="bolum-etiket acil">The honest list</div>
+        <h2 class="bolum-baslik acil" style="--i:1">What earns you nothing</h2>
+        <p class="bolum-alt acil" style="--i:2">We write these down up front. A rule you only discover later makes
+        the whole system look broken.</p>
+      </div>
+      <div class="kanit">
+        <div class="panel acil" style="--i:1">
+          <h3>Anything that isn't a subscription</h3>
+          <ul class="ortak-liste yok">
+            <li><strong>Token packs.</strong> A one-off pack is not a
+            subscription and pays nothing.</li>
+            <li><strong>The trial itself.</strong> A trial period earns
+            nothing. If the trial <em>converts into a paid subscription</em>,
+            that moment counts.</li>
+            <li><strong>Renewals.</strong> A subscriber's second or third
+            month does not open a new reward.</li>
+            <li><strong>The same user subscribing again.</strong> There is one
+            claim per user — a structural rule, not a setting that can be
+            loosened later.</li>
+          </ul>
+        </div>
+        <div class="panel acil" style="--i:2">
+          <h3>Cases where no attribution exists</h3>
+          <ul class="ortak-liste yok">
+            <!-- "The endpoint refuses it" iddiası TEK bir bağa dayanıyor:
+                 partner_service.redeem, `partners/{partnerId}.uid` alanını
+                 kodu giren uid ile karşılaştırıp 403 self_referral atıyor
+                 (ölçüldü). Yani kapı uid bağının var olmasına bağlı.
+                 SINIR: `uid` alanı boş kalmış bir ortak kaydında
+                 karşılaştırma HİÇ eşleşmez ve kapı sessizce geçilir — ortak
+                 kendi kodunu kendi hesabında kullanabilir. Bu yüzden ortak
+                 oluştururken uid zorunlu tutulur; zorunluluk kalkarsa ya da
+                 uid'siz ESKİ kayıtlar varsa bu cümle o kayıtlar için
+                 geçersizdir.
+                 Ziyaretçi için gürültü olduğundan sayfa metnine yazılmadı;
+                 iddianın sınırı kayıtsız kalmasın diye buraya yazıldı.
+                 Türkçe karşılığı: web/ortaklik.html, aynı madde. -->
+            <li><strong>Your own account.</strong> A partner cannot use their
+            own code on their own account; the endpoint refuses it.</li>
+            <li><strong>Test purchases.</strong> Purchases made in the
+            store's sandbox environment never count.</li>
+            <li><strong>A code that arrived after the purchase.</strong>
+            Attribution must exist before the purchase; past purchases are
+            never attributed retroactively.</li>
+            <li><strong>An inactive record.</strong> An inactive partner earns
+            no new claims; settled history stays untouched.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- ANDROID ONLY ---------- -->
+    <!-- This section must not be hidden. A partner who sends the link to an
+         iPhone user and earns nothing will assume the system is broken; the
+         real cause is that Play's install referrer has no iOS equivalent. -->
+    <section id="android" class="sarici">
+      <div class="panel acil">
+        <div class="etiket">A limit you should know</div>
+        <h2 class="bolum-baslik" style="font-size:clamp(23px,3.2vw,32px)">Attribution currently counts for
+        <span class="lila">Android installs only</span></h2>
+        <p style="color:var(--parchment-dim);margin-top:14px;max-width:760px">
+        Your code travels with Google Play's install referrer. There is no
+        equivalent of that on iPhone or desktop, and since the app has no
+        manual code field either, the code has nowhere to travel from there.
+        So <strong>a link you send to an iPhone user may start an install,
+        but it will not be attributed to you.</strong></p>
+        <p style="color:var(--parchment-dim);margin-top:12px;max-width:760px">
+        The link page tells the visitor the same thing: opened on a non-Android
+        device it shows the store link and states plainly that the referral is
+        not being counted. The iOS version is in preparation; this page will be
+        updated when that path exists.</p>
+      </div>
+    </section>
+
+    <!-- ---------- PAYOUT ---------- -->
+    <section id="payout" class="sarici">
+      <div class="ikili">
+        <div>
+          <div class="bolum-etiket acil">Payout</div>
+          <h2 class="bolum-baslik acil" style="--i:1">Manual, in Turkish lira,<br>on settled amounts</h2>
+          <p class="bolum-alt acil" style="--i:2">Settled claims are added to your balance; payouts are made manually
+          in Turkish lira (₺) and written onto your record.</p>
+        </div>
+        <div class="panel acil">
+          <ul class="ortak-liste">
+            <!-- The panel's ADDRESS is deliberately not printed: it is a
+                 private surface behind a login and is linked from nowhere
+                 (its own noindex plus the /ortak/** header in firebase.json
+                 are the evidence for that decision). ⚠️ This bullet depends
+                 on OP9's panel page — if that surface goes away, the
+                 sentence describes something unmeasured and must go too. -->
+            <li>Your own numbers live in a <strong>partner panel behind a
+            login</strong>: how many arrived, how many subscribed, and your
+            pending and settled amounts. The panel is not public; access is
+            bound to your partner record.</li>
+            <li>The payout schedule, any minimum and the payment channel are
+            written into the agreement.</li>
+            <li>Every payout stays on your record as a line; the balance is
+            settled minus paid.</li>
+            <li>What you earn depends on whether the people you bring
+            subscribe; no amount is committed in advance.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- LANGUAGE RULE ---------- -->
+    <!-- A sentence a partner says counts as our claim too, so the forbidden
+         language rule for store copy applies to partners verbatim
+         (docs/store-launch.md). -->
+    <section id="language" class="sarici">
+      <div class="orta" style="margin-bottom:40px">
+        <div class="bolum-etiket acil">When you talk about it</div>
+        <h2 class="bolum-baslik acil" style="--i:1">What we won't say<br>holds for you too</h2>
+        <p class="bolum-alt acil" style="--i:2">Rytho has one principle: nothing unmeasured is stated. It applies to
+        our product copy and to your posts alike.</p>
+      </div>
+      <div class="kanit">
+        <div class="panel acil" style="--i:1">
+          <h3>No health or treatment claims</h3>
+          <p>Rytho is an entertainment and insight app. Words like "heals",
+          "cures" or "treats" cannot be used; it gives no medical, legal,
+          financial or psychological advice.</p>
+        </div>
+        <div class="panel acil" style="--i:2">
+          <h3>No certain-prophecy language</h3>
+          <p>There is no "this will happen on that date" promise. The app
+          interprets a computed sky; it claims no certain future.</p>
+        </div>
+        <div class="panel acil" style="--i:3">
+          <h3>No borrowed institutional authority</h3>
+          <p>We name the source plainly: real astronomical ephemeris data
+          (Swiss Ephemeris). No space agency or research institution may be
+          implied to endorse Rytho.</p>
+        </div>
+        <div class="panel acil" style="--i:4">
+          <h3>Don't promise the user something that isn't there</h3>
+          <p>Your link brings the user no discount, no bonus and no extra
+          tokens. Saying "use my link for a discount" is untrue and leaves
+          the user disappointed.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- APPLY ---------- -->
+    <section id="apply" class="sarici">
+      <div class="indir-bandi acil" style="grid-template-columns:1fr">
+        <div>
+          <h2>If you want to join,<br><span class="altin">one email is enough.</span></h2>
+          <p>Applications are reviewed by hand: we open your code and link,
+          and agree the amount with you. Tell us briefly where you would talk
+          about Rytho and who you reach.</p>
+          <div class="ortak-cta" style="justify-content:flex-start">
+            <a class="buton" href="mailto:aslan.mh@gmail.com?subject=Rytho%20partner%20application">aslan.mh@gmail.com</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- FAQ ---------- -->
+    <section id="faq" class="sarici sss">
+      <div class="bolum-etiket acil">Frequently asked</div>
+      <h2 class="bolum-baslik acil" style="--i:1;margin-bottom:22px">What partners ask</h2>
+      <details class="acil" style="--i:2">
+        <summary>Does the user have to enter the code somewhere?</summary>
+        <p>No. The code travels from the link to the store and from the store
+        into the app on its own. The app has no code field, so you should
+        never tell anyone to "enter the code after installing".</p>
+      </details>
+      <details class="acil" style="--i:3">
+        <summary>What if the app is already installed?</summary>
+        <p>The link opens the app directly and the code is still recorded. It
+        is never applied twice on the same device; attribution is written once
+        per user.</p>
+      </details>
+      <details class="acil" style="--i:4">
+        <summary>What if one user opens two partners' links?</summary>
+        <p>The first attribution stands. It is written once per user, and a
+        later code does not replace it.</p>
+      </details>
+      <details class="acil" style="--i:5">
+        <summary>Can I see who the users are?</summary>
+        <p>You cannot. Your panel shows numbers only: how many arrived, how
+        many subscribed, and your pending and settled amounts. User identities
+        and personal data are never shared with any partner.</p>
+      </details>
+      <details class="acil" style="--i:6">
+        <summary>Can I run paid ads?</summary>
+        <p>Running paid ads in Rytho's name needs separate written approval —
+        store and brand rules are our responsibility. Organic posts, content
+        and one-to-one recommendations carry no such restriction.</p>
+      </details>
+    </section>
+  </main>
+
+  <!-- ---------- FOOTER ---------- -->
+  <footer>
+    <div class="sarici">
+      <div class="ust-alan">
+        <div class="marka-blok">
+          <img src="/assets/rytho_logo.svg" alt="RythoAI">
+          <p style="max-width:320px">Ancient wisdom, met with precise sky
+          calculation. Your chart is drawn; your path lights up.</p>
+        </div>
+        <div>
+          <h4>The app</h4>
+          <ul>
+            <li><a href="/en/#features">Features</a></li>
+            <li><a href="/en/#how">How it works</a></li>
+            <li><a href="/en/#engine">The engine</a></li>
+            <li><a href="/en/#plan">Rytho+</a></li>
+            <li><a href="/en/partners.html">Partner programme</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Contact &amp; legal</h4>
+          <ul>
+            <li><a href="mailto:aslan.mh@gmail.com">aslan.mh@gmail.com</a></li>
+            <li><a href="/en/legal/privacy.html">Privacy Policy</a></li>
+            <li><a href="/en/legal/terms.html">Terms of Use</a></li>
+            <li><a href="/en/legal/delete-account.html">Delete Account &amp; Data</a></li>
+            <li><a href="/ortaklik.html">Türkçe</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="satir">
+        <span>© 2026 RythoAI · Ephemeris: Swiss Ephemeris (© Astrodienst AG)</span>
+        <a class="buton kucuk" href="https://play.google.com/store/apps/details?id=ai.rytho">Get the app</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/assets/starfield.js" defer></script>
+  <script src="/assets/mobile-nav.js" defer></script>
+  <script>
+    (function () {
+      'use strict';
+      var gozcu = new IntersectionObserver(function (girisler) {
+        girisler.forEach(function (g) {
+          if (g.isIntersecting) {
+            g.target.classList.add('gorunur');
+            gozcu.unobserve(g.target);
+          }
+        });
+      }, { threshold: 0.12 });
+      document.querySelectorAll('.acil').forEach(function (el) {
+        gozcu.observe(el);
+      });
+    })();
+  </script>
+</body>
+</html>

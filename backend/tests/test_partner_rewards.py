@@ -54,6 +54,12 @@ class SahteDoc:
         return self._yol.rsplit("/", 1)[-1]
 
     def get(self, transaction=None):
+        # OKUMA SAYACI (isteğe bağlı): testler "aynı dokümanı döngü içinde
+        # N kez çekmiyoruz" iddiasını ancak okumayı görerek kurabilir.
+        # `_okumalar` anahtarı depoda yoksa hiçbir maliyeti yok.
+        sayaclar = self._depo.get("_okumalar")
+        if sayaclar is not None:
+            sayaclar[self._yol] = sayaclar.get(self._yol, 0) + 1
         return SahteAnlik(self._depo, self._yol, self._depo.get(self._yol))
 
     def set(self, data, merge=False):
@@ -342,6 +348,77 @@ def test_olgunlastirma_idempotent(depo):
     assert ikinci["taranan"] == 0
 
 
+# --- Pasif ortağın BEKLEYEN hakedişi (kullanım şartlarındaki madde) ------
+
+def test_pasif_ortagin_bekleyen_hakedisi_olgunlastirmada_DUSER(depo):
+    """`open_qualification` yalnız YENİ hakedişi engelliyor; olgunlaştırma
+    sorgusu ise `status` + `maturesAt` süzüyor ve ortağın `active` alanına
+    bakmıyordu. Kırılma: kötüye kullanım yüzünden pasifleştirilen ortağın
+    5 gün önce açılmış kaydı 10 gün sonra `qualified` olup bakiyeye giriyor
+    ve ödeme kapısı, şartların "düştü" dediği parayı ödemeye izin veriyor.
+    """
+    _ortak(depo)
+    _tetikle(depo)
+    # Hakediş AÇILDIKTAN SONRA pasifleştirme — kırılmanın gerçek sırası.
+    depo["partners/p-1"]["active"] = False
+    simdi = depo["partnerQualifications/u1"]["maturesAt"] + \
+        dt.timedelta(seconds=1)
+    sayac = ps.mature_qualifications(now=simdi)
+
+    kayit = depo["partnerQualifications/u1"]
+    assert kayit["status"] == ps.STATUS_VOID
+    assert kayit["voidReason"] == ps.VOID_REASON_PARTNER_INACTIVE
+    assert sayac["iptal_pasif"] == 1
+    # İade iptaliyle aynı sayaçta toplanmıyor: mutabakatta "neden düştü"
+    # sorusu cevapsız kalmasın.
+    assert sayac["iptal"] == 0
+    assert sayac["kesinlesen"] == 0
+    # Düşen tutar bakiyeye GİRMEZ, yani ödenebilir hâle gelmez.
+    assert ps.partner_detail("p-1")["earnedTry"] == 0.0
+
+
+def test_silinmis_ortagin_bekleyen_hakedisi_de_DUSER(depo):
+    """Doküman yoksa "aktif değil" sayılır: ödenecek kimsesi olmayan bir
+    borcu kesinleştirmenin anlamı yok."""
+    _ortak(depo)
+    _tetikle(depo)
+    del depo["partners/p-1"]
+    simdi = depo["partnerQualifications/u1"]["maturesAt"] + \
+        dt.timedelta(seconds=1)
+    sayac = ps.mature_qualifications(now=simdi)
+    assert depo["partnerQualifications/u1"]["status"] == ps.STATUS_VOID
+    assert sayac["iptal_pasif"] == 1
+
+
+def test_AKTIF_ortagin_bekleyen_hakedisi_hala_kesinlesir(depo):
+    """Regresyon: pasif kapısı normal yolu kapatmamalı."""
+    _ortak(depo)
+    _tetikle(depo)
+    simdi = depo["partnerQualifications/u1"]["maturesAt"] + \
+        dt.timedelta(seconds=1)
+    sayac = ps.mature_qualifications(now=simdi)
+    assert depo["partnerQualifications/u1"]["status"] == ps.STATUS_QUALIFIED
+    assert sayac["kesinlesen"] == 1
+    assert sayac["iptal_pasif"] == 0
+    assert "voidReason" not in depo["partnerQualifications/u1"]
+
+
+def test_olgunlastirma_ortak_dokumanini_kayit_basina_OKUMAZ(depo):
+    """Aynı ortağın iki kaydı bir koşuda olgunlaşınca ortak dokümanı
+    bir kez okunur. Bellek-içi harita olmadan okuma sayısı kayıt sayısıyla
+    büyür — küçük bir ortak listesinde bile bedava değil."""
+    depo["_okumalar"] = {}
+    _ortak(depo)
+    _tetikle(depo, uid="u1")
+    _tetikle(depo, uid="u2")
+    simdi = depo["partnerQualifications/u1"]["maturesAt"] + \
+        dt.timedelta(seconds=1)
+    depo["_okumalar"].clear()      # yalnız olgunlaştırmanın okumaları
+    sayac = ps.mature_qualifications(now=simdi)
+    assert sayac["kesinlesen"] == 2
+    assert depo["_okumalar"].get("partners/p-1") == 1
+
+
 # --- Dolandırıcılık kapıları --------------------------------------------
 
 def test_ortak_kendi_kodunu_kullanamaz(depo, monkeypatch):
@@ -395,6 +472,102 @@ def test_sifir_odeme_reddedilir(depo):
     with pytest.raises(ps.RedeemError) as h:
         ps.add_payout("p-1", 0, "TRY", "bos")
     assert h.value.reason == "invalid_amount"
+
+
+def test_farkli_para_biriminde_odeme_REDDEDILIR(depo):
+    """Ölçülen kırılma: ortak ₺500 biriktirir, yönetici tutarı 400 + birimi
+    USD girer. Birime bakmayan kapı 400 < 500 gördüğü için GEÇİYOR; pano
+    "Ödenen ₺400, Bakiye ₺100" yazıyor ama ortağa ~₺14.000 gitmiş oluyor.
+    """
+    _ortak(depo, rewardTry=500.0)
+    _tetikle(depo)
+    simdi = depo["partnerQualifications/u1"]["maturesAt"] + \
+        dt.timedelta(seconds=1)
+    ps.mature_qualifications(now=simdi)            # bakiye ₺500
+
+    with pytest.raises(ps.RedeemError) as h:
+        ps.add_payout("p-1", 400.0, "USD", "USD olarak odendi")
+    assert h.value.status == 400
+    assert h.value.reason == "currency_mismatch"
+    # Defter hiç kirlenmedi.
+    assert ps.partner_detail("p-1")["paidTry"] == 0.0
+    # Ortağın birimindeki aynı tutar geçer — kapı tutarı değil BİRİMİ
+    # süzüyor.
+    ps.add_payout("p-1", 400.0, "try", "kucuk harf de kabul")
+
+
+def test_ortagin_kendi_birimi_TRY_DISI_olabilir(depo):
+    """Kapı sabit "TRY" değil ortağın `payoutCurrency` alanıdır."""
+    _ortak(depo, payoutCurrency="USD")
+    with pytest.raises(ps.RedeemError) as h:
+        ps.add_payout("p-1", -10.0, "TRY", "duzeltme")
+    assert h.value.reason == "currency_mismatch"
+    ps.add_payout("p-1", -10.0, "USD", "duzeltme")
+    kayitlar = [v for k, v in depo.items()
+                if k.startswith("partners/p-1/payouts/")]
+    assert [o["currency"] for o in kayitlar] == ["USD"]
+
+
+def test_odeme_toplami_yalniz_ESLESEN_birimi_sayar(depo):
+    """Uyumsuz kayıt sessizce atılmıyor: listede duruyor ve sayısı yanıtta
+    görünüyor. Farkı gizlemek, yanlış toplamak kadar kötüdür."""
+    _ortak(depo)
+    # Kapıdan ÖNCE yazılmış karışık birimli defter (geriye dönük hâl).
+    depo["partners/p-1/payouts/a"] = {"amount": 10.0, "currency": "TRY"}
+    depo["partners/p-1/payouts/b"] = {"amount": 400.0, "currency": "USD"}
+    # `currency` alanı HİÇ olmayan eski kayıt: ortağın birimi kabul edilir.
+    depo["partners/p-1/payouts/c"] = {"amount": 5.0}
+
+    detay = ps.partner_detail("p-1")
+    assert detay["paidTry"] == 15.0
+    assert detay["payoutCurrency"] == "TRY"
+    assert detay["payoutCurrencyMismatchCount"] == 1
+    # Kayıt kaybolmadı, kendi birimiyle duruyor.
+    assert len(detay["payouts"]) == 3
+    assert any(o.get("currency") == "USD" for o in detay["payouts"])
+    # Ortak da kendi panosunda işareti görür — `paidTry` onun gördüğü sayı.
+    assert ps.partner_self_view("p-1")["payoutCurrencyMismatchCount"] == 1
+
+
+def test_karisik_birimli_defterde_POZITIF_odeme_dusser(depo):
+    """Birim süzgecinin AÇTIĞI yolun bekçisi (ölçüldü).
+
+    Süzgeç `paidTry`ye yalnız eşleşen kaydı sayıyor; bu doğru toplam ama
+    bakiye kapısını anlamsız bırakıyor. Ölçülen zincir: ₺500 hakediş →
+    ₺500 TRY ödeme → bakiye 0 (ikinci ödeme `exceeds_balance` ile düşer) →
+    tek bir `PATCH payoutCurrency=USD` → `paidTry` 0, bakiye yine ₺500 →
+    500 USD'lik İKİNCİ ödeme kapıdan GEÇİYOR. Yani ortağa iki kez ödenir
+    ve kapı bunu engellediğini sanır.
+    """
+    _ortak(depo, rewardTry=500.0, payoutCurrency="TRY")
+    _tetikle(depo)
+    simdi = depo["partnerQualifications/u1"]["maturesAt"] + \
+        dt.timedelta(seconds=1)
+    ps.mature_qualifications(now=simdi)
+    ps.add_payout("p-1", 500.0, "TRY", "odendi")
+    assert ps.partner_detail("p-1")["balanceTry"] == 0.0
+
+    # Ödeme defteri yazıldıktan SONRA birim değişimi.
+    ps.update_partner("p-1", {"payoutCurrency": "USD"})
+    detay = ps.partner_detail("p-1")
+    assert detay["payoutCurrencyMismatchCount"] == 1
+    # Bakiye yeniden ₺500 görünüyor — sayı yanlış ve bu işaretle görünür.
+    assert detay["balanceTry"] == 500.0
+
+    # Ama para ÇIKIŞI kapalı: yönetici sebebi görüyor, ödeme sessizce
+    # geçmiyor.
+    with pytest.raises(ps.RedeemError) as h:
+        ps.add_payout("p-1", 500.0, "USD", "ikinci kez")
+    assert h.value.status == 400
+    assert h.value.reason == "ledger_currency_mixed"
+    kayitlar = [k for k in depo if k.startswith("partners/p-1/payouts/")]
+    assert len(kayitlar) == 1              # defter kirlenmedi
+
+    # Düzeltme (negatif) kaydı BİLEREK serbest: karışıklığı gidermenin yolu
+    # onun üzerinden geçiyor, kapatılırsa defter kilitlenirdi.
+    ps.add_payout("p-1", -500.0, "USD", "yanlis birim duzeltmesi")
+    assert len([k for k in depo
+                if k.startswith("partners/p-1/payouts/")]) == 2
 
 
 # --- Ortağın kendi panosu: sızıntı yok ----------------------------------
@@ -472,6 +645,126 @@ def test_yonetici_de_ortak_kapisindan_gecemez():
     yonetici = auth.AuthUser(uid="a1", admin=True, role="owner")
     with pytest.raises(HTTPException):
         auth.require_partner(yonetici)
+
+
+# --- `/me`: GEÇİCİ hata ≠ KALICI yetki kaybı ----------------------------
+
+def _me_hatasi(monkeypatch, hata: ps.RedeemError):
+    """`/me` ucunu servis hatasıyla besler ve fırlatılan HTTP'yi döndürür."""
+    from fastapi import HTTPException
+    from api import partners as partners_api
+    from core.auth import AuthUser
+
+    def _dus(_partner_id):
+        raise hata
+
+    monkeypatch.setattr(partners_api.partner_service, "partner_self_view",
+                        _dus)
+    with pytest.raises(HTTPException) as h:
+        partners_api.partner_me(AuthUser(uid="o1", partner_id="p-1"))
+    return h.value
+
+
+def test_me_gecici_hatada_503_doner(monkeypatch):
+    """Ölçülen kırılma: soğuk Cloud Run örneğinde ADC henüz çözülmemişken
+    `get_client()` None döner ve servis "unavailable" fırlatır. Bu 403
+    olarak çıkınca pano zorunlu çıkış yapıp jenerik 404 basıyor; ortak
+    hesabının kapatıldığını sanıyor, F5 ile düzeliyor ve olay hiçbir yerde
+    hata olarak görünmüyor. `core/firestore.py` kalıcı mandalı BİLEREK
+    kurmuyor, yani bu hâl gerçekten geçici."""
+    hata = _me_hatasi(monkeypatch, ps.RedeemError(500, "unavailable"))
+    assert hata.status_code == 503
+    # Makine-okur kod: istemci "tekrar dene"yi metne bakmadan ayırt etsin.
+    assert hata.detail["code"] == "temporarily_unavailable"
+    assert hata.detail["reason"] == "unavailable"
+    assert hata.headers.get("Retry-After")
+
+
+def test_me_kayit_yoksa_403_kalir(monkeypatch):
+    """Kalıcı hâl: claim var, ortak kaydı yok. Jenerik 403 — "kayıt yok"
+    demek silinmiş bir ortağa sistemin şeklini anlatır."""
+    hata = _me_hatasi(monkeypatch, ps.RedeemError(404, "not_found"))
+    assert hata.status_code == 403
+    assert hata.detail == "Yetkisiz."
+
+
+def test_pasif_ortak_panoyu_GORMEYE_DEVAM_EDER(depo):
+    """Yorumun ölçülen gerçeğe uyduğunun bekçisi: `partner_detail` yalnız
+    doküman YOKKEN 404 fırlatıyor, `active: false` kontrolü hiçbir yerde
+    yok. Bu bilinçli — ortak neden kazanmadığını görmek zorunda."""
+    _ortak(depo)
+    _tetikle(depo)
+    depo["partners/p-1"]["active"] = False
+    simdi = depo["partnerQualifications/u1"]["maturesAt"] + \
+        dt.timedelta(seconds=1)
+    ps.mature_qualifications(now=simdi)        # kayıt `partner_inactive`
+
+    gorunum = ps.partner_self_view("p-1")
+    assert gorunum["active"] is False
+    assert gorunum["name"] == "Ortak"
+    # Yorumun dayandığı şey: kazanmadığını GÖREBİLİYOR — kapıyı kapatmak
+    # ona yalnız açıklamasız bir hata gösterirdi.
+    assert gorunum["voidCount"] == 1
+    assert gorunum["pendingCount"] == 0
+    assert gorunum["earnedTry"] == 0.0
+
+
+# --- Uç modeli: uid zorunlu (kendi-kodunu-kullanma kapısının şartı) ------
+
+def test_uidsiz_ortak_olusturma_uc_modelinde_REDDEDILIR():
+    """uid boşken kapı `None != uid` yüzünden sessizce devre dışı kalıyor;
+    ortak kendi kodunu kendi hesabında kullanıp kendine atıf üretebiliyor.
+    Tanıtım sayfası ise "uç bunu reddeder" diye yazıyor."""
+    from pydantic import ValidationError
+    from api.admin import PartnerCreate
+
+    with pytest.raises(ValidationError):
+        PartnerCreate(name="Ortak", contact="a@b.c")      # uid hiç yok
+    with pytest.raises(ValidationError):
+        PartnerCreate(name="Ortak", contact="a@b.c", uid="")
+    # Geçerli uid ile model kurulur.
+    assert PartnerCreate(name="Ortak", contact="a@b.c",
+                         uid="firebase-uid").uid == "firebase-uid"
+
+
+def test_uidsiz_ortak_olusturma_SERVISTE_de_reddedilir(depo):
+    """İkinci katman: uç değişse bile servis beyanı korur. Yalnız
+    boşluktan oluşan uid `min_length` kapısını geçebilir, buradan geçemez."""
+    for bozuk in [None, "", "   "]:
+        with pytest.raises(ps.RedeemError) as h:
+            ps.create_partner("Ortak", "a@b.c", 0, uid=bozuk)
+        assert h.value.reason == "uid_required"
+    ortak = ps.create_partner("Ortak", "a@b.c", 0, uid=" firebase-uid ")
+    assert ortak["uid"] == "firebase-uid"
+
+
+def test_ortak_uidi_PATCH_ile_bosaltilamaz(depo):
+    """uid'i sonradan silebilmek, kendi-kodunu-kullanma kapısını tek bir
+    PATCH ile sessizce kapatmanın yolu olurdu."""
+    _ortak(depo, uid="ortak-uid")
+    with pytest.raises(ps.RedeemError) as h:
+        ps.update_partner("p-1", {"uid": ""})
+    assert h.value.reason == "uid_required"
+    assert depo["partners/p-1"]["uid"] == "ortak-uid"
+    # Alanı hiç göndermemek serbest.
+    ps.update_partner("p-1", {"notes": "not"})
+    assert depo["partners/p-1"]["uid"] == "ortak-uid"
+
+
+def test_uidsiz_ortagin_kodu_kapinin_calismadigini_LOGLAR(depo, monkeypatch,
+                                                          caplog):
+    """403 yapmıyoruz (uid'i henüz bağlanmamış eski ortağın TÜM atıflarını
+    kırardı) ama kapının o ortakta çalışmadığı görünür olmalı."""
+    _ortak(depo)                      # uid alanı YOK
+    depo["partnerCodes/ORTAK10"] = {
+        "partnerId": "p-1", "bonusTokens": 0, "maxRedemptions": None,
+        "redemptionCount": 0, "expiresAt": None, "active": True}
+    monkeypatch.setattr(ps.wallet, "credit_promo", lambda *a: True)
+    with caplog.at_level("WARNING"):
+        ps.redeem("kim-olursa", "ORTAK10")
+    assert "uid bos" in caplog.text
+    # Atıf yine yazıldı: uyarı akışı durdurmuyor.
+    assert depo["users/kim-olursa/private/attribution"]["partnerId"] == "p-1"
 
 
 def test_huni_ve_bakiye(depo):

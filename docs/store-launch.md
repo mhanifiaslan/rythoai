@@ -264,6 +264,49 @@ for entertainment and personal insight; they are not medical, legal,
 financial or psychological advice. There are no ads in this app.
 ```
 
+### Yasak dil — kazanç vaadi (OP-turu)
+
+Sağlık iddiası ve kesin kehanet dilinin yanına **üçüncü bir yasak** eklendi.
+Kapsamı mağaza metinleriyle sınırlı değil: ortaklık programını anlatan her
+yüzey de buna tabidir — `web/ortaklik.html`, `web/en/partners.html` ve ortak
+adayına yazılan e-posta.
+
+**Yasak ifadeler:** "Ayda X TL kazan", "pasif gelir", "kolay para", "gelir
+garanti edilir", "kesin kazanç", "herkes kazanıyor" ve bunların İngilizce
+karşılıkları ("passive income", "easy money", "guaranteed earnings").
+
+Gerekçe iki katmanlı ve ikisi de ölçülebilir:
+
+1. **Beyan yanlış olur.** Kazanç, getirilen kişilerin abone olup olmamasına
+   bağlıdır ve bu sayı önceden bilinemez. "Ölçülmeyen söylenmez" ilkesi,
+   ürün metni ile ortaklık metni arasında ayrım yapmaz.
+2. **Ödül tutarı ortak başına ayarlanır** (`partners/{id}.rewardTry`). Sayfaya
+   tek bir rakam yazmak, farklı tutar anlaşılan ortağa karşı **yanlış
+   beyandır**. Bu yüzden iki tanıtım sayfasında da hiçbir rakam yok; tutar
+   "anlaşmada belirlenir" diye geçiyor.
+
+Hukuki taraf ayrıca var: gelir taahhüdü yanıltıcı ticari uygulama sayılabilir
+ve para kazandırma vaadi olan bir program mağaza politikalarında da ayrı
+incelenir. İtibari tarafı ise geri dönüşsüz — bir kez "kolay para" diye
+duyulan program, sonradan dürüst anlatılsa bile o adla hatırlanır.
+
+Doğru dil, sayfadan BİREBİR: *"Kazanılan her abone için tek bir sabit tutar
+ödenir."* · *"Tutar anlaşmada belirlenir ve kaydına yazılır."* · *"Kazanç,
+getirdiğin kişilerin abone olup olmamasına bağlıdır; önceden bir tutar
+taahhüt edilmez."*
+
+Aynı gerekçe bir sözcüğü de dışarıda bırakıyor: **"pay"**. Türkçede yüzde
+payını çağrıştırıyor, oysa ödül sabit tutar — yüzde hesabı (`sharePercent`)
+kodda kullanım dışı. Sayfanın ilk hâli başlıkta ve iki paylaşım
+açıklamasında "pay" diyordu; paylaşım kartında gövde metni görünmediği için
+ortak yalnız o adı okuyup abonelik fiyatından bir yüzde bekleyebilirdi.
+
+> ⚠️ Bu kuralı bir bekçiyle zorlarsan taramayı **`web/` altındaki sayfalara**
+> bağla, bu dosyaya değil: yukarıdaki paragraf yasak ifadelerin kendisini
+> içeriyor ve tarama buraya girerse bekçi kendi gerekçesine takılır. Depoda
+> bu tuzağa iki kez düşüldü (build kapısı kendi manifest yorumuna, davet
+> sayfası testi kendi HTML yorumuna).
+
 ### Mağaza görselleri (KL-turu — üretildi)
 
 `store/play/` altında, hepsi uygulamanın KENDİ varlıklarından türetildi

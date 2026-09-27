@@ -23,6 +23,15 @@ abonelik aldığında sabit tutar kazanır. Kullanıcı ödülü yalnızca kodu 
 yazdırmak için gerekiyordu; kod artık otomatik geldiği için motive edilecek
 eylem de kalmadı.
 
+`partnerCodes.bonusTokens` alanı veri modelinde DURUYOR ama artık sıfır
+dışını kabul etmiyor (`create_code`), yani UYUYAN bir alandır — silinmedi
+çünkü o karardan önce açılmış kodlar hâlâ canlı ve verdikleri sözü tutmak
+zorunda. Kilidin gerekçesi alanın kendisi değil BEYAN: `web/ortaklik.html`
+herkese açık biçimde "kullanıcıya jeton ya da indirim vermez" yazıyor ve
+tek bir koda girilmiş bonus bu cümleyi yalanlar — çelişki yalnız o ortağın
+gelirinde görünür, hiçbir ekranda görünmez. Model geri açılırsa tanıtım
+sayfası VE kullanım şartları da değişmek zorundadır.
+
 KODUN BU UCA GELİŞ YOLLARI (istemci tarafı, Android):
   1. Kurulum:  ortak linki → `web/r/index.html` → Play `&referrer=` →
      Install Referrer → `POST /billing/redeem-code`
@@ -85,6 +94,33 @@ MATURATION_DAYS = 15
 STATUS_PENDING = "pending"
 STATUS_QUALIFIED = "qualified"
 STATUS_VOID = "void"
+
+#: Pasif ortağın KESİNLEŞMEMİŞ hakedişinin iptal sebebi. Kullanım şartları
+#: "programdan çıkarılma hâlinde kesinleşmemiş hakediş düşer" diyor ve bu
+#: sebep o maddenin koddaki karşılığıdır — sebep alanı olmadan pasif iptali
+#: iade iptalinden ayırt edilemezdi ve ortağa neden düştüğü anlatılamazdı.
+VOID_REASON_PARTNER_INACTIVE = "partner_inactive"
+
+#: Ödemelerin varsayılan para birimi. `create_partner` alanı HER ZAMAN
+#: yazıyor, yani boş olması normal yol değil — elle açılmış ya da alan
+#: eklenmeden önce yazılmış bir kayıttır. Öyle bir kayıtta varsayılana
+#: düşmek, kapının kendisini atlamaktan iyidir.
+DEFAULT_PAYOUT_CURRENCY = "TRY"
+
+#: GEÇİCİ hata sebepleri: istek yeniden denenirse geçebilir; kalıcı bir
+#: YETKİ ya da VERİ sorunu DEĞİL. `core/firestore.get_client()`in ``None``
+#: dönüşü bu sınıftandır. Gerekçesi tam olarak şu: o dosyada kimlik
+#: bilgisi yoklaması BAŞARISIZ olduğunda kalıcı mandal (`_failed`) BİLEREK
+#: kurulmuyor — kimlik bilgisinin o an görünmemesi soğuk bir Cloud Run
+#: örneğinde normaldir ve ilk sürümde mandal orada kurulduğu için webhook'lar
+#: instance ömrü boyunca 500 dönmüştü. Mandal yalnız istemci GERÇEKTEN
+#: kurulamazsa kurulur; o hâlde bu örnek artık toparlanmaz ama istek başka
+#: bir örneğe düşebilir, yani "yeniden dene" cevabı yine doğru olandır.
+#: Uçlar bu sebepleri KALICI bir hata koduna değil
+#: 503'e çevirir (bkz. `api/partners.py`): geçici bir hâl kalıcı yetki
+#: kaybı ya da sunucu kusuru gibi görünürse istemci yanlış karar verir
+#: (zorunlu çıkış, jenerik 404).
+TRANSIENT_REASONS = frozenset({"unavailable"})
 
 #: Ödül DOĞURAN olay türleri. `INITIAL_PURCHASE` tek başına YETMEZ:
 #: mağaza denemesi açılırsa denemeden ödüşen abone `TRIAL_CONVERTED` ile
@@ -184,7 +220,23 @@ def redeem(uid: str, raw_code: str) -> dict[str, Any]:
             ortak_anlik = (client.collection("partners")
                            .document(str(partner_id)).get(transaction=txn))
             if getattr(ortak_anlik, "exists", False):
-                if (ortak_anlik.to_dict() or {}).get("uid") == uid:
+                ortak_uid = (ortak_anlik.to_dict() or {}).get("uid")
+                if not ortak_uid:
+                    # Kapı `uid` karşılaştırmasına dayanıyor; alan boşsa
+                    # kapı O ORTAK İÇİN hiç çalışmaz ve `None == uid` asla
+                    # tutmadığı için hiçbir iz de bırakmaz. Bu log o
+                    # sessizliği kırıyor.
+                    #
+                    # 403 DEĞİL: uid'i henüz bağlanmamış eski bir ortak
+                    # varsa onun TÜM atıflarını kırardı. Yeni ortakta uid
+                    # artık zorunlu (`create_partner` + `api/admin.py`
+                    # PartnerCreate); bu uyarı o zorunluluktan ÖNCE açılmış
+                    # kayıtları görünür kılmak için duruyor.
+                    logger.warning(
+                        "Ortak %s icin uid bos: kendi-kodunu-kullanma "
+                        "kapisi bu ortakta CALISMIYOR (kod=%s)",
+                        partner_id, kod)
+                elif ortak_uid == uid:
                     raise RedeemError(403, "self_referral")
 
         atif_anlik = atif_ref.get(transaction=txn)
@@ -205,6 +257,12 @@ def redeem(uid: str, raw_code: str) -> dict[str, Any]:
 
     bonus = sonuc["bonusTokens"]
     if bonus > 0:
+        # UYUYAN YOL: yeni kodlarda `bonusTokens` sıfır zorunlu (K-a,
+        # `create_code` + uç), yani bu dal yalnız o karardan ÖNCE açılmış
+        # kodlarda çalışır. Silinmedi çünkü o kodlar hâlâ canlı; verilmiş
+        # sözü geri almak, kullanıcının gördüğü bakiyeyi açıklamasız
+        # düşürmek olurdu. Model geri açılırsa `web/ortaklik.html` ve
+        # kullanım şartları da güncellenmek zorundadır.
         wallet.credit_promo(uid, kod, bonus)
 
     logger.info("Kod kullanıldı: uid=%s kod=%s ortak=%s bonus=%d",
@@ -326,6 +384,29 @@ def _iade_var_mi(client, uid: str, sonra: dt.datetime) -> bool:
     return False
 
 
+def _ortak_aktif_mi(client, partner_id: str,
+                    onbellek: dict[str, bool]) -> bool:
+    """Ortak aktif mi? Aynı koşuda ortak başına TEK okuma.
+
+    Önbellek gerekli çünkü tek koşuda aynı ortağın birden çok hakedişi
+    olgunlaşabilir ve döngü içinde aynı dokümanı N kez çekmek bedava değil.
+    Koşu kısa ömürlü olduğu için okuma bayatlaması sorun değil: ortak
+    koşunun ortasında pasifleşse bile bir sonraki günlük koşu yakalar.
+
+    Doküman YOKSA aktif sayılmaz: silinmiş bir ortağa hakediş
+    kesinleştirmek, ödenecek kimsesi olmayan bir borç yazmaktır.
+    """
+    if partner_id in onbellek:
+        return onbellek[partner_id]
+    aktif = False
+    if partner_id:
+        anlik = client.collection("partners").document(partner_id).get()
+        if getattr(anlik, "exists", False):
+            aktif = (anlik.to_dict() or {}).get("active") is True
+    onbellek[partner_id] = aktif
+    return aktif
+
+
 def mature_qualifications(now: dt.datetime | None = None,
                           limit: int = 500) -> dict[str, int]:
     """Süresi dolan bekleyen hakedişleri kesinleştirir ya da iptal eder.
@@ -337,6 +418,11 @@ def mature_qualifications(now: dt.datetime | None = None,
 
     İdempotans durum alanından gelir, `Increment`'ten değil: iki kez koşan
     iş aynı dokümanı ikinci kez `pending` bulamaz.
+
+    ⚠️ Ortağın `active` alanı BURADA da bakılır, yalnız `open_qualification`
+    içinde değil: o yalnız YENİ hakedişi engeller, zaten açılmış olanı
+    değil. Sorgu `status` + `maturesAt` süzdüğü için pasifleşme kaydın
+    üstünden sessizce geçiyordu.
     """
     from google.cloud.firestore_v1.base_query import FieldFilter
 
@@ -344,7 +430,11 @@ def mature_qualifications(now: dt.datetime | None = None,
     if client is None:
         raise RedeemError(500, "unavailable")
     simdi = now or _now()
-    sayac = {"taranan": 0, "kesinlesen": 0, "iptal": 0, "atlanan": 0}
+    # `iptal` iade kaynaklı, `iptal_pasif` ortak kaynaklı: aynı sayaçta
+    # toplanırsa mutabakatta "neden düştü" sorusu cevapsız kalır.
+    sayac = {"taranan": 0, "kesinlesen": 0, "iptal": 0, "iptal_pasif": 0,
+             "atlanan": 0}
+    ortak_onbellek: dict[str, bool] = {}
 
     for anlik in (client.collection("partnerQualifications")
                   .where(filter=FieldFilter("status", "==", STATUS_PENDING))
@@ -354,6 +444,23 @@ def mature_qualifications(now: dt.datetime | None = None,
         uid = anlik.id
         veri = anlik.to_dict() or {}
         try:
+            # Programdan çıkarılan ortağın KESİNLEŞMEMİŞ hakedişi düşer
+            # (kullanım şartlarındaki madde). Bu kapı olmadan ölçülen hâl:
+            # kötüye kullanım yüzünden pasifleştirilen ortağın 5 gün önce
+            # açılmış kaydı 10 gün sonra `qualified` oluyor, bakiyeye
+            # giriyor ve ödeme kapısı ödemeye izin veriyordu — sahibi,
+            # şartların "düştü" dediği parayı borç sanırdı.
+            #
+            # İade taramasından ÖNCE: sorgu gerektirmiyor ve sonuç aynı
+            # (her iki yol da `void`), ucuz kapı önce çalışsın.
+            if not _ortak_aktif_mi(client, str(veri.get("partnerId") or ""),
+                                   ortak_onbellek):
+                anlik.reference.update({
+                    "status": STATUS_VOID,
+                    "voidReason": VOID_REASON_PARTNER_INACTIVE,
+                    "voidedAt": simdi})
+                sayac["iptal_pasif"] += 1
+                continue
             alindi = veri.get("purchasedAt") or simdi
             if _iade_var_mi(client, uid, alindi):
                 anlik.reference.update({"status": STATUS_VOID,
@@ -393,9 +500,20 @@ def list_partners() -> list[dict[str, Any]]:
 def create_partner(name: str, contact: str, share_percent: float,
                    notes: str = "", *, reward_try: float = 30.0,
                    uid: str | None = None) -> dict[str, Any]:
+    """Yeni ortak açar. `uid` ZORUNLU — imza gereği değil kapı gereği.
+
+    Kendi-kodunu-kullanma kapısı `partners/{id}.uid == uid` karşılaştırmasına
+    dayanıyor; alan boşsa kapı SESSİZCE devre dışı kalır ve ortak kendi
+    kodunu kendi hesabında kullanıp kendine atıf üretebilir (redeem 200
+    döner, `None != uid`). Tanıtım sayfası ise "uç bunu reddeder" diyor.
+    Uç de (`api/admin.py` PartnerCreate) alanı zorunlu tutuyor; buradaki
+    kapı uç değişse bile beyanı korur.
+    """
     client = firestore_client.get_client()
     if client is None:
         raise RedeemError(500, "unavailable")
+    if not (uid or "").strip():
+        raise RedeemError(400, "uid_required")
     ref = client.collection("partners").document()
     veri = {"name": name.strip(), "contact": contact.strip(),
             "sharePercent": float(share_percent), "active": True,
@@ -405,9 +523,14 @@ def create_partner(name: str, contact: str, share_percent: float,
             "rewardModel": REWARD_MODEL_FIXED,
             "rewardTry": _rewardi_dogrula(reward_try),
             # Ortağın kendi Firebase hesabı: hem kendi panelini görmesi
-            # hem kendi kodunu kullanamaması bu bağa dayanıyor.
-            "uid": (uid or "").strip() or None,
-            "payoutCurrency": "TRY"}
+            # hem kendi kodunu kullanamaması bu bağa dayanıyor. Yukarıdaki
+            # kapı yüzünden burada asla None olmaz.
+            "uid": uid.strip(),
+            # Sabitten okunuyor, literal değil: `DEFAULT_PAYOUT_CURRENCY`
+            # yorumu "bu fonksiyon alanı HER ZAMAN yazıyor" diyor ve iki
+            # kopya ayrışırsa o gerekçe sessizce yalan olur — kapı
+            # (`add_payout`) sabiti okuyor, yazan taraf literali.
+            "payoutCurrency": DEFAULT_PAYOUT_CURRENCY}
     ref.set(veri)
     veri["id"] = ref.id
     return veri
@@ -440,7 +563,15 @@ def update_partner(partner_id: str, alanlar: dict[str, Any]) -> None:
     if "rewardTry" in izinli:
         izinli["rewardTry"] = _rewardi_dogrula(izinli["rewardTry"])
     if "uid" in izinli:
-        izinli["uid"] = (str(izinli["uid"] or "").strip() or None)
+        # Alanı BOŞALTMAK yasak: `create_partner` uid'i zorunlu tuttuğu
+        # hâlde panelden sonradan silinebilmesi, kendi-kodunu-kullanma
+        # kapısını tek bir PATCH ile sessizce kapatmanın yolu olurdu.
+        # Alanı hiç göndermemek serbest (model `exclude_none` ile geçiyor);
+        # yasak olan boş dize yazmak.
+        yeni_uid = str(izinli["uid"] or "").strip()
+        if not yeni_uid:
+            raise RedeemError(400, "uid_required")
+        izinli["uid"] = yeni_uid
     if izinli:
         client.collection("partners").document(partner_id).update(izinli)
 
@@ -449,10 +580,20 @@ def create_code(partner_id: str, code: str | None, bonus_tokens: int,
                 max_redemptions: int | None,
                 expires_at: dt.datetime | None) -> dict[str, Any]:
     """Kod üretir/rezerve eder. `create()` var olan kodda düşer —
-    usernames benzersizlik deseni: yarışta ikinci istek hata alır."""
+    usernames benzersizlik deseni: yarışta ikinci istek hata alır.
+
+    `bonus_tokens` YALNIZ 0 kabul edilir (K-a). Gerekçe alanın kendisi değil
+    BEYAN: `web/ortaklik.html` herkese açık biçimde kullanıcının jeton ya da
+    indirim almadığını yazıyor; sıfır dışı bir bonus o cümleyi yalanlar ve
+    çelişki yalnız o ortağın gelirinde görünür. Uç de (`api/admin.py`
+    CodeCreate) sıfır dışını almıyor; buradaki kapı uç değişse bile beyanı
+    korur.
+    """
     client = firestore_client.get_client()
     if client is None:
         raise RedeemError(500, "unavailable")
+    if int(bonus_tokens or 0) != 0:
+        raise RedeemError(400, "bonus_not_allowed")
     kod = normalize_code(code) if code else generate_code()
     veri = {"partnerId": partner_id,
             "bonusTokens": int(bonus_tokens),
@@ -468,6 +609,17 @@ def create_code(partner_id: str, code: str | None, bonus_tokens: int,
         raise RedeemError(409, "code_taken")
     veri["code"] = kod
     return veri
+
+
+def _odeme_birimi(ortak: dict[str, Any]) -> str:
+    """Ortağın ödeme birimi; alan yoksa `DEFAULT_PAYOUT_CURRENCY`.
+
+    Tek yerden okunuyor çünkü `partner_detail` toplarken ve `add_payout`
+    kapı kurarken AYNI değeri görmek zorunda: ikisi ayrışırsa kapı bir
+    birimi kabul edip toplam başka birimi sayar ve kayıp yine sessiz olur.
+    """
+    return (str(ortak.get("payoutCurrency") or DEFAULT_PAYOUT_CURRENCY)
+            .strip().upper())
 
 
 def partner_detail(partner_id: str) -> dict[str, Any]:
@@ -530,14 +682,33 @@ def partner_detail(partner_id: str) -> dict[str, Any]:
         brut += -abs(fiyat) if veri.get("eventType") == "REFUND" else fiyat
         olay += 1
 
+    # Ödeme toplamı YALNIZ ortağın kendi ödeme birimindeki kayıtları sayar.
+    # Ölçülen kırılma: ortak ₺500 hakediş biriktirir, yönetici tutarı 400 +
+    # birimi USD girer; birime bakmayan toplam 400 < 500 gördüğü için kapı
+    # geçer, pano "Ödenen ₺400, Bakiye ₺100" yazar ama ortağa ~₺14.000
+    # gönderilmiştir.
+    #
+    # Eşleşmeyen kayıt SESSİZCE ATILMIYOR: `payouts` listesinde kendi
+    # birimiyle duruyor ve sayısı `payoutCurrencyMismatchCount` olarak
+    # yanıtta görünüyor. Farkı gizlemek, yanlış toplamak kadar kötüdür —
+    # ikisinde de panodaki sayı gerçeği anlatmaz.
+    birim = _odeme_birimi(ortak)
     odenen = 0.0
+    uyumsuz = 0
     odemeler = []
     for o in (client.collection("partners").document(partner_id)
               .collection("payouts").stream()):
         veri = o.to_dict() or {}
         veri["id"] = o.id
         odemeler.append(veri)
-        odenen += float(veri.get("amount") or 0)
+        # Eski kayıtlarda `currency` alanı YOK (alan sonradan eklendi);
+        # onları ortağın birimi saymak geriye uyumdur — o dönemde tek
+        # birim vardı ve varsayılan buydu.
+        kayit_birim = str(veri.get("currency") or birim).strip().upper()
+        if kayit_birim == birim:
+            odenen += float(veri.get("amount") or 0)
+        else:
+            uyumsuz += 1
 
     return {"partner": ortak, "codes": kodlar,
             # Huni — sahibin sorduğu "kaç kişi geldi, kaçı alım yaptı".
@@ -546,10 +717,28 @@ def partner_detail(partner_id: str) -> dict[str, Any]:
             "qualifiedCount": huni[STATUS_QUALIFIED],
             "voidCount": huni[STATUS_VOID],
             # Para (₺) — kesinleşen üzerinden.
+            #
+            # ⚠️ BİLİNEN SINIR: hakediş tarafı YALNIZ ₺ üretir (`rewardTry`,
+            # `MAX_REWARD_TRY`), ödeme birimi ise ortak başına serbest
+            # (`PartnerPatch.payoutCurrency`). `payoutCurrency` ödeme
+            # yazıldıktan SONRA değiştirilirse eski kayıtlar uyumsuz olur,
+            # `paidTry` onları saymaz ve BU SAYI ödenmiş parayı ödenmemiş
+            # gösterir — `balanceTry` olduğundan büyük çıkar.
+            #
+            # Para ÇIKIŞI bu hâlde kapalı: `add_payout` uyumsuz kayıt
+            # görünce pozitif ödemeyi `ledger_currency_mixed` ile düşürür.
+            # Kapatılmayan şey EKRANDAKİ sayı; `payoutCurrencyMismatchCount`
+            # tam olarak onu işaretlemek için var. Kalıcı çözüm hakedişin de
+            # birim taşıması ya da `payoutCurrency`nin TRY'ye kilitlenmesi.
             "earnedTry": round(hakedis, 2),
             "pendingTry": round(bekleyen_tutar, 2),
             "paidTry": round(odenen, 2),
             "balanceTry": round(hakedis - odenen, 2),
+            # Ortağın ödeme birimi + o birime UYMAYAN kayıt sayısı. Sıfır
+            # dışı bir değer, `paidTry`nin defterin tamamını anlatmadığını
+            # söyler; panonun bunu göstermesi gerekir.
+            "payoutCurrency": birim,
+            "payoutCurrencyMismatchCount": uyumsuz,
             # Bilgi amaçlı gelir (süzülmüş).
             "attributedGrossUsd": round(brut, 2),
             "attributedEvents": olay,
@@ -567,6 +756,16 @@ def add_payout(partner_id: str, amount: float, currency: str,
     Negatif kayıt BİLEREK serbest: `qualified` olmuş bir hakediş sonradan
     iade edilirse geçmişi sessizce değiştirmek yerine düzeltme kaydı
     açılır — ortağın gördüğü bakiye açıklanabilir kalır.
+
+    Para birimi ortağın `payoutCurrency` alanına EŞİT olmak zorunda. Kapı
+    olmadan ölçülen hâl: bakiye ₺500 iken tutar 400 + birim USD girilir,
+    bakiye kapısı 400 < 500 gördüğü için GEÇER; pano "Ödenen ₺400" yazar
+    ama ortağa ~₺14.000 gitmiştir. Bakiye tek birimde tutulduğu sürece
+    yabancı birimli tutarı onunla karşılaştırmak anlamsızdır.
+
+    Defterde ortağın birimine uymayan ESKİ kayıt varsa pozitif ödeme de
+    düşer (`ledger_currency_mixed`): o hâlde `paidTry` defterin tamamını
+    saymadığı için bakiye kapısı ölçtüğünü sandığı şeyi ölçmez.
     """
     client = firestore_client.get_client()
     if client is None:
@@ -578,15 +777,43 @@ def add_payout(partner_id: str, amount: float, currency: str,
     if tutar < 0 and not note.strip():
         # Düzeltme kaydı gerekçesiz olamaz.
         raise RedeemError(400, "reason_required")
+
+    # Birim kapısı bakiye kapısından ÖNCE: bakiye karşılaştırması ancak
+    # birimler eşitken bir şey ifade eder.
+    ortak_anlik = client.collection("partners").document(partner_id).get()
+    if not getattr(ortak_anlik, "exists", False):
+        raise RedeemError(404, "not_found")
+    birim = _odeme_birimi(ortak_anlik.to_dict() or {})
+    if (currency or "").strip().upper() != birim:
+        raise RedeemError(400, "currency_mismatch")
+
     if tutar > 0:
         mevcut = partner_detail(partner_id)
+        if int(mevcut.get("payoutCurrencyMismatchCount") or 0) > 0:
+            # Defterde ortağın birimine UYMAYAN kayıt varsa bakiye kapısı
+            # ölçtüğünü sandığı şeyi ölçmez: `paidTry` o kayıtları saymadığı
+            # için bakiye, ÖDENMİŞ parayı ödenmemiş gösterir.
+            #
+            # ÖLÇÜLDÜ: ₺500 hakediş → ₺500 TRY ödeme → bakiye 0 (ikinci
+            # ödeme `exceeds_balance` ile düşüyor). Tek bir
+            # `PATCH payoutCurrency=USD` sonrası `paidTry` 0'a, `balanceTry`
+            # yeniden ₺500'e döndü ve 500 USD'lik İKİNCİ bir ödeme kapıdan
+            # GEÇTİ. Birim süzgeci (yukarıda) bu yolu kapatmıyor: yeni kayıt
+            # ortağın YENİ birimine uyuyor, eskiler uymuyor.
+            #
+            # Karışık defterde para çıkışı kapalı kalır. Tek yönlü bir
+            # işlemi "belki doğrudur" ile açmak yerine yöneticiye sebebini
+            # söylemek: defteri düzeltmeden (ya da `payoutCurrency`yi eski
+            # hâline alarak) pozitif ödeme yazılamaz. Negatif düzeltme
+            # kaydı BİLEREK serbest — karışıklığı gidermenin yolu odur.
+            raise RedeemError(400, "ledger_currency_mixed")
         bakiye = float(mevcut.get("balanceTry") or 0)
         if tutar > bakiye + 0.005:
             raise RedeemError(400, "exceeds_balance")
 
     ref = (client.collection("partners").document(partner_id)
            .collection("payouts").document())
-    veri = {"amount": tutar, "currency": currency.strip().upper(),
+    veri = {"amount": tutar, "currency": birim,
             "note": note.strip(), "at": _now()}
     ref.set(veri)
     veri["id"] = ref.id
@@ -623,7 +850,11 @@ def partner_self_view(partner_id: str) -> dict[str, Any]:
         "name": ortak.get("name"),
         "active": ortak.get("active"),
         "rewardTry": ortak.get("rewardTry"),
-        "payoutCurrency": ortak.get("payoutCurrency") or "TRY",
+        "payoutCurrency": tam["payoutCurrency"],
+        # Ortağın KENDİ ödeme defterine ait bir işaret, işletme verisi
+        # değil: `paidTry` onun gördüğü sayı ve eksik topluyorsa bunu ilk
+        # öğrenmesi gereken kişi ortaktır.
+        "payoutCurrencyMismatchCount": tam["payoutCurrencyMismatchCount"],
         "codes": [{"code": k.get("code"),
                    "redemptionCount": k.get("redemptionCount"),
                    "active": k.get("active"),
@@ -632,6 +863,12 @@ def partner_self_view(partner_id: str) -> dict[str, Any]:
         "referredUsers": tam["referredUsers"],
         "pendingCount": tam["pendingCount"],
         "qualifiedCount": tam["qualifiedCount"],
+        # DÜŞEN kayıt sayısı ortağa da gösterilir. İşletme verisi değil,
+        # kendi hunisi; ve gizlenirse bekleyen hakedişi iptal olan ortak
+        # sayının neden düştüğünü hiçbir yerden anlayamaz — pasif ortağın
+        # panoyu görmeye devam etmesinin gerekçesi (api/partners.py `/me`)
+        # tam olarak buna dayanıyor.
+        "voidCount": tam["voidCount"],
         "earnedTry": tam["earnedTry"],
         "pendingTry": tam["pendingTry"],
         "paidTry": tam["paidTry"],

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Özel pano: hiçbir yerden linklenmez ve indekslenmez. Bu meta
+       yalnız ikinci kemer — birincisi firebase.json'daki /ortak/**
+       X-Robots-Tag başlığı (yönetim paneliyle aynı girdi). -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="dark">
+  <title>Rytho Ortak Panosu</title>
+  <link rel="icon" href="/assets/rytho_logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/rytho.css?v=2">
+  <link rel="stylesheet" href="/ortak/ortak.css?v=1">
+</head>
+<body>
+  <!-- Sitedeki canlı gökyüzü: starfield.js #yildizlar'ı bulur;
+       prefers-reduced-motion'da tek statik kare çizer. -->
+  <div class="gokyuzu" aria-hidden="true"><canvas id="yildizlar"></canvas></div>
+
+  <!-- Hedefi (#pano-govde) yalnız pano açıkken VAR: giriş ya da jenerik
+       ekranda gösterilirse klavye kullanıcısı Tab+Enter'da gizli bir
+       öğeye atlar ve odak sayfanın başına düşer. goster() bu yüzden
+       bağlantıyı panoyla birlikte açıp kapatıyor. -->
+  <a class="atla" id="atla-bag" href="#pano-govde" hidden>İçeriğe atla</a>
+  <div id="duyuru" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="toast-kap" class="toast-kap" role="status" aria-live="polite"></div>
+
+  <!-- Jenerik görünüm: ortak claim'i olmayan HERKESE — giriş yapmış
+       hesabın ortak erişimi olup olmadığını ele vermez (yönetim
+       panelindeki sahte-404 deseninin aynısı). Sayfanın VARLIĞINI
+       gizlemez: çıkış yapan aynı adreste giriş kartını görür ve <title>
+       panoyu adıyla anıyor. /api/v1/partners/me 403 dönerse de buraya
+       düşülür. -->
+  <div id="bulunamadi" class="orta-ekran" hidden>
+    <div class="yildiz" aria-hidden="true">✦</div>
+    <h1>Bu gökyüzünde böyle bir sayfa yok</h1>
+    <a class="buton ikincil" href="/">Ana sayfa</a>
+  </div>
+
+  <!-- Giriş: sayfa hiçbir yerden linklenmez. -->
+  <div id="giris" class="orta-ekran" hidden>
+    <img src="/assets/rytho_logo.svg" alt="">
+    <div class="giris-kart">
+      <h1>Ortak panosu</h1>
+      <form id="eposta-form" class="giris-form">
+        <label class="sr-only" for="giris-eposta">E-posta</label>
+        <input class="girdi" id="giris-eposta" name="email" type="email" placeholder="E-posta"
+               autocomplete="username" required>
+        <label class="sr-only" for="giris-sifre">Şifre</label>
+        <input class="girdi" id="giris-sifre" name="password" type="password" placeholder="Şifre"
+               autocomplete="current-password" required>
+        <button class="buton" type="submit">Giriş yap</button>
+      </form>
+      <div class="giris-ayrac"><span>ya da</span></div>
+      <button id="google-gir" class="buton ikincil" type="button">Google ile devam et</button>
+      <button id="sifre-unut" class="giris-unut" type="button">Şifreni mi unuttun?</button>
+    </div>
+    <p id="giris-hata" class="giris-mesaj hata" role="alert" hidden></p>
+    <p id="giris-bilgi" class="giris-mesaj bilgi" role="status" hidden></p>
+  </div>
+
+  <!-- Pano -->
+  <div id="pano" hidden>
+    <header class="pano-ust">
+      <div class="marka">
+        <img src="/assets/rytho_logo.svg" alt="">
+        <div><b>Rytho</b><span>Ortak panosu</span></div>
+      </div>
+      <div class="bosluk"></div>
+      <span class="kim" id="kim-eposta"></span>
+      <button id="yenile" class="buton ikincil kucuk" type="button">Yenile</button>
+      <button id="cikis" class="buton ikincil kucuk" type="button">Çıkış</button>
+    </header>
+    <main id="pano-govde" class="govde" tabindex="-1" aria-busy="true"></main>
+  </div>
+
+  <!-- Firebase — Hosting'in rezerve SDK yolları (dış CDN yok) -->
+  <script src="/__/firebase/10.12.2/firebase-app-compat.js"></script>
+  <script src="/__/firebase/10.12.2/firebase-auth-compat.js"></script>
+  <!-- App Check: identitytoolkit ZORLANIYOR (2026-09-26); jetonsuz giriş
+       reddediliyor. init.js'den ÖNCE yüklenmez, SONRA kurulur
+       (/assets/ry-auth.js, örnek başına). -->
+  <script src="/__/firebase/10.12.2/firebase-app-check-compat.js"></script>
+  <script src="/__/firebase/init.js"></script>
+  <script src="/assets/appcheck.js?v=1"></script>
+
+  <!-- ORTAK modüller: yönetim paneliyle AYNI dosyalar (OP9). -->
+  <script src="/assets/ry-auth.js?v=1"></script>
+  <script src="/assets/ry-api.js?v=1"></script>
+
+  <script src="/assets/starfield.js"></script>
+  <script src="/ortak/ortak.js?v=1"></script>
+</body>
+</html>

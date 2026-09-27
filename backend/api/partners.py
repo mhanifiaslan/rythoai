@@ -40,8 +40,35 @@ def partner_me(user: AuthUser = Depends(require_partner)):
     try:
         return partner_service.partner_self_view(user.partner_id)
     except partner_service.RedeemError as exc:
-        # Claim var ama ortak kaydı silinmiş/pasifse: jenerik 403.
-        # "Kayıt yok" demek, silinmiş bir ortağa sistemin şeklini anlatır.
+        if exc.reason in partner_service.TRANSIENT_REASONS:
+            # GEÇİCİ hata KALICI yetki kaybı gibi görünmemeli. Ölçülen hâl:
+            # soğuk bir Cloud Run örneğinde ADC henüz çözülmemişken
+            # `core.firestore.get_client()` None döner (orada kalıcı mandal
+            # BİLEREK kurulmuyor) ve servis "unavailable" fırlatır. Bu 403
+            # olarak çıktığında pano zorunlu çıkış yapıp jenerik 404 basıyor;
+            # ortak hesabının kapatıldığını sanıyor, F5 ile düzeliyor ve
+            # olay hiçbir yerde hata olarak görünmüyor.
+            #
+            # Gövdedeki `code` makine-okur: istemci "tekrar dene" ile
+            # "yetkin yok"u metne bakmadan ayırt edebilsin.
+            logger.warning("Ortak panosu gecici olarak verilemedi (%s): %s",
+                           user.partner_id, exc.reason)
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "temporarily_unavailable",
+                        "reason": exc.reason},
+                headers={"Retry-After": "2"})
+        # KALICI hâl: claim var ama ortak kaydı yok (silinmiş ya da hiç
+        # açılmamış). Jenerik 403 — "kayıt yok" demek silinmiş bir ortağa
+        # sistemin şeklini anlatır.
+        #
+        # ⚠️ PASİF ortak buraya DÜŞMEZ (ölçüldü): `partner_detail` yalnız
+        # doküman YOKKEN 404 fırlatıyor, `active: false` kontrolü hiçbir
+        # yerde yok. Pasif ortak panoyu 200 ve tam veriyle görmeye devam
+        # eder ve bu BİLİNÇLİ: neden kazanmadığını görmesi gerekir —
+        # `active: false` alanı, duran kodları ve düşen kayıt sayısı
+        # (`voidCount`) dar görünümde ona da veriliyor. Kapıyı kapatmak
+        # yerine kazanmadığını göstermek, açıklanabilir olan yol.
         logger.info("Ortak panosu verilemedi (%s): %s",
                     user.partner_id, exc.reason)
         raise HTTPException(status_code=403, detail="Yetkisiz.")
@@ -80,7 +107,13 @@ async def mature(
     try:
         sayac = partner_service.mature_qualifications()
     except partner_service.RedeemError as exc:
-        raise HTTPException(status_code=exc.status, detail=exc.reason)
+        # Geçici sınıf 500 değil 503 (aynı ayrım `/me`de): kimlik bilgisi
+        # henüz çözülmemiş bir örnek kalıcı sunucu kusuru gibi
+        # raporlanmasın — zamanlayıcıda yeniden deneme yok, telafi bir
+        # sonraki koşudan gelir ve o koşu aynı kayıtları bulur.
+        durum = (503 if exc.reason in partner_service.TRANSIENT_REASONS
+                 else exc.status)
+        raise HTTPException(status_code=durum, detail=exc.reason)
     return {"status": "ok", **sayac}
 
 

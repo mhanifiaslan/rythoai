@@ -90,6 +90,17 @@ Write-Host "2/2 Cloud Run'a deploy ediliyor..."
 # 0.0'a ve panel MRR'i 0'a iniyordu - hicbir hata, hicbir log. Artik
 # core/config.py `_fiyat_env` tirnaksiz bicimi de okuyor (test_fiyat_env.py);
 # burada da soyulacak tirnak birakmiyoruz ki iki taraf birbirini dogrulasin.
+#
+# RYTHO_USD_TRY=42 (F3-4): ortak odulunu ($ marj hesabina cevirmek icin
+# kullanilan kur) buraya YAZILI olmasi zorunlu. Eskiden yoktu ve
+# gcloud'la elle verilen kur bir sonraki deploy'da --set-env-vars ile
+# SESSIZCE siliniyordu: kur 45'ten 42'ye donuyor, marj ~%7 yanlisa
+# kayiyor, hicbir yerde hata gorunmuyordu (RYTHO_MIN_BUILD yarasinin
+# aynisi). Deger belgedeki varsayimla ayni tutulur
+# (docs/maliyet-calismasi.md basi = admin_service.USD_TRY_DEFAULT);
+# degistirirken UCUNU birlikte degistir. Sunucu tarafinda 5-200 bandi
+# var: bandin disi uyari logu ile varsayilana duser, yani buraya
+# yanlislikla 420 yazilirsa marj bozulmaz ama kur da yururluge girmez.
 Invoke-Gcloud -Adim "Cloud Run deploy" -Arguments @(
     "run", "deploy", $SERVICE,
     "--project", $PROJECT,
@@ -101,7 +112,7 @@ Invoke-Gcloud -Adim "Cloud Run deploy" -Arguments @(
     "--timeout", "300",
     "--max-instances", "3",
     "--min-instances", "1",
-    "--set-env-vars", "RYTHO_DEV_MODE=0,GOOGLE_CLOUD_PROJECT=$PROJECT,RYTHO_TOKENS_ENFORCE=1,RYTHO_SUB_PRICES_USD={rytho_plus_monthly:4.4}",
+    "--set-env-vars", "RYTHO_DEV_MODE=0,GOOGLE_CLOUD_PROJECT=$PROJECT,RYTHO_TOKENS_ENFORCE=1,RYTHO_USD_TRY=42,RYTHO_SUB_PRICES_USD={rytho_plus_monthly:4.4}",
     "--set-secrets", "GEMINI_API_KEY=GEMINI_API_KEY:latest,REVENUECAT_WEBHOOK_SECRET=REVENUECAT_WEBHOOK_SECRET:latest,NOTIFY_SCHEDULER_SECRET=NOTIFY_SCHEDULER_SECRET:latest")
 
 # --min-instances 1 BILINCLI VE UCRETLI bir karar.

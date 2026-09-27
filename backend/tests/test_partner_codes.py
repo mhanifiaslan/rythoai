@@ -104,6 +104,13 @@ def _kod_yaz(depo, kod="ORTAK10", **ek):
 
 
 def test_kod_kullanimi_atif_ve_bonus(depo, monkeypatch):
+    """ESKİ kod (bonuslu) hâlâ sözünü tutar.
+
+    Yeni kodlarda `bonusTokens` sıfır zorunlu (K-a) ama `redeem` içindeki
+    yol silinmedi: kilit kararından önce açılmış kodlar canlı ve verilmiş
+    bonusu geri almak, kullanıcının gördüğü bakiyeyi açıklamasız düşürmek
+    olurdu. Bu test o UYUYAN yolun hâlâ çalıştığının bekçisi.
+    """
     _kod_yaz(depo)
     krediler = []
     monkeypatch.setattr(partner_service.wallet, "credit_promo",
@@ -164,8 +171,42 @@ def test_credit_promo_idempotent(depo):
 
 
 def test_kod_rezervasyonu_yarista_duser(depo):
-    partner_service.create_code("p-1", "TEKEL", 10, None, None)
+    partner_service.create_code("p-1", "TEKEL", 0, None, None)
     with pytest.raises(partner_service.RedeemError) as h:
-        partner_service.create_code("p-2", "TEKEL", 10, None, None)
+        partner_service.create_code("p-2", "TEKEL", 0, None, None)
     assert h.value.reason == "code_taken"
     assert depo["partnerCodes/TEKEL"]["partnerId"] == "p-1"
+
+
+# --- Kullanıcı ödülü KAPSAM DIŞI (K-a): bonus jetonu kilidi --------------
+
+def test_bonus_jetonu_SERVISTE_reddedilir(depo):
+    """Kilitli ödül modeli "kullanıcıya ödül YOK" diyor ve
+    `web/ortaklik.html` bunu herkese açık biçimde yazıyor ("kullanıcıya
+    jeton ya da indirim vermez"). Sıfır dışı bir bonus o cümleyi yalanlar
+    ve çelişki YALNIZ o ortağın gelirinde görünür — hiçbir ekranda değil.
+    """
+    with pytest.raises(partner_service.RedeemError) as h:
+        partner_service.create_code("p-1", "BONUSLU", 50, None, None)
+    assert h.value.status == 400
+    assert h.value.reason == "bonus_not_allowed"
+    # Kod hiç rezerve edilmedi: reddedilen istek yan etki bırakmaz.
+    assert "partnerCodes/BONUSLU" not in depo
+    # Sıfır ile aynı çağrı geçer ve alan veri modelinde DURUR (uyuyan alan,
+    # ölü değil — geri açılırsa tanıtım sayfası ve şartlar da değişmeli).
+    kod = partner_service.create_code("p-1", "BONUSSUZ", 0, None, None)
+    assert kod["bonusTokens"] == 0
+
+
+def test_bonus_jetonu_UC_MODELINDE_reddedilir():
+    """İki katman: uç sıfır dışını hiç almıyor, servis ise uç değişse bile
+    beyanı koruyor."""
+    from pydantic import ValidationError
+    from api.admin import CodeCreate
+
+    with pytest.raises(ValidationError):
+        CodeCreate(bonusTokens=1)
+    with pytest.raises(ValidationError):
+        CodeCreate(bonusTokens=5000)
+    assert CodeCreate().bonusTokens == 0
+    assert CodeCreate(bonusTokens=0).bonusTokens == 0

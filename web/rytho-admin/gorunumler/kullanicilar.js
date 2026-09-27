@@ -620,6 +620,132 @@
      360 — görünüm
      ===================================================================== */
 
+  /* Marj cümlesi — ÜÇ terimli (OP13).
+
+     NEDEN yeniden yazıldı: `admin_service` marjdan ortak edinme maliyetini
+     de düşüyor (`marginUsd = gelir × (1 − mağaza) − AI − ortak`), ama bu
+     cümle iki terim sayıyordu. Ekranda "= $6,00" yazarken cümledeki
+     eşitliğin sağı $8,00 ediyordu; aradaki $2,00 ortak maliyetiydi ve
+     sahibi bunu PANEL HATASI sanıyordu. Cümle yanlış olduğu için kusur
+     yorumdan değil METİNden geliyordu.
+
+     NEDEN ortak maliyeti ayrı satırda ve HAM BİRİMİYLE (₺) + kullanılan
+     kurla: düşümün kendisi gizlenirse marjdaki eksilme açıklanamaz görünür;
+     kur gizlenirse `RYTHO_USD_TRY` yanlış olduğunda (varsayılan 42,0'a
+     düşmüş ya da elle yanlış girilmiş) sahibin bunu görebileceği HİÇBİR
+     yer kalmaz — sessizce kaymış bir marja bakar. Ölçülen birim ₺'dir;
+     dolar değeri bir TÜRETMEdir ve hangi kurla türetildiği söylenmeden
+     sunulmamalı.
+
+     Sentinel: −1 "ölçülemedi" demek ve `b.para` onu "—" basıyor (deponun
+     mevcut doktrini). Eşitliğin ortasındaki çıplak bir "—" sıfır gibi
+     okunabildiği için cümle bunu KELİMEYLE de söylüyor. "Bilinmiyor"
+     hükmü `marginUsd === -1` testiyle DEĞİL, sunucunun kendi koşulunu
+     (girdilerden biri negatif) aynalayarak veriliyor: gerçek bir marj da
+     −1,00 olabilir ve o durumda "ölçülemedi" demek yalan olurdu. */
+  var HAKEDIS_ADI = { pending: 'bekliyor (15 gün olgunlaşma)',
+                      qualified: 'kesinleşti', void: 'iptal' };
+
+  /* Uç ortak alanlarını HİÇ gönderiyor mu?
+
+     ⚠️ Bu ayrım şu an VARSAYIMSAL DEĞİL: `partnerCostUsd` alanını ekleyen
+     `admin_service` değişikliği henüz dağıtılmadı, canlı backend o alanları
+     döndürmüyor. Hosting ise backend'den BAĞIMSIZ dağıtılıyor
+     (`firebase deploy --only hosting` vs `infra/deploy-backend.ps1`), yani
+     paneli önce yayınlamak tek satırlık bir sıra hatasıdır.
+
+     Ayırmazsak `Number(undefined)` NaN olur, NaN >= 0 yanlıştır ve panel
+     her kullanıcı için "hakediş kaydı okunamadı" diye HİÇ YAPILMAMIŞ bir
+     okumanın teşhisini uydurur; üstelik aynı cümlede uçtan gelen gerçek
+     (iki terimli) marjı basarken yanına "marj hesaplanamadı" yazar. Alanın
+     YOKLUĞU ile "ölçüldü ama bilinmiyor" aynı şey değildir. */
+  function ortakAlaniVar(eko) {
+    return eko.partnerCostUsd != null && eko.partnerRewardTry != null;
+  }
+
+  /* Girdilerin hepsi ölçüldü mü? Sunucudaki koşulun aynası:
+     `gelir >= 0 and maliyet >= 0 and ortak >= 0`. Sapma olursa iki taraf
+     yan yana okunup bulunabilsin diye birebir aynı tutuluyor. Ortak terimi
+     yalnız uç onu gönderiyorsa sayılır: göndermeyen uçta sunucunun marjı
+     İKİ terimlidir ve o marj da ölçülmüştür — eksik olan terim değil,
+     terimin kendisidir. */
+  function marjOlculdu(eko) {
+    var terimler = [eko.revenueUsd, eko.aiCostUsd];
+    if (ortakAlaniVar(eko)) terimler.push(eko.partnerCostUsd);
+    return terimler.every(function (v) { return Number(v) >= 0; });
+  }
+
+  /* Marj tutarının yazısı. `b.para` −1'i "bilinmiyor" sayıp "—" basıyor
+     (deponun sentinel doktrini) ama marj GERÇEKTEN −1,00 olabilir: geliri
+     olmayan, $1,00 AI maliyeti biriktirmiş bir ücretsiz kullanıcı tam bunu
+     verir. O hâlde "—" basmak ölçülmüş bir zararı "bilinmiyor" adıyla
+     sunmak olurdu — ters yönden aynı kusur. Bu yüzden girdiler ölçülmüşken
+     −1 elle yazılıyor; biçimlendirme yine `b.para` ile, kendi para biçimimi
+     uydurmamak için. Marj burada YENİDEN HESAPLANMIYOR: sunucunun sayısı
+     neyse o gösteriliyor, yoksa iki formül zamanla sessizce ayrışırdı. */
+  function marjYazisi(b, eko) {
+    if (marjOlculdu(eko) && Number(eko.marginUsd) === -1) return '−' + b.para(1);
+    return b.para(eko.marginUsd);
+  }
+
+  function marjCumlesi(b, eko) {
+    var magaza = Math.round((Number(eko.storeCutRate) || 0.15) * 100);
+    var ortakUsd = Number(eko.partnerCostUsd);
+    var ortakTry = Number(eko.partnerRewardTry);
+    var kur = Number(eko.usdTryRate);
+    var durum = eko.partnerStatus || null;
+    var olcusuz = !marjOlculdu(eko);
+    var ucGondermiyor = !ortakAlaniVar(eko);
+
+    // Formül uçtan GELEN sayıyı anlatmak zorunda: ortak alanı yoksa
+    // sunucunun marjı iki terimlidir ve üçüncü terimi yazmak, düşülmemiş
+    // bir maliyeti düşülmüş göstermek olur (bu cümlenin ilk hâlinin ters
+    // yönde yaptığı hatanın aynısı).
+    var formul = '<p class="dipnot">Marj = üretim geliri × (1 − mağaza %' + magaza +
+      ') − AI maliyeti' +
+      (ucGondermiyor ? '' : ' − <b>ortak edinme maliyeti</b>') + ' = <b>' +
+      b.e(marjYazisi(b, eko)) + '</b>' +
+      (olcusuz ? ' <i>(terimlerden biri ölçülemedi — marj hesaplanamadı)</i>' : '') +
+      '</p>';
+
+    var ayrinti;
+    if (ucGondermiyor) {
+      // "Ölçülemedi" DEĞİL: hiç istenmedi. Sorun panelde de kullanıcıda da
+      // değil, dağıtım sırasında — bu yüzden ne yapılacağı yazılı.
+      ayrinti = 'Ortak edinme maliyeti bu uçtan <b>gelmiyor</b> ' +
+        '(<code>partnerCostUsd</code> alanı yok): backend, paneldeki bu ' +
+        'sürümden eski. Yukarıdaki marj bu yüzden İKİ terimli — ortak ' +
+        'ödemesi DÜŞÜLMEMİŞ. Bu kullanıcı bir ortak koduna atfedilmişse ' +
+        'marj olduğundan yüksektir; atfın olup olmadığı da bu uçtan ' +
+        'gelmiyor, yani BİLİNMİYOR. Backend dağıtılınca kendiliğinden ' +
+        'düzelir (infra/deploy-backend.ps1).';
+    } else if (!(ortakTry >= 0)) {
+      // Hem ₺ hem $ bilinmiyor: hakediş dokümanı okunamadı ya da
+      // `rewardTry` çözümlenemedi (ör. elle "30,00" dizesi yazılmış).
+      ayrinti = 'Ortak edinme maliyeti <b>ölçülemedi</b>: hakediş kaydı ' +
+        'okunamadı ya da tutarı çözümlenemedi. Yükümlülük VAR sayılıyor, ' +
+        'tutarı bilinmiyor — bu yüzden marj da boş.';
+    } else if (!(ortakUsd >= 0)) {
+      // ₺ ölçüldü ama kur yok (`RYTHO_USD_TRY` pozitif değil): dolar
+      // karşılığı türetilemiyor, marj da düşüyor. ₺ tutarı yine dürüst.
+      ayrinti = 'Ortak edinme maliyeti <b>' + b.e(b.para(ortakTry, '₺')) +
+        '</b> — <b>kur ayarlı değil</b> (RYTHO_USD_TRY), dolara çevrilemedi. ' +
+        'Marj bu yüzden hesaplanamıyor.';
+    } else if (durum === null) {
+      ayrinti = 'Ortak edinme maliyeti <b>yok</b>: bu kullanıcı bir ortak ' +
+        'koduna atfedilmiş değil.';
+    } else if (durum === 'void') {
+      ayrinti = 'Ortak hakedişi <b>iptal</b> (void) — yükümlülük ortadan ' +
+        'kalktı, marjdan düşülmüyor.';
+    } else {
+      ayrinti = 'Düşülen ortak edinme maliyeti: <b>' + b.e(b.para(ortakUsd)) +
+        '</b> = ' + b.e(b.para(ortakTry, '₺')) + ' ÷ kur ' +
+        (kur > 0 ? b.e(b.sayi(kur)) : '—') + ' · hakediş ' +
+        b.e(HAKEDIS_ADI[durum] || durum) + '.';
+    }
+    return formul + '<p class="dipnot">' + ayrinti + '</p>';
+  }
+
   async function detay(icerik, uid, sekme) {
     var b = RY.b;
     var d = await RY.get(kullaniciYolu(uid));
@@ -720,8 +846,16 @@
             '<section class="izgara-kpi" aria-label="Özet sayılar">' +
             b.istatistikKarti({ ad: 'Gelir (üretim)', deger: b.para(eko.revenueUsd), altin: true,
               alt: gelirT && gelirT.PRODUCTION ? b.sayi(Number(gelirT.PRODUCTION.events) || 0) + ' olay · iade ' + b.para(Number(gelirT.PRODUCTION.refundsUsd) || 0) : 'rollup yok' }) +
+            // "AI maliyeti $X · marj $Y" yan yana durunca okuyucu marjı
+            // gelir×(1−mağaza)−X sanıp aradaki farkı panel hatası okuyor —
+            // formül cümlesi düzeltilse bile ÖZET ilk görülen ekran olduğu
+            // için aynı yanılgıyı burada üretiyordu. Ortak maliyeti gerçekten
+            // düşüldüyse kart bunu söylüyor; düşülmediyse (0) sessiz kalıyor,
+            // çünkü her kullanıcıya "ortak −$0,00" yazmak gürültü olurdu.
             b.istatistikKarti({ ad: 'AI maliyeti', deger: b.para(eko.aiCostUsd),
-              alt: (eko.calls >= 0 ? b.sayi(eko.calls) + ' çağrı' : '—') + ' · marj ' + b.para(eko.marginUsd) }) +
+              alt: (eko.calls >= 0 ? b.sayi(eko.calls) + ' çağrı' : '—') +
+                (Number(eko.partnerCostUsd) > 0 ? ' · ortak −' + b.para(eko.partnerCostUsd) : '') +
+                ' · marj ' + marjYazisi(b, eko) }) +
             b.istatistikKarti({ ad: 'Cüzdan', deger: b.sayi(cuzdanToplam),
               alt: 'hak ' + b.sayi(Number(w.allowance) || 0) + ' · satın alınan ' + b.sayi(Number(w.purchased) || 0) }) +
             b.istatistikKarti({ ad: 'Sohbet', deger: b.sayi(sayilar.conversations),
@@ -763,9 +897,8 @@
           el.innerHTML =
             '<div class="izgara-2">' +
             b.modul('Abonelik', abonelikListesi(true), abonelikRozeti(), { alt: 'users/{uid}/private/subscription' }) +
-            b.modul('Gelir toplamları', gelirHtml + '<p class="dipnot">Marj = üretim geliri × (1 − mağaza %' +
-              Math.round((Number(eko.storeCutRate) || 0.15) * 100) + ') − AI maliyeti = ' + b.e(b.para(eko.marginUsd)) + '</p>',
-              '', { alt: 'ortam başına · ömür boyu' }) +
+            b.modul('Gelir toplamları', gelirHtml + marjCumlesi(b, eko),
+              '', { alt: 'ortam başına · ömür boyu · ortak maliyeti düşülmüş' }) +
             '</div>' +
             '<div class="izgara-2">' +
             b.modul('Cüzdan', '<dl class="alan-liste">' +

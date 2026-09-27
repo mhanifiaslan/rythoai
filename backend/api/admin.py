@@ -915,9 +915,19 @@ class PartnerCreate(BaseModel):
     #: panelde göze çarpmaz.
     rewardTry: float = Field(default=30.0, gt=0,
                              le=partner_service.MAX_REWARD_TRY)
-    #: Ortağın kendi Firebase hesabı. Hem kendi panosunu görmesi hem
-    #: kendi kodunu kullanamaması bu bağa dayanır.
-    uid: str | None = Field(default=None, max_length=128)
+    #: Ortağın kendi Firebase hesabı. ZORUNLU: kendi-kodunu-kullanma kapısı
+    #: `partners/{id}.uid == uid` karşılaştırmasına dayanıyor, yani alan
+    #: boşken kapı SESSİZCE devre dışı. Ölçülen kırılma: uid boş bırakılıp
+    #: ortak açılır, ortak kendi telefonunda kendi hesabıyla /r/KOD ile
+    #: kurar, redeem 200 döner (None != uid), Rytho+ alır ve 15 gün sonra
+    #: kendi kendine yaptığı atıf ödenebilir hâle gelir. Tanıtım sayfası ise
+    #: "uç bunu reddeder" diye yazıyor.
+    #:
+    #: `min_length=1` boş dizeyi de düşürür; yalnız boşluktan oluşan değeri
+    #: `partner_service.create_partner` reddeder (ikinci katman).
+    #: `PartnerPatch.uid` opsiyonel KALIR — mevcut bir ortağı sonradan
+    #: hesabına bağlamak gerekiyor.
+    uid: str = Field(min_length=1, max_length=128)
 
 
 class PartnerPatch(BaseModel):
@@ -930,7 +940,11 @@ class PartnerPatch(BaseModel):
     #: hakediş anında `partnerQualifications` dokümanına kopyalanıyor.
     rewardTry: float | None = Field(default=None, gt=0,
                                     le=partner_service.MAX_REWARD_TRY)
-    uid: str | None = Field(default=None, max_length=128)
+    #: Alanı hiç göndermemek serbest (bağ değişmez), BOŞALTMAK yasak:
+    #: `min_length=1` boş dizeyi şemada düşürür. `update_partner` de aynı
+    #: şeyi 400 `uid_required` ile yapıyor — çift katman, çünkü `exclude_none`
+    #: yalnız None'ı süzer ve şema kapısı olmasa boş dize servise kadar gider.
+    uid: str | None = Field(default=None, min_length=1, max_length=128)
     payoutCurrency: str | None = Field(default=None, min_length=3,
                                        max_length=3)
     taxId: str | None = Field(default=None, max_length=64)
@@ -941,7 +955,15 @@ class PartnerPatch(BaseModel):
 class CodeCreate(BaseModel):
     #: Boş bırakılırsa okunaklı rastgele kod üretilir.
     code: str | None = Field(default=None, max_length=24)
-    bonusTokens: int = Field(default=0, ge=0, le=5000)
+    #: KİLİTLİ SIFIR (K-a). Alan veri modelinde duruyor ama uç sıfır dışını
+    #: almıyor: kilitli ödül modeli "kullanıcıya ödül YOK" diyor ve
+    #: `web/ortaklik.html` bunu herkese açık biçimde yazıyor ("kullanıcıya
+    #: jeton ya da indirim vermez"). Sıfır dışı bir bonus o cümleyi
+    #: yalanlar ve çelişki yalnız o ortağın gelirinde görünür, hiçbir
+    #: ekranda görünmez. `partner_service.create_code` de reddediyor
+    #: (uç değişse bile beyanı koruyan ikinci katman). Yeniden açılırsa
+    #: tanıtım sayfası ve kullanım şartları da güncellenmek zorundadır.
+    bonusTokens: int = Field(default=0, ge=0, le=0)
     maxRedemptions: int | None = Field(default=None, ge=1)
     #: ISO tarih (YYYY-MM-DD) — gün sonu UTC kabul edilir.
     expiresAt: str | None = Field(default=None, pattern=_GUN_DESENI)

@@ -8,6 +8,11 @@
      [{id, name, contact, rewardTry, rewardModel, uid, active, notes,
        createdAt, sharePercent}]
    - POST  /api/v1/admin/partners {name, contact, notes, rewardTry, uid}
+     `uid` ZORUNLU (K-b) ve kapı ÜÇ katmanda birden: bu form, uçtaki
+     `PartnerCreate.uid: str = Field(min_length=1, …)` ve servisteki
+     `create_partner` (boşluktan oluşan uid'i 400 `uid_required` ile
+     düşürür). Formdaki zorunluluk bir UX kapısı — tek kapı O DEĞİL, yani
+     gevşetilirse kullanıcı gerekçesiz bir 422 görür.
    - GET   /api/v1/admin/partners/{id} → {partner, codes:[...],
        referredUsers, pendingCount, qualifiedCount, voidCount,
        earnedTry, pendingTry, paidTry, balanceTry,
@@ -15,7 +20,8 @@
    - PATCH /api/v1/admin/partners/{id}
        {active|name|contact|notes|rewardTry|uid|payoutCurrency|taxId|iban}
    - POST  /api/v1/admin/partners/{id}/codes {code|null, bonusTokens,
-     maxRedemptions|null, expiresAt|null}
+     maxRedemptions|null, expiresAt|null} — panel `bonusTokens` için HEP 0
+     yollar (K-a); uç alanı almaya devam ediyor, panelden sıfır dışı girilemez.
    - POST  /api/v1/admin/partners/{id}/payouts {amount, currency, note}
      (ön-izli: iz yazılamazsa 503 mesajı olduğu gibi)
 
@@ -63,6 +69,22 @@
   function odul(b, p) {
     var v = Number(p && p.rewardTry);
     return isFinite(v) && v > 0 ? b.para(v, '₺') : '—';
+  }
+
+  /* uid şekil kapısı — ekleme VE düzenleme formunun ortak kopyası.
+     İki formda ayrı ayrı yazılmış olsa biri güncellenip öteki kalırdı;
+     "Ödülü değiştir" penceresi zaten bir kez kapısız kalmıştı, yani
+     ayrışma bu dosyada teorik değil ölçülmüş bir risk.
+
+     NEDEN şekil kontrolü de gerekiyor: en sık operatör hatası uid yerine
+     E-POSTA yapıştırmak. O değer hiçbir hesapla eşleşmez, yani kendi-kodunu
+     -kullanma kapısı (`partners/{id}.uid == uid`) ve ortak panosu tam
+     eskisi gibi KAPALI kalır — ama liste yeşil "Bağlı" rozeti basar. Panel
+     o anda ölçmediği bir bağı beyan etmiş olur, kusur da rozetin arkasında
+     saklanır. Gerçek Firebase uid'i boşluk ya da @ içermez. */
+  function uidDogrula(v) {
+    if (/[\s@]/.test(v)) return 'uid bekleniyor (e-posta değil).';
+    return v.length >= 6 ? null : 'En az 6 karakter.';
   }
 
   function hataToast(h) {
@@ -149,9 +171,23 @@
           dogrula: function (v) {
             return v > 0 && v <= ODUL_TAVANI ? null : '0 ile ' + ODUL_TAVANI + ' arası.';
           } },
-        { ad: 'uid', etiket: 'Firebase hesabı (uid)', max: 128, otomatik: 'off',
-          yertutucu: 'sonra da bağlanabilir',
-          yardim: 'Ortağın kendi panosunu görmesi ve KENDİ kodunu kullanamaması buna bağlı.' },
+        // ZORUNLU (K-b). Bağsız ortak "eksik kayıt" değil, SESSİZ AÇIK
+        // kapıdır: `partner_service.redeem` kendi-kodunu-kullanma kapısını
+        // `partners/{id}.uid == uid` karşılaştırmasına dayandırıyor, yani
+        // uid boşken karşılaştırma hiç tutmaz ve ortak kendi kodunu kendi
+        // hesabında kullanıp kendine ödül yazdırabilir.
+        // Kapı burada YALNIZ DEĞİL: uç `PartnerCreate.uid` alanını
+        // `min_length=1` ile zorunlu tutuyor ve `create_partner` boşluktan
+        // oluşan uid'i 400 `uid_required` ile düşürüyor. Buradaki
+        // zorunluluk kullanıcıya nedenini ZAMANINDA söylemek için —
+        // yoksa formu gönderen gerekçesiz bir 422 görürdü.
+        // `update_partner` alanı sonradan BOŞALTMAYA da izin vermiyor;
+        // aksi hâlde tek bir PATCH kapıyı sessizce kapatırdı.
+        { ad: 'uid', etiket: 'Firebase hesabı (uid)', zorunlu: true, max: 128,
+          otomatik: 'off', yertutucu: 'Firebase Auth kullanıcı kimliği',
+          yardim: 'Ortağın kendi panosunu görmesi ve KENDİ kodunu kullanamaması ' +
+            'buna bağlı — bu yüzden zorunlu.',
+          dogrula: uidDogrula },
         { ad: 'notes', etiket: 'Not', tur: 'textarea', max: 500, satir: 2 }
       ],
       gonderMetin: 'Ortak ekle',
@@ -163,7 +199,11 @@
         return RY.post(yol(), {
           name: d.name, contact: d.contact || '',
           rewardTry: Number(d.rewardTry),
-          uid: d.uid ? String(d.uid).trim() : null,
+          // `null` DÜŞTÜ: alan artık zorunlu, `degerler()` de kırpıyor —
+          // buraya boş dize gelemez. Eski `d.uid ? … : null` dalı kalsaydı
+          // form kapısı ileride gevşetildiğinde uç yeniden bağsız kayıt
+          // almaya başlardı ve bunu kimse fark etmezdi.
+          uid: d.uid,
           notes: d.notes || ''
         }).then(function (res) {
           var p = (res && res.partner) || {};
@@ -210,9 +250,21 @@
         eylemlerHtml: eylemler
       }) +
       (pasif ? b.bant('Bu ortak PASİF — kodları çalışmaya devam eder, listede soluk görünür.', 'bilgi') : '') +
-      (p.uid ? '' : b.bant('Bu ortağın Firebase hesabı BAĞLI DEĞİL: kendi panosunu ' +
-        'göremez ve kendi kodunu kendi hesabında kullanması engellenemez. ' +
-        '"Ödülü değiştir" penceresinden uid girilebilir.', 'uyari')) +
+      // İki sonuç var ve ikincisi PARA KAYBETTİRİR: kendi-kodunu-kullanma
+      // kapısı `partners/{id}.uid == uid` karşılaştırması olduğu için uid
+      // boşken hiç tutmaz — ortak kendi kodunu kendi hesabında kullanıp
+      // kendine ödül yazdırabilir. Bant yalnız "panosunu göremez" deseydi
+      // ölçülen kusuru hafif bir eksiklik adıyla sunmuş olurdu. 'hata'
+      // (role="alert") çünkü bu eksik veri değil, açık kapı.
+      // Form artık uid'i zorunlu tutuyor, yani böyle bir kayıt ya zorunluluk
+      // öncesinden kalmadır ya elle yazılmıştır — operatör "nasıl oldu"
+      // sorusuna burada cevap bulsun.
+      (p.uid ? '' : b.bant('Bu ortağın Firebase hesabı BAĞLI DEĞİL. İki sonucu var: ' +
+        'kendi panosunu göremez VE kendi kodunu kendi hesabında kullanıp kendine ' +
+        'ödül yazdırması engellenemez — kapı uid karşılaştırmasına dayanıyor, ' +
+        'boş uid ile hiç tutmaz. Yeni kayıtlarda uid zorunlu, yani bu kayıt ' +
+        'zorunluluk öncesinden kalma ya da elle açılmış. "Ödülü değiştir" ' +
+        'penceresinden hemen uid girilmeli.', 'hata')) +
       // Huni — sahibin sorduğu "benden kaç kişi gelmiş, kaçı alım yapmış".
       '<section class="izgara-kpi" aria-label="Huni">' +
       b.istatistikKarti({ ad: 'Gelen kullanıcı', deger: b.sayi(d.referredUsers || 0),
@@ -247,7 +299,10 @@
       b.modul('Kodlar', '<div id="ortak-kodlar"></div>' +
         (sahip ? '<div id="ortak-kod-form"></div>' : ''),
         b.etiket(b.sayi(kodlar.length) + ' kod'),
-        { alt: 'kullanıcıya jeton bonusu · sonraki alımlar atfedilir' }) +
+        // Eski alt metin "kullanıcıya jeton bonusu" diyordu; K-a ile panel
+        // artık bonusTokens'ı hep 0 yolluyor, yani o cümle olmayan bir ödülü
+        // beyan ediyordu. Kodun ÖLÇÜLEN işi tek: atıf yazmak.
+        { alt: 'kod kullanımı yalnız atıf yazar · kullanıcıya ödül YOK' }) +
       b.modul('Ödemeler', '<div id="ortak-odemeler"></div>' +
         (sahip ? '<div id="ortak-odeme-form"></div>' : ''),
         b.etiket(b.sayi(odemeler.length) + ' kayıt'),
@@ -260,7 +315,9 @@
       sutunlar: [
         { ad: 'code', baslik: 'Kod', siralanir: true,
           bicim: function (k) { return '<b class="mono">' + b.e(k.code) + '</b>'; } },
-        { ad: 'bonusTokens', baslik: 'Bonus', hizala: 'sag', siralanir: true },
+        // "Bonus" sütunu KALDIRILDI (K-a): panel hep 0 yolladığı için sütun
+        // her satırda 0 gösterip operatöre "ayarlanabilir bir ödül var"
+        // izlenimi verirdi. Sıfır dolu bir sütun bilgi değil gürültüdür.
         { ad: 'redemptionCount', baslik: 'Kullanım', hizala: 'sag', siralanir: true,
           bicim: function (k) {
             return b.e(b.sayi(k.redemptionCount || 0) + (k.maxRedemptions ? ' / ' + b.sayi(k.maxRedemptions) : ''));
@@ -321,8 +378,17 @@
             dogrula: function (v) {
               return v > 0 && v <= ODUL_TAVANI ? null : '0 ile ' + ODUL_TAVANI + ' arası.';
             } },
+          // Aynı şekil kapısı BURADA DA olmak zorunda. Ekleme formu uid'i
+          // zorunlu ve şekilli tutuyor, ama bağsız/bozuk bir kayda ulaşan
+          // operatör uid'i tam BURADAN giriyor (detaydaki "hata" bandı da
+          // buraya yönlendiriyor). Kapı yalnız ekleme formunda olsa, kapıyı
+          // atlatan yol ürünün kendi onarım yolu olurdu.
+          // `zorunlu` DEĞİL: boş bırakmak "bağı silme" değil "dokunma"
+          // demek (aşağıda boş uid gönderilmiyor) ve `dogrula` boş değerde
+          // hiç çağrılmıyor — yani ödül tutarını tek başına düzeltmek
+          // isteyen operatör uid yazmaya zorlanmıyor.
           { ad: 'uid', etiket: 'Firebase hesabı (uid)', max: 128, otomatik: 'off',
-            deger: p.uid || '',
+            deger: p.uid || '', dogrula: uidDogrula,
             yardim: 'Kendi panosu ve kendi kodunu kullanma kapısı buna bağlı.' }
         ],
         gonderMetin: 'Kaydet',
@@ -379,8 +445,14 @@
           dogrula: function (v) {
             return /^[A-Za-z0-9_-]{4,24}$/.test(v) ? null : '4–24 karakter; yalnız harf, rakam, _ ve -.';
           } },
-        { ad: 'bonusTokens', etiket: 'Bonus jeton', tur: 'number', zorunlu: true, min: 0, max: 5000,
-          adim: '1', deger: 0 },
+        // "Bonus jeton" alanı KALDIRILDI (K-a). Alan kullanıcıya promo jeton
+        // yatırıyordu; kilitli ödül modeli ve herkese açık tanıtım sayfası
+        // ikisi de "kullanıcı ekstra bir şey almaz" diyor, yani form o iki
+        // beyanı yalanlıyordu. Uç alanı hâlâ kabul ediyor (veri modelinde
+        // UYUYOR, ölü değil) — panel sıfır dışını üretemiyor sadece.
+        // ⚠️ Yeniden açılırsa kod tek başına yetmez: tanıtım sayfası
+        // (web/ortaklik.html + web/en/partners.html) ve kullanım şartları da
+        // güncellenmek zorunda, yoksa ürün sözünü tutmayan bir ödül doğar.
         { ad: 'maxRedemptions', etiket: 'Kullanım limiti', tur: 'number', min: 1, adim: '1',
           yertutucu: 'sınırsız' },
         { ad: 'expiresAt', etiket: 'Son gün', tur: 'date', yardim: 'Gün sonu UTC; boş = süresiz.' }
@@ -389,7 +461,11 @@
       onGonder: function (v) {
         return RY.post(yol(id, '/codes'), {
           code: v.code || null,
-          bonusTokens: Math.round(Number(v.bonusTokens) || 0),
+          // SABİT 0 (K-a) — formdan gelmiyor, hesaplanmıyor. Alanı hiç
+          // yollamamak da olurdu (uç `default=0`), ama açıkça 0 yazmak
+          // "burada bilinçli bir sıfır var" diyor; atlanmış bir alan gibi
+          // görünmez ve uç varsayılanı ileride değişse panel etkilenmez.
+          bonusTokens: 0,
           maxRedemptions: v.maxRedemptions != null ? Math.round(Number(v.maxRedemptions)) : null,
           expiresAt: v.expiresAt || null
         }).then(function (res) {

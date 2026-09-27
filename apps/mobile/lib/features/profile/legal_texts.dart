@@ -16,6 +16,13 @@ typedef LegalSections = List<(String?, String)>;
 
 const String kLegalLastUpdatedTr = '2 Ağustos 2026';
 const String kLegalLastUpdatedEn = '2 August 2026';
+
+/// Kullanım şartlarının tarihi gizlilik politikasından AYRI tutulur: ortaklık
+/// programı maddesi yalnız şartlara eklendi, politika metni değişmedi. Tek
+/// ortak sabit kullanılsaydı bu ekleme, değişmemiş bir politikayı da
+/// "güncellenmiş" diye gösterirdi — ölçülmeyen bir beyan.
+const String kTermsLastUpdatedTr = '27 Eylül 2026';
+const String kTermsLastUpdatedEn = '27 September 2026';
 const String kLegalContact = 'aslan.mh@gmail.com';
 
 // ---------------------------------------------------------------------------
@@ -264,7 +271,7 @@ const LegalSections kPrivacyPolicyTr = [
 const LegalSections kTermsOfUseTr = [
   (
     null,
-    'Son güncelleme: $kLegalLastUpdatedTr. Rytho\'yu kullanarak bu şartları '
+    'Son güncelleme: $kTermsLastUpdatedTr. Rytho\'yu kullanarak bu şartları '
         'kabul etmiş olursun.'
   ),
   (
@@ -313,6 +320,36 @@ const LegalSections kTermsOfUseTr = [
     'Hizmet "olduğu gibi" sunulur; kesintisiz veya hatasız çalışacağı '
         'garanti edilmez. Yorumlara dayanarak aldığın kararlardan Rytho '
         'sorumlu tutulamaz.'
+  ),
+  // Bu bölüm web'deki şartlarla (web/legal/kullanim.html §9) AYNI ANLAMI
+  // taşımak zorunda: dört kopya var (bu dosya, markdown kaynağı ve iki HTML)
+  // ve biri geride kalırsa hukuk metni sessizce çatallanır. Bekçi:
+  // backend/tests/test_honesty.py::TestKullanimSartlariKopyalari.
+  (
+    'Ortaklık programı',
+    'Rytho\'yu tanıtan kişi ve kurumlar için bir ortaklık programı '
+        'yürütülür. Başvuru veya davet üzerine, kabulümüz ve ayrı bir '
+        'ortaklık anlaşmasıyla katılınır; başvurmak tek başına katılım hakkı '
+        'vermez. Ortağın paylaştığı bağlantı, bağlantıyı kullanan kişiye '
+        'indirim veya ödül sağlamaz; fiyatlar herkes için aynıdır. Ortak, '
+        'bağlantısı üzerinden gelen bir kullanıcının ilk Rytho+ aboneliği '
+        'başına ödül kazanır; tutar ortaklık anlaşmasında belirlenir. Jeton '
+        'paketleri, ücretsiz deneme, abonelik yenilemeleri ve mağaza test '
+        '(sandbox) alımları ödül doğurmaz.'
+  ),
+  (
+    null,
+    'Hakediş, satın almadan 15 gün sonra kesinleşir; bu süre içinde iade, '
+        'ödemenin tahsil edilememesi veya aboneliğin erken sona ermesi '
+        'halinde iptal edilir. Ödül kişiye özeldir ve devredilemez; nakde '
+        'çevrilme talebi anlaşmadaki ödeme eşiğine ulaşılmasına bağlıdır. '
+        'Ortağın kendi kodunu kendi hesabında kullanması, ödül üretmek '
+        'amacıyla sahte hesap açılması, yanıltıcı tanıtım ve istenmeyen '
+        'toplu ileti (spam) programdan çıkarılma sebebidir; çıkarılma '
+        'halinde henüz kesinleşmemiş hakedişler düşer. Kazanılan ödüle '
+        'ilişkin vergi yükümlülükleri ortağa aittir. Program '
+        'değiştirilebilir veya kapatılabilir; bu durumda kesinleşmiş '
+        'hakedişler ödenir.'
   ),
   (
     'İletişim',
@@ -568,7 +605,7 @@ const LegalSections kPrivacyPolicyEn = [
 const LegalSections kTermsOfUseEn = [
   (
     null,
-    'Last updated: $kLegalLastUpdatedEn. By using Rytho you accept these '
+    'Last updated: $kTermsLastUpdatedEn. By using Rytho you accept these '
         'terms.'
   ),
   (
@@ -617,6 +654,37 @@ const LegalSections kTermsOfUseEn = [
     'The service is provided "as is"; we do not guarantee it will run without '
         'interruption or error. Rytho is not liable for decisions you make on '
         'the basis of its readings.'
+  ),
+  // Karşılığı: web/en/legal/terms.html §9. Türkçe gövdeyle aynı maddeleri
+  // saymak zorunda — iki dil ayrışırsa hangisinin bağlayıcı olduğu belirsiz
+  // kalır.
+  (
+    'Partner programme',
+    'We run a partner programme for people and organisations who promote '
+        'Rytho. Participation follows an application or an invitation and '
+        'requires our acceptance and a separate partner agreement; applying '
+        'alone does not grant participation. A partner\'s link gives the '
+        'person who uses it no discount and no reward; prices are the same '
+        'for everyone. A partner earns a reward for each first Rytho+ '
+        'subscription taken by a user who arrived through their link; the '
+        'amount is set in the partner agreement. Token packs, the free '
+        'trial, subscription renewals and store test (sandbox) purchases '
+        'earn nothing.'
+  ),
+  (
+    null,
+    'A reward is confirmed 15 days after the purchase; if the purchase is '
+        'refunded, the payment cannot be collected, or the subscription ends '
+        'early within that period, the reward is cancelled. Rewards are '
+        'personal and cannot be transferred; payment in cash may be '
+        'requested once the payout threshold stated in the agreement is '
+        'reached. A partner using their own code on their own account, '
+        'creating fake accounts to generate rewards, misleading promotion '
+        'and unsolicited bulk messaging (spam) end participation; rewards '
+        'not yet confirmed are then forfeited. Any tax obligations arising '
+        'from rewards are the partner\'s responsibility. The programme may '
+        'be changed or discontinued; rewards already confirmed are still '
+        'paid.'
   ),
   (
     'Contact',
