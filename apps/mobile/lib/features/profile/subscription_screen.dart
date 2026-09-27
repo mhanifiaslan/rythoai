@@ -101,8 +101,23 @@ String planDisplayName(AppLocalizations l10n, String? productId) {
   return productId;
 }
 
+/// Abonelik yönetim sayfasını açan fonksiyon — `url_launcher.launchUrl`
+/// imzası (`ForceUpdateScreen.launcher` ile aynı desen).
+typedef AbonelikSayfasiAcici = Future<bool> Function(Uri adres,
+    {LaunchMode mode});
+
+Future<bool> _varsayilanAcici(Uri adres,
+        {LaunchMode mode = LaunchMode.platformDefault}) =>
+    launchUrl(adres, mode: mode);
+
 class SubscriptionScreen extends ConsumerStatefulWidget {
-  const SubscriptionScreen({super.key});
+  const SubscriptionScreen({super.key, this.adresAcici});
+
+  /// Test dikişi; üretimde `url_launcher.launchUrl`. U47'nin asıl iddiası —
+  /// "Aboneliği yönet" aboneliğin ALINDIĞI mağazayı açar — ancak açılan
+  /// adres görülebilirse ölçülür; dikişsiz hâlde `_manage` eski
+  /// `storeSubscriptionUri`'ye geri dönse hiçbir test fark etmezdi.
+  final AbonelikSayfasiAcici? adresAcici;
 
   @override
   ConsumerState<SubscriptionScreen> createState() =>
@@ -149,7 +164,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
           await abonelikKaynakMagazasi(ref.read(musteriBilgisiGetiriciProvider));
       // Dış uygulamaya/tarayıcıya çıkar: mağaza aboneliği uygulama içinden
       // yönetilemez, iptal/duraklatma mağazanın işi.
-      await launchUrl(aboneligiYonetAdresi(kaynak, productId),
+      await (widget.adresAcici ?? _varsayilanAcici)(
+          aboneligiYonetAdresi(kaynak, productId),
           mode: LaunchMode.externalApplication);
     } finally {
       _yonetimAciliyor = false;

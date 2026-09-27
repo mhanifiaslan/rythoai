@@ -26,6 +26,7 @@ import 'package:rytho/features/paywall/token_store_screen.dart';
 import 'package:rytho/features/profile/subscription_screen.dart';
 import 'package:rytho/l10n/app_localizations.dart';
 import 'package:rytho/theme/rytho_theme.dart';
+import 'package:url_launcher/url_launcher.dart' show LaunchMode;
 
 AppLocalizations _tr() => lookupAppLocalizations(const Locale('tr'));
 AppLocalizations _en() => lookupAppLocalizations(const Locale('en'));
@@ -92,6 +93,21 @@ CustomerInfo _musteri({Store? magaza}) {
 class _Sayac {
   int abonelik = 0;
   int cuzdan = 0;
+}
+
+const _appleAbonelikleri = 'https://apps.apple.com/account/subscriptions';
+const _playAboneligi = 'https://play.google.com/store/account/subscriptions'
+    '?sku=rytho_plus_monthly&package=ai.rytho';
+
+/// Açılan adresleri ve açılış kipini kaydeden sahte `launchUrl`
+/// (kamera_izni_ios_test deseni).
+class _SahteAcici {
+  final acilanlar = <(Uri, LaunchMode)>[];
+
+  Future<bool> ac(Uri adres, {LaunchMode mode = LaunchMode.platformDefault}) async {
+    acilanlar.add((adres, mode));
+    return true;
+  }
 }
 
 void main() {
@@ -337,7 +353,10 @@ void main() {
   });
 
   group('Abonelik ekranı', () {
-    Widget ekran(SubscriptionStatus durum, {GeriYukleyici? geriYukleyici}) =>
+    Widget ekran(SubscriptionStatus durum,
+            {GeriYukleyici? geriYukleyici,
+            MusteriBilgisiGetirici? musteriGetirici,
+            AbonelikSayfasiAcici? adresAcici}) =>
         ProviderScope(
           retry: (_, _) => null,
           overrides: [
@@ -345,8 +364,10 @@ void main() {
             walletProvider.overrideWith((_) async => WalletStatus.none),
             if (geriYukleyici != null)
               geriYukleyiciProvider.overrideWithValue(geriYukleyici),
+            if (musteriGetirici != null)
+              musteriBilgisiGetiriciProvider.overrideWithValue(musteriGetirici),
           ],
-          child: _uygulama(const SubscriptionScreen()),
+          child: _uygulama(SubscriptionScreen(adresAcici: adresAcici)),
         );
 
     testWidgets('geri yükleme hatası mağaza çevirmeninden geçer (U33)',
@@ -382,6 +403,82 @@ void main() {
       });
     }
 
+    // U47'nin ekrandaki hâli: saf eşleme fonksiyonunun testleri `_manage`
+    // eski `storeSubscriptionUri`'ye dönse de yeşil kalırdı.
+    const abone =
+        SubscriptionStatus(active: true, productId: 'rytho_plus_monthly:monthly');
+
+    Future<void> yonet(WidgetTester tester) async {
+      await tester.tap(find.text(_tr().subManage));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    testWidgets('iOS: Play\'de alınmış abonelik Play sayfasını açar',
+        (tester) async {
+      final acici = _SahteAcici();
+      await _ciz(
+          tester,
+          ekran(abone,
+              musteriGetirici: () async => _musteri(magaza: Store.playStore),
+              adresAcici: acici.ac));
+
+      await yonet(tester);
+
+      expect(acici.acilanlar,
+          [(Uri.parse(_playAboneligi), LaunchMode.externalApplication)],
+          reason: 'Apple sayfasında bu abonelik yok; iptal yolu bulunamaz');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Android: App Store\'da alınmış abonelik Apple sayfasını açar',
+        (tester) async {
+      final acici = _SahteAcici();
+      await _ciz(
+          tester,
+          ekran(abone,
+              musteriGetirici: () async => _musteri(magaza: Store.appStore),
+              adresAcici: acici.ac));
+
+      await yonet(tester);
+
+      expect(acici.acilanlar,
+          [(Uri.parse(_appleAbonelikleri), LaunchMode.externalApplication)]);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+    testWidgets('iOS: kaynak okunamazsa yine de çalışan platformun sayfası '
+        'açılır', (tester) async {
+      final acici = _SahteAcici();
+      await _ciz(
+          tester,
+          ekran(abone,
+              musteriGetirici: () async =>
+                  throw _hata(PurchasesErrorCode.networkError),
+              adresAcici: acici.ac));
+
+      await yonet(tester);
+
+      expect(acici.acilanlar,
+          [(Uri.parse(_appleAbonelikleri), LaunchMode.externalApplication)],
+          reason: 'düğme ölü kalmamalı; eski davranış');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('sorgu sürerken ikinci dokunuş ikinci sayfa açmaz',
+        (tester) async {
+      final acici = _SahteAcici();
+      final cevap = Completer<CustomerInfo>();
+      await _ciz(
+          tester,
+          ekran(abone,
+              musteriGetirici: () => cevap.future, adresAcici: acici.ac));
+
+      await yonet(tester);
+      await yonet(tester);
+      cevap.complete(_musteri(magaza: Store.appStore));
+      await tester.pump();
+
+      expect(acici.acilanlar, hasLength(1));
+    });
+
     testWidgets('paywall\'da "Satın alımları geri yükle" görünür',
         (tester) async {
       await _ciz(
@@ -400,9 +497,8 @@ void main() {
   });
 
   group('aboneligiYonetAdresi — kaynak mağaza (U47)', () {
-    const apple = 'https://apps.apple.com/account/subscriptions';
-    const play = 'https://play.google.com/store/account/subscriptions'
-        '?sku=rytho_plus_monthly&package=ai.rytho';
+    const apple = _appleAbonelikleri;
+    const play = _playAboneligi;
 
     test('Play aboneliği iPhone\'da Play sayfasını açar', () {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
@@ -464,11 +560,32 @@ void main() {
     });
 
     test('mağaza anahtarı yoksa RevenueCat hiç sorulmaz', () async {
-      // Testte dart-define yok: üretim yolu `Purchases`e dokunsaydı eklenti
-      // `MissingPluginException` fırlatırdı; null dönmesi dokunmadığını
-      // gösterir.
+      // `null` dönmesi TEK BAŞINA kanıt DEĞİL: işlev her hatayı yutup null
+      // döndüğü için kapı sökülse de `Purchases.getCustomerInfo` testte
+      // fırlatır (eklenti yok), yakalanır ve sonuç yine null olur. İki yolu
+      // ayıran, yakalama dalının bıraktığı `debugPrint` izi — kapı yerindeyse
+      // çağrı hiç yapılmaz, iz de çıkmaz.
+      final onceki = debugPrint;
+      final basilanlar = <String>[];
+      debugPrint = (mesaj, {wrapWidth}) => basilanlar.add(mesaj ?? '');
+      addTearDown(() => debugPrint = onceki);
+
       expect(billingConfigured, isFalse);
       expect(await abonelikKaynakMagazasi(null), isNull);
+      expect(basilanlar, isEmpty,
+          reason: 'anahtarsız yapıda RevenueCat çağrılmış ve düşmüş');
+    });
+
+    test('yakalama dalı iz bırakır — üstteki bekçinin ölçüsü', () async {
+      // Karşı örnek: iz hiç basılmasaydı "iz yok" hiçbir şey ölçmezdi.
+      final onceki = debugPrint;
+      final basilanlar = <String>[];
+      debugPrint = (mesaj, {wrapWidth}) => basilanlar.add(mesaj ?? '');
+      addTearDown(() => debugPrint = onceki);
+
+      await abonelikKaynakMagazasi(
+          () async => throw _hata(PurchasesErrorCode.networkError));
+      expect(basilanlar, [startsWith('Abonelik mağazası okunamadı')]);
     });
 
     testWidgets('cevap gelmezse süre sınırında null', (tester) async {
