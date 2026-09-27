@@ -20,8 +20,22 @@ sonradan girilen kod geçmiş geliri atfetmez.
 
 ÖDÜL MODELİ (OP-turu): kullanıcıya ödül YOK. Ortak, getirdiği kişi İLK KEZ
 abonelik aldığında sabit tutar kazanır. Kullanıcı ödülü yalnızca kodu ELLE
-yazdırmak için gerekiyordu; Play Install Referrer ile kullanıcı hiçbir şey
-yapmadığı için motive edilecek eylem de kalmadı.
+yazdırmak için gerekiyordu; kod artık otomatik geldiği için motive edilecek
+eylem de kalmadı.
+
+KODUN BU UCA GELİŞ YOLLARI (istemci tarafı, Android):
+  1. Kurulum:  ortak linki → `web/r/index.html` → Play `&referrer=` →
+     Install Referrer → `POST /billing/redeem-code`
+  2. Kurulu uygulama: ortak linki → App Links (`/r/` intent-filter) →
+     aynı uç
+İkisi de tek bir SharedPreferences bayrağı paylaşır, yani aynı cihazda iki
+kez denenmez. ⚠️ Bu dosya "kod elle girilmez" varsayımına yazılmıştır ama
+uç ELLE girişe de açıktır (paywall'da kod alanı ileride geri gelebilir);
+bu yüzden `redeem` içindeki doğrulama ve kendi-kodunu-kullanma kapısı
+istemciye hiç güvenmez.
+
+iOS'ta Install Referrer'ın dengi YOK; orada çözüm App Store Custom Product
+Page + derin bağlantı olacak ve BU UÇ değişmeden çalışacak.
 
 `partnerQualifications` dokümanının kimliği **uid**'dir ve bu bilinçlidir:
 "kullanıcı başına tek ödül" kuralını sorguyla değil YAPISAL olarak garanti

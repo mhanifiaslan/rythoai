@@ -19,7 +19,9 @@ _TABAN = "https://rytho.app"
 
 # Bu klasörler bilerek indekslenmiyor: panel ve auth işleyicisi
 # X-Robots-Tag ile, /i/ kendi noindex'i ile (aşağıda ayrı test).
-_HARIC_KLASOR = {"rytho-admin", "auth", "i", "assets", ".well-known"}
+# `r` = ortak bağlantısı (OP): /i/ ile aynı gerekçe — tek sayfa sınırsız
+# URL'ye hizmet ediyor, indekslenirse kopya içerik olur.
+_HARIC_KLASOR = {"rytho-admin", "auth", "i", "r", "assets", ".well-known"}
 # 404 sayfası bir hata yüzeyi; doğrulama dosyası Google'ın kendi artefaktı.
 _HARIC_DOSYA = {"404.html", "googleb6af2cb19834337d.html"}
 
@@ -122,6 +124,31 @@ def test_davet_sayfasi_noindex_tasiyor_VE_taranabiliyor():
     assert "Disallow: /i/" not in _robots_yorumsuz(), (
         "robots.txt /i/ taramasını engelliyor — Google bu sayfanın "
         "noindex'ini okuyamaz ve koruma boşa düşer")
+
+
+def test_ortak_baglanti_sayfasi_backend_ile_ayni_kod_desenini_kullaniyor():
+    r"""`web/r/` sayfası kodu Play'e taşımadan önce KENDİ doğruluyor.
+
+    Desen backend'deki `partner_service._KOD_DESENI` ile birebir aynı
+    olmalı. Ayrışırsa iki sessiz kusurdan biri olur: sayfa geçerli bir
+    kodu reddedip kullanıcıyı atıfsız mağazaya yollar, ya da geçersiz
+    birini taşıyıp `redeem-code` ucunda 400'e düşürür — ikisi de yalnız
+    o ortağın gelirinde görünür, hata olarak hiçbir yerde görünmez.
+    """
+    from services import partner_service
+
+    sayfa = (_WEB / "r" / "index.html").read_text(encoding="utf-8")
+    desen = re.search(r"var DESEN = /(.+?)/;", sayfa)
+    assert desen, "sayfada kod deseni bulunamadı"
+    assert desen.group(1) == partner_service._KOD_DESENI.pattern, (
+        f"sayfa {desen.group(1)!r} diyor, backend "
+        f"{partner_service._KOD_DESENI.pattern!r}")
+
+    # Kod mağaza bağlantısında utm_campaign olarak taşınır; uygulama
+    # tarafı (partner_referrer.dart) tam olarak o alanı okuyor.
+    assert "utm_campaign=" in sayfa
+    assert "&referrer=" in sayfa
+    assert 'name="robots" content="noindex' in sayfa
 
 
 def test_hreflang_kumelerinde_x_default_var():

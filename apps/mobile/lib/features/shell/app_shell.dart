@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../../core/api.dart' show apiProvider;
 import '../../core/consent.dart' show ensureConsentRecorded;
+import '../../core/partner_referrer.dart' show ensurePartnerReferrer;
 import '../../core/friends.dart' show FriendStatus, friendsProvider;
 import '../../core/notifications.dart'
     show
@@ -64,6 +65,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       // KT2: kabul kaydı onboarding'de düşmüşse burada telafi edilir
       // (bayraklı — başarı sonrası bir daha ağa çıkmaz).
       ensureConsentRecorded(ref.read(apiProvider));
+      // OP: ortak bağlantısıyla gelindiyse Play Install Referrer'daki kod
+      // hesaba bağlanır. `main.dart`'ta DEĞİL burada: kullanıcı oturumu
+      // açılmış olmalı (uç kimlik istiyor) ve ayrıca `main.dart` şu sıra
+      // iOS tarafında da düzenleniyor — çakışma yüzeyini açmamak için.
+      // Android dışında kendiliğinden hiçbir şey yapmaz.
+      ensurePartnerReferrer(ref.read(apiProvider));
       // Soğuk açılış: niyet dinleyiciden ÖNCE yazılmış olabilir.
       final bekleyen = ref.read(pendingNotificationProvider);
       if (bekleyen != null) _niyetIsle(bekleyen);

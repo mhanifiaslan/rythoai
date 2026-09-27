@@ -1,4 +1,4 @@
-﻿name: rytho
+name: rytho
 description: "RythoAI - Kisisel Kozmik Zeka Platformu"
 publish_to: 'none'
 # Play yÃ¼klemeleri: versionCode (+N) her yÃ¼klemede artmalÄ±, benzersizdir.
@@ -89,6 +89,13 @@ dependencies:
   # features/face/face_segmentation.dart). Model dosyasi assets altinda ve
   # Apache 2.0; goruntu telefondan cikmiyor.
   tflite_flutter: ^0.12.0
+  # Ortaklık atfı (OP): ortak bağlantısıyla gelen kurulumda Play, koda
+  # sahip `referrer` dizesini uygulamaya verir — kullanıcı hiçbir şey
+  # yazmaz. ANDROID'E ÖZEL ve bilinçli: iOS'ta dengi yok, orada çözüm
+  # App Store Custom Product Page + derin bağlantı olacak.
+  # Üçüncü parti atıf SDK'sı (Branch vb.) alınmadı; gerekçe
+  # lib/core/partner_referrer.dart başlığında.
+  play_install_referrer: ^0.5.0
 
 dev_dependencies:
   flutter_test:

@@ -8,6 +8,10 @@
         "destination": "/i/index.html"
       },
       {
+        "source": "/r/**",
+        "destination": "/r/index.html"
+      },
+      {
         "source": "/api/**",
         "run": { "serviceId": "rytho-backend", "region": "us-central1" }
       },
@@ -45,6 +49,12 @@
       },
       {
         "source": "/i/**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+        ]
+      },
+      {
+        "source": "/r/**",
         "headers": [
           { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
         ]

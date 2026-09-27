@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/legacy.dart'
     show StateNotifier, StateNotifierProvider;
 
 import '../features/shell/app_shell.dart' show shellTabProvider;
+import 'api.dart' show apiProvider;
+import 'partner_referrer.dart';
 import 'providers.dart';
 
 /// Davet bağlantılarının yakalanması.
@@ -71,6 +73,35 @@ String? usernameFromInviteLink(Uri uri) {
   return username;
 }
 
+/// Ortak bağlantısından (`https://rytho.app/r/KOD`) çıkarılan kod; değilse
+/// ``null``.
+///
+/// Bu yol YALNIZ uygulama zaten kuruluyken iş görür. Kurulu değilken link
+/// tarayıcıda açılır, `web/r/index.html` Play'e `&referrer=` ile yönlendirir
+/// ve kod kurulumdan sonra Install Referrer'dan okunur
+/// (`partner_referrer.dart`). İki yol da aynı uca çıkar.
+///
+/// Desen ve büyük harfe çevirme `partner_referrer.dart` ile paylaşılıyor —
+/// backend `partner_service._KOD_DESENI` ve sayfanın kendi kopyası ile
+/// birlikte dört yerin birebir aynı kalması gerekiyor; `test_web_seo.py`
+/// sayfa ile backend'i, `partner_referrer_test.dart` istemci tarafını bağlar.
+String? partnerCodeFromLink(Uri uri) {
+  if (!kInviteHosts.contains(uri.host)) return null;
+
+  final List<String> parcalar;
+  try {
+    parcalar = uri.pathSegments.where((p) => p.isNotEmpty).toList();
+  } catch (e) {
+    debugPrint('Bağlantı ayrıştırılamadı: $e');
+    return null;
+  }
+  if (parcalar.length < 2 || parcalar.first != 'r') return null;
+
+  final kod = parcalar[1].trim().toUpperCase();
+  if (!kOrtakKodDeseni.hasMatch(kod)) return null;
+  return kod;
+}
+
 /// Bekleyen davet: bağlantı yakalandı, arkadaş ekleme sayfası henüz açılmadı.
 ///
 /// Ayrı bir durum olarak tutuluyor çünkü bağlantı uygulama açılırken de
@@ -97,6 +128,23 @@ final deepLinkProvider = Provider<void>((ref) {
 
   void ele(Uri? uri) {
     if (uri == null) return;
+
+    // Ortak kodu ÖNCE denenir. Yollar çakışmıyor (`/i/` ve `/r/`), ama
+    // sıranın açık olması üçüncü bir yol eklendiğinde kazayla yutulmasını
+    // önler. Bekleyen-niyet deseni KULLANILMIYOR: davet bir EKRAN açmak
+    // ister (arkadaş sekmesi), ortak kodu ise sessiz bir sunucu kaydıdır —
+    // kullanıcıyı başka sekmeye atlatmak sebebi görünmeyen bir sıçrama olur.
+    final ortakKod = partnerCodeFromLink(uri);
+    if (ortakKod != null) {
+      // Ateşle-unut: `applyPartnerCode` asla fırlatmaz. Oturum yoksa uç
+      // 401 döner ve o durum BİLEREK terminal sayılmaz — kullanıcı giriş
+      // yapıp bağlantıya yeniden dokunduğunda kod işlenir. (Kodu cihazda
+      // bekletmiyoruz: atıf uid başına yazılıyor ve hesabı olmayan
+      // kullanıcıya bağlanacak bir şey yok.)
+      applyPartnerCode(ref.read(apiProvider), ortakKod);
+      return;
+    }
+
     final username = usernameFromInviteLink(uri);
     if (username == null) {
       debugPrint('Tanınmayan bağlantı: $uri');

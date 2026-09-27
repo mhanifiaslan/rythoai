@@ -4,22 +4,38 @@
 
    Rotalar: #/ortaklar (liste) · #/ortaklar/{id} (detay).
    Uçlar:
-   - GET   /api/v1/admin/partners → {partners:[{id, name, contact,
-     sharePercent, active, notes, createdAt}]}
-   - POST  /api/v1/admin/partners {name, contact, sharePercent, notes}
-   - GET   /api/v1/admin/partners/{id} → {partner, codes:[{code, bonusTokens,
-     maxRedemptions, redemptionCount, expiresAt, active}], attributedGrossUsd,
-     attributedEvents, earnedUsd, paidUsd, balanceUsd, payouts:[{id, amount,
-     currency, note, at}]}
-   - PATCH /api/v1/admin/partners/{id} {active|name|contact|sharePercent|notes}
+   - GET   /api/v1/admin/partners → partner dokümanının TAMAMI
+     [{id, name, contact, rewardTry, rewardModel, uid, active, notes,
+       createdAt, sharePercent}]
+   - POST  /api/v1/admin/partners {name, contact, notes, rewardTry, uid}
+   - GET   /api/v1/admin/partners/{id} → {partner, codes:[...],
+       referredUsers, pendingCount, qualifiedCount, voidCount,
+       earnedTry, pendingTry, paidTry, balanceTry,
+       attributedGrossUsd, attributedEvents, payouts:[...]}
+   - PATCH /api/v1/admin/partners/{id}
+       {active|name|contact|notes|rewardTry|uid|payoutCurrency|taxId|iban}
    - POST  /api/v1/admin/partners/{id}/codes {code|null, bonusTokens,
      maxRedemptions|null, expiresAt|null}
    - POST  /api/v1/admin/partners/{id}/payouts {amount, currency, note}
      (ön-izli: iz yazılamazsa 503 mesajı olduğu gibi)
 
-   Dürüst model: kod kullanıcıya jeton bonusu verir ve SONRAKİ satın
-   almaları ortağa atfeder; mağaza fiyatı koddan değişmez. Tüm promise'ler
-   yakalanır → toast. */
+   Dürüst model (OP-turu): ortak, getirdiği kullanıcının İLK aboneliği
+   başına SABİT bir ₺ tutar kazanır. Kullanıcıya indirim ya da ödül YOK —
+   Play Install Referrer sayesinde kullanıcı kod bile yazmıyor, yani
+   ödüllendirilecek bir eylemi yok. Jeton paketleri, denemeler, SANDBOX
+   alımları ve yenilemeler ödül üretmez.
+
+   ⚠️ `sharePercent` alanı dokümanda DURUYOR ama KULLANILMIYOR — yüzde
+   modeli ileride gerekirse zemin hazır olsun diye. Panelde de
+   gösterilmiyor: hesaba girmeyen bir sayıyı "pay %20" diye yazmak,
+   "ölçülen yanlış adla sunulmaz" kuralının ihlali olurdu (bir kez öyle
+   yazıyordu).
+
+   Para birimi ₺: hakediş TL cinsinden hesaplanıyor. `attributedGrossUsd`
+   bilgi amaçlı ve $ — RevenueCat gelirini dolar raporluyor. İkisi aynı
+   karta konmaz.
+
+   Tüm promise'ler yakalanır → toast. */
 (function () {
   'use strict';
 
@@ -35,6 +51,18 @@
 
   function durumRozeti(b, p) {
     return p.active === false ? b.rozet('Pasif', 'notr') : b.rozet('Aktif', 'aktif');
+  }
+
+  /* Ödül tutarı (₺). Sunucu tavanı partner_service.MAX_REWARD_TRY = 500;
+     burada da aynı sayı duruyor ki form sunucuya boşuna gitmesin. Tavan
+     bir YAZIM HATASI kapısı: 30 yerine 3000 yazılırsa her kazanılan abone
+     abonelik fiyatının on katına mal olur ve bunu fark ettirecek hiçbir
+     sinyal yoktur. */
+  var ODUL_TAVANI = 500;
+
+  function odul(b, p) {
+    var v = Number(p && p.rewardTry);
+    return isFinite(v) && v > 0 ? b.para(v, '₺') : '—';
   }
 
   function hataToast(h) {
@@ -62,9 +90,11 @@
         ? '<button type="button" class="buton" id="ortak-yeni">' + b.ik('arti', 16) + 'Yeni ortak</button>'
         : ''
     }) + b.modul('Ortak listesi', '<div id="ortak-liste"></div>', '',
-      { alt: 'satıra git: kodlar, hakediş, ödemeler' }) +
-      '<p class="dipnot">Kod, kullanıcıya jeton bonusu verir ve SONRAKİ satın almaları bu ' +
-      'ortağa atfeder. Mağaza fiyat indirimi buradan yapılamaz — gerekiyorsa RevenueCat/Play ' +
+      { alt: 'satıra git: huni, hakediş, kodlar, ödemeler' }) +
+      '<p class="dipnot">Ortak, getirdiği kullanıcının <b>ilk aboneliği</b> başına sabit ' +
+      'bir ₺ tutar kazanır; kullanıcıya indirim verilmez. Jeton paketi, deneme, yenileme ve ' +
+      'test alımları ödül ÜRETMEZ. Hakediş satın almadan 15 gün sonra kesinleşir (iade ' +
+      'penceresi). Mağaza fiyat indirimi buradan yapılamaz — gerekiyorsa RevenueCat/Play ' +
       'konsolundan elle.</p>';
 
     var vt = b.veriTablosu({
@@ -74,8 +104,17 @@
           bicim: function (p) { return b.e(p.name || '—'); } },
         { ad: 'contact', baslik: 'İletişim',
           bicim: function (p) { return '<span class="mono">' + b.e(p.contact || '—') + '</span>'; } },
-        { ad: 'sharePercent', baslik: 'Pay', hizala: 'sag', siralanir: true,
-          bicim: function (p) { return b.e('%' + b.sayi(Number(p.sharePercent) || 0)); } },
+        { ad: 'rewardTry', baslik: 'Ödül', hizala: 'sag', siralanir: true,
+          deger: function (p) { return Number(p.rewardTry) || 0; },
+          bicim: function (p) { return b.e(odul(b, p)); } },
+        // Hesap bağı iki şeyin ÖN KOŞULU: ortağın kendi panosunu görmesi
+        // ve kendi kodunu kendi hesabında kullanamaması. Bağsız bir ortak
+        // sessizce ikisini de kaybeder — bu yüzden listede görünür.
+        { ad: 'uid', baslik: 'Hesap', siralanir: true,
+          deger: function (p) { return p.uid ? 1 : 0; },
+          bicim: function (p) {
+            return p.uid ? b.rozet('Bağlı', 'aktif') : b.rozet('Bağlı değil', 'uyari');
+          } },
         { ad: 'active', baslik: 'Durum', deger: function (p) { return p.active === false ? 0 : 1; },
           siralanir: true, bicim: function (p) { return durumRozeti(b, p); } },
         { ad: 'createdAt', baslik: 'Kayıt', siralanir: true,
@@ -103,15 +142,28 @@
           dogrula: function (v) { return v.length < 2 ? 'En az 2 karakter.' : null; } },
         { ad: 'contact', etiket: 'İletişim', tur: 'text', max: 160, yertutucu: 'e-posta / telefon',
           yardim: 'Ödeme yazışması için; kullanıcıya görünmez.' },
-        { ad: 'sharePercent', etiket: 'Pay (%)', tur: 'number', zorunlu: true, min: 0, max: 90,
-          adim: '0.5', deger: 20, yardim: '0–90 · atfedilen brütün yüzdesi (sunucu tavanı %90)' },
+        { ad: 'rewardTry', etiket: 'Ödül (₺)', tur: 'number', zorunlu: true,
+          min: 0.01, max: ODUL_TAVANI, adim: '1', deger: 30,
+          yardim: 'Kazanılan abone başına SABİT tutar (sunucu tavanı ₺' + ODUL_TAVANI +
+            '). Ortak başına ayrı ayarlanır.',
+          dogrula: function (v) {
+            return v > 0 && v <= ODUL_TAVANI ? null : '0 ile ' + ODUL_TAVANI + ' arası.';
+          } },
+        { ad: 'uid', etiket: 'Firebase hesabı (uid)', max: 128, otomatik: 'off',
+          yertutucu: 'sonra da bağlanabilir',
+          yardim: 'Ortağın kendi panosunu görmesi ve KENDİ kodunu kullanamaması buna bağlı.' },
         { ad: 'notes', etiket: 'Not', tur: 'textarea', max: 500, satir: 2 }
       ],
       gonderMetin: 'Ortak ekle',
       iptal: { metin: 'Vazgeç', onTikla: function () { m.kapat(); } },
       onGonder: function (d) {
+        // `sharePercent` GÖNDERİLMEZ — sunucu 0 varsayar. Yüzde modeli
+        // kullanılmıyor; form alanı olarak durması operatöre hesaba giren
+        // bir sayı yazdığını sanmasına yol açardı.
         return RY.post(yol(), {
-          name: d.name, contact: d.contact || '', sharePercent: Number(d.sharePercent) || 0,
+          name: d.name, contact: d.contact || '',
+          rewardTry: Number(d.rewardTry),
+          uid: d.uid ? String(d.uid).trim() : null,
           notes: d.notes || ''
         }).then(function (res) {
           var p = (res && res.partner) || {};
@@ -142,6 +194,8 @@
 
     var eylemler = '<a class="buton ikincil" href="#/ortaklar">' + b.ik('daralt', 16) + 'Listeye dön</a>';
     if (sahip) {
+      eylemler += '<button type="button" class="buton ikincil" id="ortak-odul">' +
+        b.ik('kredi', 16) + 'Ödülü değiştir</button>';
       eylemler += '<button type="button" class="' + (pasif ? 'buton' : 'buton tehlike') +
         '" id="ortak-durum">' + b.ik(pasif ? 'basari' : 'kilit', 16) +
         (pasif ? 'Aktifleştir' : 'Pasifleştir') + '</button>';
@@ -150,22 +204,44 @@
     icerik.innerHTML =
       b.sayfaBaslik({
         baslik: p.name || 'Ortak',
-        alt: [p.contact, 'pay %' + b.sayi(Number(p.sharePercent) || 0),
+        alt: [p.contact, 'ödül ' + odul(b, p),
               p.createdAt ? 'kayıt ' + b.tarih(p.createdAt) : null]
           .filter(Boolean).join(' · '),
         eylemlerHtml: eylemler
       }) +
       (pasif ? b.bant('Bu ortak PASİF — kodları çalışmaya devam eder, listede soluk görünür.', 'bilgi') : '') +
-      '<section class="izgara-kpi" aria-label="Hakediş özeti">' +
-      b.istatistikKarti({ ad: 'Atfedilen brüt', deger: b.para(d.attributedGrossUsd), altin: true,
-        alt: b.sayi(d.attributedEvents || 0) + ' olay · iade düşülmüş' }) +
-      b.istatistikKarti({ ad: 'Hakediş', deger: b.para(d.earnedUsd),
-        alt: '%' + b.sayi(Number(p.sharePercent) || 0) + ' pay' }) +
-      b.istatistikKarti({ ad: 'Ödenen', deger: b.para(d.paidUsd) }) +
-      b.istatistikKarti({ ad: 'Bakiye', deger: b.para(d.balanceUsd),
-        altin: Number(d.balanceUsd) > 0,
-        alt: Number(d.balanceUsd) > 0 ? 'ödeme bekliyor' : 'kapalı' }) +
+      (p.uid ? '' : b.bant('Bu ortağın Firebase hesabı BAĞLI DEĞİL: kendi panosunu ' +
+        'göremez ve kendi kodunu kendi hesabında kullanması engellenemez. ' +
+        '"Ödülü değiştir" penceresinden uid girilebilir.', 'uyari')) +
+      // Huni — sahibin sorduğu "benden kaç kişi gelmiş, kaçı alım yapmış".
+      '<section class="izgara-kpi" aria-label="Huni">' +
+      b.istatistikKarti({ ad: 'Gelen kullanıcı', deger: b.sayi(d.referredUsers || 0),
+        alt: 'kod kullanımı' }) +
+      b.istatistikKarti({ ad: 'Bekleyen', deger: b.sayi(d.pendingCount || 0),
+        alt: '15 gün olgunlaşma' }) +
+      b.istatistikKarti({ ad: 'Kesinleşen', deger: b.sayi(d.qualifiedCount || 0),
+        altin: Number(d.qualifiedCount) > 0, alt: 'ödemeye hazır' }) +
+      b.istatistikKarti({ ad: 'İptal', deger: b.sayi(d.voidCount || 0),
+        alt: 'iade / süre bitti' }) +
       '</section>' +
+      // Para — ₺. Atfedilen brüt gelir ($) BİLEREK ayrı kartta: ödülü
+      // artık o belirlemiyor ve iki birimi aynı ızgaraya koymak
+      // "hakediş brütün yüzdesi" yanılgısını geri getirirdi.
+      '<section class="izgara-kpi" aria-label="Hakediş özeti">' +
+      b.istatistikKarti({ ad: 'Kesinleşen hakediş', deger: b.para(d.earnedTry, '₺'),
+        altin: true, alt: 'abone başına ' + odul(b, p) }) +
+      b.istatistikKarti({ ad: 'Beklemede', deger: b.para(d.pendingTry, '₺'),
+        alt: 'henüz hak edilmedi' }) +
+      b.istatistikKarti({ ad: 'Ödenen', deger: b.para(d.paidTry, '₺') }) +
+      b.istatistikKarti({ ad: 'Bakiye', deger: b.para(d.balanceTry, '₺'),
+        altin: Number(d.balanceTry) > 0,
+        alt: Number(d.balanceTry) > 0 ? 'ödeme bekliyor' : 'kapalı' }) +
+      '</section>' +
+      b.modul('Atfedilen gelir (bilgi)',
+        '<p class="dipnot">Bu ortağa atfedilen <b>' + b.sayi(d.attributedEvents || 0) +
+        '</b> üretim olayından ' + b.para(d.attributedGrossUsd) + ' brüt geldi (iade ' +
+        'düşülmüş, SANDBOX süzülmüş). Ödülü bu sayı BELİRLEMEZ — ödül kazanılan abone ' +
+        'başına sabittir; bu kart yalnız programın getirisini görmek için.</p>') +
       (p.notes ? b.modul('Not', '<p class="dipnot">' + b.e(p.notes) + '</p>') : '') +
       '<div class="izgara-2">' +
       b.modul('Kodlar', '<div id="ortak-kodlar"></div>' +
@@ -234,6 +310,50 @@
 
     if (!sahip) return;
 
+    /* Ödül tutarı + hesap bağı */
+    icerik.querySelector('#ortak-odul').addEventListener('click', function () {
+      var f = b.form({
+        alanlar: [
+          { ad: 'rewardTry', etiket: 'Ödül (₺)', tur: 'number', zorunlu: true,
+            min: 0.01, max: ODUL_TAVANI, adim: '1',
+            deger: Number(p.rewardTry) || 30,
+            yardim: 'Kazanılan abone başına sabit tutar · tavan ₺' + ODUL_TAVANI,
+            dogrula: function (v) {
+              return v > 0 && v <= ODUL_TAVANI ? null : '0 ile ' + ODUL_TAVANI + ' arası.';
+            } },
+          { ad: 'uid', etiket: 'Firebase hesabı (uid)', max: 128, otomatik: 'off',
+            deger: p.uid || '',
+            yardim: 'Kendi panosu ve kendi kodunu kullanma kapısı buna bağlı.' }
+        ],
+        gonderMetin: 'Kaydet',
+        iptal: { metin: 'Vazgeç', onTikla: function () { m.kapat(); } },
+        onGonder: function (v) {
+          var govde = { rewardTry: Number(v.rewardTry) };
+          // Boş uid GÖNDERİLMEZ: sunucu `exclude_none` ile süzüyor ama boş
+          // dize süzülmez ve mevcut bağı silerdi.
+          if (v.uid && String(v.uid).trim()) govde.uid = String(v.uid).trim();
+          return RY.patch(yol(id), govde).then(function () {
+            b.toast('Ödül güncellendi — yalnız bundan SONRAKİ kazanımlara uygulanır.',
+                    'basari', { sure: 7000 });
+            m.kapat();
+            RY.rotaYenile();
+          });
+        }
+      });
+      // ⚠️ Bu not olmadan, tutarı düşüren sahip geçmiş hakedişin de
+      // düşeceğini sanır. Tutar hakediş ANINDA `partnerQualifications`
+      // dokümanına kopyalanıyor (donduruluyor) — geçmiş DEĞİŞMEZ.
+      // `modal` bir `aciklama` seçeneği almıyor; not gövdenin içine girer.
+      var kutu = b.el('<div></div>');
+      kutu.insertAdjacentHTML('beforeend',
+        '<p class="aciklama">Değişiklik yalnız bundan SONRAKİ kazanımlara uygulanır: ' +
+        'tutar hakediş anında dondurulur, kesinleşmiş ve bekleyen kayıtlar eski ' +
+        'tutarını korur.</p>');
+      kutu.appendChild(f.el);
+      var m = b.modal({ baslik: 'Ödül ve hesap', icerik: kutu, genislik: 480 });
+      m.ac();
+    });
+
     /* Aktif/pasif */
     icerik.querySelector('#ortak-durum').addEventListener('click', function () {
       b.onayla({
@@ -284,22 +404,34 @@
     /* Ödeme işaretle */
     var odemeForm = b.form({
       alanlar: [
-        { ad: 'amount', etiket: 'Tutar', tur: 'number', zorunlu: true, min: 0.01, adim: '0.01',
-          dogrula: function (v) { return v > 0 ? null : 'Sıfırdan büyük olmalı.'; } },
-        { ad: 'currency', etiket: 'Para birimi', deger: 'USD', zorunlu: true, max: 3, otomatik: 'off',
-          dogrula: function (v) { return /^[A-Za-z]{3}$/.test(v) ? null : '3 harfli kod (USD).'; } },
+        { ad: 'amount', etiket: 'Tutar', tur: 'number', zorunlu: true, adim: '0.01',
+          yardim: 'Pozitif = ortağa ödendi · NEGATİF = geri alma (düzeltme, not zorunlu). ' +
+            'Sunucu bakiyeden fazla pozitif ödemeyi reddeder.',
+          dogrula: function (v) { return Number(v) !== 0 ? null : 'Sıfır olamaz.'; } },
+        { ad: 'currency', etiket: 'Para birimi', deger: 'TRY', zorunlu: true, max: 3, otomatik: 'off',
+          dogrula: function (v) { return /^[A-Za-z]{3}$/.test(v) ? null : '3 harfli kod (TRY).'; } },
         { ad: 'note', etiket: 'Not', max: 300, yertutucu: 'ör. Eylül hakedişi, havale' }
       ],
       gonderMetin: 'Ödeme işaretle',
       onGonder: function (v) {
-        var birim = String(v.currency || 'USD').toUpperCase();
+        var birim = String(v.currency || 'TRY').toUpperCase();
         var tutar = Number(v.amount);
+        var geri = tutar < 0;
+        if (geri && !String(v.note || '').trim()) {
+          // Sunucu da reddediyor (`reason_required`); burada erken durmak
+          // kullanıcıya formu kaybetmeden söyler.
+          return Promise.reject(new Error('Geri alma kaydı için not zorunlu.'));
+        }
+        var yazi = birim === 'TRY' ? b.para(tutar, '₺')
+          : (birim === 'USD' ? b.para(tutar) : b.sayi(tutar) + ' ' + birim);
         return b.onayla({
-          baslik: 'Ödemeyi kaydet',
-          mesaj: (p.name || 'Ortak') + ' için ' +
-            (birim === 'USD' ? b.para(tutar) : b.sayi(tutar) + ' ' + birim) +
-            ' ödeme işaretlenecek' + (v.note ? ' — "' + v.note + '"' : '') + '.',
-          aciklama: 'Mali işlem: ön-izli denetim kaydı düşer; bakiye bu tutar kadar azalır. Geri alma yok.',
+          baslik: geri ? 'Geri alma kaydı' : 'Ödemeyi kaydet',
+          mesaj: (p.name || 'Ortak') + ' için ' + yazi +
+            (geri ? ' düzeltme kaydı açılacak' : ' ödeme işaretlenecek') +
+            (v.note ? ' — "' + v.note + '"' : '') + '.',
+          aciklama: 'Mali işlem: ön-izli denetim kaydı düşer; bakiye bu tutar kadar ' +
+            (geri ? 'artar' : 'azalır') + '. Geri alma yok.',
+          tehlike: geri,
           onaylaMetin: 'Kaydet'
         }).then(function (r) {
           if (!r) { var h = new Error('iptal'); h.iptal = true; throw h; }

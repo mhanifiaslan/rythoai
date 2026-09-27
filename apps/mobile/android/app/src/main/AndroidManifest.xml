@@ -152,6 +152,27 @@
                       android:host="rhytoai.web.app"
                       android:pathPrefix="/i/"/>
             </intent-filter>
+            <!-- Ortak baglantisi (OP): https://rytho.app/r/KOD
+
+                 Bu filtre yalniz uygulama ZATEN KURULUYKEN is goruyor —
+                 link dogrudan uygulamayi acar ve kod URL'den okunur.
+                 Uygulama kurulu DEGILKEN link tarayicida acilir, sayfa
+                 Play'e `&referrer=` ile yonlendirir ve kod kurulumdan
+                 sonra Install Referrer'dan okunur. Iki yol da ayni
+                 `POST /billing/redeem-code` ucuna cikiyor.
+
+                 rhytoai.web.app icin AYRI bir filtre YOK: ortak
+                 baglantilari yeni alan adiyla uretiliyor, eski alan adi
+                 yalnizca sahadaki ESKI davet (/i/) baglantilari icin
+                 duruyor. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                      android:host="rytho.app"
+                      android:pathPrefix="/r/"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

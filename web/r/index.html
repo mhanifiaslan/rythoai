@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rytho — Ortak bağlantısı</title>
+  <meta name="description" content="Rytho'yu indir.">
+  <!-- /r/** yeniden yazımı SINIRSIZ URL'yi bu tek sayfaya düşürüyor; hepsi
+       aynı başlığı taşıdığı için indekslenirlerse kopya içerik olurlar.
+       /i/ sayfasıyla aynı gerekçe; robots.txt bunu çözmez çünkü Disallow
+       taramayı durdurur, indekslemeyi değil. -->
+  <meta name="robots" content="noindex, nofollow">
+
+  <!-- Uygulama KURULUYSA işletim sistemi bu sayfayı hiç açmaz; doğrudan
+       uygulamaya gider (AndroidManifest'teki /r/ intent-filter). Bu sayfa
+       yalnızca uygulama kurulu DEĞİLSE görünür. -->
+
+  <meta property="og:title" content="Rytho — gökyüzünü senin için okuyor">
+  <meta property="og:description"
+        content="Gerçek gökyüzü hesabına dayanan günlük okuma.">
+  <meta property="og:type" content="website">
+
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: linear-gradient(180deg, #13091F 0%, #241038 55%, #0B0713 100%);
+      color: #EFE7DA;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Helvetica, Arial, sans-serif;
+      text-align: center;
+    }
+    main { max-width: 420px; width: 100%; }
+    .glyph { font-size: 56px; color: #F2C14E; margin-bottom: 12px; }
+    h1 { font-size: 28px; margin: 0 0 10px; letter-spacing: -0.3px; }
+    p { font-size: 15px; line-height: 1.55; color: #C9BCA8; margin: 0 0 20px; }
+    .kod {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 20px;
+      letter-spacing: 2px;
+      color: #F2C14E;
+      background: rgba(242, 193, 78, 0.10);
+      border: 1px solid rgba(242, 193, 78, 0.35);
+      border-radius: 10px;
+      padding: 10px 18px;
+      margin-bottom: 18px;
+    }
+    .buton {
+      display: inline-block;
+      padding: 14px 26px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #7B2FF7, #E64ACF);
+      color: #fff;
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+    }
+    .not { font-size: 12.5px; color: #8E8296; margin-top: 22px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="glyph">&#9790;</div>
+    <h1 id="baslik">Rytho</h1>
+    <p id="govde">Mağazaya yönlendiriliyorsun…</p>
+
+    <!-- Kod yalnız otomatik yönlendirme ÇALIŞMADIĞINDA gösterilir
+         (iOS ve masaüstü). Android'de kod mağaza bağlantısında taşındığı
+         için kullanıcıya hiç gösterilmez — yazması gerekmiyor. -->
+    <div id="kod-kutu" hidden>
+      <div class="kod" id="kod"></div>
+    </div>
+
+    <a class="buton" id="magaza" href="#">Uygulamayı indir</a>
+    <p class="not" id="not"></p>
+  </main>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // Kod biçimi backend'deki `_KOD_DESENI` ile BİREBİR aynı olmalı
+    // (partner_service.py). Ayrışırsa sayfa geçerli bir kodu reddeder ya da
+    // geçersiz birini mağazaya taşır.
+    var DESEN = /^[A-Z0-9_-]{4,24}$/;
+    var PAKET = 'ai.rytho';
+
+    var METIN = {
+      tr: {
+        yonlendir: 'Mağazaya yönlendiriliyorsun…',
+        indir: 'Uygulamayı indir',
+        android: 'Kurulum bittiğinde ortak kodun otomatik uygulanır.',
+        ios: 'Uygulamayı kurduktan sonra bu kodu girişte kullan.',
+        iosBaslik: 'Kodun hazır',
+        gecersiz: 'Bu bağlantı geçerli değil.',
+        gecersizGovde: 'Ortak kodu okunamadı. Uygulamayı yine de indirebilirsin.'
+      },
+      en: {
+        yonlendir: 'Taking you to the store…',
+        indir: 'Get the app',
+        android: 'Your partner code is applied automatically after install.',
+        ios: 'Use this code when you sign in after installing the app.',
+        iosBaslik: 'Your code is ready',
+        gecersiz: 'This link is not valid.',
+        gecersizGovde: "We couldn't read the partner code. You can still download the app."
+      }
+    };
+
+    var dil = (navigator.language || 'tr').toLowerCase().indexOf('tr') === 0
+      ? 'tr' : 'en';
+    var t = METIN[dil];
+    document.documentElement.lang = dil;
+
+    function el(id) { return document.getElementById(id); }
+
+    // Kod yolun İKİNCİ parçasında: /r/ORTAK10
+    var parcalar = location.pathname.split('/').filter(Boolean);
+    var kod = (parcalar[1] || '').toUpperCase();
+    var gecerli = DESEN.test(kod);
+
+    var ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var android = /Android/.test(navigator.userAgent);
+
+    // Play'e utm_* biçiminde gönderiliyor. Serbest bir dize de işe yarardı
+    // ama utm ile Play Console'un kendi edinme raporları ortak başına
+    // performansı BEDAVA gösteriyor; uygulama yalnız utm_campaign'i okuyor.
+    var magaza = 'https://play.google.com/store/apps/details?id=' + PAKET;
+    if (gecerli) {
+      var referrer = 'utm_source=rytho_partner&utm_medium=affiliate'
+        + '&utm_campaign=' + encodeURIComponent(kod);
+      magaza += '&referrer=' + encodeURIComponent(referrer);
+    }
+    el('magaza').setAttribute('href', magaza);
+    el('magaza').textContent = t.indir;
+
+    if (!gecerli) {
+      el('baslik').textContent = t.gecersiz;
+      el('govde').textContent = t.gecersizGovde;
+      return;
+    }
+
+    if (android) {
+      // Kod mağaza bağlantısında taşınıyor: kullanıcı hiçbir şey yapmıyor.
+      el('govde').textContent = t.yonlendir;
+      el('not').textContent = t.android;
+      location.replace(magaza);
+      return;
+    }
+
+    // iOS ve masaüstü: Play Install Referrer'ın dengi YOK. Kod görünür
+    // yapılır ki kullanıcı kurulumdan sonra girebilsin. (App Store tarafı
+    // Custom Product Page + derin bağlantıyla çözülecek — o kurulduğunda
+    // bu dal oraya yönlendirir.)
+    el('baslik').textContent = t.iosBaslik;
+    el('govde').textContent = '';
+    el('kod').textContent = kod;
+    el('kod-kutu').hidden = false;
+    el('not').textContent = t.ios;
+  })();
+  </script>
+</body>
+</html>
