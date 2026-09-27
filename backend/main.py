@@ -25,6 +25,7 @@ from api.face_reading import router as face_reading_router
 from api.iching import router as iching_router
 from api.maintenance import router as maintenance_router
 from api.notify import router as notify_router
+from api.partners import router as partners_router
 from api.people import router as people_router
 from api.reports import router as reports_router
 from api.sky import router as sky_router
@@ -189,6 +190,11 @@ app.include_router(account_router, prefix="/api/v1/account", tags=["Account"])
 # Admin uçları (W5): panel /rytho-admin buradan beslenir. Her uç custom
 # claim ister (require_admin); collect ayrıca scheduler sırrını kabul eder.
 app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
+# Ortaklik: ortagin KENDI panosu (require_partner) + hakedis
+# olgunlastirma (scheduler sirri VEYA owner). Admin router'indan AYRI —
+# ortak yonetim uclarini goremez, yonetici de /me kapisindan gecemez.
+app.include_router(partners_router, prefix="/api/v1/partners",
+                   tags=["Partners"])
 # Açılış yapılandırması (F3): kimliksiz — giriş ekranından ÖNCE çağrılır.
 app.include_router(config_router, prefix="/api/v1/config", tags=["Config"])
 

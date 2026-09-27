@@ -178,6 +178,10 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "tr": "Bu kodun kullanım hakkı dolmuş.",
         "en": "This code has reached its redemption limit.",
     },
+    "promo.self_referral": {
+        "tr": "Kendi ortaklık kodunu kendi hesabında kullanamazsın.",
+        "en": "You can't use your own partner code on your own account.",
+    },
     "promo.already_redeemed": {
         "tr": "Zaten bir kod kullandın — her hesapta tek kod geçerlidir.",
         "en": "You've already used a code — one code per account.",

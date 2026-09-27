@@ -19,6 +19,12 @@ Kullanim (repo kokunden):
     backend/.venv/Scripts/python tools/set_admin.py --uid <uid>
     backend/.venv/Scripts/python tools/set_admin.py --email ... --revoke
 
+Ortaklik claim'i (OP) — AYRI bir boyut, `admin` YAZMAZ:
+    ... --email ortak@ornek.com --partner <partnerId>
+    ... --email ortak@ornek.com --partner <partnerId> --revoke
+Ortagin uid'i ayrica panelden `partners/{id}.uid` alanina yazilmali;
+kendi kodunu kullanamama kapisi (redeem) o bagi kullaniyor.
+
 Kimlik: GOOGLE_APPLICATION_CREDENTIALS servis hesabi anahtari ya da
 `gcloud auth application-default login` (proje: rhytoai).
 
@@ -43,6 +49,9 @@ def main() -> int:
     kimlik.add_argument("--uid", help="Hedef kullanicinin uid'i")
     p.add_argument("--role", choices=ROLLER, default="owner",
                    help="Panel rolu (varsayilan: owner)")
+    p.add_argument("--partner", metavar="PARTNER_ID",
+                   help=("Ortaklik claim'i bas: {partner:true, partnerId:...}."
+                         " admin YAZMAZ — ortak yonetici degildir."))
     p.add_argument("--revoke", action="store_true",
                    help="admin + role claim'lerini kaldir (varsayilan: bas)")
     p.add_argument("--project", default="rhytoai")
@@ -57,7 +66,13 @@ def main() -> int:
     print(f"Hedef : {kullanici.uid}")
     print(f"E-posta: {kullanici.email}")
     print(f"Mevcut claim'ler: {mevcut or '-'}")
-    print(f"Islem : {'admin KALDIR' if args.revoke else f'admin BAS (role={args.role})'}")
+    if args.revoke:
+        islem = "ortaklik KALDIR" if args.partner else "admin KALDIR"
+    elif args.partner:
+        islem = f"ORTAK BAS (partnerId={args.partner}) — admin YAZILMAZ"
+    else:
+        islem = f"admin BAS (role={args.role})"
+    print(f"Islem : {islem}")
 
     # Yanlis hesaba basilmasin: hedef ekrana yazildi, onay istenir.
     onay = input("Onayliyor musun? (evet/hayir): ").strip().lower()
@@ -65,7 +80,18 @@ def main() -> int:
         print("Vazgecildi.")
         return 1
 
-    if args.revoke:
+    # Ortaklik AYRI BIR BOYUT: `admin`/`role` ile birlikte yazilmaz ve
+    # birlikte kaldirilmaz. Sebep core/auth.py'de: "partner" ROLES'a
+    # eklenseydi require_admin kapisini gecer ve ortak token'i butun
+    # yonetim okuma uclarini acardi.
+    if args.partner:
+        if args.revoke:
+            mevcut.pop("partner", None)
+            mevcut.pop("partnerId", None)
+        else:
+            mevcut["partner"] = True
+            mevcut["partnerId"] = str(args.partner)
+    elif args.revoke:
         mevcut.pop("admin", None)
         mevcut.pop("role", None)
     else:

@@ -143,6 +143,18 @@ $isler = @(
     # penceresi [00:00, +1 gun) ve purge'un sildigi sey 30 gundur
     # kullanilmayan konusmalar.
     @{ ad = "rytho-stats"; uri = "/api/v1/admin/collect"; cron = "40 23 * * *" }
+    # Ortaklik hakedisi olgunlastirma (OP): satin almadan 15 gun sonra,
+    # iade gelmediyse bekleyen hakedis KESINLESIR.
+    #
+    # Saat secimi onemsiz (gunde bir kez yeter, is dakikalar surmez) ama
+    # stats (23:40) ve cleanup (03:20) ile CAKISMAYACAK sekilde secildi.
+    #
+    # Yukaridaki "yeniden deneme payi YOK" uyarisi bu is icin de gecerli;
+    # fakat burada telafi SORGUNUN KENDISINE gomulu: is ">=15 gun olmus VE
+    # hala beklemede" olanlari tariyor, yani kacirilan bir kosu ertesi gun
+    # ayni kayitlari yine bulur. Tek bedeli hakedisin bir gun gec
+    # kesinlesmesi — para kaybi yok.
+    @{ ad = "rytho-partner-mature"; uri = "/api/v1/partners/mature"; cron = "30 2 * * *" }
 )
 
 foreach ($is in $isler) {

@@ -176,6 +176,8 @@ def redeem_code(req: RedeemCodeRequest,
                    "expired": "promo.expired",
                    "exhausted": "promo.exhausted",
                    "already_redeemed": "promo.already_redeemed",
+                   # Ortak kendi kodunu kendi hesabında kullanamaz (OP).
+                   "self_referral": "promo.self_referral",
                    }.get(e.reason, "promo.invalid")
         raise HTTPException(status_code=e.status,
                             detail=text(anahtar, lang,
@@ -410,6 +412,57 @@ def _record_revenue_event(event: dict[str, Any], event_type: str,
                                  float(event.get("price") or 0))
         except Exception as exc:
             logger.warning("Gelir toplamı yazılamadı (%s): %s", uid, exc)
+
+    _ortaklik_hakedisi(client, uid, event, event_type, environment,
+                       partner_id, monetary, event_id)
+
+
+def _ortaklik_hakedisi(client, uid: str, event: dict[str, Any],
+                       event_type: str, environment: str,
+                       partner_id: Any, monetary: bool,
+                       event_id: str) -> None:
+    """Ortaklık hakedişini açar ya da iptal eder (OP-turu).
+
+    Gelir defterinin SONUNDA çalışır ve hiçbir şey fırlatmaz: para zaten
+    alındı, ortaklık ikincil bir defterdir ve onun hatası webhook'u
+    düşürmemeli.
+
+    Ödül kuralı — beşi birden gerekir:
+      1. `PRODUCTION` — SANDBOX/test alımı ödül üretmez (canlıda 1756
+         sahte olay var; süzülmezse ortağa sahte gelirden para ödenir).
+      2. Olay türü `INITIAL_PURCHASE` ya da `TRIAL_CONVERTED`. Yenileme
+         ödül vermez; jeton paketleri zaten yalnız
+         `NON_RENEWING_PURCHASE` olarak geldiği için bu küme onları
+         kendiliğinden dışarıda bırakır — ürün listesi gerekmiyor.
+      3. `monetary` — parasal olay.
+      4. `isTrial` DEĞİL. Bu ayrı bir koşul çünkü `period_type=TRIAL` olan
+         bir `INITIAL_PURCHASE` hem `monetary=True` hem `isTrial=True`
+         gelir; yani tek başına `monetary` para geçtiğini KANITLAMAZ.
+      5. Kullanıcının bir ortağa atfı var.
+    """
+    from services import partner_service
+
+    try:
+        if event_type in partner_service.VOID_EVENT_TYPES:
+            partner_service.void_qualification(client, uid, event_type)
+            return
+        if not partner_id:
+            return
+        if environment != "PRODUCTION" or not monetary:
+            return
+        if event_type not in partner_service.REWARD_EVENT_TYPES:
+            return
+        if str(event.get("period_type") or "").upper() == "TRIAL":
+            return
+        partner_service.open_qualification(
+            client, uid, str(partner_id),
+            event_id=event_id,
+            product_id=event.get("product_id"),
+            purchased_at=(_ms_to_datetime(event.get("event_timestamp_ms"))
+                          or dt.datetime.now(dt.timezone.utc)),
+        )
+    except Exception as exc:
+        logger.warning("Ortaklik hakedisi islenemedi (%s): %s", uid, exc)
 
 
 @router.post("/revenuecat")

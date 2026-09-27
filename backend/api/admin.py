@@ -909,6 +909,15 @@ class PartnerCreate(BaseModel):
     contact: str = Field(default="", max_length=160)
     sharePercent: float = Field(default=0, ge=0, le=90)
     notes: str = Field(default="", max_length=500)
+    #: Kazanılan abone başına ödül (₺). ORTAK BAŞINA ayarlanır — kodda
+    #: sabit değil. Tavan `sharePercent`'inkiyle aynı gerekçe: bu alan
+    #: gerçek para ödemesi üretiyor ve fazladan yazılmış bir sıfır
+    #: panelde göze çarpmaz.
+    rewardTry: float = Field(default=30.0, gt=0,
+                             le=partner_service.MAX_REWARD_TRY)
+    #: Ortağın kendi Firebase hesabı. Hem kendi panosunu görmesi hem
+    #: kendi kodunu kullanamaması bu bağa dayanır.
+    uid: str | None = Field(default=None, max_length=128)
 
 
 class PartnerPatch(BaseModel):
@@ -917,6 +926,16 @@ class PartnerPatch(BaseModel):
     sharePercent: float | None = Field(default=None, ge=0, le=90)
     active: bool | None = None
     notes: str | None = Field(default=None, max_length=500)
+    #: ⚠️ Değişiklik YALNIZ bundan sonraki kazanımlara uygulanır: tutar
+    #: hakediş anında `partnerQualifications` dokümanına kopyalanıyor.
+    rewardTry: float | None = Field(default=None, gt=0,
+                                    le=partner_service.MAX_REWARD_TRY)
+    uid: str | None = Field(default=None, max_length=128)
+    payoutCurrency: str | None = Field(default=None, min_length=3,
+                                       max_length=3)
+    taxId: str | None = Field(default=None, max_length=64)
+    iban: str | None = Field(default=None, max_length=40)
+    minPayoutTry: float | None = Field(default=None, ge=0, le=100000)
 
 
 class CodeCreate(BaseModel):
@@ -929,8 +948,15 @@ class CodeCreate(BaseModel):
 
 
 class PayoutCreate(BaseModel):
-    amount: float = Field(gt=0)
-    currency: str = Field(default="USD", min_length=3, max_length=3)
+    #: Pozitif = ortağa ödendi, NEGATİF = geri alındı (düzeltme).
+    #:
+    #: Negatif kayıt bilinçli olarak serbest: kesinleşmiş bir hakediş
+    #: sonradan iade edilirse geçmişi sessizce değiştirmek yerine
+    #: düzeltme kaydı açılır — ortağın gördüğü bakiye açıklanabilir
+    #: kalır. Sunucu ayrıca bakiyeden fazla POZİTİF ödemeyi reddeder
+    #: ve negatif kayıtta gerekçe zorunludur (partner_service.add_payout).
+    amount: float = Field(ge=-100000, le=100000)
+    currency: str = Field(default="TRY", min_length=3, max_length=3)
     note: str = Field(default="", max_length=300)
 
 
@@ -948,7 +974,8 @@ def create_partner(req: PartnerCreate,
                    user: AuthUser = Depends(require_owner)):
     try:
         ortak = partner_service.create_partner(
-            req.name, req.contact, req.sharePercent, req.notes)
+            req.name, req.contact, req.sharePercent, req.notes,
+            reward_try=req.rewardTry, uid=req.uid)
     except partner_service.RedeemError as e:
         raise _servis_hatasi(e)
     _audit(user, "partner.create", params={"name": req.name})

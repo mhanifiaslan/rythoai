@@ -127,11 +127,28 @@ def _rol_coz(decoded: dict) -> str | None:
     return rol if rol in ROLES else "owner"
 
 
+def _ortak_coz(decoded: dict) -> str | None:
+    """Claim'lerden ortaklık kimliği (OP). `{partner: true, partnerId: ...}`
+
+    `_rol_coz`'un aynı disiplini: **`partner: true` ZORUNLU koşul.** Tek
+    başına `partnerId` taşıyan bir token yetki almaz — kapı ayırt edici
+    bayrağa dayanır, taşınabilir bir kimliğe değil.
+
+    Ortaklık claim'i `admin` YAZMAZ ve yazmamalı: ortak bir yönetici
+    değildir. İkisi aynı hesapta bulunabilir (sahibin kendi test ortağı)
+    ama birbirini ima etmez.
+    """
+    if decoded.get("partner") is not True:
+        return None
+    kimlik = decoded.get("partnerId")
+    return str(kimlik) if kimlik else None
+
+
 class AuthUser:
     def __init__(self, uid: str, email: str | None = None,
                  anonymous: bool = False, phone: str | None = None,
                  admin: bool = False, auth_time: int = 0,
-                 role: str | None = None):
+                 role: str | None = None, partner_id: str | None = None):
         self.uid = uid
         self.email = email
         self.anonymous = anonymous
@@ -151,6 +168,14 @@ class AuthUser:
         #: [require_owner] ile kapılanır; destek personeli okur ve
         #: sınırlı yazar (kredi, cihaz kilidi, bildirim provası).
         self.role = role
+        #: Ortaklık kimliği (OP): claim `{partner: true, partnerId: "..."}`.
+        #:
+        #: ⚠️ `role` ile AYRI BİR BOYUT olması bilinçli. `"partner"`
+        #: [ROLES]'a eklenseydi `require_admin`'in `user.role in ROLES`
+        #: kapısını geçerdi ve bir ortak token'ı ~25 yönetim okuma ucunu
+        #: (tüm kullanıcı listesi, gelir, sistem, DİĞER ortakların
+        #: detayları) açardı. Ortak kapısı bu yüzden [require_partner].
+        self.partner_id = partner_id
 
 
 def _verify(token: str) -> dict:
@@ -208,7 +233,8 @@ async def get_current_user(
                             phone=decoded.get("phone_number"),
                             admin=decoded.get("admin") is True,
                             auth_time=int(decoded.get("auth_time") or 0),
-                            role=_rol_coz(decoded))
+                            role=_rol_coz(decoded),
+                            partner_id=_ortak_coz(decoded))
         except Exception as exc:
             logger.info("Token doğrulanamadı: %s", exc)
             if not config.DEV_MODE:
@@ -253,5 +279,21 @@ def require_owner(user: AuthUser = Depends(require_admin)) -> AuthUser:
     jenerik; "sahip gerekir" demek ucun varlığını ve rol modelini sızdırır.
     """
     if user.role != "owner":
+        raise HTTPException(status_code=403, detail="Yetkisiz.")
+    return user
+
+
+def require_partner(user: AuthUser = Depends(get_current_user)) -> AuthUser:
+    """Ortak kapısı (OP): ortağın KENDİ panelinin tek kapısı.
+
+    `require_admin`'den TAMAMEN BAĞIMSIZ — üstüne binmez, `ROLES`'a
+    bakmaz. Ortak yönetim panelinin hiçbir ucunu göremez; yönetici de bu
+    kapıdan geçmez (kendi `partnerId`'si yoksa).
+
+    `partnerId` claim'den gelir, İSTEKTEN DEĞİL: ortak başka bir ortağın
+    kimliğini gövdede gönderip veri çekemez. Yetki sınırı bu yüzden
+    yapısaldır, kontrol listesine bağlı değildir.
+    """
+    if not user.partner_id:
         raise HTTPException(status_code=403, detail="Yetkisiz.")
     return user
