@@ -11,7 +11,15 @@ import 'api.dart' show apiProvider;
 import 'partner_referrer.dart';
 import 'providers.dart';
 
-/// Davet bağlantılarının yakalanması.
+/// Gelen bağlantıların yakalanması — İKİ tür.
+///
+/// * `/i/{kullanıcıadı}` → **davet**: arkadaş ekleme sayfasını açar.
+/// * `/r/{KOD}` → **ortak (affiliate) kodu**: sessizce sunucuya yazılır,
+///   ekran değiştirmez (bkz. [partnerCodeFromLink], `partner_referrer.dart`).
+///
+/// İkisi aynı host kümesini paylaşıyor ve yalnız ilk yol parçasıyla
+/// ayrılıyor; bu yüzden her iki ayrıştırıcının diğerinin yolunu REDDETTİĞİ
+/// testle sabitlendi (`partner_referrer_test.dart`).
 ///
 /// **İki alan adı: biri üretir, ikisi de çözülür.**
 ///
