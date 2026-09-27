@@ -3392,6 +3392,30 @@ abstract class AppLocalizations {
   /// **'Mağaza şu an satın almayı tamamlayamadı. Birkaç dakika sonra tekrar dene.'**
   String get purchaseStoreProblem;
 
+  /// No description provided for @purchaseAlreadyOwnedIos.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu Apple Hesabında zaten etkin bir abonelik var.'**
+  String get purchaseAlreadyOwnedIos;
+
+  /// No description provided for @purchaseItemUnavailableIos.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ürün şu an App Store\'da bulunamadı. Biraz sonra tekrar dene.'**
+  String get purchaseItemUnavailableIos;
+
+  /// No description provided for @purchaseNotAllowedIos.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu cihazda uygulama içi satın almaya izin verilmiyor. Ekran Süresi kısıtlamalarını kontrol et (Ayarlar › Ekran Süresi).'**
+  String get purchaseNotAllowedIos;
+
+  /// No description provided for @purchasePending.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ödemen onay bekliyor; onaylanınca Rytho+ / krediler otomatik açılır.'**
+  String get purchasePending;
+
   /// No description provided for @tokenStoreTitle.
   ///
   /// In tr, this message translates to:

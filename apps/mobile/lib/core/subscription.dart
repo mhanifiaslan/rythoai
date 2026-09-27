@@ -242,6 +242,58 @@ final offeringsProvider = FutureProvider<List<Package>>((ref) async {
   return filtered.isEmpty ? all : filtered;
 });
 
+/// Paket satın alma işlevi — TEST DİKİŞİ.
+///
+/// Paywall'ın mağaza hata dalları ancak `Purchases.purchase` fırlatınca
+/// koşuyor ve o eklenti `flutter test` içinde çağrılamaz ([TeklifGetirici]
+/// ile aynı gerekçe). Dikişsiz hâlde "onay bekleyen ödeme hata rengine mi
+/// boyanıyor" sorusunu hiçbir test soramazdı.
+typedef PaketSatinAlici = Future<bool> Function(WidgetRef ref, Package paket);
+
+final paketSatinAliciProvider =
+    Provider<PaketSatinAlici>((_) => purchasePackage);
+
+/// Geri yükleme işlevi — TEST DİKİŞİ ([PaketSatinAlici] ile aynı gerekçe;
+/// Abonelik ekranının geri yükleme hata dalı ancak bununla ölçülebiliyor).
+typedef GeriYukleyici = Future<bool> Function(WidgetRef ref);
+
+final geriYukleyiciProvider =
+    Provider<GeriYukleyici>((_) => restorePurchases);
+
+/// RevenueCat müşteri bilgisini getiren işlev — TEST DİKİŞİ.
+typedef MusteriBilgisiGetirici = Future<CustomerInfo> Function();
+
+/// `null` = üretim yolu (mağaza anahtarı yoksa hiç sorulmaz).
+final musteriBilgisiGetiriciProvider =
+    Provider<MusteriBilgisiGetirici?>((_) => null);
+
+/// "Aboneliği yönet"e dokunan kullanıcının en fazla bekleyeceği süre;
+/// cevap gelmezse çalışan platformun mağazası açılır.
+const Duration _kKaynakMagazaSiniri = Duration(seconds: 3);
+
+/// Etkin Rytho+ yetkisinin satın alındığı mağaza; bilinmiyorsa `null` (U47).
+///
+/// Sunucu bu bilgiyi istemciye vermiyor: webhook `store`u abonelik kaydına
+/// yazıyor ama `/billing/status` döndürmüyor. RevenueCat ise yetkiyi
+/// uygulama kullanıcı kimliğinde tutuyor ve her yetkinin kaynağını
+/// `EntitlementInfo.store`da taşıyor — Android'de alınıp iPhone'da görülen
+/// abonelik orada `Store.playStore` olur. Çalışan platforma bakmak bu
+/// kullanıcıya aboneliğin OLMADIĞI mağazanın sayfasını açıyordu.
+///
+/// Hata YUTULUR — bilerek: cevap yalnız hangi sayfanın açılacağını seçiyor;
+/// okunamazsa çalışan platformun mağazası (eski davranış) açılır.
+Future<Store?> abonelikKaynakMagazasi(MusteriBilgisiGetirici? getirici) async {
+  if (getirici == null && !billingConfigured) return null;
+  try {
+    final bilgi = await (getirici ?? Purchases.getCustomerInfo)()
+        .timeout(_kKaynakMagazaSiniri);
+    return bilgi.entitlements.active[kPlusEntitlement]?.store;
+  } catch (e) {
+    debugPrint('Abonelik mağazası okunamadı: $e');
+    return null;
+  }
+}
+
 /// Satın alma/geri yükleme ÖNCESİ RevenueCat kimliğini garantiye alır.
 ///
 /// [billingIdentityProvider] oturum akışına bağlı ama tek denemeli:
@@ -328,6 +380,26 @@ Future<void> _waitForServerEntitlement(WidgetRef ref) async {
     await Future<void>.delayed(gecikme);
   }
   ref.invalidate(subscriptionProvider);
+  ref.invalidate(walletProvider);
+}
+
+/// Ödeme ONAY BEKLERKEN abonelik ve cüzdan önbelleğini düşürür (U33).
+///
+/// Onayı BEKLEMEZ ve kilidi AÇMAZ — bunu yanlış okumak kolay. Onay gelene
+/// kadar sunucu "abone değil" der; iki sağlayıcı da auto-dispose değil ve
+/// paywall açıkken altta duran Gökyüzü ekranında izleniyor (kredi çipi,
+/// kilitli şeritler), yani bu çağrı onları ŞİMDİ yeniden okutur ve o anki
+/// cevap önbelleğe girer. Sonradan gelen bir onay ekrana ancak bir sonraki
+/// tazelemede yansır (Gökyüzü'nde çek-yenile, "Satın alımları geri yükle",
+/// yeniden açılış). Sunucu tarafında kapı webhook'la kendiliğinden kalkar.
+///
+/// Yine de çağrılıyor: mağazada artık bu hesaba ait bir işlem VAR ve
+/// ekranların satın alma ÖNCESİ anlık görüntüde kalması için sebep yok;
+/// bedeli tek bir yeniden okuma. [abonelik] kredi paketinde `false`:
+/// abonelik sağlayıcısını düşürmek ona bağlı ücretli sağlayıcıları da
+/// yeniden kurar, kredi alımı ise aboneliği değiştirmez.
+void odemeOnayiBekleniyor(WidgetRef ref, {bool abonelik = true}) {
+  if (abonelik) ref.invalidate(subscriptionProvider);
   ref.invalidate(walletProvider);
 }
 

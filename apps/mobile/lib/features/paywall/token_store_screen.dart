@@ -58,7 +58,7 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
     final mesajci = ScaffoldMessenger.of(context);
     setState(() => _busyProductId = product.identifier);
     try {
-      await purchaseTokenPack(ref, product);
+      await ref.read(krediPaketiSatinAliciProvider)(ref, product);
       if (!mounted) return;
       mesajci.showSnackBar(
           SnackBar(content: Text(l10n.tokenPurchaseDone)));
@@ -67,8 +67,16 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
       // hataları l10n'a çevrilir (ham İngilizce metin ekrana çıkmaz).
       final code = PurchasesErrorHelper.getErrorCode(e);
       if (code != PurchasesErrorCode.purchaseCancelledError && mounted) {
-        mesajci.showSnackBar(
-            SnackBar(content: Text(storeErrorText(e, l10n))));
+        if (odemeOnayBekliyor(e)) {
+          // Onay bekleyen ödeme (U33) hata değil: metin kaydedilmeden
+          // gösterilir. Abonelik önbelleği düşürülmez — kredi alımı onu
+          // değiştirmez (bkz. odemeOnayiBekleniyor).
+          odemeOnayiBekleniyor(ref, abonelik: false);
+          mesajci.showSnackBar(SnackBar(content: Text(l10n.purchasePending)));
+        } else {
+          mesajci.showSnackBar(
+              SnackBar(content: Text(storeErrorText(e, l10n))));
+        }
       }
     } catch (e) {
       if (mounted) {

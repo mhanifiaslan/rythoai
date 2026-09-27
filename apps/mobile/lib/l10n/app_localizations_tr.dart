@@ -1865,6 +1865,22 @@ class AppLocalizationsTr extends AppLocalizations {
       'Mağaza şu an satın almayı tamamlayamadı. Birkaç dakika sonra tekrar dene.';
 
   @override
+  String get purchaseAlreadyOwnedIos =>
+      'Bu Apple Hesabında zaten etkin bir abonelik var.';
+
+  @override
+  String get purchaseItemUnavailableIos =>
+      'Ürün şu an App Store\'da bulunamadı. Biraz sonra tekrar dene.';
+
+  @override
+  String get purchaseNotAllowedIos =>
+      'Bu cihazda uygulama içi satın almaya izin verilmiyor. Ekran Süresi kısıtlamalarını kontrol et (Ayarlar › Ekran Süresi).';
+
+  @override
+  String get purchasePending =>
+      'Ödemen onay bekliyor; onaylanınca Rytho+ / krediler otomatik açılır.';
+
+  @override
   String get tokenStoreTitle => 'Kredi Mağazası';
 
   @override

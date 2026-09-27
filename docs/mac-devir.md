@@ -232,10 +232,17 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
 - **`STRIP_STYLE = non-global`** — `tflite_flutter` README'sinin uyardığı
   arşiv kusuru: Xcode sembolleri soyunca `flutter build ipa` sonrası
   çalışma anında "symbol not found" ile patlıyor.
-- **Zorunlu güncelleme ve abonelik yönetimi** artık platforma göre dallanıyor.
-- **Mağaza metinleri nötr** — dört kullanıcı dizesi "Google Play" yazmıyor
+- **Zorunlu güncelleme** artık platforma göre dallanıyor. **Abonelik
+  yönetimi** ise aboneliğin ALINDIĞI mağazayı açıyor: RevenueCat yetkisinin
+  `store` alanı, bilinmiyorsa çalışan platform (U47).
+- **Mağaza metinleri** — dört kullanıcı dizesi "Google Play" yazmıyor
   artık. Türkçe ek uyumu yüzünden yer tutucu kullanılamadı ("Play'**de**"
   ama "App Store'**da**"), bu yüzden mağaza adı metinden çıkarıldı.
+  ⚠️ Burada eskiden "mağaza metinleri nötr" yazıyordu ve iki satın alma
+  hata metni için YANLIŞTI: `purchaseAlreadyOwned` "Google hesabı",
+  `purchaseItemUnavailable` "test kanalı" diyor (U46). Artık
+  `storeErrorText` iOS'ta ayrı anahtarlara gidiyor; Android metinleri bayt
+  bayt duruyor.
 
 ---
 

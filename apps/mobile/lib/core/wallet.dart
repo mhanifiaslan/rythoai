@@ -153,3 +153,12 @@ Future<bool> purchaseTokenPack(WidgetRef ref, StoreProduct product) async {
   ref.invalidate(walletProvider);
   return true;
 }
+
+/// Kredi paketi satın alma işlevi — TEST DİKİŞİ (`PaketSatinAlici` ile aynı
+/// gerekçe: kredi mağazasının mağaza hata dalları ancak `Purchases.purchase`
+/// fırlatınca koşuyor ve o eklenti `flutter test` içinde çağrılamaz).
+typedef KrediPaketiSatinAlici = Future<bool> Function(
+    WidgetRef ref, StoreProduct urun);
+
+final krediPaketiSatinAliciProvider =
+    Provider<KrediPaketiSatinAlici>((_) => purchaseTokenPack);

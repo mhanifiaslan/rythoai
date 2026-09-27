@@ -67,7 +67,7 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U30 | ORTA | kod | ✅ App Check / Auth hataları iz bırakmıyor | A3 ortak kod |
 | U31 | ORTA | kod | ✅ Apple girişinde "hesap başka yöntemle var" genel hata | A3 ortak kod |
 | U32 | ORTA | kod | ⏳ Tek cihaz kilidi 3.1.2(a) ile çelişiyor | A3 ortak kod |
-| U33 | ORTA | kod | ⏳ Satın alma hata eşlemesinde iOS kodları eksik | A3 ortak kod |
+| U33 | ORTA | kod | ✅ Satın alma hata eşlemesinde iOS kodları eksik | A3 ortak kod |
 | U34 | ORTA | ikisi | ⏳ Davet ve web sayfaları yalnız Google Play | A3 ortak kod |
 | U35 | ORTA | kod | ⏳ Hesap silme sayfası yalnız Play iptalini anlatıyor | A3 ortak kod |
 | U36 | ORTA | kod | ⏳ Paralel Android geliştirmeye karşı iOS bekçisi yok | A3 ortak kod |
@@ -80,8 +80,8 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U43 | DÜŞÜK | ikisi | ✅ IDFA destekli Analytics yığını | A2 iOS kod |
 | U44 | DÜŞÜK | kod | ✅ Paylaşım kartı Fotoğraflar'a kaydedilemiyor | A2 iOS kod |
 | U45 | DÜŞÜK | kod | ✅ Yeniden kurulumda anahtar zinciri oturumu yaşıyor | A2 iOS kod |
-| U46 | DÜŞÜK | kod | ⏳ Satın alma hata metinleri Google/Play diyor | A3 ortak kod |
-| U47 | DÜŞÜK | kod | ⏳ "Aboneliği yönet" kaynak mağazaya bakmıyor | A3 ortak kod |
+| U46 | DÜŞÜK | kod | ✅ Satın alma hata metinleri Google/Play diyor | A3 ortak kod |
+| U47 | DÜŞÜK | kod | ✅ "Aboneliği yönet" kaynak mağazaya bakmıyor | A3 ortak kod |
 | U48 | DÜŞÜK | kod | ✅ Sayısal klavye kapatılamıyor | A3 ortak kod |
 | U49 | DÜŞÜK | kod | ✅ Sosyal giriş iptali hata gösteriyor | A3 ortak kod |
 | U50 | DÜŞÜK | kod | ⏳ 426 metni "Google Play" diyor | A3 ortak kod |
@@ -596,7 +596,7 @@ Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `authE
 **Android güvenliği** — Kuralı yalnız gevşetir.
 
 ### U33 — Satın alma hata eşlemesinde iOS için önemli kodlar eksik
-⏳ açık · ORTA · kod · A3 ortak kod · kaynak: `purchase-error-mapping-ios-codes`
+✅ kapandı · ORTA · kod · A3 ortak kod · kaynak: `purchase-error-mapping-ios-codes`
 
 **Kanıt** — `lib/core/purchase_errors.dart:61-85` `storeErrorText`: `paymentPendingError` ve `configurationError` varsayılana (`purchaseFailed` + kayıt) düşüyor; `purchaseNotAllowedError` "birkaç dakika sonra tekrar dene" diyen `purchaseStoreProblem`'e eşleniyor (`:74-76`). `lib/features/profile/subscription_screen.dart:89-96` `_restore` hatayı eşleyiciyi atlayıp `friendlyError` ile gösteriyor.
 
@@ -608,6 +608,10 @@ Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `authE
 3. `configurationError` → `billingNoPackages`; `magazaHatasiKaydedici` çağrısı KALIR (çizim yolunda `magazaVeyaAgHatasi` ile tekilleştiriliyor).
 4. `_restore`: PlatformException dalında `friendlyError(e, l10n)` yerine `storeErrorText(e, l10n)`.
 5. Yeni anahtarlar `app_tr.arb` + `app_en.arb`.
+
+Kapandı: `[iOS] U33 U46 U47: satin alma hata eslemesi, magaza metinleri, abonelik yonetimi` — `purchase_errors.dart` `storeErrorText`: `paymentPendingError` → `purchasePending`, kaydedilmez; `purchaseNotAllowedError` iOS'ta `purchaseNotAllowedIos` (Ekran Süresi), Android'de `purchaseStoreProblem` bayt bayt; `configurationError` → `billingNoPackages` + kayıt (çizim yolunda kod başına bir kez). Kodların iOS kaynağı RevenueCat 5.67.1 kaynağında okundu (`ios/Pods/RevenueCat`): bekleyen ödeme StoreKit 1 `.deferred` (`PurchasesOrchestrator`) ve StoreKit 2 `.pending`'den (`StoreKit2TransactionListener`); kısıt `paymentNotAllowed` / `clientInvalid` / `cloudServicePermissionDenied` / SK2 `purchaseNotAllowed`'dan; kurulum hatası iOS'ta asıl `getOfferings`'ten — teklifteki ürünlerin hiçbiri App Store Connect'ten gelmezse (`OfferingsManager`). Yani paywall'ın hata kartı eskiden henüz satın alma yokken "Satın alma tamamlanamadı" diyordu. Paywall `_buy` bekleyen ödemeyi macenta `_error` yerine ayrı `_bilgi` alanında nötr renkle gösteriyor, kredi mağazası bilgi snack'iyle; ikisi de `odemeOnayiBekleniyor` ile önbelleği düşürüyor (paywall abonelik + cüzdan; kredi mağazası yalnız cüzdan, çünkü abonelik sağlayıcısını düşürmek ona bağlı ücretli sağlayıcıları da yeniden kurar). Abonelik ekranı `_restore` PlatformException'ı `storeErrorText`'ten geçiriyor. Test dikişleri: `paketSatinAliciProvider`, `krediPaketiSatinAliciProvider`, `geriYukleyiciProvider`. Ölçüldü (`test/magaza_ios_uyum_test.dart`): iki platformda bekleyen ödeme metni ve kayıtsızlık; kurulum hatası metni + kayıt (satın alma yolunda her deneme, çizim yolunda bir kez); iOS kısıt metni, Android eski metin; paywall'da bekleyen ödeme macenta değil ve abonelik sağlayıcısı yeniden kuruluyor, gerçek mağaza hatası hâlâ macenta; kredi mağazasında cüzdan yeniden kuruluyor, abonelik kurulmuyor; abonelik ekranında ağ hatası artık `authNetwork` (eskiden `errorGeneric`). Mutasyonla: paywall'dan geçersiz kılma silinince ve kredi mağazası aboneliği de düşürünce ilgili iki test düştü.
+Ölçülen sınır: geçersiz kılma onayı BEKLEMEZ. İki sağlayıcı da paywall açıkken altta duran Gökyüzü ekranında izleniyor (kredi çipi, kilitli şeritler), yani çağrı onları hemen yeniden okutur ve sunucu o an "abone değil" der. Düzeltme metnindeki "ki sonraki webhook açsın" bu çağrıyla gerçekleşmiyor: sonradan gelen onay ekrana bir sonraki tazelemede (Gökyüzü'nde çek-yenile, geri yükleme, yeniden açılış) yansır; sunucu kapısı webhook'la kendiliğinden kalkar.
+Kalan: A5 — gerçek iPhone'da sandbox Ask to Buy (Aile Paylaşımı çocuk test hesabı): paywall nötr bilgi göstermeli, Crashlytics'te `store-purchase: 20` olmamalı. İsteğe bağlı: onayın açık ekrana kendiliğinden yansıması istenirse `Purchases.addCustomerInfoUpdateListener` + sunucu yoklaması; dinleyici eklenir eklenmez son bilinen müşteri bilgisiyle çağrılıyor (purchases_flutter 9.16.1), yani bir değişiklik tabanı gerekir.
 
 **Android güvenliği** — Mevcut durumlar aynen kalır; Android davranışı yalnız iyileşir.
 
@@ -758,7 +762,7 @@ Kalan: A5 — simülatörde girişli iken sil + yeniden kur: uygulama giriş ekr
 **Android güvenliği** — iOS korumalı; Android değişmez.
 
 ### U46 — Mağaza hata metinleri iOS'ta Google hesabını ve Play test kanalını anıyor
-⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `store-error-wording-google`, `android-specific-purchase-copy-on-ios`
+✅ kapandı · DÜŞÜK · kod · A3 ortak kod · kaynak: `store-error-wording-google`, `android-specific-purchase-copy-on-ios`
 
 **Kanıt** — `lib/l10n/app_tr.arb:916-917` / `app_en.arb:916-917`: `purchaseAlreadyOwned` "Bu Google hesabında…", `purchaseItemUnavailable` "Test kanalına katılan hesabın…"; `lib/core/purchase_errors.dart:64-70` ikisini platforma bakmadan döndürüyor. `docs/mac-devir.md:238-240`'taki "Mağaza metinleri nötr … 'Google Play' yazmıyor artık" iddiası bu iki anahtar için yanlış.
 
@@ -766,16 +770,21 @@ Kalan: A5 — simülatörde girişli iken sil + yeniden kur: uygulama giriş ekr
 
 **Düzeltme** — `purchaseAlreadyOwned` iki ARB'de mağaza-nötr: "Bu mağaza hesabında zaten etkin bir abonelik var — satın alımların geri yükleniyor…". `purchaseItemUnavailable` ya nötr ("Ürün şu an mağazada bulunamadı; mağaza hesabını kontrol edip tekrar dene") ya da `storeErrorText` içinde `defaultTargetPlatform` ile seçilen iOS'a özgü anahtar. `flutter gen-l10n`; `mac-devir.md:238-240` iddiası düzeltilir.
 
+Kapandı: `[iOS] U33 U46 U47: satin alma hata eslemesi, magaza metinleri, abonelik yonetimi` — Nötr metin yerine platform dalı seçildi, böylece Android'in test kanalı ipucu (Erkan vakası) bayt bayt kaldı. `storeErrorText` iOS'ta üç yeni anahtara gidiyor: `purchaseAlreadyOwnedIos` ("Bu Apple Hesabında zaten etkin bir abonelik var." — "geri yükleniyor…" ibaresi yok, çünkü geri yüklemeyi yalnız paywall kendiliğinden başlatıyor ve o dal bu metni göstermiyor), `purchaseItemUnavailableIos` (App Store, hesap talimatı yok: RevenueCat bu kodu StoreKit'in "ürün bu mağazada/şu an satılmıyor" hatalarından üretiyor) ve U33'ün `purchaseNotAllowedIos`'u. Paywall'daki "Play hesabında" yorumu mağaza-nötr yapıldı. `docs/mac-devir.md` §5'teki "Mağaza metinleri nötr" iddiası düzeltildi. Ölçüldü (`test/magaza_ios_uyum_test.dart`): iOS'ta `PurchasesErrorCode`'un TÜM değerleri TR ve EN'de gezildi, hiçbir metin kelime başına bağlı `Google` / `Play` / "test kanal" / "test track" içermiyor; Android'de dört kodun metni eskisiyle aynı ve test kanalı ipucu duruyor.
+
 **Android güvenliği** — Platform dalı seçilirse Android'in test kanalı ipucu bayt bayt korunur.
 
 ### U47 — "Aboneliği yönet" aboneliğin alındığı mağazaya bakmıyor
-⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `manage-subscription-cross-store`, `manage-subscription-ignores-origin-store`
+✅ kapandı · DÜŞÜK · kod · A3 ortak kod · kaynak: `manage-subscription-cross-store`, `manage-subscription-ignores-origin-store`
 
 **Kanıt** — `lib/features/profile/subscription_screen.dart:41-54` `storeSubscriptionUri` yalnız çalışan platforma göre dallanıyor (iOS → Apple abonelikleri, öteki → Play).
 
 **Etki** — Hesap RevenueCat ve sunucu üzerinden iki platformda ortak; Android'de abone olup iPhone'da giren kullanıcı orada da Rytho+. "Aboneliği yönet" Apple sayfasını açar, abonelik orada yok, iptal yolunu bulamaz (tersi Android'de). Red riski değil (inceleyiciler App Store'dan abone olur), ama gerçek parite ve destek sorunu.
 
 **Düzeltme** — İki yol, ikisi de iki platformu düzeltir: (a) `(await Purchases.getCustomerInfo()).managementURL` (RevenueCat kaynak mağazayı bilir); null (etkin mağaza aboneliği yok) ya da hatada `storeSubscriptionUri(productId)`'ye düşülür. (b) Backend modeline ve istemciye eklemeli `store` alanı: `APP_STORE` → Apple URL; `PLAY_STORE` → sku'lu Play URL; `PROMOTIONAL`/`STRIPE`/null → çalışan platform.
+
+Kapandı: `[iOS] U33 U46 U47: satin alma hata eslemesi, magaza metinleri, abonelik yonetimi` — (a) ile (b)'nin ortası, yalnız istemcide: `subscription.dart` `abonelikKaynakMagazasi` RevenueCat müşteri bilgisinde etkin Rytho+ yetkisinin `EntitlementInfo.store`'unu okuyor (3 sn sınırı, hata yutuluyor, mağaza anahtarı yoksa hiç sorulmuyor); `subscription_screen.dart` `aboneligiYonetAdresi`: `appStore`/`macAppStore` → Apple sayfası, `playStore` → sku'lu Play sayfası, bilinmeyen/promosyon/test mağazası → `storeSubscriptionUri` (çalışan platform, eski davranış). `managementURL` yerine `store`: Play dalı mevcut sku'lu adresi (M1) kullanmaya devam ediyor ve kaynak bilinmeyince ne açılacağı kodda açık; `managementURL` ise iki platformda birden etkin abonelik varsa cihazın mağazasını gösteriyor (purchases_flutter belgesi). Backend değişmedi — webhook `store`u zaten yazıyor ama `/billing/status` döndürmüyor; (b) yeni bir deploy isterdi. İki adresin web yüzü HTTP düzeyinde ölçüldü (2026-09-27): Play adresi Google girişine, Apple adresi Android tarayıcı kimliğiyle `account.apple.com/account/manage/section/subscriptions`a yönleniyor. Sorgu sürerken ikinci dokunuş yok sayılıyor (`_yonetimAciliyor`; testle ölçülmedi). Geri yükleme doğrulandı: paywall'da ve Abonelik ekranında (ücretsiz ve abone görünümünde) "Satın alımları geri yükle" var; eklenecek bir şey yoktu. Ölçüldü (`test/magaza_ios_uyum_test.dart`): Play aboneliği iOS'ta sku'lu Play adresi (`:monthly` eki kırpılmış), App Store aboneliği Android'de Apple adresi, dört bilinmeyen kaynak iki platformda çalışan platformun adresi; `abonelikKaynakMagazasi` yetkinin mağazasını dönüyor, yetki yoksa / sorgu düşerse / anahtar yoksa / 3 sn'de cevap yoksa null; geri yükleme düğmesi üç ekran durumunda bekçide.
+Kalan: A5 — Android'de alınmış abonelikle iPhone'da "Aboneliği yönet" Play sayfasını açmalı (girişten sonraki sayfa cihazda denenmedi).
 
 **Android güvenliği** — Eski istemciler yeni alanı yok sayar.
 

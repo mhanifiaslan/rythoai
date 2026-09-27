@@ -1868,6 +1868,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'The store couldn\'t complete the purchase right now. Please try again in a few minutes.';
 
   @override
+  String get purchaseAlreadyOwnedIos =>
+      'This Apple Account already has an active subscription.';
+
+  @override
+  String get purchaseItemUnavailableIos =>
+      'The product couldn\'t be found in the App Store right now. Please try again later.';
+
+  @override
+  String get purchaseNotAllowedIos =>
+      'In-app purchases aren\'t allowed on this device. Check your Screen Time restrictions (Settings › Screen Time).';
+
+  @override
+  String get purchasePending =>
+      'Your payment is awaiting approval; Rytho+ / credits will unlock automatically once it\'s approved.';
+
+  @override
   String get tokenStoreTitle => 'Credit Store';
 
   @override

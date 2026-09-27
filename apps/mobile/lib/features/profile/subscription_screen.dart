@@ -16,9 +16,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:purchases_flutter/purchases_flutter.dart' show Store;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api.dart' show friendlyError;
+import '../../core/purchase_errors.dart' show storeErrorText;
 import '../../core/subscription.dart';
 import '../../core/wallet.dart';
 import '../../l10n/app_localizations.dart';
@@ -40,8 +42,15 @@ import '../paywall/token_store_screen.dart';
 /// kuralı ihlali sayılır (kullanıcı aboneliğini yönetebilmeli).
 Uri storeSubscriptionUri(String? productId) {
   if (defaultTargetPlatform == TargetPlatform.iOS) {
-    return Uri.parse('https://apps.apple.com/account/subscriptions');
+    return Uri.parse(_kAppleAbonelikleri);
   }
+  return _playAbonelikAdresi(productId);
+}
+
+const String _kAppleAbonelikleri =
+    'https://apps.apple.com/account/subscriptions';
+
+Uri _playAbonelikAdresi(String? productId) {
   const paket = 'ai.rytho';
   // Play webhook'u ürün kimliğini "urun:base_plan" biçiminde gönderebilir
   // (rytho_plus_monthly:monthly). Play'in sku parametresi base-plan eki
@@ -51,6 +60,33 @@ Uri storeSubscriptionUri(String? productId) {
       ? 'https://play.google.com/store/account/subscriptions'
       : 'https://play.google.com/store/account/subscriptions'
           '?sku=$sku&package=$paket');
+}
+
+/// "Aboneliği yönet"in açacağı sayfa: aboneliğin ALINDIĞI mağaza (U47).
+///
+/// Hesap iki platformda ortak; Android'de abone olup iPhone'da giren
+/// kullanıcı orada da Rytho+. Yalnız çalışan platforma bakan eski yol ona
+/// aboneliğin OLMADIĞI mağazanın sayfasını açıyordu ve iptal yolu
+/// bulunamıyordu (tersi Android'de). [kaynak] RevenueCat yetkisinin
+/// `store` alanı (bkz. `abonelikKaynakMagazasi`); bilinmiyorsa, ya da
+/// yetki bir mağaza aboneliği değilse (promosyon, test mağazası…), çalışan
+/// platformun mağazası açılır — eski davranış.
+///
+/// Karşı platformun sayfası tarayıcıda açılır ve ikisinin de web yüzü var
+/// (2026-09-27, HTTP düzeyinde ölçüldü): Play adresi Google girişine, ardından
+/// aynı abonelik sayfasına yönleniyor; Apple adresi Android tarayıcı
+/// kimliğiyle `account.apple.com/account/manage/section/subscriptions`a
+/// yönleniyor. Girişten sonraki sayfa cihazda denenmedi.
+Uri aboneligiYonetAdresi(Store? kaynak, String? productId) {
+  switch (kaynak) {
+    case Store.appStore:
+    case Store.macAppStore:
+      return Uri.parse(_kAppleAbonelikleri);
+    case Store.playStore:
+      return _playAbonelikAdresi(productId);
+    default:
+      return storeSubscriptionUri(productId);
+  }
 }
 
 /// Bilinen ürün kimliğini insan diline çevirir; bilinmeyene ham kimlik.
@@ -81,14 +117,17 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final mesajci = ScaffoldMessenger.of(context);
     setState(() => _restoreBusy = true);
     try {
-      final ok = await restorePurchases(ref);
+      final ok = await ref.read(geriYukleyiciProvider)(ref);
       if (!mounted) return;
       mesajci.showSnackBar(SnackBar(
           content: Text(
               ok ? l10n.subRestoreDone : l10n.noActiveSubscription)));
     } on PlatformException catch (e) {
+      // Mağaza hatası mağaza çevirmeninden geçer (U33): `friendlyError`
+      // PlatformException'ı tanımıyor ve ağ kopukluğunda bile "beklenmeyen
+      // sorun" diyordu; paywall'daki aynı düğme doğru metni gösterirken.
       if (mounted) {
-        mesajci.showSnackBar(SnackBar(content: Text(friendlyError(e, l10n))));
+        mesajci.showSnackBar(SnackBar(content: Text(storeErrorText(e, l10n))));
       }
     } catch (e) {
       if (mounted) {
@@ -99,11 +138,22 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     }
   }
 
+  /// Kaynak mağaza sorulurken ikinci dokunuş ikinci bir sekme açmasın.
+  bool _yonetimAciliyor = false;
+
   Future<void> _manage(String? productId) async {
-    // Dış tarayıcıya çıkar: Play aboneliği uygulama içinden yönetilemez,
-    // mağaza kuralı gereği iptal/duraklatma oranın işi.
-    await launchUrl(storeSubscriptionUri(productId),
-        mode: LaunchMode.externalApplication);
+    if (_yonetimAciliyor) return;
+    _yonetimAciliyor = true;
+    try {
+      final kaynak =
+          await abonelikKaynakMagazasi(ref.read(musteriBilgisiGetiriciProvider));
+      // Dış uygulamaya/tarayıcıya çıkar: mağaza aboneliği uygulama içinden
+      // yönetilemez, iptal/duraklatma mağazanın işi.
+      await launchUrl(aboneligiYonetAdresi(kaynak, productId),
+          mode: LaunchMode.externalApplication);
+    } finally {
+      _yonetimAciliyor = false;
+    }
   }
 
   @override
