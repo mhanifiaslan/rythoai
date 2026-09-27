@@ -285,6 +285,14 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "en": "Face reading needs your consent to biometric processing. "
               "You can give it under Profile > Privacy.",
     },
+    "ai_consent_required": {
+        "tr": "Yapay zeka özellikleri kapalı: verilerinin Google'ın "
+              "yapay zeka hizmetine (Gemini) gönderilmesine henüz izin "
+              "vermedin. Profil > Gizlilik bölümünden açabilirsin.",
+        "en": "AI features are off: you haven't allowed your data to be "
+              "sent to Google's AI service (Gemini). You can turn them on "
+              "under Profile > Privacy.",
+    },
     "face_invalid_ratios": {
         "tr": "Yüz ölçümü tutarsız geldi. Işığın yeterli olduğundan ve "
               "yüzünün çerçevede olduğundan emin olup tekrar dene.",

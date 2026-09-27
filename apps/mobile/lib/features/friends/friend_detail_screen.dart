@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ai_consent.dart'
+    show AiOnayKapaliKarti, aiOnayHatasiMi, aiOnayProvider;
 import '../../core/analytics.dart';
 import '../../core/api.dart';
 import '../../core/discovery.dart';
@@ -37,6 +39,10 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
   String? _reading;
   String? _error;
   bool _busy = false;
+
+  /// U06: AI aktarım onayı yok — ikili okuma istenmedi. Ekranın geri kalanı
+  /// (tepkiler, sohbet kısayolu) AI'sız ve çalışmaya devam eder.
+  bool _aiKapali = false;
   String? _sentReaction;
 
   @override
@@ -51,8 +57,19 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _aiKapali = false;
     });
     try {
+      // İkili okuma iki tarafın adını ve haritasını Gemini'ye gönderir;
+      // onay yoksa istek ATILMAZ. Sayfa burada kendiliğinden açılmaz —
+      // kullanıcı arkadaşına bakmaya geldi, karar kartın düğmesinde.
+      final onay = await ref
+          .read(aiOnayProvider.future)
+          .catchError((Object _) => false);
+      if (!onay) {
+        if (mounted) setState(() => _aiKapali = true);
+        return;
+      }
       final dio = ref.read(apiProvider);
       final response = await dio.post('/api/v1/reports/dyad',
           data: {'friend_uid': widget.friend.uid});
@@ -61,8 +78,13 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
       Analytics.reportGenerated('dyad');
     } catch (e) {
       if (mounted) {
-        setState(() =>
-            _error = friendlyError(e, AppLocalizations.of(context)));
+        setState(() {
+          if (aiOnayHatasiMi(e)) {
+            _aiKapali = true;
+          } else {
+            _error = friendlyError(e, AppLocalizations.of(context));
+          }
+        });
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -162,12 +184,15 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
               ),
           ]),
         ),
-        _DyadPanel(
-          busy: _busy,
-          reading: _reading,
-          error: _error,
-          onRetry: _loadDyad,
-        ),
+        if (_aiKapali)
+          AiOnayKapaliKarti(onGranted: _loadDyad)
+        else
+          _DyadPanel(
+            busy: _busy,
+            reading: _reading,
+            error: _error,
+            onRetry: _loadDyad,
+          ),
         // Bağlamlı sohbet (R4-2): bu arkadaş hakkında soru — sunucu ilişki
         // eksenlerini fısıldar, cevap İKİ KİŞİYE özel olur.
         GlassPanel(

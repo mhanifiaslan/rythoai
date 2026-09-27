@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from core import device, entitlements
+from core import ai_consent, app_gate, device, entitlements
 from core.auth import AuthUser, get_current_user
 from core.entitlements import FREE_CHAT_PER_DAY
 from core.wallet import charge_metered, refund_spend
@@ -120,7 +120,8 @@ def chat(request: ChatRequest, background: BackgroundTasks,
          user: AuthUser = Depends(get_current_user),
          lang: str = Depends(get_language),
          x_device_id: str | None = Header(default=None),
-         x_device_platform: str | None = Header(default=None)):
+         x_device_platform: str | None = Header(default=None),
+         x_app_build: str | None = Header(default=None)):
     """Sohbet: ucretsiz katmanda gunde [FREE_CHAT_PER_DAY] mesaj; abonede
     aylik token hakkindan, hak bitince satin alinan paketten harcanir.
 
@@ -150,6 +151,15 @@ def chat(request: ChatRequest, background: BackgroundTasks,
         kategori, reply = blocked
         logger.info("Yasak alan reddedildi: %s", kategori)
         return {"status": "success", "reply": reply, "blocked": kategori}
+
+    # U06 — AI aktarım onayı. Kriz ve yasak alan kapılarından SONRA: o
+    # iki yanıt modele hiç gitmeden, sabit metinle döner; onay yok diye
+    # krizdeki birine destek metni yerine 403 göstermek yanlış öncelik
+    # olurdu. Cihaz kilidinden ve harcamadan ÖNCE: reddedilen istek jeton
+    # yakmamalı. RAG gömme çağrısı da (mesaj Gemini embedding'e gider)
+    # bunun altında kalır.
+    if not ai_consent.izin_var(user.uid, app_gate.parse_build(x_app_build)):
+        raise ai_consent.reddet(lang)
 
     # Tek cihaz kilidi (yalnızca ücretli abonede etkili) HARCAMADAN önce:
     # 409 alan istek token da yakmamalı.

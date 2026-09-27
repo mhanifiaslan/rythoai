@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core import wallet
+from core.ai_consent import ai_onayi_zorunlu
 from core.auth import AuthUser, get_current_user
 from core.entitlements import require_plus
 from core.i18n import get_language
@@ -95,6 +96,9 @@ def firasa_reading(
     ratios: FaceRatios,
     user: AuthUser = Depends(require_plus("firasa")),
     lang: str = Depends(get_language),
+    # U06: oranlar + harita özeti Gemini'ye gider. Biyometrik rızadan AYRI
+    # bir onay — biri işlemenin kendisine, öbürü üçüncü tarafa aktarıma.
+    _ai: None = Depends(ai_onayi_zorunlu),
 ):
     """Yüz oranlarından firaset okuması — Rytho+.
 

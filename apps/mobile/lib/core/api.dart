@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/paywall/paywall_screen.dart';
 import '../features/paywall/token_store_screen.dart';
 import '../l10n/app_localizations.dart';
+import 'ai_consent.dart'
+    show AiOnayiGerekli, aiOnayHatasiMi, aiOnayiSunucuIstedi;
 import 'app_config.dart'
     show
         appBuildInterceptor,
@@ -137,6 +139,10 @@ final apiProvider = Provider<Dio>((ref) {
             error.response?.headers.value('x-paywall-reason');
         _showPaywall(detail, tokens: sebep == 'tokens');
       }
+      // U06: sunucu "AI onayı yok" dedi — bu cihazın bildiği bayat (onay
+      // başka cihazda geri alınmış olabilir). Onay sayfası açılır; hata
+      // yine çağırana gider ve ekran "yapay zeka kapalı" kartını gösterir.
+      if (aiOnayHatasiMi(error)) aiOnayiSunucuIstedi();
       handler.next(error);
     },
   ));
@@ -197,6 +203,7 @@ String friendlyError(Object error, AppLocalizations l10n) {
         ? l10n.reportUnavailableRefunded
         : l10n.reportUnavailable;
   }
+  if (error is AiOnayiGerekli) return l10n.aiConsentOffBody;
   if (error is DioException) {
     // Sunucunun `detail` alani zaten kullanicinin dilinde uretiliyor
     // (Accept-Language ile), o yuzden oldugu gibi gosterilir — cerceveden

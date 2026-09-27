@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ai_consent.dart' show AiOnayKapaliKarti, aiOnayHatasiMi;
 import '../../core/api.dart' show friendlyError;
 import '../../core/providers.dart';
 import '../../l10n/app_localizations.dart';
@@ -36,11 +37,16 @@ class InnerCalendarScreen extends ConsumerWidget {
           l10n.innerCalendarWaitStage2,
         ]),
         error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Text(friendlyError(e, l10n),
-                style: RythoText.body(14, color: RythoColors.parchmentDim)),
-          ),
+          // U06: AI kapalıyken düz hata metni değil, tek dokunuşla onay
+          // sayfasını açan kart.
+          child: aiOnayHatasiMi(e)
+              ? const AiOnayKapaliKarti()
+              : Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text(friendlyError(e, l10n),
+                      style: RythoText.body(14,
+                          color: RythoColors.parchmentDim)),
+                ),
         ),
         data: (data) {
           if (data == null) {

@@ -103,6 +103,67 @@ def record_consent(req: ConsentRequest,
             "version": consent_service.TERMS_CONSENT_VERSION}
 
 
+class AiConsentRequest(BaseModel):
+    #: İstemcinin GÖSTERDİĞİ onay metni sürümü (şartlar kabulüyle aynı
+    #: ilke: ispat, kullanıcının gördüğü metne bağlanır).
+    version: int = Field(default=consent_service.AI_CONSENT_VERSION,
+                         ge=1, le=1000)
+
+
+@router.get("/ai-consent")
+def ai_consent_status(user: AuthUser = Depends(get_current_user),
+                      lang: str = Depends(get_language)):
+    """AI aktarım onayının durumu (U06).
+
+    Kayıt istemciye kapalı `private/` altında durduğu için istemci onu
+    Firestore'dan okuyamaz; tek kaynak bu uç. `decided`, "hiç sorulmadı"
+    ile "soruldu, hayır dedi"yi ayırır — istemci ikisinde de onay
+    ekranını gösterir ama bu ayrım destek ve test için görünür kalmalı.
+
+    Okuma hatası 500'e sarılır, "onay yok"a ÇEVRİLMEZ: istemci hata
+    görünce son bildiği değere düşer; "yok" görseydi onaylı kullanıcıya
+    ekranı yeniden gösterir ve AI'yı sebepsiz kapatırdı.
+    """
+    try:
+        kayit = consent_service.ai_consent(user.uid)
+    except Exception as exc:
+        logger.warning("AI onayı okunamadı (%s): %s", user.uid, exc)
+        raise HTTPException(status_code=500, detail=text("internal", lang))
+    return {
+        "granted": consent_service.ai_kaydi_gecerli(kayit),
+        "decided": isinstance(kayit, dict) and "granted" in kayit,
+        "version": consent_service.AI_CONSENT_VERSION,
+    }
+
+
+@router.post("/ai-consent")
+def grant_ai_consent(req: AiConsentRequest,
+                     user: AuthUser = Depends(get_current_user),
+                     lang: str = Depends(get_language)):
+    """AI aktarım onayını kaydeder (zaman damgası + gösterilen sürüm)."""
+    if not consent_service.grant_ai_consent(user.uid, req.version, lang):
+        raise HTTPException(status_code=500, detail=text("internal", lang))
+    return {"status": "success",
+            "granted": req.version >= consent_service.AI_CONSENT_VERSION,
+            "version": consent_service.AI_CONSENT_VERSION}
+
+
+@router.delete("/ai-consent")
+def withdraw_ai_consent(user: AuthUser = Depends(get_current_user),
+                        lang: str = Depends(get_language)):
+    """Onayı geri alır ya da "Şimdi değil"i kaydeder (``granted: False``).
+
+    Abonelik İSTEMEZ — yüz rızası uçlarıyla aynı gerekçe: geri alma hakkı
+    ödeme durumuna bağlanamaz. Üretilmiş okumalar SİLİNMEZ: onlar zaten
+    üretilmiş metinler, geri alma bundan sonraki aktarımı durdurur; silme
+    istenirse hesap silme ve konu silme yolları duruyor.
+    """
+    if not consent_service.withdraw_ai_consent(user.uid, lang):
+        raise HTTPException(status_code=500, detail=text("internal", lang))
+    return {"status": "success", "granted": False,
+            "version": consent_service.AI_CONSENT_VERSION}
+
+
 @router.post("/phone/sync")
 def sync_phone(user: AuthUser = Depends(get_current_user),
                lang: str = Depends(get_language)):

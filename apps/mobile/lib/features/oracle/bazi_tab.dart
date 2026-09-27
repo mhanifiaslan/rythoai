@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ai_consent.dart' show AiOnayKapaliKarti, aiOnayHatasiMi;
 import '../../core/providers.dart';
 import '../../theme/rytho_theme.dart';
 import '../../widgets/atlas_widgets.dart';
@@ -44,14 +45,17 @@ class BaziTab extends ConsumerWidget {
       // goren kullanici uygulamayi yeniden acmak zorunda kaliyordu. ErrorCard
       // depodaki ortak desen (sky_screen, token_store_screen).
       error: (e, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: ErrorCard(
-            message: friendlyError(e, l10n),
-            screen: 'oracle',
-            onRetry: () => ref.invalidate(baziReportProvider),
-          ),
-        ),
+        // U06: AI kapalıyken hata kartı değil onay kartı.
+        child: aiOnayHatasiMi(e)
+            ? const AiOnayKapaliKarti()
+            : Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ErrorCard(
+                  message: friendlyError(e, l10n),
+                  screen: 'oracle',
+                  onRetry: () => ref.invalidate(baziReportProvider),
+                ),
+              ),
       ),
       data: (data) {
         if (data == null) {

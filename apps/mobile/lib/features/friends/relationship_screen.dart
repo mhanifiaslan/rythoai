@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ai_consent.dart' show AiOnayKapaliKarti, aiOnayProvider;
 import '../../core/api.dart';
 import '../../core/discovery.dart';
 import '../../core/friends.dart';
@@ -61,6 +62,10 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
   String? _reading;
   bool _readingLocked = false;
 
+  /// U06: abone ama AI aktarım onayı yok — eksenler (LLM'siz ölçüm) gelir,
+  /// yorum yerine onay kartı. Kilit kartı DEĞİL: abonelik onu açmaz.
+  bool _readingAiOff = false;
+
   /// Bugün aranıza dokunan gökyüzü (GT-turu) — LLM'siz günlük ölçüm;
   /// ücretsiz katmanda da görünür ("hesap bedava, yorum paralı").
   Map<String, dynamic>? _today;
@@ -80,7 +85,13 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
     });
     try {
       final dio = ref.read(apiProvider);
+      // U06: onay yoksa `ai=0` — sunucu yorumu hiç üretmez (adlar ve
+      // eksenler Gemini'ye gitmez), ölçümü yine döndürür.
+      final onay = await ref
+          .read(aiOnayProvider.future)
+          .catchError((Object _) => false);
       final response = await dio.post('/api/v1/reports/relationship',
+          queryParameters: onay ? null : const {'ai': '0'},
           data: widget.friend != null
               ? {'friend_uid': widget.friend!.uid}
               : {'person_id': widget.person!.id});
@@ -95,6 +106,7 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
         _reason = data['reason'] as String?;
         _reading = data['reading'] as String?;
         _readingLocked = data['reading_locked'] == true;
+        _readingAiOff = data['reading_ai_off'] == true;
         _today = data['today'] is Map
             ? Map<String, dynamic>.from(data['today'] as Map)
             : null;
@@ -201,6 +213,11 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
             ),
           ).animate(delay: Duration(milliseconds: 70 * stagger++))
               .fadeIn(duration: 380.ms),
+        if (_readingAiOff)
+          Padding(
+            padding: const EdgeInsets.only(top: RythoSpace.sm),
+            child: AiOnayKapaliKarti(onGranted: _load),
+          ),
         if (_readingLocked)
           Padding(
             padding: const EdgeInsets.fromLTRB(RythoSpace.lg,

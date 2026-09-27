@@ -5119,6 +5119,144 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Dış halka yükleniyor…'**
   String get chartOuterLoading;
+
+  /// No description provided for @aiConsentTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Verilerin Google Gemini\'ye gönderilsin mi?'**
+  String get aiConsentTitle;
+
+  /// No description provided for @aiConsentIntro.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kişisel okumaların, sohbet yanıtların ve yüz okuman üçüncü taraf bir yapay zeka hizmetiyle — Google\'ın Gemini API\'siyle — üretilir. Bu özellikleri kullandığında şu veriler Google\'a gönderilir:'**
+  String get aiConsentIntro;
+
+  /// No description provided for @aiConsentDataChart.
+  ///
+  /// In tr, this message translates to:
+  /// **'Doğum haritandan hesaplanan bilgiler: gezegen konumları, evler, açılar, transitler ve BaZi sütunları. Bazı okumalarda (ör. Yıl Haritası) güneş dönüşü tarihi ve şehir adları da geçer.'**
+  String get aiConsentDataChart;
+
+  /// No description provided for @aiConsentDataChat.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sohbet mesajların ve konuşmanın son kısmı; I Ching\'e sorduğun soru.'**
+  String get aiConsentDataChat;
+
+  /// No description provided for @aiConsentDataMemory.
+  ///
+  /// In tr, this message translates to:
+  /// **'Seni tanımak için sohbetlerden çıkarılan kısa notlar, ruh hâli seyrin ve son günlük notların.'**
+  String get aiConsentDataMemory;
+
+  /// No description provided for @aiConsentDataPeople.
+  ///
+  /// In tr, this message translates to:
+  /// **'İlişki okumalarında ve sohbette adın, arkadaşlarının görünen adı ve burcu. Eklediğin kişilerin yalnız yakınlık türü (ör. \"eşin\") ve haritası gider; onlara verdiğin isim telefonunda kalır.'**
+  String get aiConsentDataPeople;
+
+  /// No description provided for @aiConsentDataFace.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yüz okumasında yüz hatlarından türetilen oranlar — fotoğrafın gönderilmez.'**
+  String get aiConsentDataFace;
+
+  /// No description provided for @aiConsentPurpose.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu veriler yalnız senin istediğin yorumu, cevabı ve sabah bildirimindeki kişisel cümleyi üretmek için gönderilir. Genel burç yorumları da yapay zekayla yazılır ama onlara senin verin katılmaz.'**
+  String get aiConsentPurpose;
+
+  /// No description provided for @aiConsentDeclineInfo.
+  ///
+  /// In tr, this message translates to:
+  /// **'İzin vermezsen kişisel okumalar, sohbet ve yüz okuması kapalı kalır ve bu veriler Gemini\'ye gönderilmez. Doğum haritan, gökyüzü, takvim ve arkadaş özellikleri çalışmaya devam eder. Kararını istediğin an Profil > Gizlilik\'ten değiştirebilirsin.'**
+  String get aiConsentDeclineInfo;
+
+  /// No description provided for @aiConsentPrivacyLink.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ayrıntılar gizlilik politikasında'**
+  String get aiConsentPrivacyLink;
+
+  /// No description provided for @aiConsentAgree.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kabul ediyorum'**
+  String get aiConsentAgree;
+
+  /// No description provided for @aiConsentNotNow.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şimdi değil'**
+  String get aiConsentNotNow;
+
+  /// No description provided for @aiConsentDeclinedSnack.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yapay zeka özellikleri kapalı; verilerin Gemini\'ye gönderilmiyor. İstediğinde Profil > Gizlilik\'ten açabilirsin.'**
+  String get aiConsentDeclinedSnack;
+
+  /// No description provided for @aiConsentSaveFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'İznin kaydedilemedi; bu yüzden henüz hiçbir şey gönderilmedi. Bağlantını kontrol edip tekrar dene.'**
+  String get aiConsentSaveFailed;
+
+  /// No description provided for @aiConsentOffBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu bölüm Google Gemini ile üretiliyor ve verilerinin gönderilmesine henüz izin vermedin. İzin verene kadar hiçbir şey gönderilmez.'**
+  String get aiConsentOffBody;
+
+  /// No description provided for @aiConsentTurnOn.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yapay zekayı aç'**
+  String get aiConsentTurnOn;
+
+  /// No description provided for @aiConsentSetting.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yapay zeka (Google Gemini)'**
+  String get aiConsentSetting;
+
+  /// No description provided for @aiConsentSettingOn.
+  ///
+  /// In tr, this message translates to:
+  /// **'Açık. Okuma ve sohbet için verilerin Gemini\'ye gönderilir.'**
+  String get aiConsentSettingOn;
+
+  /// No description provided for @aiConsentSettingOff.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kapalı. Verilerin Gemini\'ye gönderilmez; kişisel okumalar ve sohbet çalışmaz.'**
+  String get aiConsentSettingOff;
+
+  /// No description provided for @aiConsentWithdrawTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yapay zeka iznini geri al'**
+  String get aiConsentWithdrawTitle;
+
+  /// No description provided for @aiConsentWithdrawBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bundan sonra verilerin Gemini\'ye gönderilmez; kişisel okumalar, sohbet ve yüz okuması kapanır. Daha önce üretilmiş okumaların ve sohbet geçmişin bu işlemle silinmez.'**
+  String get aiConsentWithdrawBody;
+
+  /// No description provided for @aiConsentWithdrawConfirm.
+  ///
+  /// In tr, this message translates to:
+  /// **'Geri al'**
+  String get aiConsentWithdrawConfirm;
+
+  /// No description provided for @aiConsentWithdrawn.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yapay zeka izni geri alındı.'**
+  String get aiConsentWithdrawn;
 }
 
 class _AppLocalizationsDelegate

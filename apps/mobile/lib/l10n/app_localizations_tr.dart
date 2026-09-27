@@ -2882,4 +2882,87 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get chartOuterLoading => 'Dış halka yükleniyor…';
+
+  @override
+  String get aiConsentTitle => 'Verilerin Google Gemini\'ye gönderilsin mi?';
+
+  @override
+  String get aiConsentIntro =>
+      'Kişisel okumaların, sohbet yanıtların ve yüz okuman üçüncü taraf bir yapay zeka hizmetiyle — Google\'ın Gemini API\'siyle — üretilir. Bu özellikleri kullandığında şu veriler Google\'a gönderilir:';
+
+  @override
+  String get aiConsentDataChart =>
+      'Doğum haritandan hesaplanan bilgiler: gezegen konumları, evler, açılar, transitler ve BaZi sütunları. Bazı okumalarda (ör. Yıl Haritası) güneş dönüşü tarihi ve şehir adları da geçer.';
+
+  @override
+  String get aiConsentDataChat =>
+      'Sohbet mesajların ve konuşmanın son kısmı; I Ching\'e sorduğun soru.';
+
+  @override
+  String get aiConsentDataMemory =>
+      'Seni tanımak için sohbetlerden çıkarılan kısa notlar, ruh hâli seyrin ve son günlük notların.';
+
+  @override
+  String get aiConsentDataPeople =>
+      'İlişki okumalarında ve sohbette adın, arkadaşlarının görünen adı ve burcu. Eklediğin kişilerin yalnız yakınlık türü (ör. \"eşin\") ve haritası gider; onlara verdiğin isim telefonunda kalır.';
+
+  @override
+  String get aiConsentDataFace =>
+      'Yüz okumasında yüz hatlarından türetilen oranlar — fotoğrafın gönderilmez.';
+
+  @override
+  String get aiConsentPurpose =>
+      'Bu veriler yalnız senin istediğin yorumu, cevabı ve sabah bildirimindeki kişisel cümleyi üretmek için gönderilir. Genel burç yorumları da yapay zekayla yazılır ama onlara senin verin katılmaz.';
+
+  @override
+  String get aiConsentDeclineInfo =>
+      'İzin vermezsen kişisel okumalar, sohbet ve yüz okuması kapalı kalır ve bu veriler Gemini\'ye gönderilmez. Doğum haritan, gökyüzü, takvim ve arkadaş özellikleri çalışmaya devam eder. Kararını istediğin an Profil > Gizlilik\'ten değiştirebilirsin.';
+
+  @override
+  String get aiConsentPrivacyLink => 'Ayrıntılar gizlilik politikasında';
+
+  @override
+  String get aiConsentAgree => 'Kabul ediyorum';
+
+  @override
+  String get aiConsentNotNow => 'Şimdi değil';
+
+  @override
+  String get aiConsentDeclinedSnack =>
+      'Yapay zeka özellikleri kapalı; verilerin Gemini\'ye gönderilmiyor. İstediğinde Profil > Gizlilik\'ten açabilirsin.';
+
+  @override
+  String get aiConsentSaveFailed =>
+      'İznin kaydedilemedi; bu yüzden henüz hiçbir şey gönderilmedi. Bağlantını kontrol edip tekrar dene.';
+
+  @override
+  String get aiConsentOffBody =>
+      'Bu bölüm Google Gemini ile üretiliyor ve verilerinin gönderilmesine henüz izin vermedin. İzin verene kadar hiçbir şey gönderilmez.';
+
+  @override
+  String get aiConsentTurnOn => 'Yapay zekayı aç';
+
+  @override
+  String get aiConsentSetting => 'Yapay zeka (Google Gemini)';
+
+  @override
+  String get aiConsentSettingOn =>
+      'Açık. Okuma ve sohbet için verilerin Gemini\'ye gönderilir.';
+
+  @override
+  String get aiConsentSettingOff =>
+      'Kapalı. Verilerin Gemini\'ye gönderilmez; kişisel okumalar ve sohbet çalışmaz.';
+
+  @override
+  String get aiConsentWithdrawTitle => 'Yapay zeka iznini geri al';
+
+  @override
+  String get aiConsentWithdrawBody =>
+      'Bundan sonra verilerin Gemini\'ye gönderilmez; kişisel okumalar, sohbet ve yüz okuması kapanır. Daha önce üretilmiş okumaların ve sohbet geçmişin bu işlemle silinmez.';
+
+  @override
+  String get aiConsentWithdrawConfirm => 'Geri al';
+
+  @override
+  String get aiConsentWithdrawn => 'Yapay zeka izni geri alındı.';
 }

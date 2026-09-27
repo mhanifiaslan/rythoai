@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ai_consent.dart' show aiOnayHatasiMi, aiOnayiIste;
 import '../../core/providers.dart';
 import '../../theme/rytho_theme.dart';
 import '../../widgets/atlas_widgets.dart' show AstrolabeSpinner;
@@ -435,7 +436,12 @@ class _FullReportRow extends ConsumerWidget {
         title: l10n.atlasFullReport,
         subtitle: friendlyError(e, l10n),
         subtitleLines: 3,
-        onTap: () => ref.invalidate(natalReportProvider),
+        // U06: AI kapalıysa dokunuş onay sayfasını açar; onay verilince
+        // sağlayıcı kendiliğinden yeniden kurulur. Tekrar denemek orada
+        // hiçbir şeyi değiştirmezdi.
+        onTap: () => aiOnayHatasiMi(e)
+            ? aiOnayiIste(context, ref)
+            : ref.invalidate(natalReportProvider),
       ),
       data: (veri) {
         final metin = veri?['report'] as String?;

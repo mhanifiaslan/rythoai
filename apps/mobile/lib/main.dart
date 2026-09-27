@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/ai_consent.dart' show AiOnayiGerekli;
 import 'core/api.dart';
 import 'core/app_check_izi.dart';
 import 'core/app_config.dart';
@@ -60,6 +61,9 @@ Duration? rythoRetry(int retryCount, Object error) {
   // besleyen dongunun aynisini kurar (ustelik her deneme bir jeton dus/iade
   // turu); karari kullanici verir — ekranlarda "tekrar dene" var.
   if (error is RaporUretilemedi) return null;
+  // U06: AI onayı yok — durum ağla değil kullanıcının kararıyla değişir;
+  // onay verilince sağlayıcı zaten kendiliğinden yeniden kurulur.
+  if (error is AiOnayiGerekli) return null;
   if (retryCount >= 2) return null;
   return Duration(milliseconds: 400 * (retryCount + 1));
 }

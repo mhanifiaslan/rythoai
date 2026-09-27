@@ -14,8 +14,8 @@ library;
 /// (başlık | null, gövde) çiftleri — başlıksız girdiler düz paragraftır.
 typedef LegalSections = List<(String?, String)>;
 
-const String kLegalLastUpdatedTr = '2 Ağustos 2026';
-const String kLegalLastUpdatedEn = '2 August 2026';
+const String kLegalLastUpdatedTr = '27 Eylül 2026';
+const String kLegalLastUpdatedEn = '27 September 2026';
 const String kLegalContact = 'aslan.mh@gmail.com';
 
 // ---------------------------------------------------------------------------
@@ -194,8 +194,11 @@ const LegalSections kPrivacyPolicyTr = [
         'dilimi, bildirimin senin yerel sabahına denk gelmesi için gerekir; '
         'konum bilgin alınmaz, yalnızca cihazının bildirdiği saat dilimi adı '
         '(örneğin "Europe/Istanbul") kaydedilir. Bildirim metinleri '
-        'sunucumuzda üretilir ve burcuna göre hazırlanır; bu metinler kişiye '
-        'özel değildir ve sohbet geçmişin bildirim üretiminde kullanılmaz. '
+        'sunucumuzda üretilir. Sabah bildirimi, yapay zeka iznin varsa '
+        'doğum haritana o gün değen transitten yazılmış kişisel bir cümle '
+        'taşır (bkz. "Yapay zeka ile işleme"); iznin yoksa aynı transitin '
+        'teknik satırı ya da burcuna göre hazırlanmış genel bir satır gider. '
+        'Sohbet geçmişin bildirim üretiminde kullanılmaz. '
         'Bildirim türlerini ve sessiz saatleri Profil > Bildirimler '
         'bölümünden kapatabilir, cihaz ayarlarından tümüyle kaldırabilirsin. '
         'Uygulamayı sildiğinde bildirim kimliği geçersizleşir ve ilk '
@@ -210,11 +213,36 @@ const LegalSections kPrivacyPolicyTr = [
   ),
   (
     'Yapay zeka ile işleme',
-    'Okumalar ve sohbet yanıtları Google Gemini ile üretilir. Modele '
-        'gönderilenler: hesaplanmış gök verisi, doğum haritandan türetilen '
-        'konumlar (doğum tarihin/saatin değil), varsa kullanıcı hafızandan '
-        'kısa bağlam ve mesajın. Yorumlar içgörü amaçlıdır; tıbbi, hukuki '
-        'veya finansal tavsiye değildir.'
+    'Kişisel okumalar (günlük okuma, natal rapor, BaZi, Yıl Haritası, İç '
+        'Takvim, Doğum Heksagramı, I Ching, ilişki okumaları), sohbet '
+        'yanıtları, yüz okuması yorumu ve sinyal kartlarıyla sabah '
+        'bildirimindeki kişisel cümleler üçüncü taraf bir yapay zeka '
+        'hizmetiyle — Google LLC\'nin Gemini API\'siyle — üretilir. Bu '
+        'özellikler için uygulama içinde AYRI ve açık iznini isteriz. İzin '
+        'vermezsen bu özellikler kapalı kalır ve aşağıdaki veriler '
+        'Gemini\'ye gönderilmez; doğum haritan, gökyüzü, takvim ve arkadaş '
+        'özellikleri çalışmaya devam eder.\n\n'
+        'İzin verdiğinde, kullandığın özelliğe göre şunlar Google\'a '
+        'gönderilir: doğum haritandan hesaplanan bilgiler (gezegen '
+        'konumları, evler, açılar, transitler, BaZi sütunları; Yıl Haritası '
+        'okumasında güneş dönüşü tarihi ve şehir adları); sohbet mesajların '
+        've konuşmanın son kısmı; I Ching\'e sorduğun soru; sohbetlerden '
+        'çıkarılan kısa notlar, ruh hâli seyrin ve son günlük notların; '
+        'adın (ilişki okumalarında); arkadaşlarının görünen adı ve burcu '
+        '(ilişki okumalarında ve sohbette); eklediğin kişilerin yakınlık türü ve haritası (onlara '
+        'verdiğin isim telefonunda kalır); yüz okumasında yüz hatlarından '
+        'türetilen oranlar (fotoğraf gönderilmez). Sohbette bir mesaja '
+        'yazdığın her şey — bir ad dahil — mesajın parçası olarak gider.'
+        '\n\n'
+        'Bu veriler yalnız istediğin yorumu ya da cevabı üretmek için '
+        'gönderilir. Genel burç yorumları ve burca göre hazırlanan bildirim '
+        'satırları da yapay zekayla yazılır ama bunlara kişisel verin '
+        'katılmaz.\n\n'
+        'İznini istediğin an Profil > Gizlilik bölümünden geri alabilir, '
+        'yeniden verebilirsin. Geri aldığın andan itibaren gönderim durur; '
+        'daha önce üretilmiş okumalar ve sohbet geçmişin bu işlemle '
+        'silinmez. Yorumlar içgörü amaçlıdır; tıbbi, hukuki veya finansal '
+        'tavsiye değildir.'
   ),
   (
     'Alt işleyiciler',
@@ -498,9 +526,12 @@ const LegalSections kPrivacyPolicyEn = [
         'account. The time zone is what lets a notification land in your own '
         'morning; we do not collect your location, only the time zone name '
         'your device reports (for example "Europe/Istanbul"). Notification '
-        'text is generated on our servers per sun sign — it is not '
-        'individually personalised, and your chat history is never used to '
-        'produce it. You can switch types off and set quiet hours under '
+        'text is generated on our servers. If you have allowed AI '
+        'processing, the morning notification carries a personal line '
+        'written from the transit touching your birth chart that day (see '
+        '"AI processing"); if you have not, it carries the technical line '
+        'for that transit or a general line written for your sun sign. Your '
+        'chat history is never used to produce notifications. You can switch types off and set quiet hours under '
         'Profile > Notifications, or turn them off entirely in your device '
         'settings. If you delete the app the token stops working and we drop '
         'it on the first failed delivery.'
@@ -514,11 +545,38 @@ const LegalSections kPrivacyPolicyEn = [
   ),
   (
     'AI processing',
-    'Readings and chat replies are generated with Google Gemini. What is sent '
-        'to the model: calculated sky data, positions derived from your chart '
-        '(not your birth date or time), a short amount of context from your '
-        'user memory if any, and your message. Readings are for insight; they '
-        'are not medical, legal or financial advice.'
+    'Personal readings (daily reading, natal report, BaZi, Year Chart, Inner '
+        'Calendar, Birth Hexagram, I Ching, relationship readings), chat '
+        'replies, the face reading interpretation, and the personal lines on '
+        'signal cards and in the morning notification are generated by a '
+        'third-party AI service: the Gemini API of Google LLC. We ask for '
+        'your SEPARATE, explicit permission for these features inside the '
+        'app. If you do not give it, these features stay off and the data '
+        'below is not sent to Gemini; your birth chart, the sky, the '
+        'calendar and friend features keep working.\n\n'
+        'Once you allow it, depending on the feature you use, the following '
+        'is sent to Google: information calculated from your birth chart '
+        '(planet positions, houses, aspects, transits, BaZi pillars; for the '
+        'Year Chart, the solar return date and city names); your chat '
+        'messages and the recent part of the conversation; the question you '
+        'ask the I Ching; short notes drawn from your chats, your mood trend '
+        'and your latest journal notes; your name (in relationship '
+        'readings); your friends\' display names and signs (in relationship '
+        'readings and chat); the relationship type and chart of people you '
+        'added (the name you gave '
+        'them stays on your phone); for face reading, ratios derived from '
+        'your facial features (your photo is not sent). Anything you type '
+        'into a chat message, a name included, goes as part of that message.'
+        '\n\n'
+        'This data is sent only to generate the reading or reply you asked '
+        'for. General sign horoscopes and notification lines written per '
+        'sun sign are also produced with AI, but none of your personal data '
+        'goes into them.\n\n'
+        'You can withdraw and give this permission again at any time under '
+        'Profile > Privacy. Sending stops from the moment you withdraw; '
+        'readings already generated and your chat history are not deleted '
+        'by this. Readings are for insight; they are not medical, legal or '
+        'financial advice.'
   ),
   (
     'Sub-processors',

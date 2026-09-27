@@ -3,13 +3,14 @@ import datetime as dt
 import logging
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from core.auth import AuthUser, get_current_user
 from core.i18n import get_language
 from core.messages import text
 from core.entitlements import require_plus
+from core.ai_consent import ai_katmani_acik, ai_onayi_zorunlu
 from core import entitlements, wallet
 from services import (astro_service, bazi_service, birth_hexagram_service,
                       chart_context, notification_service, people_service,
@@ -139,7 +140,9 @@ def horoscope(
 
 @router.get("/signals")
 def signals(user: AuthUser = Depends(get_current_user),
-            lang: str = Depends(get_language)):
+            lang: str = Depends(get_language),
+            ai: bool = True,
+            x_app_build: str | None = Header(default=None)):
     """Kişisel sinyaller (R2-S1) — ana ekranın proaktif kartları.
 
     Jeton YOK. Ham sinyaller LLM'siz hesaptır ve transit takvimi gibi doğum
@@ -163,7 +166,12 @@ def signals(user: AuthUser = Depends(get_current_user),
                     "data": {"signals": [], "reason": "birth_missing"}}
 
         soru = None
-        if ham.get("signals"):
+        # U06: yorum katmanı sinyal satırlarını (transit ↔ natal açıları)
+        # Gemini'ye gönderir. Onay yoksa katman ATLANIR, hata dönmez —
+        # sinyallerin kendisi LLM'siz hesap ve ücretsiz kalır. `ai=0` onay
+        # ekranlı istemcinin "henüz karar yok" işaretidir (bkz.
+        # core/ai_consent.py dosya başı).
+        if ham.get("signals") and ai_katmani_acik(user.uid, x_app_build, ai):
             paket = signal_service.cached_insight_bundle(ham, lang)
             if paket:
                 ham = {**ham, "signals": [
@@ -189,6 +197,7 @@ def signals(user: AuthUser = Depends(get_current_user),
 @router.post("/daily")
 def daily(data: BirthData,
           user: AuthUser = Depends(require_plus("personal_daily")),
+          _ai: None = Depends(ai_onayi_zorunlu),
           lang: str = Depends(get_language)):
     """Kisiye ozel gunluk okuma — Rytho+ .
 
@@ -229,6 +238,7 @@ def daily(data: BirthData,
 @router.post("/natal")
 def natal(data: BirthData,
           user: AuthUser = Depends(require_plus("natal_report")),
+          _ai: None = Depends(ai_onayi_zorunlu),
           lang: str = Depends(get_language)):
     try:
         chart = astro_service.get_natal_chart(
@@ -257,6 +267,7 @@ def natal(data: BirthData,
 @router.post("/bazi")
 def bazi(data: BirthData,
          user: AuthUser = Depends(require_plus("bazi")),
+         _ai: None = Depends(ai_onayi_zorunlu),
          lang: str = Depends(get_language)):
     try:
         chart = get_bazi_chart(
@@ -292,6 +303,7 @@ def bazi(data: BirthData,
 @router.post("/iching")
 def iching(req: IChingReportRequest,
            user: AuthUser = Depends(require_plus("iching")),
+           _ai: None = Depends(ai_onayi_zorunlu),
            lang: str = Depends(get_language)):
     """I Ching Rytho+ kapısında (V2, 2026-08-12 kullanıcı kararı).
 
@@ -363,6 +375,7 @@ class SolarReturnRequest(BirthData):
 @router.post("/solar-return")
 def solar_return(data: SolarReturnRequest,
                  user: AuthUser = Depends(require_plus("solar_return")),
+                 _ai: None = Depends(ai_onayi_zorunlu),
                  lang: str = Depends(get_language)):
     """Yıl haritası (T1): aktif güneş dönüşü + LLM yıl okuması.
 
@@ -397,6 +410,7 @@ def solar_return(data: SolarReturnRequest,
 @router.post("/progressions")
 def progressions(data: BirthData,
                  user: AuthUser = Depends(require_plus("progressions")),
+                 _ai: None = Depends(ai_onayi_zorunlu),
                  lang: str = Depends(get_language)):
     """İç Takvim (T2): ikincil progresyon + solar arc + LLM okuması."""
     try:
@@ -426,6 +440,7 @@ def progressions(data: BirthData,
 @router.post("/birth-hexagram")
 def birth_hexagram(data: BirthData,
                    user: AuthUser = Depends(require_plus("birth_hexagram")),
+                   _ai: None = Depends(ai_onayi_zorunlu),
                    lang: str = Depends(get_language)):
     """Doğum Heksagramı — kalıcı kimlik katmanı (Revize İ5).
 
@@ -485,6 +500,7 @@ def iching_status(user: AuthUser = Depends(get_current_user)):
 @router.post("/dyad")
 def dyad(req: RelationshipRequest,
          user: AuthUser = Depends(require_plus("dyad")),
+         _ai: None = Depends(ai_onayi_zorunlu),
          lang: str = Depends(get_language)):
     """İkinizin BUGÜNE özgü ilişki dinamiği.
 
@@ -561,7 +577,9 @@ def dyad(req: RelationshipRequest,
 @router.post("/relationship")
 def relationship(req: RelationshipRequest,
                  user: AuthUser = Depends(get_current_user),
-                 lang: str = Depends(get_language)):
+                 lang: str = Depends(get_language),
+                 ai: bool = True,
+                 x_app_build: str | None = Header(default=None)):
     """İlişki eksenleri (R2-L1) — nitel okuma, sayısal puan YOK.
 
     Karşı taraf iki türden biri olabilir (P-turu):
@@ -651,7 +669,15 @@ def relationship(req: RelationshipRequest,
             logger.warning("Çift transit ölçümü üretilemedi (%s): %s",
                            user.uid, exc)
 
-        if entitlements.is_subscriber(user.uid):
+        abone = entitlements.is_subscriber(user.uid)
+        # U06: yorum iki tarafın adını/etiketini ve eksenlerini Gemini'ye
+        # gönderir. Onay yoksa eksenler (LLM'siz ölçüm) yine döner, yorum
+        # yerine `reading_ai_off` — kilit rozeti DEĞİL: abonelik almak onu
+        # açmaz, yalnız onay açar; `reading_locked` demek yanlış çare
+        # göstermek olurdu.
+        if abone and not ai_katmani_acik(user.uid, x_app_build, ai):
+            veri = {**veri, "reading_ai_off": True}
+        elif abone:
             okuma = report_service.relationship_reading(
                 user.uid, karsi.key,
                 me.get("displayName") or "?",
@@ -681,6 +707,7 @@ def relationship(req: RelationshipRequest,
 @router.post("/synastry")
 def synastry(req: SynastryReportRequest,
              user: AuthUser = Depends(require_plus("synastry")),
+             _ai: None = Depends(ai_onayi_zorunlu),
              lang: str = Depends(get_language)):
     try:
         result = astro_service.get_synastry(
