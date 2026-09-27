@@ -6,6 +6,8 @@ efemeris değil, puanlama/tema/çeşitlilik kuralları ve başlık şablonlarıd
 """
 from __future__ import annotations
 
+import pytest
+
 from services import prompts, signal_service
 
 
@@ -716,6 +718,17 @@ class TestSinyalUcu:
         assert veri["signals"][0]["insight"] == "Bugüne özgü cümle."
         assert veri["fingerprint"]
         assert veri["checkin_question"] == "Bugün nasıl geçti?"
+
+
+@pytest.fixture(autouse=True)
+def ai_onayi_verilmis(monkeypatch):
+    """Bu dosya AI bildirim satırının KENDİSİNİ sınıyor; kullanıcı onay
+    vermiş sayılır. Arka plan yolu kayıtsız yeni kullanıcıya AI satırı
+    göndermediği için (U06, `arka_plan_karari`) pinsiz profiller teknik
+    satıra düşerdi. Onay kapısının kendisi test_ai_consent.py'de."""
+    from core import ai_consent
+    monkeypatch.setattr(ai_consent, "arka_plan_izni_var",
+                        lambda uid, build: True)
 
 
 class TestOnbellekVeBildirim:

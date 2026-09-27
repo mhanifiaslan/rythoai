@@ -508,11 +508,54 @@ def test_sinyaller_onayliyken_yorumlu(kullanici, sahte_sinyal):
 
 def test_bildirim_izni_surum_aynasini_kullanir(monkeypatch):
     from services import notification_service as ns
-    _esik(monkeypatch, 50)
-    assert ns.ai_izinli({"uid": UID, "appBuild": 49}) is True
-    assert ns.ai_izinli({"uid": UID, "appBuild": 50}) is False
+    assert ns.ai_izinli({"uid": UID, "appBuild": 45}) is True
+    assert ns.ai_izinli({"uid": UID, "appBuild": 46}) is False
     consent_service.grant_ai_consent(UID, 1, "tr")
-    assert ns.ai_izinli({"uid": UID, "appBuild": 50}) is True
+    assert ns.ai_izinli({"uid": UID, "appBuild": 46}) is True
+
+
+def test_arka_plan_karari_esikten_bagimsiz_ve_siki():
+    """Eşik KAPALIYKEN (0) bile kayıtsız yeni sürüm/iOS kullanıcısının
+    haritası arka planda Gemini'ye gitmez — gizlilik metni "AI işlemeye
+    izin verdiysen" diyor. Yalnız ekransız eski paket (<= 45) kayıtsız
+    izinli; aynası olmayan (0) sürümü bilinmediği için izinli değil."""
+    son = ai_consent.ONAY_EKRANSIZ_SON_BUILD
+    assert ai_consent.arka_plan_karari(None, son) is True
+    assert ai_consent.arka_plan_karari(None, 43) is True
+    assert ai_consent.arka_plan_karari(None, son + 1) is False
+    assert ai_consent.arka_plan_karari(None, 100) is False
+    assert ai_consent.arka_plan_karari(None, 0) is False
+    assert ai_consent.arka_plan_karari(REDDETTI, son) is False
+    assert ai_consent.arka_plan_karari(VERDI, 0) is True
+    assert ai_consent.arka_plan_karari(VERDI, 100) is True
+    eski = {"granted": True, "version": consent_service.AI_CONSENT_VERSION - 1}
+    assert ai_consent.arka_plan_karari(eski, 100) is False
+
+
+def test_bildirim_esik_kapaliyken_karar_vermemis_yeni_surume_ai_yok(
+        monkeypatch, sahte_sinyal):
+    """Onay sayfasını görüp karar vermeden uygulamayı kapatan 46+ kullanıcı:
+    varsayılan eşik 0 iken de sabah bildirimi teknik satır, paket okunmaz."""
+    from services import notification_service as ns
+    from services import signal_service
+    _esik(monkeypatch, 0)
+    monkeypatch.setattr(signal_service, "daily_focus_index",
+                        lambda ham, prev_theme=None, prev_fp=None: 0)
+    monkeypatch.setattr(ns.prompts, "localize_signals", lambda lang, h: {
+        "signals": [{"technical": "Mars üçgen Venüs", "theme": "relationships",
+                     "theme_local": "İlişkiler"}]})
+    sonuc = ns.signal_push({"uid": UID, "appBuild": 46}, "tr")
+    assert sonuc is not None and sonuc[1] == "Mars üçgen Venüs"
+    assert sahte_sinyal["n"] == 0
+    assert ns.checkin_push({"uid": UID, "appBuild": 46}, "tr") is None
+    assert sahte_sinyal["n"] == 0
+
+
+def test_arka_plan_kaydi_okunamazsa_izin_yok(monkeypatch):
+    def patla(uid):
+        raise RuntimeError("firestore yok")
+    monkeypatch.setattr(consent_service, "ai_consent", patla)
+    assert ai_consent.arka_plan_izni_var(UID, 45) is False
 
 
 def test_sabah_bildirimi_hayir_diyene_paket_okumaz(monkeypatch, sahte_sinyal):

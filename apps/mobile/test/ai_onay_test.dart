@@ -184,6 +184,37 @@ void main() {
       expect(l10n.aiConsentIntro, contains('Google'));
     });
 
+    testWidgets('geri tuşu Şimdi değil gibi KAYDEDİLİR, bir kez',
+        (tester) async {
+      // Android geri tuşu `isDismissible: false`a rağmen sayfayı kapatır
+      // (sonuç null). Kaydedilmeseydi "veri gönderilmiyor" mesajı çıkar ama
+      // sunucu açık "hayır"ı hiç öğrenmezdi.
+      final depo = _SahteDepo();
+      final kap = _kap(depo);
+      final sonuclar = <bool>[];
+      await tester.pumpWidget(_sar(kap, _Tetik(sonuclar)));
+      await _ac(tester);
+      expect(find.text(_tr().aiConsentTitle), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await _yerles(tester);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(_tr().aiConsentTitle), findsNothing);
+      expect(sonuclar, [false]);
+      expect(depo.geriAlSayisi, 1);
+      expect(depo.verilenSurumler, isEmpty);
+      expect(kap.read(aiOnayProvider).value, isFalse);
+      expect(find.text(_tr().aiConsentDeclinedSnack), findsOneWidget);
+
+      // "Şimdi değil" düğmesi kaydı kendisi yapar; null yolu onu ikinci
+      // kez yazmamalı.
+      await _ac(tester);
+      await _dokun(tester, find.text(_tr().aiConsentNotNow));
+      expect(sonuclar, [false, false]);
+      expect(depo.geriAlSayisi, 2);
+    });
+
     testWidgets('Şimdi değil kaydı sunucuya yazılamasa da çökmez',
         (tester) async {
       final depo = _SahteDepo()..geriAlHatasi = true;

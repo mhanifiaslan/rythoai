@@ -292,11 +292,14 @@ Future<bool> _sayfayiAc(BuildContext context,
     {required bool sunucuReddetti}) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
   final l10n = AppLocalizations.of(context);
+  // Sayfa kapandıktan sonra `context` sökülmüş olabilir; kap ÖNCEDEN alınır.
+  final kap = ProviderScope.containerOf(context, listen: false);
   final karar = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     // Dışarı dokunup geçmek bir karar değil: kullanıcı iki düğmeden birini
-    // seçer. Geri tuşu yine kapatır ve "Şimdi değil" gibi sayılır.
+    // seçer. `isDismissible`/`enableDrag` Android'in geri tuşunu KAPATMAZ —
+    // o yol aşağıda (null sonuç) "Şimdi değil" olarak kaydedilir.
     isDismissible: false,
     enableDrag: false,
     backgroundColor: RythoColors.inkLight,
@@ -307,6 +310,18 @@ Future<bool> _sayfayiAc(BuildContext context,
     builder: (_) => AiOnaySayfasi(sunucuReddetti: sunucuReddetti),
   );
   if (karar == true) return true;
+  if (karar == null) {
+    // Geri tuşu (ya da düğmesiz herhangi bir kapanış). "Şimdi değil" düğmesi
+    // `false` döndürür ve kaydı kendisi yapar — burada yalnız null yol
+    // kaydedilir, çift yazım olmaz. Kaydedilmeseydi sunucu yalnız "kayıt
+    // yok" görürdü; o durum eşik yükseltilene kadar uçlarda, ekransız eski
+    // pakette (sürüm aynası <= 45) arka plan bildiriminde de İZİNLİ
+    // sayılıyor — aynı hesabın eski paketli bir cihazı haritayı Gemini'ye
+    // göndermeyi sürdürür, hemen altındaki "verin gönderilmiyor" mesajını
+    // yalanlardı. Açık "hayır" ise sunucuda eşikten bağımsız her yolda
+    // geçerli.
+    unawaited(kap.read(aiOnayProvider.notifier).simdiDegil());
+  }
   // Dostça söylenir, suçlamadan: ne kapandı, ne çalışmaya devam ediyor,
   // nereden açılır. "Verilerin yine de gönderiliyor" izlenimi VERMEZ.
   messenger?.showSnackBar(SnackBar(content: Text(l10n.aiConsentDeclinedSnack)));

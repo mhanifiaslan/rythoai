@@ -5,7 +5,8 @@ kullanıcıdan uygulama içinde açık izin alınmalı. İzin ekranı istemcide
 (`apps/mobile/lib/core/ai_consent.dart`); bu modül iki şeyi yapar:
 
 1. **Karar** (`izin_karari`) — saf fonksiyon, kayıt + sürüm + eşikten
-   izin çıkarır. Uçlar ve sabah bildirimi aynı kararı kullanır.
+   izin çıkarır ve uçlarda kullanılır. Sabah/akşam bildirimi eşiksiz,
+   daha sıkı kardeşini (`arka_plan_karari`) kullanır.
 2. **Zorlama** — AI uçlarında 403 (`ai_onayi_zorunlu`) ya da yumuşak
    uçlarda AI katmanını atlama (`ai_katmani_acik`).
 
@@ -145,6 +146,45 @@ def izin_var(uid: str, build: int) -> bool:
         logger.warning("AI onayı okunamadı (%s): %s", uid, exc)
         return False
     return izin_karari(kayit, build, current_min_build())
+
+
+def arka_plan_karari(kayit: Any, build: int) -> bool:
+    """Zamanlanmış koşular (sabah/akşam bildirimi) için karar. Saf fonksiyon.
+
+    Uçlardan SIKI: eşik burada rol oynamaz. "Kayıt yok" yalnız sürüm
+    aynası onay ekranı olmayan bir paketi gösteriyorsa
+    (``0 < build <= ONAY_EKRANSIZ_SON_BUILD``) izinli sayılır.
+
+    Neden ayrı: uçlardaki eşik, ekransız istemcinin EKRANDA gördüğü
+    özelliği kırmamak için var. Arka plan yolunda kırılacak bir ekran yok —
+    izinsiz kullanıcı yalnız AI cümlesi yerine teknik satırı alır. Eşikle
+    karar verseydik, eşik yükseltilene kadar ekranı görüp karar vermemiş
+    (uygulamayı kapatmış) her yeni sürüm ve iOS kullanıcısının haritası her
+    sabah Gemini'ye gider, gizlilik metnindeki "AI işlemeye izin verdiysen"
+    cümlesi yalan olurdu. Aynası olmayan profil (``build == 0``) sürümü
+    bilinmediği için izinli SAYILMAZ; ekransız bir 46 çıkarsa bedeli de
+    zararsız: o kullanıcılar teknik satırı alır.
+    """
+    from services import consent_service
+
+    if consent_service.ai_kaydi_gecerli(kayit):
+        return True
+    if isinstance(kayit, dict) and kayit.get("granted") is False:
+        return False
+    return 0 < build <= ONAY_EKRANSIZ_SON_BUILD
+
+
+def arka_plan_izni_var(uid: str, build: int) -> bool:
+    """`arka_plan_karari`nın kayıt okuyan hâli. Okuma hatası → HAYIR
+    (`izin_var` ile aynı gerekçe)."""
+    from services import consent_service
+
+    try:
+        kayit = consent_service.ai_consent(uid)
+    except Exception as exc:
+        logger.warning("AI onayı okunamadı (%s): %s", uid, exc)
+        return False
+    return arka_plan_karari(kayit, build)
 
 
 def reddet(lang: str) -> HTTPException:

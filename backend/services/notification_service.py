@@ -413,15 +413,17 @@ def _bundle_body(paket: dict[str, Any] | None, idx: int,
 def ai_izinli(profile: dict[str, Any]) -> bool:
     """Bu kullanıcının sinyal satırları Gemini'ye gidebilir mi? (U06)
 
-    Uçlardaki kararın AYNISI (`core.ai_consent.izin_var`); sürüm
-    başlıktan değil sunucunun yazdığı sürüm aynasından (`appBuild`) gelir
-    — zamanlanmış koşunun isteği kullanıcının cihazından gelmiyor. Onayı
-    geri almış ya da "Şimdi değil" demiş kullanıcının sabah bildirimi
-    AI'sız teknik satıra düşer; bildirim yine gider.
+    Uçlardan SIKI (`core.ai_consent.arka_plan_karari`): eşik yok, kayıtsız
+    kullanıcı yalnız onay ekranı olmayan eski bir paketteyse izinli.
+    Sürüm başlıktan değil sunucunun yazdığı sürüm aynasından (`appBuild`)
+    gelir — zamanlanmış koşunun isteği kullanıcının cihazından gelmiyor.
+    İzinsiz kullanıcının sabah bildirimi AI'sız teknik satıra düşer;
+    bildirim yine gider.
     """
     from core import ai_consent, app_gate
-    return ai_consent.izin_var(str(profile.get("uid") or ""),
-                               app_gate.parse_build(profile.get("appBuild")))
+    return ai_consent.arka_plan_izni_var(
+        str(profile.get("uid") or ""),
+        app_gate.parse_build(profile.get("appBuild")))
 
 
 def signal_push(profile: dict[str, Any], lang: str,
