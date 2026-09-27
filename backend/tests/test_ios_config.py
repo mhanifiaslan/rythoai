@@ -136,3 +136,31 @@ def test_ihracat_beyani_ve_strip_ayari_duruyor():
     info = _plist(_RUNNER / "Info.plist")
     assert info.get("ITSAppUsesNonExemptEncryption") is False
     assert 'STRIP_STYLE = "non-global";' in _pbxproj()
+
+
+def test_aasa_takim_kimligi_imza_takimiyla_ayni():
+    """Evrensel bağlantının kimliği İKİ parçadan oluşur: Team ID + bundle.
+    `apple-app-site-association`daki appID, uygulamayı imzalayan takımla
+    (pbxproj `DEVELOPMENT_TEAM`) birebir eşleşmezse iOS bağlantıyı
+    uygulamaya DEVRETMEZ — davet linki sessizce Safari'de açılır, derleme
+    ve testler yeşil kalır. Dosya uzun süre `TEAMID` yer tutucusuyla durdu
+    (2026-09-27'de gerçek değer yazıldı). Ayrıca Team ID ile kayıt
+    e-postasındaki Enrollment ID aynı biçimde (10 karakter) — yanlışı
+    yazılırsa ikisi yine de "geçerli görünür"; bu test ikisini birbirine
+    bağlar, doğru olanı sahip Membership details'ten doğruladı."""
+    import json
+
+    takimlar = set(re.findall(r"DEVELOPMENT_TEAM = ([A-Z0-9]+);",
+                              _pbxproj()))
+    assert len(takimlar) == 1, (
+        f"pbxproj'de tek bir imza takımı bekleniyordu: {takimlar or 'yok'}")
+    takim = takimlar.pop()
+    assert re.fullmatch(r"[A-Z0-9]{10}", takim), takim
+
+    aasa = json.loads((_KOK / "web" / ".well-known"
+                       / "apple-app-site-association").read_text(
+                           encoding="utf-8"))
+    kimlikler = {d["appID"] for d in aasa["applinks"]["details"]}
+    assert kimlikler == {f"{takim}.{KIMLIK}"}, (
+        f"AASA appID {kimlikler}, imza takımı {takim} — evrensel bağlantı "
+        "uygulamayı açmaz")

@@ -322,8 +322,9 @@ dosyada birden bağlıyor (pbxproj ×3, gradle, AASA, plist).
 
 **Kalan engelleyiciler hesap işidir, kod değil:** Apple Developer üyeliği →
 Team ID · imzalama · APNs anahtarı · gerçek `appl_` RevenueCat anahtarı
-(şu anki `test_` önekli) · AASA'daki `TEAMID` yer tutucusu · App Store
-Connect kaydı ve IAP ürünleri.
+(şu anki `test_` önekli) · App Store Connect kaydı ve IAP ürünleri.
+Team ID `292WJ9TP74` (2026-09-27): AASA'ya ve pbxproj'e yazıldı, hosting
+yayını bekliyor.
 
 ### iOS tuzakları (ölçüldü)
 

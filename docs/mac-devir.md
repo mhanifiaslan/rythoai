@@ -184,11 +184,14 @@ kodda sabit, **değiştirme**:
 RevenueCat'te abonelik `RhytoAI Pro` entitlement'ına bağlanır (paketler
 bağlanmaz) — panel adıyla **birebir** aynı olmalı.
 
-### 4.8 — `apple-app-site-association` · **SEN (Team ID gelince)**
+### 4.8 — `apple-app-site-association` · ✅ **depoda** (2026-09-27) · **yayın bekliyor**
 `web/.well-known/apple-app-site-association` içinde
-`"appID": "TEAMID.ai.rytho"` — **`TEAMID` yer tutucu**. Gerçek Team ID
-yazılıp `firebase deploy --only hosting --project rhytoai` ile yayınlanır.
-Bunsuz davet bağlantıları iOS'ta uygulamayı açmaz, tarayıcıya düşer.
+`"appID": "292WJ9TP74.ai.rytho"` — gerçek Team ID (Membership details'ten
+sahip doğruladı; kayıt e-postasındaki Enrollment ID aynı biçimde ama
+FARKLI bir şey). Aynı değer pbxproj'de `DEVELOPMENT_TEAM`; ikisinin
+ayrışması `backend/tests/test_ios_config.py`'de bekçili. **Kalan:**
+`firebase deploy --only hosting --project rhytoai` (Windows tarafı). Yayın
+olmadan davet bağlantıları iOS'ta uygulamayı açmaz, tarayıcıya düşer.
 
 Entitlements tarafı hazır: `applinks:rytho.app` **ve**
 `applinks:rhytoai.web.app` ikisi de yazılı (sahadaki eski davet bağlantıları
