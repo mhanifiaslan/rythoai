@@ -222,6 +222,16 @@ async def get_current_user(
             # nameLower, ...}` sunucu yazımlı; her kimlikli istek en ucuz
             # kanca. `ensure` uid başına 24 saatte bir ve diff-only —
             # hiç fırlatmaz; modül yoksa (henüz dağıtılmadı) sessiz.
+            #
+            # ⚠️ Yukarıdaki sürüm aynasıyla BİRLİKTE okunmalı: ikisi de bu
+            # fonksiyondan tetiklenen "en iyi çaba" yazımı ve ikisi de
+            # `users/{uid}`'ye dokunuyor. Silinen hesabın kimlik jetonu bir
+            # saate kadar geçerli kaldığı için buradan geçen bir istek
+            # dokümanı DİRİLTEBİLİYORDU (bulgu B9, üretimde ölçüldü).
+            # O yüzden iki ayna da `update` kullanır, `set(merge=True)`
+            # değil: var olmayan doküman YARATILMAZ. Bu fonksiyona yeni
+            # bir ayna eklenirse aynı kurala uymak zorundadır — yoksa
+            # dirilme tek bir yazımla geri gelir.
             try:
                 from services import search_mirror
                 await run_in_threadpool(search_mirror.ensure, uid)

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -192,6 +193,44 @@ Future<SubscriptionStatus> abonelikDurumunuOku(Dio dio) async {
     // kullaniciya bir sey SOYLEYEN kararlar bu acilista susar.
     return SubscriptionStatus.bilinmiyor;
   }
+}
+
+/// Sunucunun SON söylediği "bu kullanıcı Plus mı" cevabı — interceptor'ın
+/// okuyabildiği TEK kopya (bulgu B10).
+///
+/// [subscriptionProvider] bu soruyu zaten cevaplıyor ama `apiProvider`'ın
+/// interceptor'ından OKUNAMAZ: gövdesinde `ref.watch(apiProvider)` var ve
+/// interceptor `apiProvider`'ın kendi ref'ini taşıyor, yani
+/// `ref.read(subscriptionProvider.future)` çalışma anında
+/// `CircularDependencyError` fırlatır (ölçüldü). Bu ayna hiçbir şeyi izlemez;
+/// değeri `/billing/status` YANITINDAN, yani sunucunun kendi gövdesinden gelir
+/// — istemci tahmininden değil.
+///
+/// Değer sunucudaki `is_subscriber` ile BİREBİR aynı (bkz. `api/billing.py`
+/// `status`: `active=entitlements.is_subscriber(...)`), yani deneme dönemi de
+/// `true`. Kişi kontenjanı kararında sunucunun kullandığı yüklem de o; iki
+/// taraf aynı soruya aynı cevabı veriyor.
+///
+/// `null` = bu oturumda durum HİÇ okunamadı ve bu "abone değil" ile aynı şey
+/// DEĞİL ([SubscriptionStatus.okunabildi] ile aynı gerekçe): kullanıcıya bir
+/// şey SÖYLEYEN karar, bilmediğini bilmelidir.
+final aboneAynasiProvider = StateProvider<bool?>((_) => null);
+
+/// Yanıt `/billing/status` ucundan mı geliyor?
+bool abonelikDurumuYaniti(RequestOptions istek) =>
+    Uri.parse(istek.path).path == '/api/v1/billing/status';
+
+/// `/billing/status` gövdesinden ayna değeri; gövde beklenen şekilde değilse
+/// `null` döner ve o hâlde ayna DEĞİŞTİRİLMEZ.
+///
+/// Alan eksikse `false` DÖNMEZ: yarım ya da bozuk bir gövde "abone değil"
+/// demek değil, "bilmiyorum" demektir. Sunucu bu alanı her yanıtta gönderiyor
+/// (pydantic modeli zorunlu kılıyor), yani `null` gerçekten beklenmeyen bir
+/// durumdur.
+bool? aynadakiAbonelik(Object? govde) {
+  if (govde is! Map) return null;
+  if (!govde.containsKey('active')) return null;
+  return govde['active'] == true;
 }
 
 /// Tanitim paywall'i karari bu durumla VERILEBILIR mi?

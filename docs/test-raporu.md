@@ -313,30 +313,98 @@ users/{uid}/private/subscription, cüzdan dokümanı, Crashlytics.
   `dev-user`/`u1`/`u2`, ayrı sebep: bkz. aşağıdaki not.)
 - Mekanizma: `delete_account` `users/{uid}`'yi siliyor, ama Firebase
   kimlik jetonları **bir saate kadar geçerli kalıyor**. O pencerede gelen
-  tek kimlikli istek `core/auth.get_current_user` içinden iki "en iyi
-  çaba" aynasını tetikliyor ve **ikisi de `set(..., merge=True)`
-  kullanıyor** — Firestore'da bu, doküman yoksa onu YARATIR:
-    - `core/app_gate.remember_build` → `{"appBuild": N}`
-    - `services/search_mirror.ensure` → ayna alanları
+  tek kimlikli istek `core/auth.get_current_user` içinden "en iyi çaba"
+  aynalarını tetikliyor; yaratan bir yazım kullanan ayna dokümanı geri
+  getiriyor (Firestore'da `set(..., merge=True)` doküman yoksa onu YARATIR).
 - Etkisi: (a) panelin kullanıcı sayısı şişiyor (12 yerine 19 görünüyor),
   (b) hukuk metni "hesabını silersen her şey silinir" diyor, oysa uid'li
   bir iskelet doküman geri geliyor. Kişisel veri taşımıyor (yalnız sürüm
   numarası ve boş dizeler), o yüzden ağır değil — ama beyanla çelişiyor.
-- Düzeltmenin inceliği (bu yüzden ayrı tur): `set` → `update`'e çevirmek
-  tek başına yetmez, çünkü YENİ kullanıcıda `users/{uid}`'yi istemci
-  (`language_sync._firestoreWrite`) yaratıyor ve ilk kimlikli istek ondan
-  ÖNCE gelebilir; o hâlde ayna sessizce hiç yazılmaz. İki yazıcı da aynı
-  kuralı paylaşmalı ve "silinmiş uid" ile "henüz yaratılmamış uid"
-  ayırt edilmeli.
-- Durum: ⬜ açık. Kod değişikliği YOK; yalnız ölçüm ve mekanizma kayda
-  geçti.
+
+**Üreme ölçümü (2026-09-28, bugünkü ağaç).** Bulgu ÜRÜYOR, ama kaydın
+yazdığı biçimde değil. İki ayrı düzeltme gerekti, çünkü iki ayna FARKLI
+pencerelerden diriltiyordu:
+
+| Ayna | Kayıttaki iddia | Bugün ölçülen |
+|---|---|---|
+| `core/app_gate.remember_build` | `set(merge=True)`, yaratıyor | **DOĞRU.** `app_gate.py:273` `set(..., merge=True)`. Her kimlikli istekte, jeton penceresinin TAMAMI boyunca diriltiyordu. |
+| `services/search_mirror.ensure` | `set(merge=True)`, yaratıyor | **KAYIT YANLIŞTI.** `ensure` yazımdan ÖNCE `get` yapıp `exists` değilse dönüyor (`search_mirror.py:113-115`) ve bu kapı dosyanın DOĞDUĞU günden beri orada (3a746c7, 2026-09-12 — bulgu kaydından altı gün ÖNCE). Yani geniş pencereden hiç diriltmedi. |
+
+Kaydın yanlış olduğunun bağımsız kanıtı ölçümün kendi içinde duruyordu:
+yetim dokümanların dördünde **yalnız `appBuild: 41`** vardı. Arama aynası
+da diriltiyor olsaydı aynı dokümanlarda `emailLower`/`nameLower` da
+bulunurdu; bulunmuyordu.
+
+`search_mirror` yine de tamamen masum değildi: `get` ile `set` ARASINDA
+bir pencere var (TOCTOU) ve B9'un adı tam olarak o pencere — `get`
+dokümanı görürken araya `delete_account` girebiliyor. Yani exists kapısı
+gerekli ama YETERLİ değil.
+
+**Düzeltme (uygulandı 2026-09-28).** İki ayna da `update` kullanıyor:
+var olmayan dokümana yazmayan tek yazım biçimi. Dirilme artık bir
+kontrol listesine değil Firestore semantiğine bağlı.
+
+- Kaydın "silinmiş uid ile henüz yaratılmamış uid AYIRT EDİLMELİ" şartı
+  **gereksiz çıktı** ve bu yüzden bulgu gereksizce bir tur bekledi: kural
+  ("ayna doküman YARATMAZ") iki hâl için de doğru. Doküman yaratma
+  sorumluluğu aynanın değil — `users/{uid}` oturum açılışında istemcide
+  (`language_sync._firestoreWrite`, `fireImmediately` dinleyicisi) ve
+  onboarding onayında sunucuda (`consent_service.grant_terms_consent`)
+  doğuyor.
+- Yeni kullanıcı sessizce kaybolmuyor: doğumdan önce gelen istek yazmaz
+  ama **memo da kurmaz**, doğumdan sonraki ilk istek yazar (gecikme
+  saniyeler). Bekçi `test_auth_gate.py` içinde
+  `test_yeni_kullanicinin_aynasi_dokuman_dogunca_yazilir` — arama VE sürüm
+  aynasını birlikte kanıtlıyor.
+- Reddedilen seçenekler: **tombstone** (`deletedUids/{uid}`) — silinen
+  kullanıcının uid'sini kalıcı tutmak "her şey silindi" sözünü yine zorlar
+  ve her yazıma bir okuma ekler; **`verify_id_token(check_revoked=True)`**
+  — silinmiş jetonu kapıda reddederdi ama HER isteğe bir Firebase Auth ağ
+  turu ekler ve `core/auth`'un bir numaralı değişmezini
+  ("istek başına yoklama YOK", ölçülmüş 12 sn olayı) bozar.
+- Durum: düzeltildi (kod, 2026-09-28; dağıtım bekliyor). Beş yeni bekçi:
+  `test_app_gate.py` → `test_remember_build_dokuman_yoksa_YARATMAZ`,
+  `test_remember_build_dokuman_yoksa_memo_kurmaz_sonra_yazar`;
+  `test_search_mirror.py` →
+  `test_ensure_okumadan_sonra_silinen_hesabi_diriltmez`,
+  `test_ensure_profil_verilse_bile_dokuman_YARATMAZ`;
+  `test_auth_gate.py` → `test_silinmis_uid_dokuman_YARATMAZ`.
+  Hepsi `set(merge=True)`'ye dönen bir gerilemede düşüyor: iki ayna elle
+  geri alınıp **mutasyonla sınandı** (9 test kırmızı), sonra geri kondu.
+- **Kalan (kod değil, karar):** üretimdeki 7 yetim doküman DURUYOR;
+  silinmesi sahibin kararı. Prova varsayılanlı betik hazır:
+  `backend/scripts/cleanup_orphan_users.py` (`--apply` ile siler; Auth
+  listesi okunamaz/boşsa hiçbir şey silmez, alt koleksiyonu olan dokümanı
+  silmez — çıplak `delete` alt ağacı bırakır).
+- **Kapanmayan ikincil yüzey:** `consent_service.grant_terms_consent` ve
+  `core/device.py` platform aynası da `users/{uid}`'ye `set(merge=True)`
+  yazıyor. Bunlar kimlik yolundan DEĞİL, istemcinin açıkça çağırdığı
+  uçlardan tetikleniyor (`POST /account/consent`, `POST /device/claim`) ve
+  uygulama silme başarılı olunca hemen `signOutEverywhere()` yaptığı için
+  o çağrılar gelmiyor (`delete_account.dart` → `signOutEverywhere`). Yani
+  B9'un ölçülen mekanizması değil; ama silinmiş bir jetonu ELLE kullanan
+  biri `termsConsent` iskeleti yaratabilir. Ayrı ve daha küçük bir iş.
+- **O yüzeyin ÜÇÜNCÜ yazımı ve ŞEKLİ daha kötü** (denetimde ölçüldü
+  2026-09-28, yukarıdaki not onu atlıyordu): `core/device._claim`
+  platform aynasından ÖNCE `users/{uid}/private/device` dokümanını da
+  `set(merge=True)` ile yazıyor (`core/device.py:212`) ve bu yazım
+  `platform` boş olsa bile koşuyor. Firestore'da alt koleksiyon ÜST
+  dokümanı olmadan da var olabilir; yani o çağrı `users/{uid}` YOKKEN
+  görünmez bir alt ağaç bırakır. Sonucu: `stats_service._iter_users`
+  yalnız VAR OLAN `users` dokümanlarını akıttığı için bu artığı ne panel
+  ne `cleanup_orphan_users.py` görebilir — betik onu "korunan" diye bile
+  raporlamaz. Bugünkü `collection_group("private")` sorguları `isTrial` /
+  `active` alanlarına süzüldüğü için sayıları ŞİŞİRMİYOR (ölçüldü:
+  `admin_service.py:1010`, `stats_service.py:261`), yani etkisi sayı
+  değil BEYAN: "hesabını silersen her şey silinir" o yol için hâlâ tam
+  doğru değil. Düzeltmesi bu turun paketi dışında.
 
 **Not — `dev-user`/`u1`/`u2`:** bu üçü diriltme değil, testlerin üretim
 Firestore'una yazmasıydı; kökü kapandı (bkz. `backend/tests/conftest.py`
 `firestore_hermetik`). Dokümanların kendisi üretimde DURUYOR ve
 silinmeleri sahibin kararı.
 
-### B10 — 402 kapısı ve cüzdan tazelemesi Riverpod HALKASINA çarpıyor (ölçüldü, UYGULANMADI)
+### B10 — 402 kapısı ve cüzdan tazelemesi Riverpod HALKASINA çarpıyor (kapandı 1.17.0+46)
 
 - Denetim, `apiProvider`'ın interceptor'larından `walletProvider` /
   `subscriptionProvider`'a dokunan iki düzeltmeyi (para-3, para-4) deponun
@@ -348,21 +416,86 @@ silinmeleri sahibin kararı.
   yapıyor; interceptor ise `apiProvider`'ın KENDİ `ref`'ini kullanıyor.
 - Açık tür bildirimi bunu KURTARMIYOR: o yalnız derleyicinin
   `top_level_cycle` hatasını kapatır, çalışma zamanındaki halkayı değil.
-- Ürün sonucu: para-4'ün yetki okuması her çağrıda fırlar → kapının kendi
-  `catch`i `yetkili=false` bırakır → ödemiş kullanıcı yine kırmızı "abone
-  ol" cümlesini görür. para-3'te bakiye hapı ekrandayken (tazelemenin
-  gerektiği TEK durum) invalidate fırlar ve hap bayat kalır.
 - Neden hiçbir bekçi görmedi: on üç testin hepsi geri çağrıyı ENJEKTE
   ediyor (`() async => true`), gerçek `ref` kapanışı hiçbir yerde koşmuyor.
 - Bugün depoda `apiProvider` interceptor'larından dokunulan sağlayıcıların
   hiçbiri (`forceUpdateProvider`, `deviceConflictProvider`,
   `appBuildProvider`) `apiProvider`'ı İZLEMİYOR — halka bu iki düzeltmeyle
   İLK KEZ kurulacaktı.
-- Durum: ⬜ açık, UYGULANMADI. Mekanizma değişmeli: interceptor
-  `apiProvider`'ın ref'i yerine ayrı bir kapsam/`ProviderContainer`
-  üzerinden dokunmalı (ölçümde `kapsam.read(...)` sorunsuz çalışıyor).
-  Bulgunun kendisi (harcamadan sonra bayat bakiye; ödemiş kullanıcıya
-  paywall) GERÇEK ve açık kalıyor.
+- Önerilen iki düzeltmenin (para-3 = harcamadan sonra bakiye tazeleme,
+  para-4 = paywall açmadan önce yetki okuma) bu hâliyle UYGULANMADIĞI yer
+  burasıydı; ikisinin de amacı aşağıda başka bir mekanizmayla karşılandı.
+
+**Üreme ölçümü (2026-09-28) ve onarım — 1.17.0+46.** İki semptom da bugünkü
+ağaçta ÜRÜYORDU, ama (b)'nin sebebi bulgunun yazdığı sebep DEĞİLDİ.
+
+- **(a) harcamadan sonra bayat bakiye — ÜRÜYORDU, onarıldı.** Sunucudaki on
+  jeton harcayan uçtan istemcide YALNIZ BİRİ bakiyeyi tazeliyordu
+  (`iching_tab.dart:115`). En görüneni sohbet: `chat_screen.dart:270` her
+  turda 1 jeton harcıyor ve bakiye çipi AYNI AppBar'da (satır 358-362);
+  `walletProvider` autoDispose olmadığı için ilk okuma OTURUM BOYUNCA
+  önbellekte kalıyordu, yani çip harcamayı hiç görmüyordu. Raporlar
+  (natal/bazi/yıl haritası/iç takvim/doğum heksagramı, 5'er), dyad (3),
+  firaset (5) ve jeton YÜKLEYEN `/billing/redeem-code` de tazelemiyordu.
+- **(b) ödemiş kullanıcıya paywall — ÜRÜYORDU, ama `require_plus`
+  yüzünden değil.** Sunucudaki her 402 tarandı: `require_plus` ve
+  `enforce_daily_quota` yalnız `is_subscriber` false olan kullanıcıya
+  dönüyor. Abone İKİ 402 görebiliyor ve biri zaten doğru ele alınıyordu:
+  aylık hakkı bitince `charge_metered`'ın abone dalı `core/wallet.spend`'i
+  çağırıyor ve o `X-Paywall-Reason: tokens` ile 402 atıyor
+  (`core/wallet.py:268`) — istemci bunu jeton mağazasına yönlendiriyor,
+  doğru ekran. Yanlış ele alınan tek yol
+  `services/people_service.create_person`:
+  kontenjan 402'si + `X-Paywall-Reason: people`. Sunucu ayrımı METİNDE
+  yapıyor (aboneye `people.limit_plus` = "listeden bir kişiyi
+  çıkarabilirsin"), ama istemcinin `api.dart`'taki dağıtımı başlığı
+  "`tokens` mı, değil mi" diye İKİYE indiriyordu → 10 kişilik kontenjanı
+  dolan ABONEYE tam ekran "Rytho+ al" sayfası ve satın al düğmesi. Gösterilen
+  tek şey de o ekrandı: `person_form_screen.dart:190` 402'de kendi mesajını
+  bilerek bastırıyor ("interceptor zaten paywall açıyor").
+- Onarım deponun KENDİ 426/409 desenini kullanıyor: interceptor
+  `apiProvider`'ı İZLEMEYEN sade `StateProvider`'lara yazar, tazelemeyi
+  okuyan taraf yapar. Halkanın bir ucu bu yüzden kopuk kalıyor.
+    * `core/wallet.cuzdanTazelemeProvider` — SAYAÇ (bayrak değil: `bool`
+      ikinci harcamada `true`→`true` olur, Riverpod "değişmedi" sayar).
+      `walletProvider` onu izliyor; interceptor `onResponse`'ta harcama
+      uçlarını görünce artırıyor (`cuzdanDegismisOlabilir`, `/reports/` ÖNEK
+      olarak yazıldı ki yeni bir rapor ucu kendiliğinden kapsansın).
+    * `core/subscription.aboneAynasiProvider` — üç değerli `bool?`; değeri
+      `/billing/status` YANIT GÖVDESİNDEN okunuyor, yani sunucunun
+      `is_subscriber` cevabının birebir kopyası (tahmin değil, ölçüm).
+      `null` = bu oturumda hiç okunamadı ve "abone değil" ile aynı şey DEĞİL.
+    * `core/api.paywallHedefi` 402'yi ÜÇE dağıtıyor: `tokens` → jeton
+      mağazası; `people` + (abone ya da BİLİNMİYOR) → satış ekranı YOK, yalnız
+      sunucunun kendi metni; geri kalan → satış ekranı.
+- Başlıksız 402'de ayna SORULMUYOR ve bu bilinçli: sunucu "Plus gerekiyor"
+  diyorken aynanın `true` olması aynanın BAYAT olduğu anlamına gelir. Ayrıca
+  DENEME kullanıcısı `charge_metered`'ın başlıksız 402'sini görebiliyor ve
+  ayna onu `true` sayıyor (`is_subscriber` denemeyi dahil ediyor) — paywall'ın
+  deneme geri sayımı (OT6) tam o kullanıcı için var, ona satış ekranı
+  göstermemek yanlış olurdu.
+- Ayrı kapsam/`ProviderContainer` NEDEN seçilmedi: deponun canlı kabına ancak
+  `rythoNavigatorKey.currentContext` üzerinden ulaşılıyor
+  (`auth_service._uygulamaKabi`), yani bağımlılık monte edilmiş bir widget
+  ağacına kayardı ve bekçi gerçek kapanışı Firebase'siz koşturamazdı —
+  bulgunun asıl şikâyeti tam buydu.
+- 402'de `subscriptionProvider`'ı tazelemek DENENMEDİ, bilerek: soğuk açılışta
+  paralel 402'ler sayacı üst üste artırıp `/billing/status` seline dönerdi
+  (KL-turu 429 hassasiyeti, bkz. `rythoRetry`).
+- Bekçi: `apps/mobile/test/cuzdan_tazeleme_test.dart` (19 test). Enjeksiyon
+  YOK — gerçek `ProviderContainer`da gerçek `apiProvider` kuruluyor, cüzdan
+  CANLI hâle getiriliyor (halkanın kurulduğu tek durum) ve interceptor'ın
+  KENDİ kapanışı çağrılıyor; ağa çıkmamak için istek zincirin başında
+  `handler.resolve` ile yanıtlanıyor, böylece kimlik interceptor'ının
+  Firebase satırı hiç koşmuyor. Dosya halkanın şekil kopyasını da koşturuyor:
+  `top_level_cycle` DERLEME hatası açık tür bildirimiyle kapanıyor, çalışma
+  anındaki `CircularDependencyError` kapanmıyor — bulgunun iddiası yeniden
+  ölçüldü. Sabotaj denemesi yapıldı: `ref.watch(cuzdanTazelemeProvider)`
+  satırı kaldırılınca iki test KIRMIZI.
+- Durum: ✅ kapandı (1.17.0+46). Cihaz regresyonu: (1) sohbette bir mesaj at →
+  AppBar'daki çip 1 azalsın (uygulamayı kapatıp açmadan); (2) Plus hesapta 10
+  kişi varken 11.'yi eklemeye çalış → "Rytho+ al" ekranı AÇILMASIN, sunucunun
+  "listeden bir kişiyi çıkarabilirsin" metni görünsün.
 
 ## 2. tur kapsamı
 

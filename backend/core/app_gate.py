@@ -25,6 +25,10 @@ Değişmezler:
    yazım hatasıyla (350 yerine 35) herkesi kilitlemek imkânsız —
    operatörün kendi cihazı şartı sağlar. Sürüm aynası (`users/{uid}.appBuild`)
    `core.auth.get_current_user` içinde sunucu tarafından yazılır (K10).
+5. **Sürüm aynası doküman YARATMAZ** (B9): `update` kullanır, `set` değil.
+   Silinmiş bir hesabın jetonu bir saate kadar geçerli kaldığı için
+   yaratan bir yazım silinen kullanıcıyı diriltiyordu; gerekçe
+   `remember_build` içinde.
 """
 from __future__ import annotations
 
@@ -251,12 +255,46 @@ def build_remembered(uid: str, build: int) -> bool:
     return kayit is not None and kayit[0] == build and _now() < kayit[1]
 
 
+#: `users/{uid}` YOKKEN yazımı reddeden Firestore hatasının sınıf ADI
+#: (`google.api_core.exceptions.NotFound`). Sınıfa ADIYLA bakılıyor,
+#: sembolle değil — `push_service._olu_token` ve
+#: `partner_service._kullanici_yok_mu` ile aynı desen ve aynı iki gerekçe:
+#: `google.api_core` bu modülün içe aktarma yüzeyinde yok, ve sahte
+#: istemcilerin tam o sınıfı fırlatmasını şart koşmak testleri kitaplığın
+#: iç yapısına bağlardı.
+_DOKUMAN_YOK = "NotFound"
+
+
 def remember_build(uid: str, build: int) -> None:
     """`users/{uid}.appBuild` aynasını yazar — best-effort, hiç fırlatmaz.
 
     uid başına 24 saatte bir (sürüm değişmediyse). Başlıksız istek
     (build 0) yazmaz: "bilinmiyor" dürüstçe bilinmiyor kalır. Yazım
     düşerse memo KURULMAZ ki bir sonraki istek yeniden denesin.
+
+    ⚠️ **`update`, `set(merge=True)` DEĞİL** (bulgu B9, ölçüldü
+    2026-09-18). Firestore'da `set(merge=True)` doküman yoksa onu YARATIR.
+    `delete_account` `users/{uid}`'yi siliyor ama Firebase kimlik jetonu
+    bir saate kadar geçerli kalıyor; o pencerede gelen tek kimlikli istek
+    (uçuşta kalmış bir çağrı, yeniden deneme, hâlâ oturumu açık ikinci bir
+    cihaz) buradan geçip dokümanı `{appBuild: N}` iskeletiyle GERİ
+    getiriyordu. Üretimde ölçülen iz tam bu: 19 `users` dokümanının
+    yalnız 12'sinin Auth karşılığı vardı ve yetimlerin dördünde
+    BAŞKA HİÇBİR ALAN olmadan `appBuild: 41` duruyordu. Sonucu: panelin
+    kullanıcı sayısı şişiyor ve hukuk metninin "hesabını silersen her şey
+    silinir" sözü yalan oluyordu. `update` var olmayan dokümana yazmaz —
+    dirilme artık yapısal olarak imkânsız, bir kontrol listesine bağlı
+    değil.
+
+    Ayna doküman YARATMAK ZORUNDA DEĞİL: `users/{uid}`'yi oturum
+    açılışında istemci doğuruyor (`language_sync._firestoreWrite`,
+    `fireImmediately` dinleyicisi) ve sunucu tarafında onboarding onayı
+    (`consent_service.grant_terms_consent`) da aynı dokümana yazıyor. Yeni
+    kullanıcının ilk isteği o doğumun ÖNÜNE geçebilir; o istekte ayna
+    yazılmaz, **memo da kurulmaz** ve bir sonraki istek yazar — gecikme
+    saniyelerle sınırlı, kalıcı kayıp yok. Bu yüzden "doküman yok" UYARI
+    değil `debug`: her yeni kullanıcı için bir kez düşen bir uyarı,
+    ileride gerçek bir yazım arızasını arayan kişiyi yanlış ize sokardı.
 
     Gövdenin TAMAMI koruma altında: havuzda eşzamanlı koşar, budama
     döngüsü sırasında başka bir iş parçacığı sözlüğü değiştirebilir ya da
@@ -270,8 +308,18 @@ def remember_build(uid: str, build: int) -> None:
         client = firestore_client.get_client()
         if client is None:
             return
-        client.collection("users").document(uid).set(
-            {"appBuild": int(build)}, merge=True)
+        try:
+            client.collection("users").document(uid).update(
+                {"appBuild": int(build)})
+        except Exception as exc:
+            if type(exc).__name__ == _DOKUMAN_YOK:
+                logger.debug(
+                    "Sürüm aynası atlandı (%s): users dokümanı yok — "
+                    "silinmiş hesap ya da henüz doğmamış yeni kullanıcı.",
+                    uid)
+            else:
+                logger.warning("Sürüm aynası yazılamadı (%s): %s", uid, exc)
+            return
         if len(_build_memo) >= _BUILD_MEMO_PRUNE_AT:
             simdi = _now()
             # Anlık kopya üzerinde: canlı sözlükte dönerken boyu değişirse

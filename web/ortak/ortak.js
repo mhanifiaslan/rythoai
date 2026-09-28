@@ -32,6 +32,12 @@
  * bir sayıyı ölçülmüş gibi sunmak olurdu. Yokluk "—" ve açık bir notla
  * gösterilir, sıfırla karıştırılmaz. Pano her iki yanıtla da çizilir.
  *
+ * Aynı kural ÖDEME EŞİĞİ için de geçerli ve orada sonucu daha ağır:
+ * `minPayoutTry` yalnız o ortağın kaydına GİRİLDİYSE geliyor. Anahtar
+ * yokken pano eşikten HİÇ söz etmez — 0 varsaymak "alt sınır yok" diye
+ * anlaşmanın söylemediği bir söz vermek, bir sayı uydurmak da olmayan bir
+ * kuralı duyurmak olurdu. 0 ise ölçülmüş bir DEĞER: "alt sınır yok".
+ *
  * Tıklama ölçümünde KİMLİK YOK: ne IP, ne User-Agent, ne çerez — saklanan
  * tek şey gün başına bir sayaç. Bunun ortak için GÖRÜNÜR sonucu var ve
  * panoda yazılı: aynı kişinin ikinci dokunuşu ayrı sayılır, çünkü tekilleme
@@ -289,6 +295,37 @@
       '<span class="deger">' + e(deger) + '</span>' +
       (alt ? '<span class="alt">' + e(alt) + '</span>' : '') +
       '</div>';
+  }
+
+  /* "Bakiye" kartının alt satırı.
+
+     ÖDEME EŞİĞİ (`minPayoutTry`) artık bu panoya geliyor ve ÜÇ HÂLLİ; üçü
+     ayrı şey ve üçü ayrı yazılıyor:
+       · anahtar YOK  → anlaşmadaki alt sınır panele hiç girilmemiş. Pano
+         eşikten HİÇ söz etmez. Bir sayı (0 dâhil) uydurmak, olmayan bir
+         kuralı ortağa duyurmak olurdu.
+       · 0            → alt sınır yok, kesinleşen her tutar ödenebilir.
+       · >0           → eşik; kalan tutar yazılır.
+
+     SIRA: birim uyumsuzluğu her şeyi geçiyor. O hâlde `balanceTry` ödenmiş
+     parayı ödenmemiş gösteriyor (`partner_service.partner_detail` yorumu),
+     yani "eşiğe ₺X kaldı" ekrana İKİNCİ bir yanlış sayı koymak olurdu.
+     Ayrıntı ödeme geçmişindeki bantta duruyor; kart yalnız oraya
+     yönlendiriyor (aynı uyarıyı iki yerde yazmak okunmaz yapar).
+
+     `esik == null` kapısı `Number()`den ÖNCE: `Number(undefined)` NaN,
+     `Number(null)` ise 0 — ikincisi girilmemiş bir eşiği "alt sınır yok"
+     diye BEYAN ederdi. */
+  function bakiyeAlt(d, uyumsuz) {
+    if (uyumsuz > 0) return 'aşağıdaki uyarıyı oku';
+    var bakiye = Number(d.balanceTry);
+    var durum = isFinite(bakiye) && bakiye > 0 ? 'ödeme bekliyor' : 'kapalı';
+    if (!olculdu(d.minPayoutTry)) return durum;
+    var esik = Number(d.minPayoutTry);
+    if (esik === 0) return durum + ' · alt sınır yok';
+    if (!isFinite(bakiye)) return durum;
+    if (bakiye >= esik) return 'eşik aşıldı · alt sınır ' + para(esik, '₺');
+    return 'eşiğe ' + para(esik - bakiye, '₺') + ' kaldı';
   }
 
   function modul(baslik, ic, alt) {
@@ -650,9 +687,8 @@
       kpi('Beklemede', para(d.pendingTry, '₺'),
         OLGUNLASMA_GUN + ' gün sonra kesinleşir') +
       kpi('Ödenen', para(d.paidTry, '₺'), 'sana aktarılan') +
-      kpi('Bakiye', para(d.balanceTry, '₺'),
-        Number(d.balanceTry) > 0 ? 'ödeme bekliyor' : 'kapalı',
-        Number(d.balanceTry) > 0) +
+      kpi('Bakiye', para(d.balanceTry, '₺'), bakiyeAlt(d, uyumsuz),
+        Number(d.balanceTry) > 0 && uyumsuz === 0) +
       '</section>' +
 
       '<div class="bant bilgi">' + e(bekleyenCumle) + '</div>' +
@@ -679,22 +715,32 @@
         kodlarTablosu(kodlar),
         kodlar.length ? sayi(kodlar.length) + ' kod' : '') +
 
-      /* ⚠️ ÖDEME EŞİĞİ GÖSTERİLMİYOR ve bu ÖLÇÜLDÜ (2026-09-28):
-         `minPayoutTry` yalnız YAZMA yolunda var — `api/admin.py` PATCH
-         modelinde ve `partner_service.update_partner` izinli listesinde.
-         `create_partner` onu HİÇ YAZMIYOR, `partner_detail` sonuca
-         KOYMUYOR, `partner_self_view` DÖNDÜRMÜYOR. Yani bu panoya hiç
-         gelmiyor ve buraya bir eşik yazmak, olmayan bir kuralı tarif
-         etmek olurdu — bu depoda en çok tekrarlanan kusur sınıfı.
-         Söylenen şey ölçülen şey: ödemeyi `add_payout` yazıyor ve tek
-         çağıranı yönetim ucu (`api/admin.py`), yani elle.
+      /* ⚠️ ÖDEME EŞİĞİ artık GELİYOR — önceki tur burada "hiç gelmiyor"
+         yazıyordu ve gerekçesi bu turda geçersizleşti. Ölçülen yeni hâl:
+         `partner_self_view` `minPayoutTry`yi YALNIZ kayıtlıysa taşıyor,
+         `partner_detail` zaten `partner` içinde döndürüyordu (eski notun
+         "sonuca KOYMUYOR" cümlesi ölçülünce yanlış çıktı) ve yönetim
+         paneli alanı artık girebiliyor ("Ödeme ayarları" modülü).
 
-         Ödeme YÖNTEMİ (iban/taxId) de bilerek gösterilmiyor: `self_view`
-         onları yapısal olarak dışarıda bırakıyor (`payoutCurrency` hariç
-         hiçbiri geçmiyor), ama karar sözleşmeyi genişletmemek yönünde —
-         ortak kendi IBAN'ını zaten biliyor, panoda tekrar okumasının
-         karar değeri yok, buna karşılık ekran görüntüsü paylaşılan bir
-         panoya bir ödeme kimliği daha koymak olurdu. */
+         DEĞİŞMEYEN kural: `create_partner` alanı hâlâ hiç yazmıyor ve bu
+         bir karar. Tanıtım sayfası (`web/ortaklik.html`) "ödeme takvimi,
+         alt sınır ve ödeme kanalı ANLAŞMADA yazılır" diyor, yani eşik
+         ürünün değil o ortakla yapılan anlaşmanın sayısı — kodun bileceği
+         bir varsayılanı YOK. Alan boşken bu pano eşikten HİÇ söz etmiyor
+         (`bakiyeAlt`); olmayan bir kuralı tarif etmek bu depodaki en çok
+         tekrarlanan kusur sınıfı.
+
+         Sunucu eşiği ZORLAMIYOR ve pano bunu vaat de etmiyor: ödemeyi
+         `add_payout` yazıyor, tek çağıranı yönetim ucu (`api/admin.py`),
+         yani elle. Eşik ortağa "ne zaman para bekleyebilirim"i söyleyen
+         bir sayıdır, otomatik bir tetik değil.
+
+         Ödeme YÖNTEMİ (iban/taxId) yine BİLEREK gösterilmiyor: `self_view`
+         onları yapısal olarak dışarıda bırakıyor (`payoutCurrency` ve
+         `minPayoutTry` dışında hiçbiri geçmiyor) ve karar sözleşmeyi
+         genişletmemek yönünde — ortak kendi IBAN'ını zaten biliyor, panoda
+         tekrar okumasının karar değeri yok, buna karşılık ekran görüntüsü
+         paylaşılan bir panoya bir ödeme kimliği daha koymak olurdu. */
       modul('Ödeme geçmişi',
         odemelerTablosu(odemeler) +
         /* Sıfır dışı uyumsuzluk EKRANDAKİ PARAYI yanlış yapıyor ve bunu
@@ -709,9 +755,25 @@
           'Yukarıdaki <b>Ödenen</b> ve <b>Bakiye</b> o kayıtları saymıyor, ' +
           'yani bakiyen olduğundan büyük görünüyor; bu hâlde yeni ödeme de ' +
           'yapılmıyor. Rytho ekibiyle konuşman gerekiyor.</div>' : '') +
+        /* Dipnot ÜÇ HÂLE göre ayrılıyor, tek metin değil: eşiğin yokluğu,
+           sıfırı ve pozitifi ortağa BAŞKA şeyler söyler. Tek bir cümle
+           ("bir eşik gösterilmiyor") eşik girildiği anda yalan olurdu, ters
+           yönde tek bir cümle de girilmediği anda olmayan bir kuralı
+           duyururdu. Üç dalın hiçbirinde ÖDEME TAKVİMİ vaat edilmiyor:
+           takvim de anlaşmada ve panoya hiç gelmiyor. */
         '<p class="dipnot">Ödemeler Rytho ekibi tarafından elle kaydedilir; ' +
-        'bu panoda bir ödeme eşiği ya da takvim gösterilmiyor. Kesinleşen ' +
-        'bakiyen için Rytho ekibiyle yazışırsın.</p>',
+        'bu panoda bir ödeme takvimi gösterilmiyor. ' +
+        (!olculdu(d.minPayoutTry)
+          ? 'Ödeme alt sınırı da burada yazılı değil — anlaşmanızda ne ' +
+            'yazıyorsa o geçerli. '
+          : (Number(d.minPayoutTry) === 0
+              ? 'Ödemen için bir alt sınır yok: kesinleşen bakiyen ne olursa ' +
+                'ödenebilir. '
+              : 'Anlaşmandaki ödeme alt sınırı ' +
+                e(para(Number(d.minPayoutTry), '₺')) + ' — "Bakiye" kartı ' +
+                'eşiğe ne kadar kaldığını gösteriyor. Sınırın aşılması ' +
+                'ödemeyi kendiliğinden başlatmaz; kaydı ekip elle yazar. ')) +
+        'Kesinleşen bakiyen için Rytho ekibiyle yazışırsın.</p>',
         'ödeme para birimi ' + odemeBirimi.trim()) +
 
       /* Ödül kuralı, ölçülen davranışın birebir aynası

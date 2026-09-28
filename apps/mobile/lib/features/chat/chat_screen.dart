@@ -386,11 +386,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     const Text('✦', style: TextStyle(fontSize: 12)),
                     const SizedBox(width: RythoSpace.xs),
+                    // Okunamadıysa sayı yerine "—" ve DÜŞÜK BAKİYE RENGİ
+                    // DE YOK: `total` o hâlde 0 olduğu için bakır uyarı
+                    // kendiliğinden yanıyordu, yani dolu cüzdanlı kullanıcı
+                    // "jetonun bitmek üzere" rengini görüyordu.
+                    // Bkz. WalletStatus.bilinmiyor.
                     Text(
-                      AppLocalizations.of(context)
-                          .tokenBalanceChip(cuzdan.total),
+                      cuzdan.bilinmiyor
+                          ? '—'
+                          : AppLocalizations.of(context)
+                              .tokenBalanceChip(cuzdan.total),
                       style: RythoType.dataSmall.copyWith(
-                          color: cuzdan.total <= _kDusukBakiye
+                          color: !cuzdan.bilinmiyor &&
+                                  cuzdan.total <= _kDusukBakiye
                               ? RythoColors.copper
                               : null),
                     ),

@@ -194,3 +194,95 @@ def test_rollups_prova_yazmaz_apply_gunleri_toplar(monkeypatch):
                         (bugun - dt.timedelta(days=1), False), (bugun, True)]
     with pytest.raises(SystemExit):
         m.calistir(depo, bugun, bugun - dt.timedelta(days=1))
+
+
+# --- cleanup_orphan_users ---------------------------------------------------------
+#
+# B9'un ARTIĞI: kusur kodda kapatıldı (aynalar artık `update`), ama üretimde
+# bıraktığı yetim dokümanlar kendiliğinden gitmiyor. Betik geri alınamaz bir
+# silme yapıyor, o yüzden buradaki iddiaların çoğu SİLMEMEYE dair.
+
+@pytest.fixture()
+def yetim_depo():
+    return SahteFirestore({
+        # Auth'ta VAR — gerçek kullanıcı, dokunulmamalı.
+        "users/gercek": {"language": "tr", "appBuild": 46,
+                         "createdAt": _SIMDI},
+        # Auth'ta YOK, çıplak iskelet — B9'un ürettiği kayıt.
+        "users/yetim1": {"appBuild": 41},
+        "users/yetim2": {"appBuild": 41},
+        # Auth'ta YOK ama alt ağacı var — çıplak silme onu bırakır.
+        "users/altli": {"appBuild": 41},
+    })
+
+
+def _altlar(_client, uid: str):
+    return ["private"] if uid == "altli" else []
+
+
+def test_yetim_temizligi_prova_silmez_apply_yalniz_yetimi_siler(yetim_depo):
+    m = _yukle("cleanup_orphan_users")
+    prova = m.calistir(yetim_depo, auth_uids={"gercek"},
+                       alt_koleksiyonlar=_altlar)
+    assert prova["incelenen"] == 4 and prova["silinecek"] == 2
+    assert prova["korunan"] == 1
+    assert _yazim(yetim_depo) == 0, "prova kipinde silme olmamalı"
+
+    uygulanan = m.calistir(yetim_depo, auth_uids={"gercek"}, apply=True,
+                           alt_koleksiyonlar=_altlar)
+    assert uygulanan["silinen"] == 2
+    assert set(yetim_depo.docs) == {"users/gercek", "users/altli"}
+    # İkinci koşu: silinecek kalmadı.
+    assert m.calistir(yetim_depo, auth_uids={"gercek"}, apply=True,
+                      alt_koleksiyonlar=_altlar)["silinen"] == 0
+
+
+def test_yetim_temizligi_alt_koleksiyonluyu_SILMEZ(yetim_depo):
+    """Üst dokümanı silmek alt koleksiyonları silmez; `private/**` yerinde
+    kalır ve `collection_group` sorgularına görünmeye devam eder. Böyle bir
+    kayıt gerçek silme ister (panelin 'Hesabı sil' ucu)."""
+    m = _yukle("cleanup_orphan_users")
+    m.calistir(yetim_depo, auth_uids={"gercek"}, apply=True,
+               alt_koleksiyonlar=_altlar)
+    assert "users/altli" in yetim_depo.docs
+
+
+def test_yetim_temizligi_alt_koleksiyon_okunamazsa_SILMEZ(yetim_depo):
+    """"Bilinmiyor" = VAR sayılır: emin olmadığımız dokümanı silmek
+    arkasında görünmez bir alt ağaç bırakma riski demek.
+
+    İKİ iddia var ve ikincisi zorunlu: yalnız `_alt_koleksiyonlar`ın
+    `["<okunamadı>"]` döndüğünü ölçmek testin ADINI karşılamaz — `calistir`
+    içindeki `if altlar` kapısı "okunamadı"yı eleyecek biçimde daraltılsa
+    (`altlar != ["<okunamadı>"]` gibi makul görünen bir sadeleştirme) bu
+    test YEŞİL kalır ve emniyet sessizce kaybolurdu.
+    """
+    m = _yukle("cleanup_orphan_users")
+
+    class _Patlayan:
+        def collection(self, ad):
+            raise RuntimeError("izin yok")
+
+    assert m._alt_koleksiyonlar(_Patlayan(), "yetim1") == ["<okunamadı>"]
+
+    # Okuma HER uid için düşüyor: apply olsa bile tek doküman silinmemeli.
+    def _okunamadi(_client, _uid):
+        return ["<okunamadı>"]
+
+    sonuc = m.calistir(yetim_depo, auth_uids={"gercek"}, apply=True,
+                       alt_koleksiyonlar=_okunamadi)
+    assert sonuc["silinen"] == 0 and sonuc["korunan"] == 3
+    assert len(yetim_depo.docs) == 4 and _yazim(yetim_depo) == 0
+
+
+@pytest.mark.parametrize("auth", [None, set()])
+def test_yetim_temizligi_auth_listesi_yoksa_HICBIR_SEY_silmez(yetim_depo, auth):
+    """En tehlikeli hâl. `list_users` düşerse ya da boş dönerse her
+    kullanıcı "yetim" görünür ve betik GERÇEK hesapların profillerini
+    silerdi. Boş liste de hata sayılır: canlı projede en az bir hesap
+    (sahibin kendisi) vardır."""
+    m = _yukle("cleanup_orphan_users")
+    with pytest.raises(SystemExit):
+        m.calistir(yetim_depo, auth_uids=auth, apply=True,
+                   alt_koleksiyonlar=_altlar)
+    assert len(yetim_depo.docs) == 4 and _yazim(yetim_depo) == 0

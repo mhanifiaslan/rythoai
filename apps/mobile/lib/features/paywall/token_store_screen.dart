@@ -123,8 +123,11 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
                             opacity: anim,
                             child: ScaleTransition(scale: anim, child: child),
                           ),
-                          child: Text('${cuzdan.total}',
-                              key: ValueKey(cuzdan.total),
+                          // Okunamadıysa "—" (WalletStatus.bilinmiyor).
+                          child: Text(
+                              cuzdan.bilinmiyor ? '—' : '${cuzdan.total}',
+                              key: ValueKey(
+                                  cuzdan.bilinmiyor ? -1 : cuzdan.total),
                               style: RythoText.display(34)),
                         ),
                       ),

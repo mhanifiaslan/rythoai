@@ -16,7 +16,13 @@
      yeniden eskiye (kıvılcımlar)
    - GET /api/v1/admin/economics?days&env → {users:[{uid, displayName,
      email, revenueUsd, sandboxUsd, storeCutUsd, aiCostUsd, calls,
-     tokensSpent, marginUsd}], totals, coverage:{daysFound, oldest}}
+     tokensSpent, partnerCostTry, partnerCostUsd, grossMarginUsd,
+     marginUsd}], totals (+ partnerCostTry/Usd, grossMarginUsd,
+     partnerDaysMissing, usdTryRate), coverage:{daysFound, oldest}}
+     ⚠️ Ortak (affiliate) maliyeti −1 ise ÖLÇÜLMEMİŞTİR (0 DEĞİL) ve
+     `marginUsd` de −1'dir. O durumda ekranda ölçülü olan
+     `grossMarginUsd` yıldızla gösterilir: ortak maliyeti düşülmemiş ama
+     ölçülmüş bir marjı "—" ile silmek de bir kayıptır.
    - GET /api/v1/admin/revenue/events?env&type&limit&cursor → {events,
      nextCursor}
    - POST /api/v1/admin/economics/recompute {from, to} (owner; 409 =
@@ -38,6 +44,79 @@
                       'BILLING_ISSUE', 'REFUND', 'TRIAL_STARTED', 'TRIAL_CONVERTED'];
   var OLAY_ROZET = { INITIAL_PURCHASE: 'aktif', RENEWAL: 'aktif', TRIAL_CONVERTED: 'altin', TRIAL_STARTED: 'trial',
                      CANCELLATION: 'uyari', EXPIRATION: 'notr', BILLING_ISSUE: 'hata', REFUND: 'hata' };
+
+  /* =====================================================================
+     Ortak (affiliate) edinme maliyeti — üç ayrı hâl, üç ayrı metin (P4)
+     ===================================================================== */
+
+  /* Uç ortak alanlarını HİÇ gönderiyor mu?
+
+     Hosting backend'den BAĞIMSIZ dağıtılıyor (`firebase deploy --only
+     hosting` vs `infra/deploy-backend.ps1`), yani paneli önce yayınlamak
+     tek satırlık bir sıra hatasıdır ve o hâlde alan HİÇ gelmez. Alanın
+     YOKLUĞU ile "ölçüldü ama bilinmiyor" (−1) aynı şey DEĞİL: birincide
+     sunucunun marjı iki terimlidir ve o marj ÖLÇÜLMÜŞTÜR. Ayırmazsak
+     `Number(undefined)` NaN olur, NaN >= 0 yanlıştır ve panel her satır
+     için hiç yapılmamış bir okumanın teşhisini uydurur (Kullanıcı
+     360'taki `ortakAlaniVar` ile aynı gerekçe). */
+  function ortakAlaniVar(x) {
+    return !!x && x.partnerCostUsd != null && x.grossMarginUsd != null;
+  }
+
+  function ortakOlculdu(x) {
+    return ortakAlaniVar(x) && Number(x.partnerCostUsd) >= 0;
+  }
+
+  /* Ekranda gösterilecek marj. Ortak maliyeti ölçülüyse sunucunun ÜÇ
+     terimli marjı; ölçülmüyorsa ortak maliyeti DÜŞÜLMEMİŞ ama ölçülü olan
+     iki terimli sayı (yeni uçta `grossMarginUsd`, eski uçta `marginUsd` —
+     ikisi de aynı hesap). Sayıyı "—" ile silmiyoruz: ölçülmüş bir marjı
+     yok etmek de bir kayıptır; eksikliği yıldız ve bant söylüyor. */
+  function gosterilenMarj(x) {
+    if (ortakOlculdu(x)) return Number(x.marginUsd);
+    return Number(ortakAlaniVar(x) ? x.grossMarginUsd : x.marginUsd);
+  }
+
+  /* `b.para` −1'i "bilinmiyor" sayıp "—" basıyor (deponun sentinel
+     doktrini) ama bir marj GERÇEKTEN −$1,00 olabilir: geliri olmayan,
+     $1,00 AI maliyeti biriktirmiş bir satır tam bunu verir. "—" basmak
+     ölçülmüş bir zararı "bilinmiyor" adıyla sunmak olurdu — ters yönden
+     aynı kusur. Bu yüzden ÖLÇÜLMÜŞ olduğu bilinen her tutar buradan
+     geçer: yalnız satır marjı değil, toplamlardaki "ortak öncesi marj"
+     da (o da her zaman ölçülüdür). */
+  function olculmusPara(b, v) {
+    if (Number(v) === -1) return '−' + b.para(1);
+    return b.para(v);
+  }
+
+  /* `gosterilenMarj` yalnız ölçülmüş terimlerden gelen sayıyı döndürdüğü
+     için buradaki −1 her zaman gerçek bir −1'dir. */
+  function marjMetni(b, x) {
+    return olculmusPara(b, gosterilenMarj(x));
+  }
+
+  function marjHucresi(b, x) {
+    var yildiz = ortakOlculdu(x) ? ''
+      : '<sup title="Ortak edinme maliyeti düşülmedi">*</sup>';
+    return '<b class="' + (gosterilenMarj(x) < 0 ? 'metin-madder' : 'metin-celadon') +
+      '">' + b.e(marjMetni(b, x)) + yildiz + '</b>';
+  }
+
+  /* Ortak maliyeti hücresi. Sıfır ile "ölçülmedi" AYNI işaretle
+     gösterilemez: çıplak "—" sıfır gibi okunur ve "ortak maliyeti yoktu"
+     ölçülmemiş bir iddiadır. Kur yoksa ₺ tutar yine dürüsttür — ölçülen
+     birim odur, dolar bir türetmedir. */
+  function ortakHucresi(b, x, ayrintili) {
+    if (!ortakAlaniVar(x)) return '<span class="dipnot">uçtan gelmiyor</span>';
+    if (!ortakOlculdu(x)) {
+      return Number(x.partnerCostTry) >= 0
+        ? '<span class="dipnot">' + b.e(b.para(x.partnerCostTry, '₺')) + ' · kur yok</span>'
+        : '<span class="dipnot">ölçülmedi</span>';
+    }
+    if (!Number(x.partnerCostUsd)) return '<span class="dipnot">—</span>';
+    return '−' + b.e(b.para(x.partnerCostUsd)) +
+      (ayrintili ? ' <span class="dipnot">= ' + b.e(b.para(x.partnerCostTry, '₺')) + '</span>' : '');
+  }
   var OLAY_ADI = { INITIAL_PURCHASE: 'İlk satın alma', RENEWAL: 'Yenileme', CANCELLATION: 'İptal',
                    EXPIRATION: 'Süre doldu', BILLING_ISSUE: 'Fatura sorunu', REFUND: 'İade',
                    TRIAL_STARTED: 'Deneme başladı', TRIAL_CONVERTED: 'Deneme → ödeme' };
@@ -281,6 +360,33 @@
         ' günü için adminEconomics dokümanı var' + (eko.coverage.oldest ? ' (en eski ' + b.e(b.tarih(eko.coverage.oldest)) + ')' : '') +
         '. Kullanıcı ekonomisi eksik günleri saymaz' + (sahip ? '; "Yeniden hesapla" ile doldur.' : '.'), 'uyari', { html: true });
     }
+    /* Ortak maliyetinin üç eksik hâli üç ayrı bant: teşhis farklı, yapılacak
+       iş de farklı. Tek bant yazmak sahibi yanlış yere baktırırdı. */
+    var ekoT = (eko && eko.totals) || null;
+    if (ekoT && !ortakAlaniVar(ekoT)) {
+      bantlar += b.bant('<b>Ortak maliyeti bu uçtan gelmiyor</b> — backend, paneldeki bu sürümden eski ' +
+        '(<code>partnerCostUsd</code> alanı yok). Marj İKİ terimli: ortak (affiliate) edinme maliyeti ' +
+        'DÜŞÜLMEMİŞ, yani atıflı abonelerde olduğundan yüksek. infra/deploy-backend.ps1 ile düzelir.',
+        'uyari', { html: true });
+    } else if (ekoT && Number(ekoT.partnerDaysMissing) > 0) {
+      /* İKİ neden aynı sayaca düşüyor (`partnerDaysMissing`): alanı hiç
+         taşımayan eski gün ve o günün sorgusu düşmüş gün (`partnerTry` =
+         −1). Uç ikisini ayırmadığı için bant da AYIRMAZ; yalnız birini
+         sebep diye yazmak, sahibi olmayan bir gerekçeye inandırırdı.
+         Yapılacak iş ikisinde de aynı: o günleri yeniden yaz. */
+      bantlar += b.bant('<b>Ortak maliyeti ölçülmemiş</b> — ' + b.e(b.sayi(Number(ekoT.partnerDaysMissing))) +
+        ' günün adminEconomics dokümanı ortak edinme maliyetini taşımıyor — o günler bu ölçüm ' +
+        'eklenmeden önce yazıldı ya da o günün sorgusu düştü. Eksik günde hangi kullanıcının ' +
+        'ödülünün kayıp olduğu bilinmediği için marj ' +
+        '<b>yıldızlı</b> gösteriliyor: ortak maliyeti düşülmemiş ama ölçülmüş sayı' +
+        (sahip ? '. "Yeniden hesapla" o günleri yeniden yazar, alan kendiliğinden dolar.' : '.'),
+        'uyari', { html: true });
+    } else if (ekoT && !ortakOlculdu(ekoT)) {
+      bantlar += b.bant('<b>Kur ayarlı değil</b> — ortak edinme maliyeti ₺ olarak ölçüldü (' +
+        b.e(b.para(ekoT.partnerCostTry, '₺')) + ') ama dolara çevrilemedi (<code>RYTHO_USD_TRY</code>). ' +
+        'Marj bu yüzden hesaplanamıyor; yıldızlı sayı ortak maliyeti düşülmemiş marjdır.',
+        'uyari', { html: true });
+    }
 
     /* ---- KPI ---- */
     var kpiler = '<section class="izgara-kpi" aria-label="Gelir özeti">' +
@@ -338,10 +444,38 @@
         '<dt>Mağaza payı (~%' + Math.round((Number(t.storeCutRate) || 0.15) * 100) + ')</dt><dd>−' + b.e(b.para(t.storeCutUsd)) + '</dd>' +
         '<dt>AI maliyeti</dt><dd>−' + b.e(b.para(t.aiCostUsd)) + '</dd>' +
         '<dt>· paylaşımlı (kullanıcısız)</dt><dd>' + b.e(b.para(t.sharedAiCostUsd)) + '</dd>' +
-        '<dt>Tahmini marj</dt><dd>' + b.e(b.para(t.marginUsd)) + '</dd>' +
+        '<dt>Ortak edinme maliyeti</dt><dd>' + ortakHucresi(b, t, true) + '</dd>' +
+        /* "Marj (ortak öncesi)" satırı yalnız uç o sayıyı GÖNDERİYORSA
+           çizilir. Alan yokken `b.para(undefined)` "—" basardı, oysa hemen
+           altındaki yıldızlı "Tahmini marj" tam o ölçülmüş sayının
+           kendisidir: aynı büyüklük bir satırda "bilinmiyor", bir satırda
+           değer olarak görünürdü. */
+        (ortakAlaniVar(t)
+          ? '<dt>Marj (ortak öncesi)</dt><dd>' + b.e(olculmusPara(b, t.grossMarginUsd)) + '</dd>'
+          : '') +
+        '<dt>Tahmini marj</dt><dd>' + marjHucresi(b, t) + '</dd>' +
         '<dt>Çağrı · harcanan jeton</dt><dd>' + b.e(b.sayi(t.calls)) + ' · ' + b.e(b.sayi(t.tokensSpent)) + '</dd>' +
         '<dt>Sayılan kullanıcı</dt><dd>' + b.e(b.sayi(t.usersCounted)) + '</dd></dl>' +
-        '<p class="dipnot">Marj = seçili ortam geliri × (1 − mağaza payı) − AI maliyeti; sabit giderler hariç.</p>'
+        /* Formül cümlesi GÖSTERİLEN marjı tarif eder, sunucunun ideal
+           formülünü değil: ortak maliyeti düşülmemişken "− ortak edinme
+           maliyeti" yazmak yapılmamış bir hesabı beyan etmek olurdu ve
+           ekrandaki yıldızın tersini söylerdi. Aynı gerekçe
+           `kullanicilar.js` `marjCumlesi`nde de var; orada terim yalnız
+           `ucGondermiyor` iken çıkıyor çünkü 360 ölçülemeyen marjı "—"
+           basıyor, burada ise ölçülü (ortak öncesi) sayı yıldızla
+           GÖSTERİLİYOR — yani cümlenin yanlış olabileceği hâl bir fazla.
+           Kur cümlesi de ancak
+           kur BİLİNİYORSA yazılır — ödülü sıfır olan pencerede kur
+           okunamamış olabilir ve "kur — ile türetilir" bir şey söylemez. */
+        '<p class="dipnot">Marj = seçili ortam geliri × (1 − mağaza payı) − AI maliyeti' +
+        (ortakOlculdu(t)
+          ? ' − ortak edinme maliyeti; sabit giderler hariç.' +
+            (Number(t.usdTryRate) > 0
+              ? ' Ortak ödülü ₺ ölçülür, dolar karşılığı kur ' +
+                b.e(b.sayi(t.usdTryRate)) + ' ile türetilir.'
+              : '')
+          : '; sabit giderler hariç. Yıldızlı sayı ortak edinme maliyeti ' +
+            'DÜŞÜLMEMİŞ marjdır; nedenini yukarıdaki bant söylüyor.') + '</p>'
       : b.bosDurum('Ekonomi rollup\'ı alınamadı.', { ikon: 'gelir' });
 
     var tablolar =
@@ -406,13 +540,23 @@
           return Number(u.sandboxUsd) ? b.e(b.para(u.sandboxUsd)) : '<span class="dipnot">—</span>'; } },
         { ad: 'storeCutUsd', baslik: 'Mağaza payı', hizala: 'sag', bicim: function (u) { return Number(u.storeCutUsd) ? '−' + b.e(b.para(u.storeCutUsd)) : '—'; } },
         { ad: 'aiCostUsd', baslik: 'AI maliyeti', hizala: 'sag', siralanir: true, bicim: function (u) { return b.e(b.para(u.aiCostUsd)); } },
+        { ad: 'partnerCostUsd', baslik: 'Ortak', hizala: 'sag', siralanir: true,
+          bicim: function (u) { return ortakHucresi(b, u); } },
         { ad: 'calls', baslik: 'Çağrı', hizala: 'sag', siralanir: true },
-        { ad: 'marginUsd', baslik: 'Marj', hizala: 'sag', siralanir: true, bicim: function (u) {
-          return '<b class="' + (Number(u.marginUsd) < 0 ? 'metin-madder' : 'metin-celadon') + '">' + b.e(b.para(u.marginUsd)) + '</b>'; } }
+        // Sıralama anahtarı GÖSTERİLEN marjdır. Ham `marginUsd`e
+        // bakılsaydı ortak maliyeti ölçülmemiş pencerede her satır −1
+        // olur, "Marj" başlığına basmak hiçbir şeyi kıpırdatmazdı — üstelik
+        // başlık `aria-sort="ascending"` derken satırlar azalan dururdu.
+        { ad: 'marginUsd', baslik: 'Marj', hizala: 'sag', siralanir: true,
+          deger: function (u) { return gosterilenMarj(u); },
+          bicim: function (u) { return marjHucresi(b, u); } }
       ],
       anahtar: function (u) { return u.uid; },
       satirHref: function (u) { return RY.rotaBagi('kullanicilar', [u.uid]); },
-      satirSinif: function (u) { return Number(u.marginUsd) < 0 ? 'durum-uyari' : ''; },
+      // Uyarı boyası GÖSTERİLEN marja bakar: ölçülmemiş ortak maliyeti
+      // yüzünden −1 olan `marginUsd`e bakılsaydı kârlı satırlar da zararlı
+      // görünürdü — hem de her satır, aynı anda.
+      satirSinif: function (u) { return gosterilenMarj(u) < 0 ? 'durum-uyari' : ''; },
       siralama: { ad: 'marginUsd', yon: 'desc' },
       bosMetin: eko ? 'Bu dönemde kullanıcı satırı yok.' : 'Ekonomi rollup\'ı alınamadı.'
     });

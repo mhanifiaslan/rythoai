@@ -17,7 +17,10 @@ Panel binlerce kullanıcıda da AÇILIŞTA TARAMA YAPMAZ:
   (kimlik uid olduğu için sorgu değil doğrudan okuma).
 * Ekonomi / gelir / kullanım özetleri `adminEconomics` ve `adminStats`
   rollup'larından birleştirilir (stats_service); canlı tarama yalnız
-  sahibin "yeniden hesapla"sında.
+  sahibin "yeniden hesapla"sında. Ortak (affiliate) edinme maliyeti de
+  ORADAN gelir (gün toplamı `partnerTry`, kullanıcı başına `p`, ikisi de
+  ₺): 200 satır için 200 ayrı `partnerQualifications` okuması yukarıdaki
+  ölçek doktrinini çiğnerdi. ₺ → $ çevirisi BURADA yapılır (`USD_TRY`).
 
 ## Mahremiyet çizgisi (Kullanıcı 360)
 
@@ -627,15 +630,42 @@ def economics(days: int = 90, env: str = "PRODUCTION") -> dict[str, Any]:
     (`revenueUsd` = PRODUCTION, `sandboxUsd` = SANDBOX). 600 s önbellek.
 
     Kâr formülü TAHMİNİDİR ve dürüstçe etiketlenir:
-    marj = gelir × (1 − mağaza kesintisi) − tahmini AI maliyeti.
+    marj = gelir × (1 − mağaza kesintisi) − tahmini AI maliyeti
+           − ortak edinme maliyeti.
 
-    ⚠️ Bu TABLONUN marjı ortak (affiliate) edinme maliyetini İÇERMEZ —
-    yalnız Kullanıcı 360 içerir (`partnerCostUsd`). Buraya koymanın tek
-    yolu 200 satır için 200 ayrı `partnerQualifications` okuması ya da
-    rollup'ı (stats_service) yazarken toplamaktır; birincisi yukarıdaki
-    ölçek doktrinini çiğner, ikincisi bu dosyanın işi değil. Yani bu
-    tablodaki marj atıflı abonelerde OLDUĞUNDAN YÜKSEKTİR ve tek
-    kullanıcının gerçek marjı 360'tan okunur.
+    Ortak maliyeti (P4) artık BU tabloda da düşülüyor ve Kullanıcı 360
+    (`_ortak_maliyeti`) ile aynı kuralı taşıyor: `void` sayılmaz, `pending`
+    sayılır. Kaynağı canlı `partnerQualifications` DEĞİL, `stats_service`in
+    gecelik yazdığı rollup — ₺ tutar gün gün `p`, günün toplamı
+    `partnerTry`. Dolara çevirme rollup'ta değil BURADA yapılıyor ki kur
+    tek yerden okunsun ve iki ekran iki farklı marj göstermesin.
+
+    PENCERE KAPSAMI 360'tan FARKLIDIR ve fark bilinçlidir: buradaki ortak
+    maliyeti, hakedişi o pencerede DOĞMUŞ (satın alma tarihi pencerede)
+    ödüllerden gelir — tablonun geliri ve AI maliyeti de pencereye ait.
+    Kullanıcı 360 ise tek dokümanı okur, yani ömür boyu yükümlülüğü
+    gösterir. Sonuç: penceresinden ESKİ bir atıflı abone bu tabloda ortak
+    maliyeti 0 ile, 360'ta −$X ile görünür. İki soruya iki doğru cevap
+    ("bu 30 günde ne kazandırdı" ile "bu abone toplamda ne kazandırdı");
+    karşılaştıran taraf bunu bilmezse birini hata sanar, o yüzden yazılı.
+
+    ÜÇ AYRI "bilinmiyor" var ve hepsi −1 döner (panelde "—"):
+
+    * **Günün dokümanı `partnerTry` taşımıyor** — bu ölçümden eski rollup.
+      O günün ortak maliyeti ölçülmemiştir ve KİME ait olduğu da bilinmez;
+      bu yüzden eksik gün varsa satırların HEPSİ ve toplam "bilinmiyor"
+      olur. 0 yazmak "ortak maliyeti yoktu" iddiasıdır ve ölçülmemiştir.
+      Sayısı `totals.partnerDaysMissing`; sahibin "Yeniden hesapla"sı
+      (≤90 gün) o günleri yeniden yazar ve alan kendiliğinden dolar.
+    * **Günün sorgusu düşmüş** (`partnerTry == -1`) — aynı sonuç.
+    * **Kur ayarlı değil** (`USD_TRY <= 0`): ₺ tutar ölçülü
+      (`partnerCostTry`) ama dolara çevrilemiyor; $ alanı ve marj "—".
+
+    `grossMarginUsd` ortak maliyeti DÜŞÜLMEMİŞ marjdır ve HER ZAMAN
+    ölçülüdür. İki işi var: top-200 seçimi ona göre yapılır (marja göre
+    yapılsaydı eksik günlerde tüm marjlar −1 olur ve seçim anlamsızlaşırdı),
+    ve panel eksik gün durumunda gösterecek ölçülmüş bir sayı bulur —
+    yanına "ortak maliyeti düşülmedi" diyerek.
     """
     env = str(env or "PRODUCTION").upper()
     anahtar = f"adm-econ-{int(days)}-{env}"
@@ -647,12 +677,18 @@ def economics(days: int = 90, env: str = "PRODUCTION") -> dict[str, Any]:
     dokumanlar = _economics_docs(client, days)
 
     birlesik: dict[str, dict[str, float]] = {}
+    # `others` kovasına `p` KONMAZ: pencerenin ortak toplamı satırlardan
+    # değil doküman düzeyindeki `partnerTry`den geliyor (o alan aynı
+    # zamanda ölçüm işareti). İki ayrı toplama yolu zamanla ayrışırdı.
     digerleri = {"r": 0.0, "rs": 0.0, "c": 0.0, "n": 0, "t": 0}
     paylasimli = {"c": 0.0, "n": 0}
+    # Ortak maliyeti: ölçülmüş günlerin ₺ toplamı + ölçmeyen gün sayısı.
+    ortak_try_toplam = 0.0
+    ortak_eksik_gun = 0
     for dok in dokumanlar:
         for uid, k in (dok.get("users") or {}).items():
             kova = birlesik.setdefault(uid, {"r": 0.0, "rs": 0.0, "c": 0.0,
-                                             "n": 0, "t": 0})
+                                             "n": 0, "t": 0, "p": 0.0})
             for alan in kova:
                 kova[alan] = round(kova[alan] + (k.get(alan) or 0), 6)
         for alan in digerleri:
@@ -661,6 +697,32 @@ def economics(days: int = 90, env: str = "PRODUCTION") -> dict[str, Any]:
         for alan in paylasimli:
             paylasimli[alan] = round(
                 paylasimli[alan] + ((dok.get("shared") or {}).get(alan) or 0), 6)
+        # `bool` ayrıca dışlanıyor: Python'da `isinstance(True, int)` doğru
+        # ve Firestore'a elle girilmiş bir `true` sessizce "1 ₺" olurdu.
+        ham_ortak = dok.get("partnerTry")
+        if (isinstance(ham_ortak, (int, float))
+                and not isinstance(ham_ortak, bool) and ham_ortak >= 0):
+            ortak_try_toplam = round(ortak_try_toplam + float(ham_ortak), 4)
+        else:
+            ortak_eksik_gun += 1
+
+    # Tek "bilinmiyor" kapısı: eksik gün VARSA pencerenin toplamı da,
+    # satırların payı da ölçülmemiştir — eksik günde hangi kullanıcının
+    # ödülünün kayıp olduğu bilinmediği için satır bazında kurtarılamaz.
+    ortak_olculdu = ortak_eksik_gun == 0
+
+    # ₺ ödül → $ maliyet; ölçülemiyorsa −1 (360 ile aynı sentinel).
+    # Sıfır kontrolü kur kontrolünden ÖNCE: ödülü olmayan satırın maliyeti
+    # kur bilinmese de 0'dır ve onu "bilinmiyor" yapmak ölçülmüş bir sıfırı
+    # silmek olurdu — tüm tablo kur yokken boşalırdı.
+    def ortak_usd(odul_try: float) -> float:
+        if not ortak_olculdu:
+            return -1.0
+        if odul_try <= 0:
+            return 0.0
+        if USD_TRY <= 0:
+            return -1.0
+        return round(odul_try / USD_TRY, 4)
 
     def gelir_secimi(k: dict[str, float]) -> float:
         return k["r"] if env == "PRODUCTION" else k["rs"]
@@ -668,6 +730,8 @@ def economics(days: int = 90, env: str = "PRODUCTION") -> dict[str, Any]:
     satirlar: list[dict[str, Any]] = []
     for uid, k in birlesik.items():
         g = gelir_secimi(k)
+        brut_marj = round(g * (1 - STORE_CUT) - k["c"], 4)
+        o_usd = ortak_usd(k["p"])
         satirlar.append({
             "uid": uid,
             "displayName": None,
@@ -678,9 +742,18 @@ def economics(days: int = 90, env: str = "PRODUCTION") -> dict[str, Any]:
             "aiCostUsd": round(k["c"], 4),
             "calls": int(k["n"]),
             "tokensSpent": int(k["t"]),
-            "marginUsd": round(g * (1 - STORE_CUT) - k["c"], 4),
+            # ₺ tutar ÖLÇÜLEN birimdir; $ karşılığı bir TÜRETMEdir ve hangi
+            # kurla türetildiği (`totals.usdTryRate`) söylenmeden
+            # sunulmamalı — Kullanıcı 360'taki aynı gerekçe.
+            "partnerCostTry": round(k["p"], 2) if ortak_olculdu else -1.0,
+            "partnerCostUsd": o_usd,
+            "grossMarginUsd": brut_marj,
+            "marginUsd": round(brut_marj - o_usd, 4) if o_usd >= 0 else -1.0,
         })
-    satirlar.sort(key=lambda s: (s["marginUsd"], s["aiCostUsd"]), reverse=True)
+    # Sıralama ORTAK ÖNCESİ marja göre: `marginUsd` eksik günlerde her
+    # satırda −1 olur ve top-200 seçimi tümüyle rastlantıya düşerdi.
+    satirlar.sort(key=lambda s: (s["grossMarginUsd"], s["aiCostUsd"]),
+                  reverse=True)
     satirlar = satirlar[:ECONOMICS_TOP_N]
     adlar = _kullanici_adlari(client, [s["uid"] for s in satirlar])
     for s in satirlar:
@@ -691,6 +764,8 @@ def economics(days: int = 90, env: str = "PRODUCTION") -> dict[str, Any]:
     toplam_c = round(sum(k["c"] for k in birlesik.values()) + digerleri["c"]
                      + paylasimli["c"], 4)
     secili = toplam_r if env == "PRODUCTION" else toplam_rs
+    toplam_brut_marj = round(secili * (1 - STORE_CUT) - toplam_c, 4)
+    toplam_ortak_usd = ortak_usd(ortak_try_toplam)
     sonuc = {
         "days": int(days),
         "env": env,
@@ -701,7 +776,17 @@ def economics(days: int = 90, env: str = "PRODUCTION") -> dict[str, Any]:
             "storeCutUsd": round(max(secili, 0) * STORE_CUT, 2),
             "aiCostUsd": toplam_c,
             "sharedAiCostUsd": round(paylasimli["c"], 4),
-            "marginUsd": round(secili * (1 - STORE_CUT) - toplam_c, 4),
+            "partnerCostTry": (round(ortak_try_toplam, 2) if ortak_olculdu
+                               else -1.0),
+            "partnerCostUsd": toplam_ortak_usd,
+            # Ölçmeyen gün sayısı `coverage`a değil buraya kondu: okuyanın
+            # sorusu "kaç gün eksik" değil "marj neden —", ve cevap tam bu
+            # üç alanın yanında duruyor.
+            "partnerDaysMissing": ortak_eksik_gun,
+            "usdTryRate": USD_TRY if USD_TRY > 0 else -1,
+            "grossMarginUsd": toplam_brut_marj,
+            "marginUsd": (round(toplam_brut_marj - toplam_ortak_usd, 4)
+                          if toplam_ortak_usd >= 0 else -1.0),
             "storeCutRate": STORE_CUT,
             "calls": int(sum(k["n"] for k in birlesik.values())
                          + digerleri["n"] + paylasimli["n"]),

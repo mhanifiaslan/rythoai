@@ -11,8 +11,14 @@ sayımları BURADA yapar ve sonucu iki dokümana yazar:
   (`snapshot=False`) yalnız olay bölümleri merge edilir — dünün DAU'su
   bugünkü taramadan üretilemez, uydurulmaz.
 * `adminEconomics/{YYYY-MM-DD}` — kullanıcı başına gün ekonomisi
-  (`{uid: {r, rs, c, n, t}}`, top-500 + `others`). Panelin ekonomi
+  (`{uid: {r, rs, c, n, t, p}}`, top-500 + `others`). Panelin ekonomi
   tablosu 90 günü bu dokümanlardan BİRLEŞTİRİR; canlı tarama yok.
+  `p` ortak (affiliate) edinme maliyetidir ve dokümandaki TEK ₺ alandır:
+  kur burada UYGULANMAZ, çünkü kuru okuyan tek yer `admin_service`
+  (`_kur_oku`) ve ikinci bir kur yolu açmak aynı marjı iki ekranda iki
+  farklı sayıya çevirirdi. Günün toplamı ayrıca `partnerTry` olarak
+  yazılır; o alan aynı zamanda ÖLÇÜM İŞARETİdir — taşımayan gün (bu
+  ölçümden eski rollup) "ortak maliyeti bilinmiyor"dur, "0" değil.
 
 KRİTİK KURAL: abonelik sayımı HAM Firestore dokümanından yapılır —
 `entitlements.is_subscriber` ASLA kullanılmaz. O fonksiyon RYTHO_FORCE_PLUS=1
@@ -337,8 +343,10 @@ def _snapshot_users(client, tarih: dt.date,
 
 def _kullanici_kovasi(kovalar: dict[str, dict[str, Any]],
                       uid: str) -> dict[str, Any]:
+    # `p` (ortak ödülü) ₺, ötekiler $ ya da adet. Birim karışımı bilinçli
+    # ve modül başında yazılı; çeviren taraf `admin_service`.
     return kovalar.setdefault(uid, {"r": 0.0, "rs": 0.0, "c": 0.0,
-                                    "n": 0, "t": 0})
+                                    "n": 0, "t": 0, "p": 0.0})
 
 
 def _day_events(client, tarih: dt.date,
@@ -502,6 +510,63 @@ def _day_events(client, tarih: dt.date,
     except Exception as exc:
         logger.warning("usageEvents sorgusu düştü: %s", exc)
 
+    # ---- Ortak edinme maliyeti: O GÜN AÇILAN hakedişler (P4) ----
+    # NEDEN `purchasedAt`: hakediş satın almayla doğar, yani bu maliyet
+    # aynı günün gelir olayının karşılığıdır. `maturedAt` seçilse maliyet
+    # gelirden 15 gün SONRAKİ güne düşerdi ve arada kalan her marj
+    # penceresi yanlış çıkardı — hiçbir ekranda hata görünmeden.
+    #
+    # `void` SAYILMAZ, `pending` SAYILIR: `admin_service._ortak_maliyeti`
+    # (Kullanıcı 360) ile birebir aynı kural. İki yüzey ayrışırsa aynı
+    # kullanıcının marjı iki ekranda farklı çıkar ve hangisinin doğru
+    # olduğunu söyleyecek hiçbir kanıt kalmaz.
+    #
+    # Durum süzgeci sorguda DEĞİL Python'da: `purchasedAt` aralığı +
+    # `status` eşitliği bileşik indeks isterdi ve gün başına açılan
+    # hakediş sayısı (o günün İLK abonelikleriyle sınırlı) bunu
+    # gerektirmeyecek kadar küçük.
+    #
+    # ⚠️ BİLİNEN SINIR: durum TOPLAMA ÂNINDA fotoğraflanır. Satın alma
+    # gününden sonra `void`a düşen bir hakediş (iade / pasifleşen ortak,
+    # `mature_qualifications`) o günün yazılmış rollup'ında maliyet olarak
+    # DURMAYA devam eder; düzeltmesi sahibin "Yeniden hesapla"sıdır.
+    # Sapma tek yönlü ve bilinçli: maliyet fazla, yani marj OLDUĞUNDAN
+    # DÜŞÜK görünür. Ters yön (marjı yüksek göstermek) kabul edilemezdi —
+    # fiyat kararı o sayıyla veriliyor. Kullanıcı 360 canlı okuduğu için
+    # her zaman günceldir; iki ekran bu noktada AYRILIR ve doğrusu 360'tır.
+    # Sorgu nasıl yazılırsa yazılsın çözülmez: rollup geçmiş bir günü
+    # yazıyor, sonradan olanı ancak yeniden toplamak görür.
+    ortak_try = -1.0
+    try:
+        gunun_odulu: dict[str, float] = {}
+        for anlik in (client.collection("partnerQualifications")
+                      .where(filter=FieldFilter("purchasedAt", ">=", gun_bas))
+                      .where(filter=FieldFilter("purchasedAt", "<", gun_son))
+                      .stream()):
+            veri = anlik.to_dict() or {}
+            if str(veri.get("status") or "pending") == "void":
+                continue
+            # Çözümlenemeyen tutar (ör. elle yazılmış "30,00" dizesi)
+            # ValueError atar ve BLOĞU düşürür: günün toplamı −1
+            # ("bilinmiyor") olur. Satırı atlayıp devam etmek, ölçülmemiş
+            # bir eksiği "maliyet yok" diye yazmak olurdu.
+            odul = float(veri.get("rewardTry") or 0)
+            if odul > 0:
+                # Doküman kimliği uid (partner_service'in yapısal "kullanıcı
+                # başına tek ödül" garantisi), yine de toplanarak yazılıyor:
+                # garanti kırılırsa sayı eksilmesin.
+                gunun_odulu[anlik.id] = round(
+                    gunun_odulu.get(anlik.id, 0.0) + odul, 4)
+        # Kullanıcı kovalarına ancak TAM okunmuş gün işlenir: yarı işlenmiş
+        # bir gün, doküman `partnerTry: -1` ("bilinmiyor") derken satırlarda
+        # tutar taşırdı ve okuyan taraf hangisine güveneceğini bilemezdi.
+        for hak_uid, odul in gunun_odulu.items():
+            kova = _kullanici_kovasi(kullanicilar, hak_uid)
+            kova["p"] = round(kova["p"] + odul, 4)
+        ortak_try = round(sum(gunun_odulu.values()), 4)
+    except Exception as exc:
+        logger.warning("partnerQualifications sorgusu düştü: %s", exc)
+
     # ---- Bildirim koşuları: notifyRuns {gün}-{tür} (AP-turu) ----
     bildirim: dict[str, Any] = {}
     try:
@@ -572,11 +637,15 @@ def _day_events(client, tarih: dt.date,
     }
 
     # ---- adminEconomics: top-N kullanıcı + gerisi tek kovada ----
+    # Sıralama anahtarına `p` GİRMEZ: o ₺, ötekiler $ — toplamak ₺30'luk
+    # bir ödülü $30'lık bir gelirmiş gibi tartar ve top-N seçimini bozar.
+    # Kayıp da yok: hakediş ancak satın almayla doğduğu için ödülü olan
+    # kullanıcının aynı gün `r`/`rs`si de var, yani zaten üst sıralarda.
     sirali = sorted(kullanicilar.items(),
                     key=lambda kv: kv[1]["r"] + kv[1]["rs"] + kv[1]["c"],
                     reverse=True)
     ustler = dict(sirali[:ECONOMICS_TOP_N])
-    digerleri = {"r": 0.0, "rs": 0.0, "c": 0.0, "n": 0, "t": 0}
+    digerleri = {"r": 0.0, "rs": 0.0, "c": 0.0, "n": 0, "t": 0, "p": 0.0}
     for _, k in sirali[ECONOMICS_TOP_N:]:
         for alan in digerleri:
             digerleri[alan] = round(digerleri[alan] + k[alan], 6)
@@ -586,6 +655,12 @@ def _day_events(client, tarih: dt.date,
         "users": ustler,
         "others": digerleri,
         "shared": paylasimli,
+        # Günün TOPLAM ortak maliyeti (₺) — top-N dışı kullanıcılar dahil.
+        # Okuyan taraf pencere toplamını satırları toplayarak DEĞİL buradan
+        # alıyor, çünkü bu alanın yokluğu aynı zamanda "bu gün ölçülmedi"
+        # demek ve `others.p` o ayrımı taşıyamaz (0 hem "yok" hem
+        # "ölçülmedi" okunurdu).
+        "partnerTry": ortak_try,
         "count": len(kullanicilar),
     }
     return bolumler, ekonomi

@@ -22,6 +22,20 @@
 /// `createdAt` onboarding'in son adımını beklerse akışı yarım bırakan
 /// kullanıcı panelin kullanıcı listesinde HİÇ görünmez (bkz.
 /// [dogumAlanlari], [kayitDamgasi]).
+///
+/// ⚠️ **Sunucu artık bu doğuma DAYANIYOR** (bulgu B9, 2026-09-28).
+/// Backend'in iki "en iyi çaba" aynası — `core/app_gate.remember_build`
+/// (`appBuild`) ve `services/search_mirror.ensure` (`emailLower`/…) —
+/// `set(merge: true)` yerine `update` kullanıyor, çünkü yaratan bir yazım
+/// hesabı silinmiş bir kullanıcıyı diriltiyordu (kimlik jetonu bir saate
+/// kadar geçerli kalıyor). `update` var olmayan dokümana YAZMAZ; yani
+/// [_firestoreWrite] geciktirilirse, koşullu hâle getirilirse ya da
+/// kaldırılırsa o iki ayna sessizce yazılmaz. Sunucuda ikinci bir doğum
+/// yolu var (`consent_service.grant_terms_consent`) ama o sihirbazın
+/// SONUNDA koşuyor, oturum açılışında değil: sihirbazı yarım bırakan
+/// kullanıcıda aynalar HİÇ yazılmaz, bitirende de onaya kadar yazılmaz.
+/// Sonucu panelde görünür — arama o kişiyi bulmaz, sürüm kırılımı onu
+/// "bilinmiyor" sayar. Hiçbir test patlamaz; ikisi de best-effort.
 library;
 
 import 'dart:async' show unawaited;

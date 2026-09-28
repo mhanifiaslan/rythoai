@@ -14,9 +14,12 @@ imleçle sayfalanır.
 
 * `ensure` HİÇ FIRLATMAZ: kimlik yolundan (get_current_user) çağrılır;
   ayna hiçbir koşulda oturumu düşüremez (`app_gate.remember_build` dersi).
-* Yalnız FARKLI alanlar yazılır (set merge): binlerce istekte gereksiz
-  yazım yok; uid başına 24 saatlik süreç içi memo (profil özeti sağlaması
-  değişince hemen yazılır).
+* Yalnız FARKLI alanlar yazılır: binlerce istekte gereksiz yazım yok; uid
+  başına 24 saatlik süreç içi memo (profil özeti sağlaması değişince hemen
+  yazılır).
+* **Yazım `update`, `set` DEĞİL — ayna doküman YARATMAZ** (B9).
+  `app_gate.remember_build` ile PAYLAŞILAN kural; gerekçesi `ensure`
+  içinde ve orada.
 * Alanlar istemciye KAPALI: rules `sunucuAlanlariDegismedi()` bekçisi.
 """
 from __future__ import annotations
@@ -99,6 +102,27 @@ def ensure(uid: str, profil: dict[str, Any] | None = None) -> bool:
     anonim RevenueCat kimlikleri gibi hayalet kullanıcı üretilmez).
     Memo profil VERİLDİĞİNDE özetle, verilmediğinde yalnız uid ile
     kıyaslanır: profil yoksa okumayı da 24 saatte bire indirmek amaçtır.
+
+    ⚠️ **Yazım `update`, `set(merge=True)` DEĞİL** (B9, ölçüldü
+    2026-09-28). Yukarıdaki "doküman yoksa yazım YOK" okuması TEK BAŞINA
+    yetmiyor: okuma ile yazım ARASINDA bir pencere var. Silinen hesabın
+    kimlik jetonu bir saate kadar geçerli kalıyor, yani `get` dokümanı
+    GÖRÜRKEN araya `delete_account` girebiliyor; `set(merge=True)` o
+    noktada dokümanı geri YARATIRDI. `update` var olmayan dokümana yazmaz
+    — dirilme yapısal olarak imkânsız.
+
+    Bu kapı sayesinde B9'un GENİŞ yolu (jeton penceresinin tamamı) burada
+    hiç açılmadı; diriltme `app_gate.remember_build`ten geliyordu ve
+    üretimde ölçülen yetim dokümanlarda yalnız `appBuild` vardı, ayna
+    alanları YOKTU. Bulgu kaydı iki aynayı da aynı biçimde suçluyordu; o
+    kısım yanlıştı. Kural yine de İKİSİNDE birden geçerli olmalı: paylaşan
+    tek kural olmadan biri sessizce diriltmeye devam eder.
+
+    Doküman yaratma sorumluluğu aynanın DEĞİL: `users/{uid}` oturum
+    açılışında istemcide (`language_sync._firestoreWrite`) ve onboarding
+    onayında sunucuda (`consent_service.grant_terms_consent`) doğuyor.
+    Yeni kullanıcının aynası bu yüzden kaybolmaz: doğumdan önce gelen
+    çağrı memo KURMADAN döner, doğumdan sonraki ilk çağrı yazar.
     """
     try:
         if not uid:
@@ -131,7 +155,7 @@ def ensure(uid: str, profil: dict[str, Any] | None = None) -> bool:
         client = client or firestore_client.get_client()
         if client is None:
             return False
-        client.collection("users").document(uid).set(fark, merge=True)
+        client.collection("users").document(uid).update(fark)
         _memo_yaz(uid, ozet)
         return True
     except Exception as exc:

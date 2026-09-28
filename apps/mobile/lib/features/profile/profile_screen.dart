@@ -383,7 +383,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ref.watch(subscriptionProvider).value ?? SubscriptionStatus.none;
     final cuzdan = ref.watch(walletProvider).value ?? WalletStatus.none;
     final plan = abonelik.active ? 'Rytho+' : l10n.subPlanFree;
-    return '$plan · ${cuzdan.total} 🪙';
+    // Okunamadıysa sayı yerine "—" (WalletStatus.bilinmiyor).
+    final bakiye = cuzdan.bilinmiyor ? '—' : '${cuzdan.total}';
+    return '$plan · $bakiye 🪙';
   }
 }
 

@@ -454,12 +454,15 @@ def test_economics_marj_matematigi(depo, monkeypatch):
         "date": "2026-09-11",
         "users": {"u1": {"r": 4.99, "rs": 0, "c": 0.05, "n": 1, "t": 3}},
         "others": {"r": 0, "rs": 0, "c": 0, "n": 0, "t": 0},
-        "shared": {"c": 0.01, "n": 1}, "count": 1}
+        # `partnerTry: 0.0` = ortak maliyeti ÖLÇÜLDÜ ve sıfır (P4). Alan
+        # olmasa gün "ölçülmedi" sayılır, marj −1 döner ve aşağıdaki iki
+        # terimli matematik sınanamaz olurdu.
+        "shared": {"c": 0.01, "n": 1}, "partnerTry": 0.0, "count": 1}
     depo.docs["adminEconomics/2026-09-12"] = {
         "date": "2026-09-12",
         "users": {"u1": {"r": -1.0, "rs": 2.5, "c": 0, "n": 0, "t": 0}},
         "others": {"r": 0, "rs": 0, "c": 0, "n": 0, "t": 0},
-        "shared": {"c": 0, "n": 0}, "count": 1}
+        "shared": {"c": 0, "n": 0}, "partnerTry": 0.0, "count": 1}
 
     sonuc = admin_service.economics(days=30, env="PRODUCTION")
 

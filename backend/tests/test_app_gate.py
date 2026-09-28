@@ -44,6 +44,15 @@ class _Anlik:
         return dict(self._veri) if self._veri else {}
 
 
+class NotFound(Exception):
+    """Firestore'un var olmayan dokümana `update` yazımına verdiği yanıt.
+
+    Sınıf ADI gerçeğiyle (`google.api_core.exceptions.NotFound`) birebir:
+    `app_gate._DOKUMAN_YOK` sembole değil ADA bakıyor, bu sahte de o
+    sözleşmeyi sınıyor.
+    """
+
+
 class _Dokuman:
     def __init__(self, depo, yol):
         self._depo = depo
@@ -55,6 +64,18 @@ class _Dokuman:
 
     def set(self, veri, merge=False):
         mevcut = dict(self._depo.docs.get(self._yol) or {}) if merge else {}
+        mevcut.update(veri)
+        self._depo.docs[self._yol] = mevcut
+
+    def update(self, veri):
+        """Gerçek Firestore gibi: doküman YOKSA yazmaz, NotFound fırlatır.
+
+        Bu sadakat B9'un bekçisi — `set` semantiğiyle taklit edilse
+        dirilme testte görünmez olurdu.
+        """
+        if self._yol not in self._depo.docs:
+            raise NotFound(f"Doküman yok: {self._yol}")
+        mevcut = dict(self._depo.docs[self._yol])
         mevcut.update(veri)
         self._depo.docs[self._yol] = mevcut
 
@@ -398,11 +419,51 @@ def test_remember_build_yazim_dusunce_firlatmaz_memo_kurmaz(monkeypatch):
     assert not app_gate.build_remembered("u1", 35), \
         "düşen yazım memo kurmamalı; sonraki istek yeniden dener"
 
-    depo = SahteFirestore()
+    depo = SahteFirestore({"users/u1": {"language": "tr"}})
     monkeypatch.setattr(app_gate.firestore_client, "get_client", lambda: depo)
     assert app_gate.remember_build("u1", 35) is None
-    assert depo.docs["users/u1"] == {"appBuild": 35}
+    assert depo.docs["users/u1"] == {"language": "tr", "appBuild": 35}
     assert app_gate.build_remembered("u1", 35)
+
+
+# ---------------------------------------------------------------------------
+# B9: ayna silinmiş hesabı DİRİLTMEZ (ölçüldü 2026-09-18, üretimde)
+# ---------------------------------------------------------------------------
+
+def test_remember_build_dokuman_yoksa_YARATMAZ(monkeypatch):
+    """Bulgu B9'un çekirdeği.
+
+    `delete_account` `users/{uid}`'yi siliyor ama kimlik jetonu bir saate
+    kadar geçerli kalıyor. O pencerede gelen tek kimlikli istek buradan
+    geçiyor; yazım `set(merge=True)` olduğu sürece dokümanı
+    `{appBuild: N}` iskeletiyle GERİ getiriyordu — üretimde ölçülen yetim
+    dokümanların dördü tam böyleydi.
+    """
+    depo = SahteFirestore()
+    monkeypatch.setattr(app_gate.firestore_client, "get_client", lambda: depo)
+    assert app_gate.remember_build("silinmis-uid", 46) is None
+    assert depo.docs == {}, "silinmiş hesap aynayla dirildi"
+
+
+def test_remember_build_dokuman_yoksa_memo_kurmaz_sonra_yazar(monkeypatch):
+    """Yeni kullanıcı SESSİZCE kaybolmamalı.
+
+    `users/{uid}` oturum açılışında istemcide doğuyor; ilk kimlikli istek
+    o doğumun önüne geçebilir. Ayna o istekte yazmaz ama memo da KURMAZ —
+    doküman doğduktan sonraki ilk istek yazar. Bu iki koşul birlikte
+    olmasa düzeltme sessiz bir gerilemeye dönerdi: 24 saat boyunca hiçbir
+    yazım denenmez ve panelin sürüm kırılımı yeni kullanıcıyı hiç görmez.
+    """
+    depo = SahteFirestore()
+    monkeypatch.setattr(app_gate.firestore_client, "get_client", lambda: depo)
+    app_gate.remember_build("yeni", 46)
+    assert not app_gate.build_remembered("yeni", 46)
+
+    # İstemci dokümanı doğurdu (language_sync._firestoreWrite).
+    depo.docs["users/yeni"] = {"language": "tr"}
+    app_gate.remember_build("yeni", 46)
+    assert depo.docs["users/yeni"]["appBuild"] == 46
+    assert app_gate.build_remembered("yeni", 46)
 
 
 def test_remember_build_memo_budamasi_dusse_de_firlatmaz(monkeypatch):
@@ -415,7 +476,7 @@ def test_remember_build_memo_budamasi_dusse_de_firlatmaz(monkeypatch):
         def items(self):
             raise RuntimeError("dictionary changed size during iteration")
 
-    depo = SahteFirestore()
+    depo = SahteFirestore({"users/u1": {}})
     monkeypatch.setattr(app_gate.firestore_client, "get_client", lambda: depo)
     monkeypatch.setattr(app_gate, "_BUILD_MEMO_PRUNE_AT", 1)
     monkeypatch.setattr(app_gate, "_build_memo",
@@ -428,7 +489,9 @@ def test_remember_build_budama_suresi_dolanlari_atar(monkeypatch):
     """Budama anlık kopya üzerinde döner: süresi dolan atılır, taze kalır."""
     saat = [1000.0]
     monkeypatch.setattr(app_gate, "_now", lambda: saat[0])
-    depo = SahteFirestore()
+    # Dokümanlar VAR: ayna artık `update` kullanıyor ve yoksa yazmaz (B9).
+    depo = SahteFirestore({"users/eski": {}, "users/taze": {},
+                           "users/yeni": {}})
     monkeypatch.setattr(app_gate.firestore_client, "get_client", lambda: depo)
     monkeypatch.setattr(app_gate, "_BUILD_MEMO_PRUNE_AT", 2)
 

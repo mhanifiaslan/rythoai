@@ -1189,6 +1189,41 @@ def test_erisim_ucu_denetim_izine_duser(depo, monkeypatch):
     assert izler[0]["targetUid"] == "ortak-uid"
 
 
+def test_ODEME_KIMLIGI_denetim_izine_DEGERIYLE_yazilmaz(depo):
+    """IBAN ve vergi kimliği ize DEĞERİYLE düşmez; öteki alanlar düşer.
+
+    `_audit` `params`ı olduğu gibi `adminAudit` dokümanına yazıyor ve o
+    koleksiyon KALICI — her düzeltmede ortağın ödeme kimliğinin bir kopyası
+    daha birikirdi. İzin işi "kim neyi ne zaman değiştirdi"dir; alanın
+    DEĞİŞTİĞİ görünür kalıyor, DEĞERİ kalmıyor.
+
+    `minPayoutTry` BİLEREK maskesiz: para tutarı sır değil ve mutabakatta
+    "eşik o gün kaçtı" sorusunun tek cevabı bu iz.
+    """
+    from api import admin as admin_api
+
+    _ortak(depo, pid="p-1", uid="ortak-uid")
+    yanit = admin_api.patch_partner(
+        "p-1",
+        admin_api.PartnerPatch(iban="TR120006200000000006297561",
+                               taxId="1234567890",
+                               minPayoutTry=250),
+        _sahip_kullanici())
+    assert yanit["status"] == "ok"
+    # Yazım GERÇEKTEN olmuş: maske izi değiştiriyor, veriyi değiştirmiyor.
+    assert depo["partners/p-1"]["iban"] == "TR120006200000000006297561"
+    assert depo["partners/p-1"]["minPayoutTry"] == 250
+
+    iz = [v for k, v in depo.items() if k.startswith("adminAudit/")][0]
+    assert iz["action"] == "partner.update"
+    assert "TR120006200000000006297561" not in str(iz["params"])
+    assert "1234567890" not in str(iz["params"])
+    # Alanın DEĞİŞTİĞİ hâlâ görünüyor (iz zayıflamadı) ve uzunluk kalıyor.
+    assert "26 hane" in iz["params"]["iban"]
+    assert "10 hane" in iz["params"]["taxId"]
+    assert iz["params"]["minPayoutTry"] == 250
+
+
 def test_iz_yazilamazsa_claim_BASILMAZ(depo, monkeypatch):
     """Ön-iz (`zorunlu=True`) emsali `user.disable`: iz yazılamazken yetki
     değiştirmek, kaydı hiç olmayan bir erişim açmaktır.
@@ -1250,6 +1285,143 @@ def test_huni_ve_bakiye(depo):
     assert detay["qualifiedCount"] == 2
     assert detay["earnedTry"] == 60.0
     assert detay["balanceTry"] == 60.0
+
+
+# ---------------------------------------------------------------------------
+# YÖNETİM LİSTESİ: huninin ilk iki basamağı
+#
+# Buradaki iddialar para değil ÖLÇÜMÜN DÜRÜSTLÜĞÜNÜ koruyor. Liste ekranı
+# ortak dokümanını döndürüyor ama tıklama ve kuran sayıları KOD
+# dokümanlarında duruyor; toplama düşerse panel bir sayı göstermek ZORUNDA
+# değil — göstermemesi gerekiyor. "0 tıklama" yazmak, çalışan bir tanıtımı
+# ölmüş gibi göstermek olurdu ve hata hiçbir yerde görünmezdi.
+# ---------------------------------------------------------------------------
+
+
+def test_liste_tiklama_ve_kuran_KOD_BASINA_toplanir(depo):
+    """İki kodun sayıları TEK ortakta toplanır; başka ortağa sızmaz."""
+    _ortak(depo, pid="p-1")
+    _ortak(depo, pid="p-2")
+    depo["partnerCodes/K1"] = {"partnerId": "p-1", "clickCount": 40,
+                               "redemptionCount": 3}
+    depo["partnerCodes/K2"] = {"partnerId": "p-1", "clickCount": 2,
+                               "redemptionCount": 1}
+    depo["partnerCodes/K9"] = {"partnerId": "p-2", "clickCount": 5,
+                               "redemptionCount": 0}
+    liste = {o["id"]: o for o in ps.list_partners()}
+    assert (liste["p-1"]["clicks"], liste["p-1"]["referredUsers"]) == (42, 4)
+    assert (liste["p-2"]["clicks"], liste["p-2"]["referredUsers"]) == (5, 0)
+
+
+def test_liste_KODU_OLMAYAN_ortakta_SIFIR_yazar(depo):
+    """Kodu olmayan ortakta 0 ÖLÇÜLMÜŞ sonuçtur: kod yoksa tıklama da yok.
+
+    Yokluk ile sıfırın ayrıldığı yer bu değil (o aşağıdaki test) — burada
+    toplama BAŞARILI ve sonucu gerçekten sıfır.
+    """
+    _ortak(depo, pid="p-1")
+    ortak = ps.list_partners()[0]
+    assert ortak["clicks"] == 0
+    assert ortak["referredUsers"] == 0
+
+
+def test_liste_partnerIdSIZ_kod_HIC_KIMSEYE_yazilmaz(depo):
+    """Hangi ortağa ait olduğu bilinmeyen kod, bir ortağa yazılmaz.
+
+    Bozuk/yetim bir kod dokümanı (elle açılmış, ya da silinmiş ortaktan
+    kalmış) ilk ortağa eklenseydi o ortağın huni sayısı sessizce şişer ve
+    kimse nedenini bulamazdı.
+    """
+    _ortak(depo, pid="p-1")
+    depo["partnerCodes/YETIM"] = {"clickCount": 99, "redemptionCount": 9}
+    depo["partnerCodes/BOSLUK"] = {"partnerId": "  ", "clickCount": 7}
+    ortak = ps.list_partners()[0]
+    assert ortak["clicks"] == 0
+    assert ortak["referredUsers"] == 0
+
+
+def test_liste_toplamasi_DUSERSE_anahtarlar_HIC_OLMAZ(depo, monkeypatch):
+    """Toplama patlarsa liste AYAKTA kalır ve iki anahtar YANITTA OLMAZ.
+
+    `0` yazmak en pahalı seçenekti: panel "ölçtük, hiç tıklama yok" diye
+    çizer ve ortağın çalışan tanıtımı ölmüş görünür. Ortağın KENDİSİNİ hiç
+    göstermemek de yanlış — telemetri okuması yönetim ekranını düşürmemeli.
+    """
+    _ortak(depo, pid="p-1")
+
+    def patla(_client):
+        raise RuntimeError("partnerCodes okunamadi")
+
+    monkeypatch.setattr(ps, "_kod_toplamlari", patla)
+    ortaklar = ps.list_partners()
+    assert len(ortaklar) == 1 and ortaklar[0]["id"] == "p-1"
+    assert "clicks" not in ortaklar[0]
+    assert "referredUsers" not in ortaklar[0]
+
+
+# ---------------------------------------------------------------------------
+# ÖDEME EŞİĞİ (`minPayoutTry`): üç hâl, üç ayrı anlam
+#
+# Alan yalnız o ortağın ANLAŞMASINDA varsa girilir; ürün genelinde bir eşik
+# YOK (`web/ortaklik.html`: "alt sınır anlaşmada yazılır"). Bu yüzden
+# `create_partner` alanı hiç yazmıyor ve dar görünüm de uydurmuyor —
+# olmayan bir eşiği ortağa duyurmak, panonun tutamayacağı bir söz olurdu.
+# ---------------------------------------------------------------------------
+
+
+def test_yeni_ortakta_esik_HIC_YAZILMAZ(depo):
+    """`create_partner` varsayılan eşik YAZMAZ — bu karar, eksiklik değil.
+
+    Bir sayı yazmak kimsenin kabul etmediği bir alt sınır icat etmek,
+    0 yazmak da "alt sınır yok" diye anlaşmayı aşan bir söz vermek olurdu.
+    """
+    ortak = ps.create_partner("Ortak", "a@x.co", 0, uid="U1")
+    assert "minPayoutTry" not in ortak
+    assert "minPayoutTry" not in depo[f"partners/{ortak['id']}"]
+
+
+def test_esik_GIRILMEMISSE_dar_gorunumde_ANAHTAR_YOK(depo):
+    """Yokluk taşınır: pano eşikten hiç söz etmesin."""
+    _ortak(depo, pid="p-1", uid="U1")
+    assert "minPayoutTry" not in ps.partner_self_view("p-1", "U1")
+
+
+def test_esik_SIFIR_ile_esik_YOK_dar_gorunumde_AYRI(depo):
+    """0 ölçülmüş bir DEĞER ("alt sınır yok"), eksik alan değil.
+
+    İkisi aynı şekle sıkışsaydı pano "alt sınır yok" diyemez ya da
+    girilmemiş bir eşiği "yok" sanıp öyle duyururdu.
+    """
+    _ortak(depo, pid="p-1", uid="U1", minPayoutTry=0)
+    gorunum = ps.partner_self_view("p-1", "U1")
+    assert "minPayoutTry" in gorunum and gorunum["minPayoutTry"] == 0.0
+
+
+def test_esik_POZITIFSE_dar_gorunume_TASINIR(depo):
+    _ortak(depo, pid="p-1", uid="U1", minPayoutTry=250)
+    assert ps.partner_self_view("p-1", "U1")["minPayoutTry"] == 250.0
+
+
+def test_BOZUK_esik_panoya_GIRMEZ(depo):
+    """Sayı olmayan eşik ÖLÇÜLMEMİŞ sayılır; pano "NaN ₺ kaldı" yazmasın.
+
+    Elle açılmış ya da yanlış tipte yazılmış bir alan panonun tamamını
+    okunmaz yapardı — eksik bir kart, yanlış bir karttan iyidir.
+    """
+    _ortak(depo, pid="p-1", uid="U1", minPayoutTry="çok")
+    assert "minPayoutTry" not in ps.partner_self_view("p-1", "U1")
+
+
+def test_esik_ISLETME_verisi_SIZDIRMIYOR(depo):
+    """Eşik eklendi diye dar görünüm genişlemedi: ödeme KİMLİĞİ hâlâ dışarıda.
+
+    `taxId`/`iban` ortağın panosunda hiç görünmemeli; pano paylaşılabilir
+    bir ekran ve o iki alanın orada karar değeri yok.
+    """
+    _ortak(depo, pid="p-1", uid="U1", minPayoutTry=100,
+           taxId="1234567890", iban="TR000000000000000000000000")
+    gorunum = ps.partner_self_view("p-1", "U1")
+    assert "taxId" not in gorunum and "iban" not in gorunum
 
 
 # ---------------------------------------------------------------------------

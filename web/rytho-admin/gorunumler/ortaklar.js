@@ -4,9 +4,18 @@
 
    Rotalar: #/ortaklar (liste) · #/ortaklar/{id} (detay).
    Uçlar:
-   - GET   /api/v1/admin/partners → partner dokümanının TAMAMI
+   - GET   /api/v1/admin/partners → partner dokümanının TAMAMI + iki
+     TÜRETİLMİŞ sayı
      [{id, name, contact, rewardTry, rewardModel, uid, active, notes,
-       createdAt, sharePercent}]
+       createdAt, sharePercent, payoutCurrency, taxId, iban, minPayoutTry,
+       clicks, referredUsers}]
+     ⚠️ `clicks`/`referredUsers` partner dokümanında DURMUYOR: ikisini de
+     `list_partners` tek bir `partnerCodes` akışından topluyor. Toplama
+     düşerse iki anahtar da yanıtta HİÇ OLMAZ (0 gelmez) — liste o hâlde
+     "—" çiziyor, çünkü "ölçemedik" ile "hiç tıklama yok" aynı şey değil.
+     ⚠️ `taxId`/`iban`/`minPayoutTry` alanları YALNIZ bir kez yazıldıysa
+     gelir; `create_partner` üçünü de hiç yazmıyor (karar, eksiklik değil —
+     gerekçesi `partner_self_view` yorumunda).
    - POST  /api/v1/admin/partners {name, contact, notes, rewardTry, uid}
      `uid` ZORUNLU (K-b) ve kapı ÜÇ katmanda birden: bu form, uçtaki
      `PartnerCreate.uid: str = Field(min_length=1, …)` ve servisteki
@@ -14,17 +23,27 @@
      düşürür). Formdaki zorunluluk bir UX kapısı — tek kapı O DEĞİL, yani
      gevşetilirse kullanıcı gerekçesiz bir 422 görür.
    - GET   /api/v1/admin/partners/{id} → {partner, codes:[...],
+       clicks, clicks30, clickSeries, conversionRate,
        referredUsers, pendingCount, qualifiedCount, voidCount,
        earnedTry, pendingTry, paidTry, balanceTry,
+       payoutCurrency, payoutCurrencyMismatchCount,
        attributedGrossUsd, attributedEvents, payouts:[...],
        access:{uid, granted, email, reason}}
+     ⚠️ `minPayoutTry` yanıtın KÖKÜNDE DEĞİL, `partner` içinde: uç ortak
+     dokümanını olduğu gibi taşıyor. İki yerden birden okunabilir olsaydı
+     panelin hangisine baktığı gözle doğrulanamazdı — tek kaynak `partner`.
    - POST  /api/v1/admin/partners/{id}/access {grant:bool} → {status, access}
      Ortağın Firebase custom claim'ini ({partner:true, partnerId}) basar ya
      da kaldırır. 400 gövdesi ÜÇ kod taşıyabilir: `no_uid`,
      `user_not_found`, `uid_taken` — üçü de ayrı ayrı çevrilir, çünkü
      hepsi operatörün YAPACAĞI şeyi değiştirir.
    - PATCH /api/v1/admin/partners/{id}
-       {active|name|contact|notes|rewardTry|uid|payoutCurrency|taxId|iban}
+       {active|name|contact|notes|rewardTry|uid|payoutCurrency|taxId|iban
+        |minPayoutTry}
+     ⚠️ Uç `exclude_none` uyguluyor: GÖNDERİLMEYEN alan "dokunma" demek,
+     yani bu uçtan bir alanı BOŞALTMAK mümkün değil. `minPayoutTry` için
+     boşaltmanın karşılığı 0 ("alt sınır yok") ve panel formu tam bunu
+     yapıyor; `taxId`/`iban` panelden hiç girilmiyor (aşağıdaki not).
    - POST  /api/v1/admin/partners/{id}/codes {code|null, bonusTokens,
      maxRedemptions|null, expiresAt|null} — panel `bonusTokens` için HEP 0
      yollar (K-a); uç alanı almaya devam ediyor, panelden sıfır dışı girilemez.
@@ -259,6 +278,166 @@
     };
   }
 
+  /* Para birimi kodu → simge. Bilinmeyen kod OLDUĞU GİBİ yazılır: ₺ ya da $
+     VARSAYMAK, ödemesi başka birimde yapılan ortağın rakamını yanlış birimle
+     göstermek olurdu. (`web/ortak/ortak.js` BİLİNEN kodlar için aynı eşlemeyi
+     taşıyor; ikisi ayrışırsa aynı kayıt iki ekranda iki birimle görünür.)
+
+     TEK BİLİNÇLİ FARK boş koddur: orada varsayılan 'TRY' (ortak kendi tek
+     birimini görür ve uç `payoutCurrency`yi her zaman döndürür), burada ''
+     — yönetim ekranı ÖLÇÜLMEMİŞ birimi "₺" diye çizmek yerine "birim
+     bilinmiyor" yazmak zorunda, çünkü karşısındaki ortak TRY olmayabilir. */
+  function simge(kod) {
+    var k = String(kod || '').toUpperCase();
+    if (k === 'TRY') return '₺';
+    if (k === 'USD') return '$';
+    if (k === 'EUR') return '€';
+    return k ? k + ' ' : '';
+  }
+
+  /* Ödeme ayarlarını TEK yerden okur: birim, defterdeki birim uyumsuzluğu,
+     alt sınır. Üçü ayrı yerden geliyor (`d.payoutCurrency`,
+     `d.payoutCurrencyMismatchCount`, `p.minPayoutTry`) ama hepsi TEK
+     kararı besliyor: "bu ortağa şimdi ödeme yazılır mı".
+
+     ⚠️ `esik` ÜÇ HÂLLİ ve üçü ayrı şey: alan YOK = anlaşmadaki alt sınır
+     panele hiç girilmedi (ekran eşikten SÖZ ETMEZ), 0 = alt sınır yok,
+     >0 = eşik. `p.minPayoutTry || 0` yazmak girilmemiş bir eşiği "alt
+     sınır yok" diye BEYAN ederdi; ilki bilinmiyor, ikincisi bir anlaşma
+     maddesi. Kapı bu yüzden `== null` ile kuruluyor, `Number()` ile değil.
+
+     `birim` de ölçülmemiş olabilir: panel ile Cloud Run aynı anda
+     yayılmıyor (bkz. `huniOku` gerekçesi), yani alanı hiç göndermeyen bir
+     backend penceresi var. O hâlde null dönüyor ve ekran "—" çiziyor —
+     varsayılan yazmak, ölçülmeyeni beyan etmek olurdu. */
+  function odemeOku(d, p) {
+    var hamEsik = p ? p.minPayoutTry : null;
+    // `hamEsik === ''` kapıya EKLİ ve `== null` tek başına YETMİYOR:
+    // `Number('')` 0 üretir, yani elle boşaltılmış bir alan "alt sınır yok"
+    // diye BEYAN edilirdi. Ortağın panosu aynı değeri ölçülmemiş sayıyor
+    // (`web/ortak/ortak.js` → `olculdu`, boş dizeyi dışlıyor); iki ekran
+    // aynı kayıtta ayrışırsa biri olmayan bir anlaşma maddesini duyurur.
+    var esik = (hamEsik == null || hamEsik === ''
+                || !isFinite(Number(hamEsik)))
+      ? null : Number(hamEsik);
+    var hamBirim = d ? d.payoutCurrency : null;
+    var hamUyumsuz = d ? d.payoutCurrencyMismatchCount : null;
+    return {
+      birim: hamBirim ? String(hamBirim).toUpperCase() : null,
+      esik: esik,
+      uyumsuz: (hamUyumsuz == null || !isFinite(Number(hamUyumsuz)))
+        ? null : Number(hamUyumsuz)
+    };
+  }
+
+  /* "Bakiye" kartının alt satırı.
+
+     SIRA ÖNEMLİ ve gerekçesi ölçülmüş: defter karışıkken (birim
+     uyumsuzluğu) `balanceTry` ödenmiş parayı ödenmemiş gösteriyor, yani o
+     hâlde "eşiğe ₺X kaldı" yazmak ekrana ikinci bir yanlış sayı koymak
+     olurdu. Karışık defterde söylenecek tek doğru şey, sayıya
+     güvenilmemesi.
+
+     Eşik YOKKEN eşikten HİÇ söz edilmiyor: alan girilmediyse bu ortakla
+     yapılan anlaşmanın alt sınırı panele hiç yazılmamıştır ve bir sayı
+     uydurmak (0 dâhil) olmayan bir kuralı tarif etmek olur. */
+  function bakiyeAlt(b, d, od) {
+    if (od.uyumsuz > 0) return 'defter karışık — bu sayı güvenilmez';
+    var bakiye = Number(d.balanceTry);
+    if (!isFinite(bakiye)) return null;
+    var durum = bakiye > 0 ? 'ödeme bekliyor' : 'kapalı';
+    if (od.esik == null) return durum;
+    // 0 ölçülmüş bir ANLAŞMA maddesidir ("alt sınır yok"), eksik alan
+    // değil — bu yüzden ayrı yazılıyor.
+    if (od.esik === 0) return durum + ' · alt sınır yok';
+    if (bakiye >= od.esik) {
+      return 'eşik aşıldı · alt sınır ' + b.para(od.esik, '₺');
+    }
+    return 'eşiğe ' + b.para(od.esik - bakiye, '₺') + ' kaldı';
+  }
+
+  /* "Ödeme ayarları" modülünün gövdesi.
+
+     NEDEN VAR: dört alan (`payoutCurrency`, `minPayoutTry`, `taxId`,
+     `iban`) bir tur boyunca YALNIZ PATCH ucunda vardı — hiçbir ekran
+     göstermiyor, hiçbir form yazmıyordu. Sonucu ölçüldü: yönetici ortağa
+     hangi birimde ve hangi tutardan sonra ödeme yapacağını panelden
+     okuyamıyor, ortağın panosu da eşikten söz edemiyordu.
+
+     ⚠️ `taxId`/`iban` burada DEĞERİYLE değil VAR/YOK olarak duruyor ve
+     panelden de girilmiyor. İki gerekçe: (1) bu panel ekran görüntüsü
+     paylaşılan bir yüzey ve ortağın ödeme kimliğini bir de buraya
+     çoğaltmanın karar değeri yok — "girildi mi" mutabakat için yeterli;
+     (2) PATCH gövdesi denetim izine düşüyor (`api/admin.py`
+     `_ortak_izi_maskele`), yani panelden girilen bir IBAN'ın maskelenmiş
+     bile olsa kalıcı bir izi olurdu. Değerin kendisi Firestore'da. */
+  function odemeAyariIc(b, p, od, sahip) {
+    var esikDd;
+    if (od.esik == null) {
+      // ⚠️ OLMAYAN eşikten söz etmemenin karşılığı bu satır: "0 ₺" ya da
+      // "sınır yok" YAZILMIYOR, çünkü ikisi de anlaşmanın söylemediği bir
+      // şeyi beyan eder. Söylenen tek şey alanın boş olduğu.
+      esikDd = b.rozet('Girilmedi', 'uyari') +
+        ' <span class="dipnot">anlaşmadaki alt sınır panele yazılmadı — ' +
+        'ortağın panosu da eşikten söz etmiyor</span>';
+    } else if (od.esik === 0) {
+      esikDd = b.rozet('Alt sınır yok', 'aktif') +
+        ' <span class="dipnot">kesinleşen her tutar ödenebilir</span>';
+    } else {
+      esikDd = '<span class="mono">' + b.e(b.para(od.esik, '₺')) + '</span>';
+    }
+    var ic =
+      '<dl class="alan-liste">' +
+        '<dt>Ödeme birimi</dt><dd>' +
+          (od.birim ? '<span class="mono">' + b.e(od.birim) + '</span>' +
+            // ⚠️ TRY DIŞI birim KALICI bir yanlış sayı üretiyor ve bunu
+            // söyleyen başka hiçbir yer yok: hakediş tarafı YALNIZ ₺
+            // üretiyor (`rewardTry`) ama ödeme defteri ortağın biriminde
+            // yazılıyor ve sunucu ikisini çıkarıyor (`partner_detail`:
+            // `balanceTry = earnedTry − paidTry`). Uyumsuzluk bandı bu
+            // hâlde YANMAZ, çünkü kayıtların birimi ortağın birimine EŞİT.
+            // Yani ekranda tek uyarı bu satır.
+            (od.birim !== 'TRY'
+              ? ' ' + b.rozet('₺ ile karışıyor', 'uyari') +
+                ' <span class="dipnot">hakediş yalnız ₺ üretiyor; bu ' +
+                'birimde yazılan ödemeler aynı sayıda toplanıyor, yani ' +
+                '"Ödenen" ve "Bakiye" iki farklı parayı karıştırıyor</span>'
+              : '')
+            // Alan ölçülmedi: panel yeni, backend eski olabilir. "TRY"
+            // varsaymak ödemenin birimini uydurmak olurdu.
+            : b.rozet('Uç döndürmedi', 'uyari')) + '</dd>' +
+        '<dt>Ödeme alt sınırı</dt><dd>' + esikDd + '</dd>' +
+        '<dt>Vergi kimliği</dt><dd>' +
+          (p.taxId ? b.rozet('Girildi', 'aktif') : b.rozet('Yok', 'notr')) +
+          '</dd>' +
+        '<dt>IBAN</dt><dd>' +
+          (p.iban ? b.rozet('Girildi', 'aktif') : b.rozet('Yok', 'notr')) +
+          '</dd>' +
+      '</dl>' +
+      // Alt sınırın KİMİN kuralı olduğu yazılmak zorunda: ürün genelinde
+      // bir eşik YOK ve tanıtım sayfası (web/ortaklik.html) "ödeme
+      // takvimi, alt sınır ve ödeme kanalı ANLAŞMADA yazılır" diyor.
+      // Buraya girilen sayı o anlaşmanın kopyasıdır, ürünün kararı değil.
+      '<p class="dipnot">Alt sınır ürün genelinde <b>tanımlı değil</b>: ' +
+      'tanıtım sayfası ödeme takvimi, alt sınır ve kanalın <b>anlaşmada</b> ' +
+      'yazıldığını söylüyor. Buraya girilen sayı o anlaşmanın kopyasıdır ve ' +
+      'ortağın panosunda <b>"eşiğe ne kadar kaldı"</b> olarak görünür — ' +
+      'yani girilmemiş bir eşik ortağa hiç gösterilmez. Sunucu bu sınırı ' +
+      '<b>zorlamıyor</b>: ödeme kaydını yine elle sen yazıyorsun, alan ' +
+      'yalnız ortağa söz verilen tutarı ekranda tutar.</p>' +
+      // Ödeme kimliği panelde neden yok — sessizlik bırakmak "unutuldu"
+      // diye okunurdu ve operatör IBAN'ı aramaya devam ederdi.
+      '<p class="dipnot">Vergi kimliği ve IBAN panelden <b>girilmiyor ve ' +
+      'gösterilmiyor</b> (yalnız var/yok): bu ekran paylaşılabilir bir ' +
+      'yüzey. Değerler Firestore\'da <span class="mono">partners/{id}</span> ' +
+      'altında durur.</p>';
+    if (!sahip) return ic;
+    ic += '<div class="eylem-satir">' +
+      '<button type="button" class="buton ikincil" id="ortak-odeme-ayar">' +
+      b.ik('ayar', 16) + 'Birim ve alt sınırı değiştir</button></div>';
+    return ic;
+  }
+
   /* ---------------- Liste ---------------- */
 
   async function liste(icerik) {
@@ -284,7 +463,10 @@
       'bir ₺ tutar kazanır; kullanıcıya indirim verilmez. Jeton paketi, deneme, yenileme ve ' +
       'test alımları ödül ÜRETMEZ. Hakediş satın almadan 15 gün sonra kesinleşir (iade ' +
       'penceresi). Mağaza fiyat indirimi buradan yapılamaz — gerekiyorsa RevenueCat/Play ' +
-      'konsolundan elle.</p>';
+      'konsolundan elle. <b>Tıklama kişi DEĞİL</b> (aynı kişinin iki cihazı iki ' +
+      'tıklamadır) ve <b>Kullanan</b> kurulumdan sonra kod uygulanan hesap sayısıdır — ' +
+      'ikisinin uzun sınırları ortak detayında yazılı. İki sütunda "—" görüyorsan uç o ' +
+      'sayıları döndürmedi; sıfır demek değil.</p>';
 
     var vt = b.veriTablosu({
       kimlik: 'ortak-tablo', etiket: 'Ortaklar',
@@ -296,6 +478,38 @@
         { ad: 'rewardTry', baslik: 'Ödül', hizala: 'sag', siralanir: true,
           deger: function (p) { return Number(p.rewardTry) || 0; },
           bicim: function (p) { return b.e(odul(b, p)); } },
+        // Huninin ilk iki basamağı LİSTEDE. Gerekçe: bir tur boyunca
+        // ortakların hiçbir performans sayısı liste ekranında yoktu ve
+        // "hangi ortak çalışıyor" sorusu ancak her satır TEK TEK açılarak
+        // cevaplanabiliyordu — beş ortakta beş sayfa yüklemesi. İki sayı
+        // uçta zaten toplanıyor (`list_partners`), yani burada ek istek yok.
+        //
+        // ⚠️ `== null` kontrolü `Number()`den ÖNCE olmak zorunda ve bu
+        // dosyada ölçülmüş bir tuzak (`huniOku` aynı gerekçe): toplama
+        // düşerse uç anahtarı HİÇ KOYMUYOR, `Number(undefined)` NaN üretir
+        // ve `p.clicks || 0` yazmak ölçülmeyeni "0 tıklama" diye beyan
+        // ederdi. Yokluk "—", sıfır "0" — ikisi ayrı şey.
+        { ad: 'clicks', baslik: 'Tıklama', hizala: 'sag', siralanir: true,
+          deger: function (p) {
+            return p.clicks == null ? null : Number(p.clicks);
+          },
+          bicim: function (p) {
+            if (p.clicks == null) return '—';
+            return '<span class="mono">' + b.sayi(Number(p.clicks)) + '</span>';
+          } },
+        // Etiket "Kullanan", "Gelen" DEĞİL: sayı `referredUsers`, yani
+        // kodların `redemptionCount` toplamı ve o sayaç kurulumdan SONRA
+        // artıyor (detay ekranındaki uzun gerekçe). Bağlantıya dokunup
+        // vazgeçen kimse bu sayının içinde yok.
+        { ad: 'referredUsers', baslik: 'Kullanan', hizala: 'sag', siralanir: true,
+          deger: function (p) {
+            return p.referredUsers == null ? null : Number(p.referredUsers);
+          },
+          bicim: function (p) {
+            if (p.referredUsers == null) return '—';
+            return '<span class="mono">' + b.sayi(Number(p.referredUsers)) +
+              '</span>';
+          } },
         // Hesap bağı iki şeyin ÖN KOŞULU: ortağın kendi panosunu görmesi
         // ve kendi kodunu kendi hesabında kullanamaması. Bağsız bir ortak
         // sessizce ikisini de kaybeder — bu yüzden listede görünür.
@@ -508,6 +722,7 @@
     var pasif = p.active === false;
     var er = erisimOku(d, p);
     var huni = huniOku(d);
+    var od = odemeOku(d, p);
     adOnbellek[id] = p.name;
     RY.kirinti([{ metin: 'Yönetim', href: '#/genel' }, { metin: 'Ortaklar', href: '#/ortaklar' },
                 { metin: p.name || id }]);
@@ -683,6 +898,28 @@
       'User-Agent, çerez ya da ziyaretçi kimliği YAZILMAZ — saklanan tek ' +
       'şey gün başına bir sayaç. Sayfa çerez okumuyor; tarayıcının kendi ' +
       'eklediğini de sunucu ne okuyor ne kaydediyor.</p>' +
+      // ⚠️ BİRİM UYUMSUZLUĞU BANDI — sayı kartlarının ÜSTÜNDE ve 'hata'.
+      // Ölçülen hâl (`partner_service.partner_detail` + `add_payout`):
+      // ortağın `payoutCurrency`si ödeme yazıldıktan SONRA değiştirilirse
+      // eski kayıtlar uyumsuz olur, `paidTry` onları SAYMAZ ve `balanceTry`
+      // olduğundan BÜYÜK çıkar — yani aşağıdaki iki kart ÖDENMİŞ parayı
+      // ödenmemiş gösterir. Uç bu sayacı tam bunu işaretlemek için
+      // döndürüyordu, panel ise bir tur boyunca hiç göstermiyordu: sessizce
+      // yanlış bir bakiye, hiç bakiye göstermemekten kötüdür.
+      //
+      // Bandın yeri KARTLARDAN ÖNCE, çünkü işi kartları OKUMAYI durdurmak.
+      // 'hata' (role="alert") seçildi: bu eksik veri değil, ekranda duran
+      // yanlış bir para sayısı ve para ÇIKIŞI da bu hâlde kapalı.
+      (od.uyumsuz > 0
+        ? b.bant('Bu ortağın ödeme defterinde <b>' + b.sayi(od.uyumsuz) +
+          '</b> kayıt, ortağın ödeme biriminden (<b>' + b.e(od.birim || '—') +
+          '</b>) farklı bir birimde duruyor. Aşağıdaki <b>Ödenen</b> ve ' +
+          '<b>Bakiye</b> o kayıtları SAYMIYOR, yani bakiye olduğundan BÜYÜK ' +
+          'görünüyor. Sunucu bu hâlde yeni pozitif ödemeyi de reddediyor ' +
+          '(<span class="mono">ledger_currency_mixed</span>). Çıkış yolu: ' +
+          'ya birimi eski hâline al, ya uyumsuz kayıtları negatif düzeltme ' +
+          'kaydıyla kapat.', 'hata', { html: true })
+        : '') +
       // Para — ₺. Atfedilen brüt gelir ($) BİLEREK ayrı kartta: ödülü
       // artık o belirlemiyor ve iki birimi aynı ızgaraya koymak
       // "hakediş brütün yüzdesi" yanılgısını geri getirirdi.
@@ -691,11 +928,22 @@
         altin: true, alt: 'abone başına ' + odul(b, p) }) +
       b.istatistikKarti({ ad: 'Beklemede', deger: b.para(d.pendingTry, '₺'),
         alt: 'henüz hak edilmedi' }) +
-      b.istatistikKarti({ ad: 'Ödenen', deger: b.para(d.paidTry, '₺') }) +
+      // Alt satırda ÖDEME BİRİMİ: kartın kendisi ₺ ile çiziliyor çünkü
+      // hakediş tarafı yalnız ₺ üretiyor (`rewardTry`), ama para ÇIKIŞI
+      // ortağın biriminde yapılıyor. İkisinin aynı olmadığı bir kayıtta
+      // yalnız "₺" görmek, operatöre ödemeyi hangi birimde yazacağını
+      // yanlış söylerdi. Birim ölçülmemişse (eski backend) satır hiç yok.
+      b.istatistikKarti({ ad: 'Ödenen', deger: b.para(d.paidTry, '₺'),
+        alt: od.birim ? 'ödeme birimi ' + od.birim : null }) +
       b.istatistikKarti({ ad: 'Bakiye', deger: b.para(d.balanceTry, '₺'),
-        altin: Number(d.balanceTry) > 0,
-        alt: Number(d.balanceTry) > 0 ? 'ödeme bekliyor' : 'kapalı' }) +
+        // Karışık defterde `altin` DÜŞÜYOR: altın vurgu "ödenecek para
+        // var" diyor ve o sayı orada güvenilmez.
+        altin: Number(d.balanceTry) > 0 && !(od.uyumsuz > 0),
+        alt: bakiyeAlt(b, d, od) }) +
       '</section>' +
+      b.modul('Ödeme ayarları', odemeAyariIc(b, p, od, sahip),
+        od.birim ? b.etiket(od.birim) : b.rozet('Bilinmiyor', 'uyari'),
+        { alt: 'birim · alt sınır · ödeme kimliği' }) +
       b.modul('Atfedilen gelir (bilgi)',
         '<p class="dipnot">Bu ortağa atfedilen <b>' + b.sayi(d.attributedEvents || 0) +
         '</b> üretim olayından ' + b.para(d.attributedGrossUsd) + ' brüt geldi (iade ' +
@@ -708,7 +956,12 @@
       b.modul('Ödemeler', '<div id="ortak-odemeler"></div>' +
         (sahip ? '<div id="ortak-odeme-form"></div>' : ''),
         b.etiket(b.sayi(odemeler.length) + ' kayıt'),
-        { alt: 'hakediş ödemesi kaydı — mali işlem, ön-izli' });
+        // Birim alt metinde: ödeme formu birimi zorunlu tutuyor ve sunucu
+        // ortağın biriminden başkasını `currency_mismatch` ile reddediyor,
+        // yani operatörün hangi kodu yazacağını modülün başında görmesi
+        // gerekiyor. Ölçülmemişse hiç yazılmıyor.
+        { alt: 'hakediş ödemesi kaydı — mali işlem, ön-izli' +
+          (od.birim ? ' · birim ' + od.birim : '') });
 
     /* Kodlar tablosu */
     var kodVt = b.veriTablosu({
@@ -816,10 +1069,25 @@
         { ad: 'at', baslik: 'Tarih', siralanir: true,
           deger: function (o) { var t = b.tarihNesnesi(o.at); return t ? t.getTime() : null; },
           bicim: function (o) { return '<span class="mono">' + b.e(b.tarih(o.at, true)) + '</span>'; } },
+        // ⚠️ ALANSIZ KAYDIN VARSAYILANI DÜZELTİLDİ (ölçüldü): burada
+        // `o.currency || 'USD'` yazıyordu, yani `currency` alanı olmayan
+        // ESKİ bir kayıt "$400" diye çiziliyordu. Sunucu tam tersini
+        // yapıyor — `partner_detail` alansız kaydı ORTAĞIN birimi sayıyor
+        // ("o dönemde tek birim vardı ve varsayılan buydu") ve `paidTry`
+        // toplamına öyle katıyor. İki varsayılan ayrışınca aynı ₺400'lük
+        // kayıt tabloda $400, toplamda ₺400 görünüyordu; operatörün gözle
+        // yaptığı mutabakat tam bu satırda yalan söylüyordu.
+        //
+        // Yeni varsayılan sunucununkiyle AYNI kaynaktan: `od.birim`
+        // (`d.payoutCurrency`). Uç onu da göndermediyse birim BİLİNMİYOR
+        // ve tutar birimsiz yazılıyor — uydurulmuş bir simge, eksik bir
+        // simgeden kötüdür.
         { ad: 'amount', baslik: 'Tutar', hizala: 'sag', siralanir: true,
           bicim: function (o) {
-            var birim = String(o.currency || 'USD').toUpperCase();
-            return b.e(birim === 'USD' ? b.para(o.amount) : b.sayi(o.amount) + ' ' + birim);
+            var birim = String(o.currency || od.birim || '').toUpperCase();
+            var s = simge(birim);
+            return b.e(s ? b.para(o.amount, s)
+              : b.sayi(o.amount) + ' (birim bilinmiyor)');
           } },
         { ad: 'note', baslik: 'Not', bicim: function (o) { return b.e(o.note || '—'); } }
       ],
@@ -931,6 +1199,145 @@
       m.ac();
     });
 
+    /* Ödeme ayarları: birim + alt sınır.
+       Null kontrolü YOK ve gerekmiyor: bu satır `if (!sahip) return`
+       kapısının ALTINDA, düğmeyi de `odemeAyariIc` aynı koşulla çiziyor.
+       (Yukarıdaki `#ortak-erisim` kontrol ediyor çünkü o düğme AYRICA
+       uid'in varlığına bağlı — burada öyle bir ikinci koşul yok.) */
+    icerik.querySelector('#ortak-odeme-ayar').addEventListener('click', function () {
+      var f2 = b.form({
+        alanlar: [
+          // ⚠️ Birim ÖLÇÜLMEDİYSE alan PASİF ve gövdeye HİÇ konmuyor
+          // (`onGonder`). Uç alanı döndürmediğinde form 'TRY' ile dolu
+          // geliyordu ve kaydetmek onu YAZIYORDU: kayıtlı birim TRY değilse
+          // o tek tıklama defterdeki ödemeleri uyumsuz yapar, `paidTry`
+          // onları saymaz ve sunucu yeni pozitif ödemeyi
+          // `ledger_currency_mixed` ile reddeder — ortağın para yolu
+          // kapanır. Ölçülmeyeni ekranda göstermemek yetmiyor; YAZMAMAK da
+          // gerekiyor.
+          { ad: 'payoutCurrency', etiket: 'Ödeme birimi', zorunlu: true, max: 3,
+            otomatik: 'off', deger: od.birim || 'TRY',
+            pasif: od.birim == null,
+            yardim: od.birim == null
+              ? 'Uç bu ortağın birimini döndürmedi, yani kayıtta ne yazdığı ' +
+                'BİLİNMİYOR — alan bu yüzden kapalı ve kaydetmek onu ' +
+                'DEĞİŞTİRMEZ. Backend dağıtıldıktan sonra açılır.'
+              : '3 harfli kod. Ödeme kayıtları bu birimde yazılır ve ' +
+                'sunucu başka birimli kaydı reddeder.',
+            dogrula: function (v) {
+              return /^[A-Za-z]{3}$/.test(v) ? null : '3 harfli kod (TRY).';
+            } },
+          // `zorunlu` DEĞİL ve bu ölçülmüş bir ayrım: boş bırakmak
+          // "DOKUNMA" demek, 0 girmek "alt sınır YOK" demek. Uç
+          // `exclude_none` uyguluyor, yani gönderilmeyen alan değişmiyor —
+          // bir kez yazılan eşiği bu uçtan SİLMEK mümkün değil, karşılığı 0.
+          // Alanı zorunlu yapmak, yalnız birimi düzeltmek isteyen operatörü
+          // eşik yazmaya zorlardı ve o an akılda olmayan bir sayı girilirdi.
+          { ad: 'minPayoutTry', etiket: 'Ödeme alt sınırı (₺)', tur: 'number',
+            min: 0, max: 100000, adim: '10',
+            deger: od.esik == null ? '' : od.esik,
+            yertutucu: 'boş = dokunma',
+            yardim: 'Anlaşmada yazılı alt sınırın kopyası. 0 = alt sınır yok. ' +
+              'Boş bırakırsan mevcut değer DEĞİŞMEZ (bu uçtan silinemez). ' +
+              'Sunucu sınırı zorlamıyor — ödemeyi yine elle yazıyorsun.' }
+        ],
+        gonderMetin: 'Kaydet',
+        iptal: { metin: 'Vazgeç', onTikla: function () { m2.kapat(); } },
+        onGonder: function (v) {
+          var govde = {};
+          // Ölçülmemiş birim GÖVDEYE KONMUYOR (alan da pasif) — gerekçesi
+          // alan tanımında.
+          if (od.birim != null) {
+            govde.payoutCurrency = String(v.payoutCurrency).toUpperCase();
+          }
+          // `!= null` ŞART, `if (v.minPayoutTry)` DEĞİL: 0 anlamlı bir değer
+          // ("alt sınır yok") ve doğruluk kontrolü onu sessizce yutardı —
+          // operatör eşiği kaldırdığını sanır, hiçbir şey değişmezdi.
+          if (v.minPayoutTry != null) {
+            govde.minPayoutTry = Number(v.minPayoutTry);
+          }
+          if (!Object.keys(govde).length) {
+            // Boş PATCH sunucuda hiçbir alan yazmaz ama denetim izine bir
+            // satır DÜŞER: "değiştirdi" diyen, hiçbir şeyi değiştirmemiş bir
+            // kayıt. İz okunabilir kalsın diye istek hiç gitmiyor.
+            var bos = new Error('bos-govde');
+            bos.detay = 'Değişecek bir alan yok: birim ölçülmediği için ' +
+              'yazılmıyor, alt sınır da boş.';
+            throw bos;
+          }
+          // Birimi değiştiren İKİ ayrı tehlike var ve onay metni hangisiyse
+          // ONU anlatmak zorunda; biri ötekinin yerine geçmiyor.
+          //
+          // (1) TRY DIŞINA çıkmak. Hakediş yalnız ₺ üretiyor (`rewardTry`)
+          //     ama ödeme defteri ortağın biriminde yazılıyor ve sunucu
+          //     ikisini ÇIKARIYOR (`balanceTry = earnedTry − paidTry`).
+          //     Uyumsuzluk bandı bu hâlde YANMAZ (kayıtların birimi ortağın
+          //     birimine eşit olur), yani ekranda kendiliğinden hiçbir uyarı
+          //     olmaz. Kapı defterde kayıt olup olmamasına BAKMIYOR: zarar
+          //     bu ayardan SONRA yazılacak ilk kayıtta doğuyor.
+          // (2) Ölçülen birimi başka bir birime çevirmek, defterde kayıt
+          //     varken: uyumsuz kayıt sayısı değişir, `paidTry` onları
+          //     saymaz, bakiye ödenmiş parayı ödenmemiş gösterir ve sunucu
+          //     yeni pozitif ödemeyi `ledger_currency_mixed` ile reddeder.
+          var hedef = govde.payoutCurrency;
+          var degisti = hedef && od.birim && hedef !== od.birim;
+          var sor = null;
+          if (degisti && hedef !== 'TRY') {
+            sor = {
+              baslik: 'TRY dışı ödeme birimi',
+              mesaj: 'Hakediş yalnız ₺ üretiliyor; ödeme defteri ise ' +
+                hedef + ' biriminde yazılacak ve sunucu ikisini birbirinden ' +
+                'çıkarıyor. "Ödenen" ve "Bakiye" o andan sonra iki farklı ' +
+                'parayı tek sayıda toplar.',
+              aciklama: 'Bu hâlde ekranda uyumsuzluk uyarısı ÇIKMAZ (o bant ' +
+                'yalnız kayıtların birimi ortağın biriminden farklıysa ' +
+                'yanar) ve ortağın panosu da aynı sayıyı gösterir. Ödemeyi ' +
+                '₺ olarak kaydedeceksen birimi TRY bırak.',
+              onaylaMetin: 'Yine de ' + hedef + ' yap'
+            };
+          } else if (degisti && odemeler.length) {
+            sor = {
+              baslik: 'Ödeme birimi değişiyor',
+              mesaj: 'Defterde ' + b.sayi(odemeler.length) + ' ödeme kaydı ' +
+                'var' + (od.uyumsuz > 0
+                  ? ' ve ' + b.sayi(od.uyumsuz) + ' tanesi şimdiden ortağın ' +
+                    'biriminden farklı'
+                  : ' ve hepsi ' + od.birim + ' biriminde') +
+                '. Birimi ' + hedef + ' yapmak uyumsuz kayıt sayısını ' +
+                'değiştirir.',
+              aciklama: 'Sonuç: "Ödenen" toplamı uyumsuz kayıtları saymaz, ' +
+                'bakiye olduğundan büyük görünür ve sunucu yeni pozitif ' +
+                'ödemeyi reddeder. Geri dönüş yolu birimi eski hâline ' +
+                'almaktır.',
+              onaylaMetin: 'Yine de değiştir'
+            };
+          }
+          var onay = sor
+            ? b.onayla({ baslik: sor.baslik, mesaj: sor.mesaj,
+                         aciklama: sor.aciklama, tehlike: true,
+                         onaylaMetin: sor.onaylaMetin })
+            : Promise.resolve(true);
+          return onay.then(function (r) {
+            if (!r) { var h = new Error('iptal'); h.iptal = true; throw h; }
+            return RY.patch(yol(id), govde);
+          }).then(function () {
+            b.toast('Ödeme ayarları güncellendi.', 'basari');
+            m2.kapat();
+            RY.rotaYenile();
+          });
+        }
+      });
+      var kutu2 = b.el('<div></div>');
+      kutu2.insertAdjacentHTML('beforeend',
+        '<p class="aciklama">Alt sınır ürünün değil bu ortakla yapılan ' +
+        'ANLAŞMANIN sayısıdır (tanıtım sayfası böyle diyor) — bu yüzden ' +
+        'varsayılanı yok ve girilmediği sürece ortağın panosunda eşikten ' +
+        'hiç söz edilmez.</p>');
+      kutu2.appendChild(f2.el);
+      var m2 = b.modal({ baslik: 'Ödeme ayarları', icerik: kutu2, genislik: 480 });
+      m2.ac();
+    });
+
     /* Aktif/pasif */
     icerik.querySelector('#ortak-durum').addEventListener('click', function () {
       b.onayla({
@@ -995,7 +1402,16 @@
           yardim: 'Pozitif = ortağa ödendi · NEGATİF = geri alma (düzeltme, not zorunlu). ' +
             'Sunucu bakiyeden fazla pozitif ödemeyi reddeder.',
           dogrula: function (v) { return Number(v) !== 0 ? null : 'Sıfır olamaz.'; } },
-        { ad: 'currency', etiket: 'Para birimi', deger: 'TRY', zorunlu: true, max: 3, otomatik: 'off',
+        // ⚠️ Varsayılan artık ORTAĞIN birimi, sabit 'TRY' DEĞİL: sunucu
+        // ortağın `payoutCurrency`sinden başkasını `currency_mismatch` ile
+        // reddediyor, yani birimi TRY olmayan bir ortakta sabit varsayılan
+        // formu kesin başarısızlığa gönderiyordu. Uç birimi döndürmediyse
+        // (eski backend) TRY'ye düşülüyor — sistemin varsayılanı o
+        // (`partner_service.DEFAULT_PAYOUT_CURRENCY`).
+        { ad: 'currency', etiket: 'Para birimi', deger: od.birim || 'TRY',
+          zorunlu: true, max: 3, otomatik: 'off',
+          yardim: 'Ortağın ödeme birimiyle AYNI olmak zorunda — sunucu ' +
+            'farklısını reddeder (' + (od.birim || 'TRY') + ').',
           dogrula: function (v) { return /^[A-Za-z]{3}$/.test(v) ? null : '3 harfli kod (TRY).'; } },
         { ad: 'note', etiket: 'Not', max: 300, yertutucu: 'ör. Eylül hakedişi, havale' }
       ],

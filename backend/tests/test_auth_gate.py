@@ -243,10 +243,30 @@ def test_dogrulama_olay_dongusunu_bloklamaz(monkeypatch):
 # Surum aynasi (PBZ, K10): users/{uid}.appBuild
 # ---------------------------------------------------------------------------
 
-class _SahteAyna:
-    """Yalnizca users/{uid}.set(..., merge=True) yuzeyi; yazimlari sayar."""
+class NotFound(Exception):
+    """Firestore'un var olmayan dokumana `update` yazimina verdigi yanit.
 
-    def __init__(self):
+    Sinif ADI gercegiyle (`google.api_core.exceptions.NotFound`) birebir:
+    `app_gate._DOKUMAN_YOK` sembole degil ADA bakiyor, bu sahte de o
+    sozlesmeyi siniyor. Adi degistirmek bekciyi SESSIZCE devre disi
+    birakir.
+    """
+
+
+class _SahteAyna:
+    """`users/{uid}` yuzeyi: get / update / set. Yazimlari KIPIYLE sayar.
+
+    `set` bilerek DURUYOR: silinseydi `set`e donen bir gerileme
+    `AttributeError` ile patlar ve testler onu "ayna dustu, kimlik dusmedi"
+    dalinda YUTARDI (ayna best-effort). Duruyorsa yazim `yazimlar`a
+    `("set", ...)` diye girer ve iddia patlar — bekci ancak boyle gorur.
+
+    `update` gercegi taklit eder: dokuman YOKSA yazmaz, `NotFound`
+    firlatir. B9'un bekcisi bu sadakat.
+    """
+
+    def __init__(self, docs=None):
+        self.docs: dict = dict(docs or {})
         self.yazimlar: list = []
         self._uid = None
 
@@ -258,23 +278,60 @@ class _SahteAyna:
         self._uid = uid
         return self
 
+    class _Anlik:
+        def __init__(self, veri):
+            self._veri = veri
+            self.exists = veri is not None
+
+        def to_dict(self):
+            return dict(self._veri) if self._veri is not None else None
+
+    def get(self, transaction=None):
+        return self._Anlik(self.docs.get(self._uid))
+
     def set(self, veri, merge=False):
-        self.yazimlar.append((self._uid, veri, merge))
+        uid = self._uid
+        self.yazimlar.append(("set", uid, dict(veri)))
+        mevcut = dict(self.docs.get(uid) or {}) if merge else {}
+        mevcut.update(veri)
+        self.docs[uid] = mevcut
+
+    def update(self, veri):
+        uid = self._uid
+        if uid not in self.docs:
+            raise NotFound(f"Dokuman yok: users/{uid}")
+        self.yazimlar.append(("update", uid, dict(veri)))
+        mevcut = dict(self.docs[uid])
+        mevcut.update(veri)
+        self.docs[uid] = mevcut
+
+
+#: `u1`in dokumani: arama aynasinin (AD4) FARK gormemesi icin normalize
+#: alanlar zaten dogru. Token'da e-posta/ad yok, yani `compute` ucunu de bos
+#: dizgi verir ve `search_mirror.ensure` HIC yazmaz — bu dosyanin iddialari
+#: yalniz SURUM aynasini gormeli.
+_U1 = {"emailLower": "", "usernameLower": "", "nameLower": ""}
 
 
 @pytest.fixture()
 def ayna(monkeypatch):
     """Dogrulanmis token yolu (DEV_MODE kapali) + sahte Firestore."""
     from core import app_gate
+    from services import search_mirror
 
-    depo = _SahteAyna()
+    depo = _SahteAyna({"u1": dict(_U1)})
     monkeypatch.setattr(app_gate.firestore_client, "get_client", lambda: depo)
     monkeypatch.setattr(auth, "_firebase_ready", True)
     monkeypatch.setattr(auth, "_verify", lambda t: {"uid": "u1"})
     monkeypatch.setattr(config, "DEV_MODE", False)
     app_gate.reset_memo()
+    # Arama aynasinin memo'su MODUL duzeyinde: sifirlanmazsa bir testin
+    # memo'su sonrakine sizar (bu fixture'i kuran her test ayni uid'i
+    # kullaniyor).
+    search_mirror.reset_memo()
     yield depo
     app_gate.reset_memo()
+    search_mirror.reset_memo()
 
 
 def _dogrula(**kw):
@@ -287,7 +344,7 @@ def test_ayna_uid_basina_bir_kez(ayna):
     for _ in range(5):
         kullanici = _dogrula(x_app_build="35")
         assert kullanici.uid == "u1"
-    assert ayna.yazimlar == [("u1", {"appBuild": 35}, True)]
+    assert ayna.yazimlar == [("update", "u1", {"appBuild": 35})]
 
 
 def test_ayna_surum_degisince_yeniden_yazar(ayna):
@@ -295,7 +352,7 @@ def test_ayna_surum_degisince_yeniden_yazar(ayna):
     _dogrula(x_app_build="35")
     _dogrula(x_app_build="36")
     _dogrula(x_app_build="36")
-    assert [v["appBuild"] for _, v, _ in ayna.yazimlar] == [35, 36]
+    assert [v["appBuild"] for _, _, v in ayna.yazimlar] == [35, 36]
 
 
 def test_basliksiz_ve_bozuk_baslik_yazmaz(ayna):
@@ -343,7 +400,63 @@ def test_ayna_yazim_dusunce_memo_kurulmaz(ayna, monkeypatch):
     _dogrula(x_app_build="35")
     monkeypatch.setattr(app_gate.firestore_client, "get_client", lambda: ayna)
     _dogrula(x_app_build="35")
-    assert ayna.yazimlar == [("u1", {"appBuild": 35}, True)]
+    assert ayna.yazimlar == [("update", "u1", {"appBuild": 35})]
+
+
+# ---------------------------------------------------------------------------
+# B9: kimlik yolundaki aynalar SILINEN hesabi diriltmez (uretimde olculdu)
+# ---------------------------------------------------------------------------
+
+def test_silinmis_uid_dokuman_YARATMAZ(ayna, monkeypatch):
+    """Bulgu B9. `delete_account` `users/{uid}`'yi siliyor ama Firebase
+    kimlik jetonu BIR SAATE KADAR gecerli kaliyor; o pencerede gelen tek
+    kimlikli istek bu fonksiyondan geciyor ve iki "en iyi caba" aynasini
+    tetikliyor. Yazim yaratici oldugu surece doküman geri doguyordu —
+    uretimde 19 `users` dokumaninin yalniz 12'sinin Auth karsiligi vardi.
+
+    Iddia iki aynayi BIRLIKTE kapsiyor: depo TAMAMEN bos kalmali.
+    """
+    monkeypatch.setattr(auth, "_verify", lambda t: {
+        "uid": "silinmis", "email": "silinen@ornek.com", "name": "Ali"})
+    ayna.docs.clear()
+    kullanici = _dogrula(x_app_build="46")
+    # Kimlik hala gecerli — ayna best-effort, oturumu dusuremez.
+    assert kullanici.uid == "silinmis"
+    assert ayna.docs == {}, "silinmis hesap aynalarla dirildi"
+    assert ayna.yazimlar == []
+
+
+def test_yeni_kullanicinin_aynasi_dokuman_dogunca_yazilir(ayna, monkeypatch):
+    """Duzeltmenin sessiz gerileme riski: yeni kullanici KAYBOLMAMALI.
+
+    `users/{uid}` oturum acilisinda ISTEMCIDE doguyor
+    (`language_sync._firestoreWrite`) ve ilk kimlikli istek o doğumun
+    ONUNE gecebilir. O istekte ayna yazmaz ama memo da KURMAZ; doküman
+    dogduktan sonraki ilk istek hem surum hem arama aynasini yazar.
+    Bu test olmasa "silinmis hesabi diriltme" duzeltmesi panelin aramasini
+    ve surum kirilimini sessizce oldururdu.
+    """
+    from core import app_gate
+
+    monkeypatch.setattr(auth, "_verify", lambda t: {
+        "uid": "yeni", "email": "Yeni@Ornek.COM"})
+    ayna.docs.clear()
+
+    _dogrula(x_app_build="46")
+    assert ayna.docs == {}
+    assert not app_gate.build_remembered("yeni", 46), \
+        "yazilmayan ayna memo kurmamali; yoksa 24 saat hic denenmez"
+
+    # Istemci dokumani dogurdu. IKI memo da BILEREK sifirlanmiyor: dogum
+    # oncesi cagrinin memo KURMADIGI da bu testin iddiasi.
+    ayna.docs["yeni"] = {"language": "tr", "email": "Yeni@Ornek.COM"}
+    _dogrula(x_app_build="46")
+
+    assert ayna.docs["yeni"]["appBuild"] == 46, "surum aynasi yazilmadi"
+    assert ayna.docs["yeni"]["emailLower"] == "yeni@ornek.com", \
+        "arama aynasi yazilmadi — panelde arama sessizce olurdu"
+    assert {kip for kip, _, _ in ayna.yazimlar} == {"update"}, \
+        "yaratan bir yazim bicimi geri geldi"
 
 
 def test_dev_mode_anonim_yolunda_ayna_yok(ayna, monkeypatch):

@@ -949,6 +949,14 @@ class PartnerPatch(BaseModel):
                                        max_length=3)
     taxId: str | None = Field(default=None, max_length=64)
     iban: str | None = Field(default=None, max_length=40)
+    #: Ödeme alt sınırı (₺). `ge=0` BİLİNÇLİ ve 0 bir DEĞER: "alt sınır yok".
+    #: `exclude_none` yüzünden alanı hiç göndermemek "dokunma" demek, yani
+    #: bir kez yazılan eşik bu uçtan SİLİNEMEZ — silmenin karşılığı 0.
+    #:
+    #: Varsayılan yok ve olmaması karar: tanıtım sayfası alt sınırın
+    #: ANLAŞMADA yazıldığını söylüyor, yani kodun bileceği bir değer değil
+    #: (gerekçenin tamamı `partner_service.partner_self_view` içinde).
+    #: Alan boşken ortağın panosu eşikten hiç söz etmiyor.
     minPayoutTry: float | None = Field(default=None, ge=0, le=100000)
 
 
@@ -1012,17 +1020,37 @@ def create_partner(req: PartnerCreate,
     return {"status": "ok", "partner": ortak}
 
 
+#: Denetim izine DEĞERİ yazılmayan ortak alanları: ödeme kimlikleri.
+#: `_audit` `params`ı olduğu gibi `adminAudit` dokümanına yazıyor ve o
+#: koleksiyon kalıcı — IBAN ile vergi kimliğinin her düzeltmede bir kopyası
+#: daha birikirdi. İzin İŞİ "kim, neyi, ne zaman değiştirdi"dir; alanın
+#: DEĞERİNİ saklamak o işin gereği değil, ortağın ödeme kimliğinin ikinci
+#: bir yerde çoğalması. Alanın DEĞİŞTİĞİ görünür kalıyor (aşağıdaki
+#: maskeyle), yani iz zayıflamıyor.
+_IZDE_MASKELI_ORTAK_ALANLARI = ("iban", "taxId")
+
+
+def _ortak_izi_maskele(govde: dict[str, Any]) -> dict[str, Any]:
+    """Ödeme kimliklerini uzunluk işaretine indirir; ötekilere dokunmaz."""
+    iz = dict(govde)
+    for alan in _IZDE_MASKELI_ORTAK_ALANLARI:
+        if alan in iz:
+            # Uzunluk KALIYOR: "girildi mi, kaç hane" mutabakatta işe yarar
+            # ve tek başına kimseyi tanımlıyor değil.
+            iz[alan] = f"<{len(str(iz[alan]))} hane — gizlendi>"
+    return iz
+
+
 @router.patch("/partners/{partner_id}")
 def patch_partner(partner_id: str, req: PartnerPatch,
                   user: AuthUser = Depends(require_owner)):
+    govde = req.model_dump(exclude_none=True)
     try:
-        partner_service.update_partner(
-            partner_id, req.model_dump(exclude_none=True))
+        partner_service.update_partner(partner_id, govde)
     except partner_service.RedeemError as e:
         raise _servis_hatasi(e)
     _audit(user, "partner.update",
-           params={"partnerId": partner_id,
-                   **req.model_dump(exclude_none=True)})
+           params={"partnerId": partner_id, **_ortak_izi_maskele(govde)})
     return {"status": "ok"}
 
 

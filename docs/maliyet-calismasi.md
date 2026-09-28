@@ -377,20 +377,49 @@ iyi bir cevaptır.
 Kullanıcı 360 **yanıtı** (`admin_service.user_360` → `economics`) ortak
 maliyetini marjdan düşer ve **neyi** düştüğünü ayrı alanlarla söyler:
 `partnerCostUsd`, `partnerRewardTry`, `partnerStatus`, `usdTryRate`.
-Alanlar yanıtta VAR; panelin bunları ekranda gösterecek okuyucusu
-(`web/rytho-admin/`) henüz yazılmadı — yani `marginUsd` şimdiden doğru,
-ama farkın gerekçesi ekranda ayrı satır olarak görünmüyor.
+Alanlar yanıtta VAR ve panelin okuyucusu da YAZILDI
+(`gorunumler/kullanicilar.js` → `marjCumlesi`): formül cümlesi üçüncü
+terimi (`− ortak edinme maliyeti`) yazıyor, altındaki satır **neyin**
+düşüldüğünü söylüyor (`$X = ₺Y ÷ kur Z · hakediş …`), ve ölçülemeyen üç
+hâl (uç göndermiyor / hakediş okunamadı / kur yok) ayrı ayrı anlatılıyor.
+Bu bölümün eski hâli "okuyucu henüz yazılmadı" ve "panelde bekleyen bir
+yalan var — cümle iki terimli" diyordu; **ikisi de artık doğru değil**,
+düzeltildi.
 
-⚠️ **Panelde bekleyen bir yalan var:** `gorunumler/kullanicilar.js` 360
-ekonomi kutusunda formülü METİN olarak yazıyor — *"gelir × (1 − mağaza
-payı) − AI maliyeti = …"*. Atıflı bir kullanıcıda o eşitlik artık
-tutmuyor (ortak maliyeti de düşülüyor). Sayı doğru, **cümle yanlış**;
-panel okuyucusu yazılırken ilk düzeltilecek yer burasıdır.
+⚠️ Terim cümleden **ancak uç onu göndermiyorsa** çıkar: düşülmemiş bir
+maliyeti düşülmüş göstermek de, düşüleni yazmamak da aynı kusurun iki
+yönü. Aynı kural gelir görünümünde de uygulanıyor
+(`gorunumler/gelir.js`); orada bir hâl fazla, çünkü ortak maliyeti
+ölçülemediğinde marj "—" ile silinmiyor, ortak öncesi ölçülü sayı
+yıldızla gösteriliyor — o yüzden cümle de o hâlde iki terimli yazılır.
 
-⚠️ Ekonomi TABLOSUNUN (top-200) marjı bu
-kalemi İÇERMEZ — orası gecelik rollup'tan okunuyor ve kullanıcı başına
-ek okuma ölçek doktrinini çiğnerdi; atıflı abonelerde o tablo marjı
-olduğundan yüksektir, gerçeği 360 söyler.
+Ekonomi TABLOSUNUN (top-200) marjı da **artık bu kalemi İÇERİYOR** (P4,
+2026-09-28). Yol, bu bölümün önceki hâlinin "tek çıkış" dediği yoldu:
+ortak ödülü gecelik rollup'a (`adminEconomics`) kullanıcı başına `p`,
+günün toplamı `partnerTry` olarak **₺** cinsinden yazılıyor
+(`stats_service`), `admin_service.economics` onu kurla çevirip marjdan
+düşüyor. Kullanıcı başına ek okuma YOK — ölçek doktrini bozulmadı. Kur
+tek yerden okunuyor (`admin_service._kur_oku`); rollup ₺ yazar, çevirmez.
+
+⚠️ `partnerTry` ALANINI TAŞIMAYAN gün (bu ölçümden eski rollup) "ortak
+maliyeti 0" değil **"BİLİNMİYOR"** sayılır ve o pencerede tablo marjı
+"—" olur: eksik günde hangi kullanıcının ödülünün kayıp olduğu
+bilinmediği için satır bazında kurtarılamıyor. Panel o durumda ortak
+maliyeti DÜŞÜLMEMİŞ marjı yıldızla gösterir (ölçülmüş bir sayıyı "—" ile
+silmek de bir kayıp) ve bantla söyler. Sahibin "Yeniden hesapla"sı
+(≤90 gün) o günleri yeniden yazınca alan kendiliğinden dolar — tablonun
+en uzun penceresi de 90 gün (`_ECON_DAYS = (30, 90)`), yani yeniden
+hesaplama pencerenin tamamını kapatabiliyor.
+
+⚠️ **İki ekranın ortak maliyeti aynı sayı olmak zorunda değil.** Tabloda
+maliyet, hakedişi **o pencerede doğmuş** ödüllerden gelir (satın alma
+tarihi pencerede; tablonun geliri de pencereye ait); Kullanıcı 360 tek
+hakediş dokümanını okur, yani **ömür boyu** yükümlülüğü gösterir.
+Penceresinden eski bir atıflı abone tabloda ortak maliyeti 0 ile,
+360'ta −$X ile görünür. İkisi de doğru; farkı bilmeyen birini hata sanar.
+Ayrıca rollup durumu **toplama ânında** fotoğraflar: satın alma gününden
+sonra `void`a düşen hakediş o günün rollup'ında maliyet olarak durur
+(sapma tek yönlü — marj olduğundan DÜŞÜK; düzeltmesi "Yeniden hesapla").
 
 ## 7. İzlenecek metrikler (canlıda)
 

@@ -40,8 +40,10 @@ class TokenChip extends ConsumerWidget {
             duration: RythoMotion.base,
             transitionBuilder: (child, anim) =>
                 FadeTransition(opacity: anim, child: child),
-            child: Text('${cuzdan.total}',
-                key: ValueKey(cuzdan.total),
+            // Okunamadıysa sayı yerine "—": sıfır yazmak "jetonun bitti"
+            // demektir ve kullanıcı dolu cüzdanla mağazaya gider.
+            child: Text(cuzdan.bilinmiyor ? '—' : '${cuzdan.total}',
+                key: ValueKey(cuzdan.bilinmiyor ? -1 : cuzdan.total),
                 style: RythoText.mono(12.5,
                     color: RythoColors.goldBright)),
           ),

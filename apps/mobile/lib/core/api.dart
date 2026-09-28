@@ -21,6 +21,9 @@ import 'device_session.dart'
         kDevicePlatformHeader,
         noteDeviceConflict;
 import 'locale.dart';
+import 'subscription.dart'
+    show aboneAynasiProvider, abonelikDurumuYaniti, aynadakiAbonelik;
+import 'wallet.dart' show cuzdanDegismisOlabilir, cuzdanTazelemeProvider;
 
 /// Paywall'ı herhangi bir ekrandan açabilmek için kök navigatör.
 final GlobalKey<NavigatorState> rythoNavigatorKey = GlobalKey<NavigatorState>();
@@ -34,18 +37,62 @@ const int kDeviceConflictStatus = 409;
 
 bool _paywallOpen = false;
 
-/// Sunucu 402 döndüğünde doğru ekranı açar.
+/// 402'ye verilecek cevabın türü.
+enum PaywallHedefi {
+  /// Kilidi abonelik açar → [PaywallScreen] ("abone ol").
+  abonelik,
+
+  /// Kilidi bakiye açar → [TokenStoreScreen] ("doldur").
+  jetonMagazasi,
+
+  /// Satılacak bir şey YOK; yalnız sunucunun kendi metni gösterilir.
+  mesaj,
+}
+
+/// Sunucunun 402'sine hangi yüzeyle cevap verilir?
 ///
 /// Kilit kararı tek yerde — sunucuda — verilir; istemci hangi ekranda olursa
-/// olsun aynı davranışı gösterir. İki 402 türü var ve ayrım `detail`
-/// metnine GÖMÜLEMEZ (o alan kullanıcıya gösterilen düz metin); sunucu
-/// `X-Paywall-Reason: tokens` başlığıyla söyler:
+/// olsun aynı davranışı gösterir. Ayrım `detail` metnine GÖMÜLEMEZ (o alan
+/// kullanıcıya gösterilen düz metin); sunucu `X-Paywall-Reason` ile söyler:
 ///
-/// * başlık yok  → abonelik sorunu → [PaywallScreen] ("abone ol")
-/// * `tokens`    → bakiye bitti    → [TokenStoreScreen] ("doldur")
+/// * başlık yok → abonelik gerekiyor → [PaywallHedefi.abonelik]
+/// * `tokens`   → bakiye bitti       → [PaywallHedefi.jetonMagazasi]
+/// * `people`   → kontenjan doldu    → aşağıdaki ayrım
 ///
 /// Token'ı biten aboneye abonelik satmaya çalışmak yanlış teşhis olurdu.
-Future<void> _showPaywall(String? reason, {bool tokens = false}) async {
+///
+/// **`people` neden ÜÇÜNCÜ bir cevap gerektiriyor** (bulgu B10, ölçüldü):
+/// kontenjan 402'si İKİ ayrı duruma da dönüyor ve sunucu ayrımı yalnız
+/// metinde yapıyor — ücretsiz kullanıcıya `people.limit_free` ("Rytho+ ile
+/// eşini, çocuklarını… takip edebilirsin"), ABONEYE `people.limit_plus`
+/// ("listeden bir kişiyi çıkarabilirsin"). Başlığı `tokens` mı değil mi diye
+/// ikiye indirmek, 10 kişilik kontenjanı dolan aboneye sunucunun kendi
+/// cümlesinin TERSİNİ söylüyordu: tam ekran "Rytho+" sayfası ve satın al
+/// düğmesi. Gösterilen tek şey de o ekrandı, çünkü `person_form_screen` 402'de
+/// kendi mesajını bilerek bastırıyor ("interceptor zaten paywall açıyor").
+///
+/// [abone] üç değerli (`core/subscription.aboneAynasiProvider`): `false` ise
+/// satış ekranı DOĞRU cevap; `true` ya da `null` ise satmıyoruz. Bilinmiyorken
+/// de satmamanın gerekçesi, sunucunun metninin her iki durumda da doğru,
+/// satış ekranının yalnız bir durumda doğru olması.
+///
+/// Başlıksız 402'de ayna SORULMAZ. Sunucu "Plus gerekiyor" diyorken aynanın
+/// `true` olması aynanın BAYAT olduğu anlamına gelir (abonelik düşmüş olabilir)
+/// ve doğru cevap yine satış ekranıdır — bu üründe sunucu esastır.
+PaywallHedefi paywallHedefi(String? sebep, {required bool? abone}) {
+  if (sebep == 'tokens') return PaywallHedefi.jetonMagazasi;
+  if (sebep == 'people') {
+    return abone == false ? PaywallHedefi.abonelik : PaywallHedefi.mesaj;
+  }
+  return PaywallHedefi.abonelik;
+}
+
+/// Sunucu 402 döndüğünde doğru yüzeyi açar.
+Future<void> _showPaywall(String? reason, PaywallHedefi hedef) async {
+  if (hedef == PaywallHedefi.mesaj) {
+    _sunucuMesajiniGoster(reason);
+    return;
+  }
   if (_paywallOpen) return;
   final navigator = rythoNavigatorKey.currentState;
   if (navigator == null) return;
@@ -53,13 +100,60 @@ Future<void> _showPaywall(String? reason, {bool tokens = false}) async {
   _paywallOpen = true;
   try {
     await navigator.push(MaterialPageRoute(
-      builder: (_) => tokens
+      builder: (_) => hedef == PaywallHedefi.jetonMagazasi
           ? TokenStoreScreen(reason: reason)
           : PaywallScreen(reason: reason),
       fullscreenDialog: true,
     ));
   } finally {
     _paywallOpen = false;
+  }
+}
+
+/// Satılacak bir şey olmadığında sunucunun kendi (yerelleştirilmiş) metni.
+///
+/// Kök navigatörün bağlamı kullanılıyor — paywall ve çıkış yolu da aynı
+/// köprüden geçiyor (bkz. `auth_service._uygulamaKabi`). `ScaffoldMessenger`
+/// `MaterialApp` içinde Navigator'ın ÜSTÜNDE kurulduğu için bu bağlamdan
+/// bulunur.
+///
+/// Metin boşsa hiçbir şey gösterilmez: kontenjan 402'si sunucuda HER ZAMAN
+/// metinle dönüyor (`services/people_service.create_person`). Metinsiz bir
+/// kontenjan 402'si sunucu kusuru olurdu ve onu satış ekranıyla kapatmak
+/// yanlış teşhis olurdu.
+void _sunucuMesajiniGoster(String? metin) {
+  if (metin == null || metin.isEmpty) return;
+  final context = rythoNavigatorKey.currentContext;
+  if (context == null || !context.mounted) return;
+  ScaffoldMessenger.maybeOf(context)
+      ?.showSnackBar(SnackBar(content: Text(metin)));
+}
+
+/// Yanıttan düşülen iki not: bakiye sayacı ve abonelik aynası (bulgu B10).
+///
+/// İkisi de SADE `StateProvider` — `apiProvider`'ı izlemeyen sağlayıcılar.
+/// Halka bu yüzden kurulmuyor; gerekçenin tamamı
+/// `core/wallet.cuzdanTazelemeProvider` ve
+/// `core/subscription.aboneAynasiProvider` başında.
+///
+/// [govde] `null` geçilirse ayna dokunulmaz: DÜŞEN bir istek abonelik durumu
+/// hakkında hiçbir şey söylemez.
+///
+/// try/catch zorunlu: başarılı bir yanıtın YAN ETKİSİ o yanıtı riske
+/// atmamalı — raporu almış kullanıcıya hata göstermek, bir tazelemeyi
+/// kaçırmaktan çok daha pahalı. (Aynı duruş: `updateRequiredInterceptor`
+/// 426 kancasını da böyle sarıyor.)
+void _yanitiNotEt(Ref ref, RequestOptions istek, Object? govde) {
+  try {
+    if (cuzdanDegismisOlabilir(istek)) {
+      ref.read(cuzdanTazelemeProvider.notifier).state++;
+    }
+    if (govde != null && abonelikDurumuYaniti(istek)) {
+      final abone = aynadakiAbonelik(govde);
+      if (abone != null) ref.read(aboneAynasiProvider.notifier).state = abone;
+    }
+  } catch (e) {
+    debugPrint('Yanıt notu düşülemedi: $e');
   }
 }
 
@@ -128,14 +222,32 @@ final apiProvider = Provider<Dio>((ref) {
       options.headers[kDevicePlatformHeader] = devicePlatform();
       handler.next(options);
     },
+    onResponse: (response, handler) {
+      // Harcama sunucuda BİTTİKTEN sonra bakiye yeniden sorulur (bulgu B10):
+      // jeton düşümü yanıt gönderilmeden önce işlenmiş olur, yani burada
+      // okunan bakiye harcamayı İÇERİR.
+      _yanitiNotEt(ref, response.requestOptions, response.data);
+      handler.next(response);
+    },
     onError: (error, handler) {
-      if (error.response?.statusCode == kPaywallStatus) {
-        final detail = error.response?.data is Map
-            ? (error.response!.data as Map)['detail'] as String?
-            : null;
-        final sebep =
-            error.response?.headers.value('x-paywall-reason');
-        _showPaywall(detail, tokens: sebep == 'tokens');
+      try {
+        final yanit = error.response;
+        // Gövde geçilmiyor (ayna dokunulmasın), ama harcama uçlarından dönen
+        // hata bakiyeyi İLGİLENDİRİR: 402'den sonra açılan jeton mağazası
+        // bakiyeyi ekranda gösteriyor ve bayat bir sayı orada "bakiyen var"
+        // derken sunucu aynı isteği yetersiz bakiyeyle reddetmişti.
+        if (yanit != null) _yanitiNotEt(ref, yanit.requestOptions, null);
+        if (yanit?.statusCode == kPaywallStatus) {
+          final govde = yanit!.data;
+          final detay = govde is Map ? govde['detail'] : null;
+          final sebep = yanit.headers.value('x-paywall-reason');
+          _showPaywall(detay is String ? detay : null,
+              paywallHedefi(sebep, abone: ref.read(aboneAynasiProvider)));
+        }
+      } catch (e) {
+        // Yan etkideki bir hata sunucunun KENDİ hatasının yerine geçmemeli:
+        // 402'nin detayı ve paywall kararı kaybolurdu.
+        debugPrint('402 yan etkisi düştü: $e');
       }
       handler.next(error);
     },

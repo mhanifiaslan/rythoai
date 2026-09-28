@@ -52,17 +52,20 @@ def depo(monkeypatch, tmp_path):
         "users/u2": {"displayName": "Bora", "email": "b@x.y"},
         "adminStats/" + _DUN: _stats(_DUN, issue=1),
         "adminStats/" + _BUGUN: _stats(_BUGUN),
+        # `partnerTry: 0.0` = "ortak maliyeti ÖLÇÜLDÜ, sıfır". Alan hiç
+        # yoksa okuyan taraf "ölçülmedi" sayar ve marjı −1'e düşürür (P4);
+        # aşağıdaki eksik-gün testi tam o hâli kuruyor.
         "adminEconomics/" + _DUN: {
             "date": _DUN,
             "users": {"u1": {"r": 10.0, "rs": 0, "c": 0.5, "n": 5, "t": 4},
                       "u2": {"r": 0, "rs": 3.0, "c": 0.1, "n": 1, "t": 0}},
             "others": {"r": 1.0, "rs": 0, "c": 0.2, "n": 2, "t": 1},
-            "shared": {"c": 0.05, "n": 1}, "count": 2},
+            "shared": {"c": 0.05, "n": 1}, "partnerTry": 0.0, "count": 2},
         "adminEconomics/" + _BUGUN: {
             "date": _BUGUN,
             "users": {"u1": {"r": 0, "rs": 0, "c": 0.25, "n": 2, "t": 1}},
             "others": {"r": 0, "rs": 0, "c": 0, "n": 0, "t": 0},
-            "shared": {"c": 0, "n": 0}, "count": 1},
+            "shared": {"c": 0, "n": 0}, "partnerTry": 0.0, "count": 1},
     })
     monkeypatch.setattr(
         "services.admin_service.firestore_client.get_client", lambda: sahte)
@@ -101,6 +104,82 @@ def test_economics_birlesim_ve_ortam(depo):
     assert u2s["marginUsd"] == pytest.approx(3.0 * 0.85 - 0.1)
     assert s["totals"]["marginUsd"] == pytest.approx(
         3.0 * 0.85 - (0.75 + 0.1 + 0.2 + 0.05))
+
+
+def test_economics_ortak_maliyeti_marjdan_dusulur(depo, monkeypatch):
+    """P4: rollup'taki ₺ ödül (`p`) kurla dolara çevrilip marjdan düşülür.
+
+    `grossMarginUsd` ortak öncesi marjdır ve değişmez; `marginUsd` üç
+    terimlidir — Kullanıcı 360'taki formülün aynısı. Kur TEK yerden
+    (`admin_service.USD_TRY`) okunur: rollup ₺ yazar, çeviriyi burası
+    yapar, yoksa iki ekran iki farklı marj gösterirdi.
+    """
+    monkeypatch.setattr(admin_service, "USD_TRY", 40.0)
+    depo.docs["adminEconomics/" + _BUGUN]["users"]["u1"]["p"] = 40.0
+    depo.docs["adminEconomics/" + _BUGUN]["partnerTry"] = 40.0
+
+    p = admin_service.economics(days=30, env="PRODUCTION")
+
+    u1 = next(s for s in p["users"] if s["uid"] == "u1")
+    assert u1["partnerCostTry"] == 40.0
+    assert u1["partnerCostUsd"] == pytest.approx(1.0)
+    assert u1["grossMarginUsd"] == pytest.approx(10 * 0.85 - 0.75)
+    assert u1["marginUsd"] == pytest.approx(10 * 0.85 - 0.75 - 1.0)
+    u2 = next(s for s in p["users"] if s["uid"] == "u2")
+    assert u2["partnerCostUsd"] == 0.0     # ölçüldü, ödülü yok
+    t = p["totals"]
+    assert t["partnerDaysMissing"] == 0
+    assert t["partnerCostTry"] == 40.0
+    assert t["partnerCostUsd"] == pytest.approx(1.0)
+    assert t["usdTryRate"] == 40.0
+    assert t["marginUsd"] == pytest.approx(t["grossMarginUsd"] - 1.0)
+
+
+def test_economics_olcmeyen_gun_ortak_maliyetini_bilinmiyor_yapar(depo,
+                                                                 monkeypatch):
+    """`partnerTry` taşımayan gün → ortak maliyeti ve marj −1, 0 DEĞİL.
+
+    0 demek "ortak maliyeti yoktu" iddiasıdır ve ölçülmemiştir. Eksik günde
+    hangi kullanıcının ödülünün kayıp olduğu da bilinmediği için satır
+    bazında kurtarılamaz: SATIRLARIN HEPSİ bilinmiyor olur. Ölçülmüş
+    terimler (gelir, AI, ortak öncesi marj) yine döner ki panel gösterecek
+    dürüst bir sayı bulsun.
+    """
+    monkeypatch.setattr(admin_service, "USD_TRY", 40.0)
+    del depo.docs["adminEconomics/" + _DUN]["partnerTry"]   # eski rollup
+
+    p = admin_service.economics(days=30, env="PRODUCTION")
+
+    t = p["totals"]
+    assert t["partnerDaysMissing"] == 1
+    assert t["partnerCostTry"] == -1.0 and t["partnerCostUsd"] == -1.0
+    assert t["marginUsd"] == -1.0
+    assert t["grossMarginUsd"] == pytest.approx(11.0 * 0.85 - 1.1)
+    u1 = next(s for s in p["users"] if s["uid"] == "u1")
+    assert u1["partnerCostUsd"] == -1.0 and u1["marginUsd"] == -1.0
+    assert u1["grossMarginUsd"] == pytest.approx(10 * 0.85 - 0.75)
+
+
+def test_economics_kur_yokken_try_olculu_marj_bilinmiyor(depo, monkeypatch):
+    """Kur ayarsızken ₺ tutar ölçülüdür, dolar ve marj değil.
+
+    Ödülü OLMAYAN satır kur yokken de 0 maliyetlidir ve marjı ölçülüdür —
+    sıfır kontrolü kur kontrolünden önce geldiği için tablo boşalmıyor.
+    """
+    monkeypatch.setattr(admin_service, "USD_TRY", 0.0)
+    depo.docs["adminEconomics/" + _BUGUN]["users"]["u1"]["p"] = 40.0
+    depo.docs["adminEconomics/" + _BUGUN]["partnerTry"] = 40.0
+
+    p = admin_service.economics(days=30, env="PRODUCTION")
+
+    u1 = next(s for s in p["users"] if s["uid"] == "u1")
+    assert u1["partnerCostTry"] == 40.0     # ölçülen birim ₺
+    assert u1["partnerCostUsd"] == -1.0     # çevrilemedi
+    assert u1["marginUsd"] == -1.0
+    u2 = next(s for s in p["users"] if s["uid"] == "u2")
+    assert u2["partnerCostUsd"] == 0.0
+    assert u2["marginUsd"] == pytest.approx(-0.1)
+    assert p["totals"]["usdTryRate"] == -1
 
 
 def test_economics_onbellek_ve_temizleme(depo, monkeypatch):

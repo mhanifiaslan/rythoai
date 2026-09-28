@@ -161,9 +161,14 @@ def test_toplama_ap_ekleri(sahte, monkeypatch):
                                     "pruned": 2}
     assert d["users"]["byPlatform"] == {"bilinmiyor": 3}
     # adminEconomics: u1 jeton 6 + maliyet; paylaşımlı üretim `shared`.
+    # `p` = 0.0 ve `partnerTry` = 0.0: hakediş dokümanı YOK, yani ortak
+    # maliyeti ÖLÇÜLDÜ ve sıfır bulundu. Alanın yokluğu "ölçülmedi" demek
+    # olurdu ve okuyan taraf marjı −1'e düşürürdü (P4).
     e = sahte.docs[f"adminEconomics/{_BUGUN}"]
-    assert e["users"]["u1"] == {"r": 0.0, "rs": 4.99, "c": 0.002, "n": 1, "t": 6}
+    assert e["users"]["u1"] == {"r": 0.0, "rs": 4.99, "c": 0.002, "n": 1,
+                                "t": 6, "p": 0.0}
     assert e["shared"] == {"c": 0.0033, "n": 1}
+    assert e["partnerTry"] == 0.0
 
 
 def test_toplama_gelir_ortam_ve_olay_sayilari(sahte):
@@ -237,6 +242,58 @@ def test_economics_top_n_ve_others(sahte, monkeypatch):
     assert list(e["users"]) == ["u9"]          # r+rs+c en büyük
     assert e["others"]["rs"] == pytest.approx(4.99)   # u1 + u2(0)
     assert e["count"] == 3
+
+
+def test_ortak_edinme_maliyeti_gune_yazilir(sahte):
+    """P4: o gün AÇILAN hakedişin ₺ ödülü kullanıcı kovasına (`p`) ve gün
+    toplamına (`partnerTry`) girer.
+
+    Üç değişmez: `void` sayılmaz (yükümlülük ortadan kalktı), `pending`
+    sayılır (tutar hakediş ânında dondurulmuş gerçek bir ₺ borç), ve gün
+    ayrımı `purchasedAt`e göredir — başka günün hakedişi bu güne girmez.
+    Kural `admin_service._ortak_maliyeti` (Kullanıcı 360) ile birebir aynı;
+    ayrışırsa aynı kullanıcının marjı iki ekranda farklı çıkar.
+    """
+    sahte.docs.update({
+        "partnerQualifications/u1": {"partnerId": "p1", "status": "pending",
+                                     "rewardTry": 30.0,
+                                     "purchasedAt": _SIMDI},
+        "partnerQualifications/u2": {"partnerId": "p1", "status": "void",
+                                     "rewardTry": 30.0,
+                                     "purchasedAt": _SIMDI},
+        "partnerQualifications/u3": {"partnerId": "p1", "status": "qualified",
+                                     "rewardTry": 45.0,
+                                     "purchasedAt": _SIMDI - dt.timedelta(days=3)},
+    })
+
+    stats_service.collect()
+
+    e = sahte.docs[f"adminEconomics/{_BUGUN}"]
+    assert e["partnerTry"] == pytest.approx(30.0)
+    assert e["users"]["u1"]["p"] == pytest.approx(30.0)
+    assert e["users"]["u2"]["p"] == 0.0        # void marjdan düşülmez
+    assert "u3" not in e["users"]              # başka günün hakedişi
+
+
+def test_ortak_maliyeti_cozumlenemeyen_tutar_gunu_bilinmiyor_yapar(sahte):
+    """Tutarı okunamayan hakediş günü `0` DEĞİL `-1` yapar.
+
+    0 yazmak "o gün ortak maliyeti yoktu" iddiasıdır ve ölçülmemiştir;
+    üstelik marj olduğundan yüksek çıkar ve hiçbir yerde hata görünmez.
+    Somut senaryo: Firestore'da elle düzeltilmiş `rewardTry: "30,00"`.
+    Blok kendi try'ında olduğu için günün geri kalanı (gelir/AI) yazılmaya
+    devam eder ve kullanıcı kovasına YARIM tutar da işlenmez.
+    """
+    sahte.docs["partnerQualifications/u1"] = {
+        "partnerId": "p1", "status": "pending", "rewardTry": "30,00",
+        "purchasedAt": _SIMDI}
+
+    stats_service.collect()
+
+    e = sahte.docs[f"adminEconomics/{_BUGUN}"]
+    assert e["partnerTry"] == -1.0
+    assert e["users"]["u1"]["p"] == 0.0
+    assert e["users"]["u1"]["rs"] == pytest.approx(4.99)   # gelir bloğu sağlam
 
 
 def test_gecmis_gun_yalniz_olay_bolumlerini_merge_eder(sahte):

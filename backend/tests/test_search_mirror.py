@@ -38,8 +38,9 @@ def test_ensure_yalniz_farki_yazar(monkeypatch):
     monkeypatch.setattr(search_mirror.firestore_client, "get_client",
                         lambda: depo)
     assert search_mirror.ensure("u1") is True
-    _, yol, veri, merge = depo.yazimlar[-1]
-    assert yol == "users/u1" and merge is True
+    kip, yol, veri, _ = depo.yazimlar[-1]
+    # Kip `update` (B9): var olmayan dokümana yazmayan tek yazım biçimi.
+    assert kip == "update" and yol == "users/u1"
     assert veri == {"usernameLower": "ali", "nameLower": ""}
     assert depo.docs["users/u1"]["emailLower"] == "a@b.com"
     # İkinci çağrı memo'dan: okuma da yazım da yok.
@@ -63,9 +64,21 @@ def test_ensure_memo_suresi_dolunca_yeniden_bakar(monkeypatch):
 
 
 def test_ensure_profil_verilince_okumaz(monkeypatch):
-    depo = SahteFirestore()
+    # Doküman VAR: profil verilen yol da `update` yazıyor (B9 ortak kuralı),
+    # yani yoktan doküman yaratmıyor.
+    depo = SahteFirestore({"users/u9": {}})
     monkeypatch.setattr(search_mirror.firestore_client, "get_client",
                         lambda: depo)
+
+    # "Okumaz" İDDİA edilmiyor, ÖLÇÜLÜYOR: okuma yolu patlatıldı. `ensure`
+    # hiç fırlatmadığı için bir okuma sessizce False dönmeye çevrilirdi ve
+    # test yeşil kalırdı — patlatmak o sessiz yolu kapatıyor.
+    def okuma_yasak(self, transaction=None):
+        raise AssertionError("profil verilince okuma yapılmamalı")
+
+    monkeypatch.setattr(type(depo.collection("users").document("u9")),
+                        "get", okuma_yasak)
+
     assert search_mirror.ensure("u9", {"displayName": "İpek"}) is True
     assert depo.docs["users/u9"] == {"emailLower": "", "usernameLower": "",
                                      "nameLower": "ipek"}
@@ -80,6 +93,46 @@ def test_ensure_dokuman_yoksa_yazmaz(monkeypatch):
                         lambda: depo)
     assert search_mirror.ensure("$RCAnonymousID:abc") is False
     assert depo.docs == {}
+
+
+def test_ensure_profil_verilse_bile_dokuman_YARATMAZ(monkeypatch):
+    """B9 ortak kuralı: iki yazıcı da yoktan doküman yaratmaz.
+
+    Bu yolun bugün üretimde çağıranı yok (`core/auth` ve `/consent` ikisi de
+    profilsiz çağırıyor), ama kural yüzeyin TAMAMINDA geçerli olmalı —
+    yarın profil elde çağıran biri çıkarsa dirilme geri gelirdi.
+    """
+    depo = SahteFirestore()
+    monkeypatch.setattr(search_mirror.firestore_client, "get_client",
+                        lambda: depo)
+    assert search_mirror.ensure("silinmis", {"displayName": "İpek"}) is False
+    assert depo.docs == {}
+
+
+def test_ensure_okumadan_sonra_silinen_hesabi_diriltmez(monkeypatch):
+    """Okuma-yazma ARASINDAKİ pencere (B9'un asıl adı).
+
+    "Doküman yoksa yazmaz" okuması tek başına yetmiyordu: silinen hesabın
+    jetonu bir saate kadar geçerli kaldığı için `get` dokümanı GÖRÜRKEN
+    araya `delete_account` girebiliyor. `set(merge=True)` o noktada
+    dokümanı geri yaratırdı; `update` yazmaz.
+    """
+    depo = SahteFirestore({"users/u1": {"email": "A@B.com"}})
+    monkeypatch.setattr(search_mirror.firestore_client, "get_client",
+                        lambda: depo)
+
+    gercek_get = type(depo.collection("users").document("u1")).get
+
+    def silerek_oku(self, transaction=None):
+        anlik = gercek_get(self, transaction)
+        # Tam bu anda hesap silindi (delete_account başka bir istekte koştu).
+        depo.docs.pop("users/u1", None)
+        return anlik
+
+    monkeypatch.setattr(type(depo.collection("users").document("u1")),
+                        "get", silerek_oku)
+    assert search_mirror.ensure("u1") is False
+    assert depo.docs == {}, "silinmiş hesap arama aynasıyla dirildi"
 
 
 def test_ensure_hic_firlatmaz(monkeypatch):

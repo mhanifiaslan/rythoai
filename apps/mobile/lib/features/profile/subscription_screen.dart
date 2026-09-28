@@ -240,7 +240,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                   // itiyordu. İkisi de `Flexible` — sayı kırpılmaz.
                   Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Flexible(
-                      child: Text('${cuzdan.total}',
+                      // Okunamadıysa "—" (WalletStatus.bilinmiyor).
+                      child: Text(
+                          cuzdan.bilinmiyor ? '—' : '${cuzdan.total}',
                           style: RythoText.display(34)),
                     ),
                     const SizedBox(width: RythoSpace.sm),

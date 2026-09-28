@@ -20,8 +20,10 @@
 /// ekranına geri göndermek yanlış olur).
 library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:purchases_flutter/purchases_flutter.dart';
 
 import 'api.dart';
@@ -43,6 +45,7 @@ class WalletStatus {
     required this.monthlyAllowance,
     this.allowanceResetsAt,
     this.costs = const {},
+    this.bilinmiyor = false,
   });
 
   final int allowance;
@@ -53,10 +56,24 @@ class WalletStatus {
   /// Özellik -> token bedeli ("bu okuma 5 token" göstergeleri buradan).
   final Map<String, int> costs;
 
+  /// Bakiye OKUNAMADI — sıfır DEĞİL, BİLİNMİYOR.
+  ///
+  /// Ayrım B10 onarımının doğurduğu bir riski kapatıyor. Tazeleme artık
+  /// her sohbet/rapor/firaset turundan sonra koşuyor, yani tek bir geçici
+  /// hata (20 sn zaman aşımı, 429) eskiden neredeyse erişilemeyen bu dala
+  /// düşüyor. Sıfır göstermek "jetonun bitti" demektir: 198 jetonu olan
+  /// kullanıcı bakiyesinin tükendiğini sanıp mağazaya gider. Ekranlar bu
+  /// bayrakta sayı yerine "—" çiziyor — ölçülmeyen söylenmez.
+  final bool bilinmiyor;
+
   int get total => allowance + purchased;
 
   static const none = WalletStatus(
       allowance: 0, purchased: 0, monthlyAllowance: 0);
+
+  /// Okuma düştü. `none` ile aynı sayıları taşır ama [bilinmiyor] true.
+  static const unknown = WalletStatus(
+      allowance: 0, purchased: 0, monthlyAllowance: 0, bilinmiyor: true);
 
   factory WalletStatus.fromJson(Map<String, dynamic> json) {
     final resets = json['allowance_resets_at'] as String?;
@@ -72,12 +89,63 @@ class WalletStatus {
   }
 }
 
+/// Cüzdanın tazelenmesini tetikleyen SAYAÇ (bulgu B10).
+///
+/// Harcamayı gören yer `apiProvider`'ın interceptor'ı, ama oradan doğrudan
+/// `ref.invalidate(walletProvider)` demek ÇALIŞMA ANINDA
+/// `CircularDependencyError` fırlatır: [walletProvider] gövdesinde
+/// `ref.watch(apiProvider)` yapıyor, interceptor da `apiProvider`'ın KENDİ
+/// ref'ini taşıyor. Açık tür bildirimi bunu KURTARMAZ — o yalnız derleyicinin
+/// `top_level_cycle` hatasını kapatır, çalışma anındaki halkayı değil.
+///
+/// Bu sağlayıcı hiçbir şeyi İZLEMEZ; halkanın bir ucu bu yüzden kopuk kalıyor:
+/// interceptor yazar, [walletProvider] okur. Depoda aynı desen 426 ve 409
+/// kapıları için zaten var (`forceUpdateProvider`, `deviceConflictProvider`).
+///
+/// Bayrak DEĞİL sayaç: `bool` ikinci harcamada `true`→`true` olurdu, Riverpod
+/// "değişmedi" sayar ve bakiye bir daha tazelenmezdi; bayrağı geri indirecek
+/// kimse de yok.
+final cuzdanTazelemeProvider = StateProvider<int>((_) => 0);
+
+/// Bu istek sunucuda bakiyeyi DEĞİŞTİRMİŞ olabilir mi?
+///
+/// İstemci hiçbir bakiyeyi kendisi hesaplamaz (bu dosyanın ilk kuralı); bu
+/// işlev yalnızca "bakiyeyi yeniden SORMAK gerekir mi" sorusunu cevaplar.
+/// Yanılma yönü bilinçli: fazladan bir `GET /billing/wallet` tek bir Firestore
+/// okumasıdır, bayat bakiye ise kullanıcıya gösterilen YANLIŞ SAYIDIR.
+///
+/// Liste sunucudaki harcama uçlarının aynası (`core/wallet.TOKEN_COSTS` →
+/// `api/reports.py`, `api/chat.py`, `api/face_reading.py`). `/reports/` ÖNEK
+/// olarak yazıldı, böylece yeni bir rapor ucu kendiliğinden kapsanır. Jeton
+/// YÜKLEYEN yol da burada: ortak kodunu giren kullanıcının bakiyesi de o an
+/// değişiyor ve o yol da hiç tazelemiyordu.
+///
+/// `/billing/wallet` listede DEĞİL ve olmamalı: cüzdanın kendi okuması sayacı
+/// artırırsa istek sonsuza dönerdi. Bugün ayrıca GET olduğu için de geçmez —
+/// iki kapı bilerek üst üste.
+bool cuzdanDegismisOlabilir(RequestOptions istek) {
+  if (istek.method.toUpperCase() != 'POST') return false;
+  // Sorgu dizesi atılıyor: `?x=1` eklenen bir uç eşleşmeyi kaybetmesin.
+  final yol = Uri.parse(istek.path).path;
+  return yol.startsWith('/api/v1/reports/') ||
+      yol == '/api/v1/chat' ||
+      yol == '/api/v1/chat/' ||
+      yol == '/api/v1/face/reading' ||
+      yol == '/api/v1/billing/redeem-code';
+}
+
 /// Cüzdan durumu — sunucudan.
 ///
 /// Hata durumunda sıfır cüzdan: sağlayıcı hata durumuna GİRMEZ
 /// (subscriptionProvider ile aynı duruş). Bakiye göstergesi çizilemedi diye
 /// ekran kızarmamalı; sunucu zaten her harcamada gerçeği söylüyor.
 final walletProvider = FutureProvider<WalletStatus>((ref) async {
+  // Harcama sayacı İZLENİYOR (bulgu B10): rapor/sohbet/firaset turundan
+  // sonra bakiye yeniden okunur. Eskiden okunmuyordu ve bu sağlayıcı
+  // autoDispose olmadığı için ilk değer OTURUM BOYUNCA önbellekte
+  // kalıyordu — sohbetin AppBar çipi, aynı ekranda harcanan jetonu hiç
+  // görmüyordu.
+  ref.watch(cuzdanTazelemeProvider);
   final dio = ref.watch(apiProvider);
   try {
     final response = await dio.get('/api/v1/billing/wallet');
@@ -85,7 +153,9 @@ final walletProvider = FutureProvider<WalletStatus>((ref) async {
         Map<String, dynamic>.from(response.data as Map));
   } catch (e) {
     debugPrint('Cüzdan okunamadı: $e');
-    return WalletStatus.none;
+    // `none` DEĞİL `unknown`: ikisi de sıfır taşır ama biri "bakiyen yok"
+    // diye okunur. Bkz. [WalletStatus.bilinmiyor].
+    return WalletStatus.unknown;
   }
 });
 

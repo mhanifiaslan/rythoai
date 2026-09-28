@@ -637,7 +637,47 @@ def mature_qualifications(now: dt.datetime | None = None,
 # Panel CRUD yardımcıları (admin.py çağırır; hepsi Admin SDK)
 # ---------------------------------------------------------------------------
 
+def _kod_toplamlari(client) -> dict[str, list[int]]:
+    """partnerId → [tıklama, kuran]. TEK koleksiyon akışı.
+
+    `partnerId` alanı boş/eksik olan kod dokümanı atlanır: hangi ortağa
+    yazılacağı bilinmeyen bir sayıyı bir ortağa yazmak, ölçüleni yanlış
+    yere bağlamaktır. SİLİNMİŞ bir ortağa işaret eden kod ise toplanır ama
+    kimse okumaz — listede o kimlik yok.
+    """
+    toplam: dict[str, list[int]] = {}
+    for k in client.collection("partnerCodes").stream():
+        veri = k.to_dict() or {}
+        pid = str(veri.get("partnerId") or "").strip()
+        if not pid:
+            continue
+        kutu = toplam.setdefault(pid, [0, 0])
+        kutu[0] += int(veri.get("clickCount") or 0)
+        kutu[1] += int(veri.get("redemptionCount") or 0)
+    return toplam
+
+
 def list_partners() -> list[dict[str, Any]]:
+    """Ortak listesi + huninin İLK İKİ basamağı (`clicks`, `referredUsers`).
+
+    İki sayı da partner dokümanında DURMUYOR; ikisi de kod dokümanlarının
+    alanı (`clickCount`, `redemptionCount`). Toplama ORTAK BAŞINA sorguyla
+    değil `partnerCodes` koleksiyonunun TEK akışıyla yapılıyor: N+1 aynı
+    dokümanları okur ama sorgu sayısını ortak sayısıyla çarpar, yani
+    panelin en sık açılan ekranı kayıt sayısıyla birlikte yavaşlar.
+    Koleksiyon küçük kalıyor çünkü kod = KANAL, ortak = kişi.
+
+    Ortak dokümanına koşan bir toplam YAZILMADI (öteki seçenek buydu):
+    tıklama sayacı kimliksiz ve KOTALI bir uçtan geliyor (`record_click`)
+    ve orada ikinci bir doküman güncellemek, en çok yazım alan yola
+    ortak başına bir çekişme noktası daha koyardı. Okuma tarafı ucuz, yazma
+    tarafı değil.
+
+    Toplama DÜŞERSE anahtarlar yanıta HİÇ KONMAZ, 0 yazılmaz: 0 "ölçtük,
+    hiç tıklama yok" demek ve panel çalışan bir tanıtımı ölmüş gibi
+    gösterirdi (`partner_detail`in `clickSeries` doktrini — yokluk
+    "bakılmadı").
+    """
     client = firestore_client.get_client()
     if client is None:
         return []
@@ -646,6 +686,21 @@ def list_partners() -> list[dict[str, Any]]:
         veri = anlik.to_dict() or {}
         veri["id"] = anlik.id
         sonuc.append(veri)
+    try:
+        toplam = _kod_toplamlari(client)
+    except Exception as exc:
+        # Liste ortağın KENDİSİNİ göstermeye devam eder: telemetri
+        # okuması yüzünden yönetim ekranını hiç çizmemek, ölçülen zararı
+        # ölçülmeyen bir kayıpla büyütmek olurdu.
+        logger.warning("Ortak listesinde kod toplamlari okunamadi: %s", exc)
+        return sonuc
+    for veri in sonuc:
+        tiklama, kuran = toplam.get(veri["id"], [0, 0])
+        # Adlar `partner_detail` ile AYNI (`clicks`, `referredUsers`):
+        # aynı sayının iki ekranda iki adı olsaydı panelin hangi alanı
+        # okuduğu gözle doğrulanamazdı.
+        veri["clicks"] = tiklama
+        veri["referredUsers"] = kuran
     return sonuc
 
 
@@ -1432,6 +1487,28 @@ def partner_self_view(partner_id: str,
                      "at": o.get("at"), "note": o.get("note")}
                     for o in tam["payouts"]],
     }
+    # ÖDEME EŞİĞİ — yalnız KAYITLIYSA taşınır ve VARSAYILANI BİLEREK YOK.
+    #
+    # Tanıtım sayfası (`web/ortaklik.html`, EN aynası `web/en/partners.html`)
+    # "Ödeme takvimi, alt sınır ve ödeme kanalı ANLAŞMADA yazılır" diyor.
+    # Yani eşik ürünün değil O ORTAKLA yapılan anlaşmanın sayısıdır ve
+    # kodun bileceği bir varsayılanı YOK: bir sayı yazmak (₺100) kimsenin
+    # kabul etmediği bir alt sınır icat etmek, 0 yazmak da "alt sınır yok"
+    # diye anlaşmanın söylemediği bir söz vermek olurdu. `create_partner`
+    # bu yüzden alanı hiç yazmıyor — eksiklik değil, karar.
+    #
+    # Üç hâl ÜÇ AYRI şey ve pano üçünü ayrı çiziyor: anahtar YOK = anlaşma
+    # değeri girilmedi (pano eşikten HİÇ söz etmez), 0 = alt sınır yok
+    # (kesinleşen her tutar ödenebilir), >0 = eşik.
+    esik = ortak.get("minPayoutTry")
+    if esik is not None:
+        try:
+            gorunum["minPayoutTry"] = round(float(esik), 2)
+        except (TypeError, ValueError):
+            # Bozuk değer ÖLÇÜLMEMİŞ sayılır. Sayı olmayan bir eşiği panoya
+            # göndermek orada "NaN ₺ kaldı" yazdırır; eksik bir kart,
+            # yanlış bir karttan iyidir.
+            logger.warning("Bozuk minPayoutTry (%s): %r", partner_id, esik)
     # Seri anahtarları KOPYALANARAK taşınıyor, `tam.get(...)` ile DEĞİL:
     # okuma düşmüşse anahtar `partner_detail`de yok ve burada da OLMAMALI.
     # `None` yazmak "ölçtük, bilinemedi" demek olurdu — pano ikisini ayırt
