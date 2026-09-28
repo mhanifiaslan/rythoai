@@ -16,7 +16,13 @@
    - GET   /api/v1/admin/partners/{id} → {partner, codes:[...],
        referredUsers, pendingCount, qualifiedCount, voidCount,
        earnedTry, pendingTry, paidTry, balanceTry,
-       attributedGrossUsd, attributedEvents, payouts:[...]}
+       attributedGrossUsd, attributedEvents, payouts:[...],
+       access:{uid, granted, email, reason}}
+   - POST  /api/v1/admin/partners/{id}/access {grant:bool} → {status, access}
+     Ortağın Firebase custom claim'ini ({partner:true, partnerId}) basar ya
+     da kaldırır. 400 gövdesi ÜÇ kod taşıyabilir: `no_uid`,
+     `user_not_found`, `uid_taken` — üçü de ayrı ayrı çevrilir, çünkü
+     hepsi operatörün YAPACAĞI şeyi değiştirir.
    - PATCH /api/v1/admin/partners/{id}
        {active|name|contact|notes|rewardTry|uid|payoutCurrency|taxId|iban}
    - POST  /api/v1/admin/partners/{id}/codes {code|null, bonusTokens,
@@ -41,6 +47,18 @@
    bilgi amaçlı ve $ — RevenueCat gelirini dolar raporluyor. İkisi aynı
    karta konmaz.
 
+   ⚠️ Ürünün SATTIĞI şey kod değil BAĞLANTI. Panel bir tur boyunca yalnız
+   kodu gösterdi ve sahibi paylaşılacak adresi hiçbir yerde bulamadı
+   ("ortaklık linki nerede görünmüyor") — kodu kafasından `rytho.app/r/`
+   önüne eklemesi gerekiyordu. Bağlantı artık her kod satırında TAM hâliyle
+   duruyor; kod ikincil kalıyor çünkü mekanizma o (atıf kodla yazılıyor).
+
+   Aynı turda ölçülen ikinci boşluk: ortağın panosu (`web/ortak/`) hiçbir
+   yerden linklenmiyor ve Firebase claim'i olmadan açılmıyordu; claim
+   yalnız komut satırından basılıyordu (`tools/set_admin.py --partner`).
+   Yani pano pratikte ULAŞILAMAZDI. Giriş adresi ve erişim düğmesi artık
+   "Ortak erişimi" modülünde.
+
    Tüm promise'ler yakalanır → toast. */
 (function () {
   'use strict';
@@ -50,6 +68,61 @@
 
   /* Kırıntıda kimlik yerine ad görünsün diye son görülen adlar. */
   var adOnbellek = {};
+
+  /* Ortak bağlantısının kökü — TEK YER. Ana makine SABİT YAZILMASIN diye
+     burada duruyor ve neden `rytho.app` olduğu ölçülebilir bir şeye
+     dayanıyor: AndroidManifest'te `/r/` yol öneki için YALNIZ bu ana makine
+     için bir intent-filter var (ölçüldü:
+     apps/mobile/android/app/src/main/AndroidManifest.xml — `/i/` için iki
+     host, `/r/` için yalnız rytho.app). Yani `rhytoai.web.app` ile üretilmiş
+     bir ortak bağlantısı kurulu uygulamada DOĞRUDAN AÇILMAZ; tarayıcıda
+     kalır. İkisi aynı sayfayı sunduğu için hata sessiz olur — bu yüzden
+     bağlantı hiçbir yerde `location.origin`'den kurulmuyor: panel
+     rhytoai.web.app üstünden de açılabiliyor ve o an sessizce çalışmayan
+     bağlantılar üretmeye başlardı. */
+  var BAGLANTI_KOKU = 'https://rytho.app/r/';
+
+  /* Ortağın kendi panosunun adresi. Sondaki bölü ÖLÇÜLDÜ: bölüsüz istek
+     301 ile bölülü adrese düşüyor (firebase.json'da cleanUrls yok), yani
+     ikisi de çalışıyor — ortağa verilen adres doğrudan 200 dönen hâli
+     olsun. Bu sayfaya üründe hiçbir yerden bağlantı verilmiyor (bilinçli:
+     kullanıcı yüzeyinde ortak panosu diye bir kapı yok), dolayısıyla
+     adresi ortağa ELDEN vermek tek yol. */
+  var ORTAK_PANO_ADRESI = 'https://rytho.app/ortak/';
+
+  /* Panoya kopyalama, üç katman. NEDEN yedek katman var: `navigator.clipboard`
+     yalnız güvenli bağlamda VE izin verilmişse çalışır; reddedilirse promise
+     sessizce düşer. Burada kopyalanan şey ürünün sattığı bağlantı —
+     "kopyalandı" diyip kopyalamamak en kötü sonuç. Üçüncü katmanda
+     kullanıcıya elle kopyalaması söylenir; bağlantı zaten ekranda TAM
+     hâliyle durduğu için bu çıkmaz sokak değil. */
+  function panoyaKopyala(metin, basariMetni) {
+    var b = RY.b;
+    var yaz = navigator.clipboard && navigator.clipboard.writeText
+      ? navigator.clipboard.writeText(metin)
+      : Promise.reject(new Error('pano-yok'));
+    return yaz.catch(function () {
+      // execCommand senkron çalışır ve seçim için DOM'da duran bir alan
+      // ister; geçici alan görünmez ama `display:none` OLMAZ (seçilemez).
+      var alan = document.createElement('textarea');
+      alan.value = metin;
+      alan.setAttribute('readonly', '');
+      alan.setAttribute('aria-hidden', 'true');
+      alan.style.position = 'fixed';
+      alan.style.top = '0';
+      alan.style.left = '-9999px';
+      document.body.appendChild(alan);
+      alan.select();
+      var oldu = false;
+      try { oldu = document.execCommand('copy'); } catch (h) { oldu = false; }
+      alan.remove();
+      if (!oldu) throw new Error('pano-yok');
+    }).then(function () {
+      b.toast(basariMetni || 'Panoya kopyalandı.', 'basari');
+    }).catch(function () {
+      b.toast('Pano erişimi yok — metni ekrandan elle kopyala.', 'uyari');
+    });
+  }
 
   function yol(id, ek) {
     return '/api/v1/admin/partners' + (id ? '/' + encodeURIComponent(id) : '') + (ek || '');
@@ -90,6 +163,61 @@
   function hataToast(h) {
     var m = RY.hataMetni(h);
     if (m) RY.b.toast(m, 'hata');
+  }
+
+  /* `access.reason` çevirisi — YALNIZ "bilinmiyor" hâlinde gösterilir.
+     Üç neden üç ayrı iş demek: uid gir / uid'i düzelt / tekrar dene. */
+  var ERISIM_NEDEN = {
+    no_uid: 'Firebase hesabı bağlı değil — sorgulanacak bir hesap yok.',
+    user_not_found: 'Bu uid ile Firebase hesabı yok.',
+    unavailable: 'Firebase Auth şu an okunamadı — durum ÖLÇÜLEMEDİ.'
+  };
+
+  /* POST /access 400 gövdesindeki kodlar. `RY.hataMetni` bu kodları olduğu
+     gibi (`no_uid`) gösterirdi; makine kodu operatöre ne yapacağını
+     söylemez. */
+  var ERISIM_HATA = {
+    no_uid: 'Ortağın Firebase hesabı bağlı değil: önce "Ödülü değiştir" ' +
+      'penceresinden uid gir.',
+    user_not_found: 'Bu uid ile Firebase hesabı yok — uid yanlış yazılmış olabilir.',
+    uid_taken: 'Bu hesap BAŞKA bir ortağa bağlı. Bir Firebase hesabı yalnız ' +
+      'tek ortak panosu görebilir; önce öteki ortağın erişimini kapat.',
+    // 500 `unavailable` da buraya giriyor: `hataMetni` gövdedeki `detail`i
+    // 500 dalından ÖNCE okuduğu için operatör ham "unavailable" görürdü.
+    // Son cümle sunucunun kendi gerekçesiyle aynı: geçici arıza görüp
+    // `partners/{id}.uid` alanını "düzeltmeye" başlamak asıl zararı verir.
+    unavailable: 'Firebase Auth şu an okunamadı — claim YAZILMADI. Birazdan ' +
+      'tekrar dene; uid alanını düzeltmeye çalışma, sorun uid değil.'
+  };
+
+  function erisimHataToast(h) {
+    var kod = h && h.detay;
+    if (kod && ERISIM_HATA[kod]) { RY.b.toast(ERISIM_HATA[kod], 'hata', { sure: 9000 }); return; }
+    hataToast(h);
+  }
+
+  /* Uçtan gelen `access`ı panelin kullandığı şekle indirger.
+     ⚠️ `granted` ÜÇ değerli ve null "BİLİNMİYOR" demek. Alan hiç yoksa
+     (panel yeni, backend eski) sonuç da bilinmiyor OLMALI: `!d.access`
+     durumunda false'a düşmek, panelin hiç ölçmediği bir şeyi "kapalı" diye
+     beyan etmesi olurdu — "ölçülen yanlış adla sunulmaz" kuralının tam
+     ihlali.
+
+     `uid` yedeği YALNIZ `access` hiç gelmediğinde `partner.uid`e düşer.
+     Ölçüm varken uç ne dediyse o geçerli: uç uid'i kırpıp boşsa `no_uid`
+     diyor (`_erisim_durumu`), yani boşluktan oluşan bir `partners/{id}.uid`
+     için `access.uid` null gelir. Yedek o durumda da devreye girerse panel
+     "hesap bağlı" sanıp yalnız 400 döndürebilecek bir düğme çizerdi. */
+  function erisimOku(d, p) {
+    var a = (d && d.access) || null;
+    var g = a ? a.granted : undefined;
+    return {
+      olcumVar: !!a,
+      uid: (a ? a.uid : (p && p.uid)) || null,
+      granted: g === true ? true : (g === false ? false : null),
+      email: (a && a.email) || null,
+      reason: (a && a.reason) || null
+    };
   }
 
   /* ---------------- Liste ---------------- */
@@ -185,8 +313,14 @@
         // aksi hâlde tek bir PATCH kapıyı sessizce kapatırdı.
         { ad: 'uid', etiket: 'Firebase hesabı (uid)', zorunlu: true, max: 128,
           otomatik: 'off', yertutucu: 'Firebase Auth kullanıcı kimliği',
+          // NEREDEN BULUNUR da yazılıyor: alan zorunlu ama panel uid'i
+          // hiçbir yerde aratmıyor, yani operatör "nereden alacağım"
+          // sorusunda kalıyordu. Yol ÖLÇÜLDÜ (`gorunumler/kullanicilar.js`):
+          // arama alanları arasında `eposta` var ve kullanıcı 360 sayfası
+          // kimlik kartında uid'i `title="uid"` ile gösteriyor.
           yardim: 'Ortağın kendi panosunu görmesi ve KENDİ kodunu kullanamaması ' +
-            'buna bağlı — bu yüzden zorunlu.',
+            'buna bağlı — bu yüzden zorunlu. Nereden: Kullanıcılar → e-posta ile ' +
+            'ara → hesabı aç → kimlik kartındaki uid.',
           dogrula: uidDogrula },
         { ad: 'notes', etiket: 'Not', tur: 'textarea', max: 500, satir: 2 }
       ],
@@ -218,6 +352,111 @@
     m.ac();
   }
 
+  /* ---------------- Ortak erişimi ---------------- */
+
+  /* "Ortak erişimi" modülünün gövdesi.
+
+     NEDEN ayrı modül — ve yukarıdaki "Bağlı değil" bandıyla NEDEN
+     çakışmıyor: bant PARA kapısını anlatıyor (uid boşken ortak kendi kodunu
+     kendi hesabında kullanabilir), bu modül ERİŞİM durumunu ve giriş
+     adresini. Aynı şeyi iki yerde söyleyen uyarı okunmaz, bu yüzden
+     banttaki "panosunu göremez" cümlesi oradan çıkarılıp buraya —
+     durumun yanına — taşındı.
+
+     Üç durum AYRI çizilir: açık / kapalı / bilinmiyor. Bilinmeyeni kapalı
+     gibi göstermek, panelin ölçmediği bir şeyi beyan etmesi olurdu. */
+  function erisimIc(b, p, er, sahip) {
+    var ic =
+      '<div class="form-alan">' +
+        '<label for="ortak-pano-adres">Ortağın giriş adresi</label>' +
+        '<input class="girdi mono" id="ortak-pano-adres" readonly spellcheck="false" ' +
+        'value="' + b.e(ORTAK_PANO_ADRESI) + '">' +
+      '</div>' +
+      '<div class="eylem-satir">' +
+        '<button type="button" class="buton ikincil kucuk" id="ortak-pano-kopyala">' +
+        b.ik('kopyala', 16) + 'Adresi kopyala</button>' +
+        '<span class="dipnot">Ürün içinde bu sayfaya hiçbir yerden bağlantı verilmiyor ' +
+        '(bilinçli) — adres ortağa ELDEN iletilmek zorunda.</span>' +
+      '</div>' +
+      '<dl class="alan-liste">' +
+        '<dt>Erişim</dt><dd>' +
+          (er.granted === true ? b.rozet('Erişim açık', 'aktif')
+            : (er.granted === false ? b.rozet('Erişim kapalı', 'notr')
+              : b.rozet('Bilinmiyor', 'uyari'))) + '</dd>' +
+        '<dt>Bağlı hesap (uid)</dt><dd>' +
+          (er.uid ? '<span class="mono">' + b.e(er.uid) + '</span>' : '—') + '</dd>' +
+        // E-posta, yöneticinin DOĞRU hesabı bağladığını gözle doğrulamasının
+        // tek yolu: uid karşılaştırılabilir bir şey değil, e-posta insanın
+        // tanıdığı şey. Satır boş olsa da duruyor — yokluğu da bilgi.
+        '<dt>Hesabın e-postası</dt><dd>' +
+          (er.email ? '<span class="mono">' + b.e(er.email) + '</span>' : '—') + '</dd>' +
+      '</dl>';
+
+    if (er.granted !== true && er.reason && ERISIM_NEDEN[er.reason]) {
+      ic += '<p class="dipnot">' + b.e(ERISIM_NEDEN[er.reason]) + '</p>';
+    }
+    if (!er.olcumVar) {
+      // Uç `access` alanını hiç döndürmediyse (panel yeni, backend eski)
+      // durum ÖLÇÜLMEMİŞTİR; sessizce "kapalı" çizmek yerine söylenir.
+      ic += '<p class="dipnot">Uç bu istekte <b>access</b> alanını döndürmedi — ' +
+        'erişim durumu panelden ölçülemiyor.</p>';
+    }
+
+    // ⚠️ Propagasyon: bu cümle olmadan sahip "açtım ama giremiyor" diye
+    // geri döner. Firebase custom claim ANINDA geçmez; ölçülmüş davranış,
+    // tahmin değil.
+    ic += '<p class="dipnot">Erişim Firebase custom claim ile verilir ve ANINDA ' +
+      'geçerli olmaz: ortağın ID jetonu yenilenene kadar (en çok 1 saat, ya da ' +
+      'çıkış + yeniden giriş) eski hâl sürer. Yani açtıktan hemen sonra ' +
+      '"giremiyorum" demesi normaldir — çıkıp yeniden girmesini söyle.</p>';
+
+    // ⚠️ Ortağın O ANDA NE GÖRDÜĞÜ de yazılmak zorunda, yoksa propagasyon
+    // cümlesi tek başına yetmez. ÖLÇÜLDÜ (`web/ortak/ortak.js`): claim'i
+    // olmayan hesap `/partners/me`den 403 alıyor, panonun `RY.yetkisiz()`
+    // dalı `signOut()` çağırıp jenerik "böyle bir sayfa yok" görünümünü
+    // (`#bulunamadi`) çiziyor — hesap sayımını engellemek için BİLİNÇLİ.
+    // Sonuç: ortak sahibe "verdiğin adres yanlış, sayfa yok" diye döner ve
+    // sahip tam da bu turda kapatılan "adresi bulamıyorum" döngüsüne geri
+    // girer. Adresi veren ekran, adresin yanlış GÖRÜNECEĞİNİ de söylemeli.
+    ic += '<p class="dipnot">Erişimi henüz geçmemiş ortak "yetkin yok" yazan bir ekran ' +
+      'GÖRMEZ: pano, hesap sayımını engellemek için jenerik <b>"böyle bir sayfa yok"</b> ' +
+      'görünümü çizer ve oturumu kapatır. Ortak "adres yanlış" diye dönerse adres ' +
+      'doğrudur — eksik olan claim.</p>';
+
+    if (!sahip) return ic;
+
+    if (!er.uid) {
+      // Düğme GÖSTERİLMEZ: uid yokken uç kesin 400 `no_uid` döner, yani
+      // yalnız başarısız olabilecek bir düğme olurdu. Onun yerine gerçek
+      // sıradaki iş söylenir.
+      ic += '<p class="dipnot">Erişim açılabilmesi için önce Firebase hesabı bağlanmalı: ' +
+        '"Ödülü değiştir" penceresinden uid gir.</p>';
+      return ic;
+    }
+
+    var ac = er.granted !== true;
+    ic += '<div class="eylem-satir">' +
+      '<button type="button" class="' + (ac ? 'buton' : 'buton tehlike') + '" id="ortak-erisim">' +
+      b.ik(ac ? 'anahtar' : 'kilit', 16) + (ac ? 'Erişimi aç' : 'Erişimi kapat') +
+      '</button>' +
+      (er.granted === null
+        // "Bilinmiyor" İKİ ayrı şeydir ve tek cümleyle anlatılamaz:
+        // `unavailable` hâlinde hesap OKUNAMADI, basmak zararsız (yazım
+        // yolu Auth'u yeniden okur ve claim'i BİRLEŞTİRİR). `user_not_found`
+        // hâlinde ise hesap YOK ve basmak kesin 400 döner — orada
+        // "zararsız, aynı claim yeniden yazılır" demek OLMAYAN bir claim'i
+        // beyan etmek olurdu (ölçüldü: `set_partner_access` o uid için
+        // `user_not_found` fırlatıyor, hiçbir şey yazmıyor).
+        ? (er.reason === 'user_not_found'
+            ? '<span class="dipnot">Bu uid ile hesap bulunmadığı sürece açma denemesi ' +
+              'başarısız olur — önce uid düzeltilmeli.</span>'
+            : '<span class="dipnot">Durum bilinmiyorken açmak zararsız: claim, hesabın ' +
+              'öteki claim değerleriyle BİRLEŞTİRİLİR — ezilmez.</span>')
+        : '') +
+      '</div>';
+    return ic;
+  }
+
   /* ---------------- Detay ---------------- */
 
   async function detay(icerik, id) {
@@ -228,6 +467,7 @@
     var odemeler = Array.isArray(d.payouts) ? d.payouts : [];
     var sahip = RY.sahipMi();
     var pasif = p.active === false;
+    var er = erisimOku(d, p);
     adOnbellek[id] = p.name;
     RY.kirinti([{ metin: 'Yönetim', href: '#/genel' }, { metin: 'Ortaklar', href: '#/ortaklar' },
                 { metin: p.name || id }]);
@@ -241,6 +481,43 @@
         (pasif ? 'Aktifleştir' : 'Pasifleştir') + '</button>';
     }
 
+    /* Kurulum yönlendirmesi. Yeni eklenen ortak iki adım eksikken hiçbir
+       işe yaramıyor: paylaşacağı bağlantı yok ve panosuna giremiyor. Panel
+       bunu bir tur boyunca hiç söylemedi — sahip ortağı ekledikten sonra
+       "şimdi ne olacak" noktasında yalnız kaldı. Burada YENİ BİR VAAT YOK,
+       yalnız var olan iki adım adlandırılıyor ve nerede oldukları söyleniyor.
+
+       "Bilinmiyor" hâli ayrı yazılır: erişimi DOĞRULA demek ile erişimi AÇ
+       demek aynı şey değil ve bilinmeyeni kapalı gibi çizmek yanlış beyan. */
+    var adimlar = [];
+    if (!kodlar.length) adimlar.push('paylaşılacak bağlantıyı üret ("Ortak bağlantısı" modülü)');
+    if (!er.uid) {
+      // Hesap bağı yokken erişim adımı HENÜZ yapılabilir değil. Ne yapılacağı
+      // yukarıdaki 'hata' bandında yazıyor; burada tekrarlanmaz, yalnız
+      // sıranın oraya bağlı olduğu söylenir (aynı cümle iki bantta = gürültü).
+      adimlar.push('panosuna erişimi aç — önce yukarıdaki hesap bağı gerekiyor');
+    } else if (er.granted === false) {
+      adimlar.push('panosuna erişimi aç ("Ortak erişimi" modülü)');
+    } else if (er.granted !== true) {
+      adimlar.push('panosuna erişimi doğrula — durum bilinmiyor ("Ortak erişimi" modülü)');
+    }
+    var kesinEksik = !kodlar.length || er.granted === false;
+
+    /* Bandın METNİ role göre ayrılır. Destek rolü bu iki adımı YAPAMAZ:
+       "Kod üret" formu ve erişim düğmesi yalnız owner'a çiziliyor, uçlar da
+       `require_owner` arkasında. Ona modül adını söylemek, gidip
+       yapamayacağı bir şeyi aramasına yol açardı — eksikliği bilmesi
+       gerekiyor, talimatı değil. */
+    var adimBant = '';
+    if (adimlar.length) {
+      var bandBas = kesinEksik
+        ? 'Bu ortak henüz kullanılamıyor. '
+        : 'Bu ortakta doğrulanmamış bir adım var. ';
+      adimBant = b.bant(bandBas + (sahip
+        ? 'Kalan: ' + adimlar.map(function (a, i) { return (i + 1) + ') ' + a; }).join(' · ') + '.'
+        : 'Kalan ' + b.sayi(adimlar.length) + ' adım owner yetkisi ister.'), 'uyari');
+    }
+
     icerik.innerHTML =
       b.sayfaBaslik({
         baslik: p.name || 'Ortak',
@@ -250,21 +527,44 @@
         eylemlerHtml: eylemler
       }) +
       (pasif ? b.bant('Bu ortak PASİF — kodları çalışmaya devam eder, listede soluk görünür.', 'bilgi') : '') +
-      // İki sonuç var ve ikincisi PARA KAYBETTİRİR: kendi-kodunu-kullanma
+      // Bu bant PARA kapısıdır, erişim durumu DEĞİL: kendi-kodunu-kullanma
       // kapısı `partners/{id}.uid == uid` karşılaştırması olduğu için uid
       // boşken hiç tutmaz — ortak kendi kodunu kendi hesabında kullanıp
-      // kendine ödül yazdırabilir. Bant yalnız "panosunu göremez" deseydi
-      // ölçülen kusuru hafif bir eksiklik adıyla sunmuş olurdu. 'hata'
-      // (role="alert") çünkü bu eksik veri değil, açık kapı.
+      // kendine ödül yazdırabilir. 'hata' (role="alert") çünkü bu eksik veri
+      // değil, açık kapı.
       // Form artık uid'i zorunlu tutuyor, yani böyle bir kayıt ya zorunluluk
       // öncesinden kalmadır ya elle yazılmıştır — operatör "nasıl oldu"
       // sorusuna burada cevap bulsun.
-      (p.uid ? '' : b.bant('Bu ortağın Firebase hesabı BAĞLI DEĞİL. İki sonucu var: ' +
-        'kendi panosunu göremez VE kendi kodunu kendi hesabında kullanıp kendine ' +
-        'ödül yazdırması engellenemez — kapı uid karşılaştırmasına dayanıyor, ' +
-        'boş uid ile hiç tutmaz. Yeni kayıtlarda uid zorunlu, yani bu kayıt ' +
-        'zorunluluk öncesinden kalma ya da elle açılmış. "Ödülü değiştir" ' +
-        'penceresinden hemen uid girilmeli.', 'hata')) +
+      // ⚠️ Eski metindeki "kendi panosunu göremez" cümlesi BİLEREK
+      // ÇIKARILDI: aynı şeyi aşağıdaki "Ortak erişimi" modülü durumla
+      // birlikte söylüyor. İki yerde birden söylenen uyarı okunmaz, ve bu
+      // bandın işi para riskini yalnız başına taşımak.
+      (p.uid ? '' : b.bant('Bu ortağın Firebase hesabı BAĞLI DEĞİL ve bunun PARA ' +
+        'sonucu var: kendi kodunu kendi hesabında kullanıp kendine ödül yazdırması ' +
+        'engellenemez — kapı uid karşılaştırmasına dayanıyor, boş uid ile hiç tutmaz. ' +
+        'Yeni kayıtlarda uid zorunlu, yani bu kayıt zorunluluk öncesinden kalma ya da ' +
+        'elle açılmış. "Ödülü değiştir" penceresinden hemen uid girilmeli.', 'hata')) +
+      adimBant +
+      // ⚠️ SIRA BİLİNÇLİ: sahibin bulamadığı iki şey (bağlantı ve ortak
+      // erişimi) sayısal kartların ÜSTÜNDE. Önceki sırada kodlar sayfanın
+      // en altındaydı ve huni/para kartları onları ekranın dışına itiyordu —
+      // ölçülen şikâyetin bir yarısı tam buydu.
+      b.modul('Ortak bağlantısı',
+        '<div id="ortak-kodlar"></div>' +
+        '<p class="dipnot">Ortak bu bağlantıyı paylaşır. Uygulama KURULUYKEN bağlantı ' +
+        'doğrudan uygulamayı açar (Android App Links yalnız <b>rytho.app</b> için ' +
+        'tanımlı); kurulu değilken sayfa Play’e yönlendirir ve kod Install Referrer ' +
+        'ile taşınır — kullanıcı hiçbir yere kod GİRMEZ.</p>' +
+        (sahip ? '<div id="ortak-kod-form"></div>' : ''),
+        b.etiket(b.sayi(kodlar.length) + ' bağlantı'),
+        // Eski alt metin "kullanıcıya jeton bonusu" diyordu; K-a ile panel
+        // artık bonusTokens'ı hep 0 yolluyor, yani o cümle olmayan bir ödülü
+        // beyan ediyordu. Kodun ÖLÇÜLEN işi tek: atıf yazmak.
+        { alt: 'paylaşılan şey bağlantı · sonundaki kod yalnız atıf yazar · kullanıcıya ödül YOK' }) +
+      b.modul('Ortak erişimi', erisimIc(b, p, er, sahip),
+        er.granted === true ? b.rozet('Açık', 'aktif')
+          : (er.granted === false ? b.rozet('Kapalı', 'notr') : b.rozet('Bilinmiyor', 'uyari')),
+        { alt: 'ortağın kendi panosuna girip kazancını görmesi' }) +
       // Huni — sahibin sorduğu "benden kaç kişi gelmiş, kaçı alım yapmış".
       '<section class="izgara-kpi" aria-label="Huni">' +
       b.istatistikKarti({ ad: 'Gelen kullanıcı', deger: b.sayi(d.referredUsers || 0),
@@ -295,26 +595,33 @@
         'düşülmüş, SANDBOX süzülmüş). Ödülü bu sayı BELİRLEMEZ — ödül kazanılan abone ' +
         'başına sabittir; bu kart yalnız programın getirisini görmek için.</p>') +
       (p.notes ? b.modul('Not', '<p class="dipnot">' + b.e(p.notes) + '</p>') : '') +
-      '<div class="izgara-2">' +
-      b.modul('Kodlar', '<div id="ortak-kodlar"></div>' +
-        (sahip ? '<div id="ortak-kod-form"></div>' : ''),
-        b.etiket(b.sayi(kodlar.length) + ' kod'),
-        // Eski alt metin "kullanıcıya jeton bonusu" diyordu; K-a ile panel
-        // artık bonusTokens'ı hep 0 yolluyor, yani o cümle olmayan bir ödülü
-        // beyan ediyordu. Kodun ÖLÇÜLEN işi tek: atıf yazmak.
-        { alt: 'kod kullanımı yalnız atıf yazar · kullanıcıya ödül YOK' }) +
+      // `izgara-2` DÜŞTÜ: kodlar modülü artık tam bağlantıyı taşıyor ve yarım
+      // genişlikte tablo yatay kaydırmaya düşüyordu — kısaltılmış ya da
+      // kaydırma ardında kalan bir bağlantı elle kopyalanamaz.
       b.modul('Ödemeler', '<div id="ortak-odemeler"></div>' +
         (sahip ? '<div id="ortak-odeme-form"></div>' : ''),
         b.etiket(b.sayi(odemeler.length) + ' kayıt'),
-        { alt: 'hakediş ödemesi kaydı — mali işlem, ön-izli' }) +
-      '</div>';
+        { alt: 'hakediş ödemesi kaydı — mali işlem, ön-izli' });
 
     /* Kodlar tablosu */
     var kodVt = b.veriTablosu({
-      kimlik: 'ortak-kod-tablo', etiket: 'Kodlar', yogunluk: 'sik',
+      // `etiket` tablonun aria-label'ı: görünen başlık "Bağlantı" derken
+      // ekran okuyucuya "Kodlar" demek aynı şeyi iki ada bölerdi.
+      kimlik: 'ortak-kod-tablo', etiket: 'Ortak bağlantıları', yogunluk: 'sik',
       sutunlar: [
-        { ad: 'code', baslik: 'Kod', siralanir: true,
-          bicim: function (k) { return '<b class="mono">' + b.e(k.code) + '</b>'; } },
+        // Satırın taşıdığı şey artık BAĞLANTI; kod onun sonundaki parça.
+        // Kopyala düğmesi aynı hücrede duruyor ki kopyaladığı şeyin yanında
+        // olsun — ayrı bir sütun olsaydı yarım genişlikte tablo yatay
+        // kaydırmaya düşerdi.
+        { ad: 'code', baslik: 'Bağlantı', siralanir: true,
+          bicim: function (k) {
+            var bag = BAGLANTI_KOKU + k.code;
+            return '<div class="ortak-kod-hucre"><b class="mono">' + b.e(k.code) + '</b>' +
+              '<button type="button" class="buton ikincil kucuk" data-kopya="' + b.e(bag) +
+              '" aria-label="Bağlantıyı kopyala: ' + b.e(k.code) + '">' +
+              b.ik('kopyala', 14) + 'Kopyala</button></div>' +
+              '<span class="ortak-bag mono">' + b.e(bag) + '</span>';
+          } },
         // "Bonus" sütunu KALDIRILDI (K-a): panel hep 0 yolladığı için sütun
         // her satırda 0 gösterip operatöre "ayarlanabilir bir ödül var"
         // izlenimi verirdi. Sıfır dolu bir sütun bilgi değil gürültüdür.
@@ -339,10 +646,24 @@
       ],
       anahtar: function (k) { return k.code; },
       siralama: { ad: 'code', yon: 'asc' },
-      bosMetin: 'Kod yok.'
+      // Eski metin "Kod yok." diyordu: doğru ama eylemsiz. Sahip tam burada
+      // "peki nerede üretiyorum" diye takıldı.
+      bosMetin: sahip
+        ? 'Henüz bağlantı üretilmedi — aşağıdaki "Kod üret" ile oluştur.'
+        : 'Henüz bağlantı üretilmedi.'
     });
     icerik.querySelector('#ortak-kodlar').appendChild(kodVt.el);
     kodVt.guncelle(kodlar);
+
+    /* Kopyalama dinleyicisi TABLO KÖKÜNE bağlanır, satırlara DEĞİL: sıralama
+       her tıklamada `tbody.innerHTML`'i yeniden kuruyor (bilesenler.js
+       `govdeCiz`), yani satıra bağlanan dinleyici ilk sıralamadan sonra
+       sessizce ölürdü — düğme durur, tıklama hiçbir şey yapmaz. */
+    kodVt.el.addEventListener('click', function (ev) {
+      var dugme = ev.target.closest('[data-kopya]');
+      if (!dugme) return;
+      panoyaKopyala(dugme.getAttribute('data-kopya'), 'Ortak bağlantısı panoya kopyalandı.');
+    });
 
     /* Ödemeler tablosu */
     var odemeVt = b.veriTablosu({
@@ -365,7 +686,47 @@
     icerik.querySelector('#ortak-odemeler').appendChild(odemeVt.el);
     odemeVt.guncelle(odemeler);
 
+    /* Giriş adresini kopyalama OKUMA işidir — support rolü de görebilir,
+       bu yüzden owner kapısının ÜSTÜNDE bağlanıyor. */
+    icerik.querySelector('#ortak-pano-kopyala').addEventListener('click', function () {
+      panoyaKopyala(ORTAK_PANO_ADRESI, 'Ortak giriş adresi panoya kopyalandı.');
+    });
+
     if (!sahip) return;
+
+    /* Ortak erişimi (claim) aç/kapat. Düğme yalnız uid varken çiziliyor
+       (bkz. `erisimIc`), o yüzden burada null kontrolü yeterli. */
+    var erisimDugme = icerik.querySelector('#ortak-erisim');
+    if (erisimDugme) {
+      erisimDugme.addEventListener('click', function () {
+        // Bilinmeyen durum AÇMA tarafına düşer: kapatma yıkıcı taraf ve
+        // ölçülmemiş bir durumda yıkıcı işlem önerilmez.
+        var ac = er.granted !== true;
+        b.onayla({
+          baslik: ac ? 'Ortak erişimini aç' : 'Ortak erişimini kapat',
+          mesaj: ac
+            ? (p.name || 'Ortak') + ' adına bağlı hesap ortak panosuna girebilecek.'
+            : (p.name || 'Ortak') + ' ortak panosunu artık göremeyecek; kodları, atıfları ve ' +
+              'hakedişi DEĞİŞMEZ.',
+          aciklama: 'Firebase custom claim ANINDA geçmez: ortağın ID jetonu yenilenene ' +
+            'kadar (en çok 1 saat, ya da çıkış + yeniden giriş) eski hâl sürer. ' +
+            'Denetim izine yazılır.',
+          tehlike: !ac,
+          onaylaMetin: ac ? 'Erişimi aç' : 'Erişimi kapat'
+        }).then(function (r) {
+          if (!r) return null;
+          return RY.post(yol(id, '/access'), { grant: ac }).then(function () {
+            b.toast(ac
+              ? 'Erişim açıldı. Ortak, ID jetonu yenilenene kadar (en çok 1 saat) hâlâ ' +
+                'giremeyebilir — çıkıp yeniden girmesi hızlandırır.'
+              : 'Erişim kapatıldı. Açık oturumu, jetonu yenilenene kadar (en çok 1 saat) ' +
+                'panoyu görmeye devam edebilir.',
+              'basari', { sure: 10000 });
+            RY.rotaYenile();
+          });
+        }).catch(erisimHataToast);
+      });
+    }
 
     /* Ödül tutarı + hesap bağı */
     icerik.querySelector('#ortak-odul').addEventListener('click', function () {
@@ -389,14 +750,20 @@
           // isteyen operatör uid yazmaya zorlanmıyor.
           { ad: 'uid', etiket: 'Firebase hesabı (uid)', max: 128, otomatik: 'off',
             deger: p.uid || '', dogrula: uidDogrula,
-            yardim: 'Kendi panosu ve kendi kodunu kullanma kapısı buna bağlı.' }
+            yardim: 'Kendi panosu ve kendi kodunu kullanma kapısı buna bağlı. ' +
+              'Nereden: Kullanıcılar → e-posta ile ara → hesabı aç → kimlik ' +
+              'kartındaki uid.' }
         ],
         gonderMetin: 'Kaydet',
         iptal: { metin: 'Vazgeç', onTikla: function () { m.kapat(); } },
         onGonder: function (v) {
           var govde = { rewardTry: Number(v.rewardTry) };
-          // Boş uid GÖNDERİLMEZ: sunucu `exclude_none` ile süzüyor ama boş
-          // dize süzülmez ve mevcut bağı silerdi.
+          // Boş uid GÖNDERİLMEZ — ama gerekçe "bağı silerdi" DEĞİL; o iddia
+          // ölçülünce yanlış çıktı. `PartnerPatch.uid` şemada `min_length=1`
+          // taşıyor ve `update_partner` boş değeri 400 `uid_required` ile
+          // düşürüyor: boş dize bağı silmez, İSTEĞİ düşürür. Ölçülen zarar
+          // bu: yalnız ödül tutarını düzeltmek isteyen operatör, uid alanına
+          // hiç dokunmadığı hâlde gerekçesiz bir 422 görürdü.
           if (v.uid && String(v.uid).trim()) govde.uid = String(v.uid).trim();
           return RY.patch(yol(id), govde).then(function () {
             b.toast('Ödül güncellendi — yalnız bundan SONRAKİ kazanımlara uygulanır.',

@@ -25,6 +25,21 @@ Ortaklik claim'i (OP) — AYRI bir boyut, `admin` YAZMAZ:
 Ortagin uid'i ayrica panelden `partners/{id}.uid` alanina yazilmali;
 kendi kodunu kullanamama kapisi (redeem) o bagi kullaniyor.
 
+ARTIK NORMAL YOL PANEL: ortak claim'i ortak detay sayfasindaki erisim
+bolumunden basilir/kaldirilir (`POST /api/v1/admin/partners/{id}/access`,
+owner + denetim izi). Referans olarak UC yolu yazildi, dugme METNI DEGIL:
+bu satirin ilk hali olmayan bir dugmeyi ("Pano erisimi") tarif ediyordu,
+panelde bolum "Ortak erisimi" adiyla duruyor. Ekran metni tasinabilir,
+uc yolu tasinirsa testler kirmizi olur — referans olcum tarafina baglandi.
+Bu komut KURTARMA yolu olarak duruyor — panele girilemedigi ya da claim'in
+panelin bilmedigi bir hesaba basilmasi gerektigi hallerde.
+
+Iki yol ayni claim'i yaziyor ama kapilari ayni DEGIL: panel ucu, verilen
+uid BASKA bir partnerId ile claim tasiyorsa reddeder (`uid_taken`) cunku
+tek hesap iki ortaga baglanirsa `/partners/me` claim'deki partnerId'yi
+okur ve ortak YANLIS ortagin bakiyesini gorur. Bu komutta o kapi YOK;
+elle basarken hedefin mevcut claim'lerini ekranda oku.
+
 Kimlik: GOOGLE_APPLICATION_CREDENTIALS servis hesabi anahtari ya da
 `gcloud auth application-default login` (proje: rhytoai).
 

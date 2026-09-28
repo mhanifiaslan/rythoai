@@ -27,7 +27,7 @@ import pytest
 
 from core import app_gate, config
 from core import firestore as firestore_client
-from services import account_service
+from services import account_service, partner_service
 
 #: Toplama anında yakalanır: henüz hiçbir fixture koşmadı, bu gerçek
 #: istemci kurucusudur. Kıyas kimlikle (`is`) — sahte istemci kuran her
@@ -125,3 +125,50 @@ def firestore_hermetik(monkeypatch):
     `ayna` zaten böyle yapıyor.
     """
     monkeypatch.setattr(firestore_client, "get_client", _pin_get_client)
+
+
+class _AuthYok:
+    """Firebase Auth pini: her cagri acik bir hatayla duser.
+
+    `firebase_admin.auth`in None ile degil BIR NESNEYLE pinlenmesi
+    bilincli: servis `_auth_modulu()` donusune her zaman bir modul gibi
+    davraniyor ve None pini `AttributeError` yerine sessiz bir dal
+    degisikligi uretirdi.
+    """
+
+    class UserNotFoundError(Exception):
+        pass
+
+    @staticmethod
+    def get_user(uid):
+        raise RuntimeError("Firebase Auth testte pinli (conftest).")
+
+    @staticmethod
+    def set_custom_user_claims(uid, claims):
+        raise RuntimeError("Firebase Auth testte pinli (conftest).")
+
+
+@pytest.fixture(autouse=True)
+def auth_hermetik(monkeypatch):
+    """Hicbir test istemeden GERCEK Firebase Auth'a gidemesin.
+
+    CLAUDE.md'nin kurali: dis dunyaya cikan HER yeni istemci icin ayri
+    pin. Ortaklik erisimi (`partner_service.set_partner_access`) bu
+    doktrine tabi YENI bir istemci acti ve tek basina en tehlikelisi:
+    Firestore pini yalnizca YAZMAYI durdururdu, burada yazilan sey
+    **yetki** — pinlenmemis bir dal, makinede ADC varken gercek
+    `rhytoai` hesaplarina CLAIM BASABILIRDI.
+
+    Bugun kaza ile guvenliydi: `firebase_admin` uygulamasi testte
+    baslatilmadigi icin `get_user` zaten firliyor ve servisin dallari
+    onu yutuyor. Firestore pininin gerekcesi tam olarak buydu —
+    **kaza ile guvenli olan sey guvence degildir**; bir gun baska bir
+    test `initialize_app` cagirdiginda bu kalkan sessizce duserdi.
+
+    Auth'u BILEREK sinayan test `_auth_modulu`yu kendi sahtesiyle
+    degistirir (test_partner_rewards `_auth_pinle`) ve o yama bunun
+    USTUNE yazdigi icin kazanir — `kapi_hermetik`/`depolama_hermetik`
+    ile ayni cikis yolu.
+    """
+    monkeypatch.setattr(partner_service, "_auth_modulu",
+                        lambda: _AuthYok)

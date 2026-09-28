@@ -982,6 +982,14 @@ class PayoutCreate(BaseModel):
     note: str = Field(default="", max_length=300)
 
 
+class PartnerAccessRequest(BaseModel):
+    #: true = ortaklık claim'ini bas, false = kaldır. Tek alanlı gövde
+    #: bilinçli: eylem iki yönlü olduğu hâlde iki ayrı uç açmak, panelin
+    #: "aç"/"kapat" düğmelerini ayrı yollara bağlardı ve denetim izinde
+    #: yön `action` ile değil yalnız parametreyle görünür kalırdı.
+    grant: bool
+
+
 def _servis_hatasi(e: partner_service.RedeemError) -> HTTPException:
     return HTTPException(status_code=e.status, detail=e.reason)
 
@@ -1061,3 +1069,40 @@ def add_payout(partner_id: str, req: PayoutCreate,
         raise _servis_hatasi(e)
     _audit_tamamla(iz, {"phase": "done"})
     return {"status": "ok", "payout": odeme}
+
+
+@router.post("/partners/{partner_id}/access")
+def partner_access_set(partner_id: str, req: PartnerAccessRequest,
+                       user: AuthUser = Depends(require_owner)):
+    """Ortağın pano erişimini açar/kapatır (owner, ön-izli).
+
+    Bu uç olmadan ortaklık claim'i YALNIZ `tools/set_admin.py --partner` ile
+    basılabiliyordu; panel bunu söylemiyordu bile, yani `web/ortak/` panosu
+    panelden ortak açan yönetici için ULAŞILAMAZDI (ölçüldü).
+
+    ÖN-İZLİ (`zorunlu=True`) — emsali `user.disable` ve `config.min_build`,
+    `partner.update` DEĞİL. İki gerekçe: (1) bu bir YETKİ değişikliği, veri
+    düzeltmesi değil — açılan şey gerçek para bakiyesi gösteren bir pano.
+    (2) Yazım Firebase Auth'a gidiyor ve Auth'un okunabilir bir geçmişi YOK:
+    `adminAudit` bu değişikliğin TEK kaydı. İz yazılamazken claim basmak,
+    kimin ne zaman erişim verdiğinin hiçbir yerde kalmaması demekti.
+
+    ⚠️ Yanıt `granted: true` dönse bile ortak HEMEN giremez: custom claim
+    yalnız yeni bir ID jetonunda taşınır (en çok 1 saat, ya da ortağın
+    çıkıp yeniden girmesi). Panelin bunu yazması ŞART — yoksa yönetici
+    "açtım ama giremiyor" diye bozuk olmayan bir şeyi kovalar.
+    """
+    iz = _audit(user, "partner.access",
+                params={"partnerId": partner_id, "grant": req.grant},
+                zorunlu=True, phase="intent")
+    try:
+        erisim = partner_service.set_partner_access(partner_id, req.grant)
+    except partner_service.RedeemError as e:
+        _basarisiz(iz, e)
+        raise _servis_hatasi(e)
+    # `targetUid` ÖN-İZDE boş, tamamlamada dolar: claim'i alan hesabı
+    # `partners/{id}.uid` söylüyor ve onu servis okuyor. İzin şemasındaki
+    # alana yazmak (yeni bir anahtar uydurmak yerine) bilinçli — "kim
+    # erişim aldı" sorusu diğer eylemlerle aynı yerden cevaplanmalı.
+    _audit_tamamla(iz, {"phase": "done", "targetUid": erisim.get("uid")})
+    return {"status": "ok", "access": erisim}

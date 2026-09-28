@@ -6,6 +6,11 @@ değil · atıf var) tek tek sınanıyor, çünkü biri gevşerse kayıp sessizd
 panel "hakediş" gösterir, sahip öder, yanlış olduğu ancak mutabakatta
 anlaşılır.
 
+Son blok (ortak ERİŞİMİ) para değil YETKİ koruyor ve buraya ait: ortağın
+kendi bakiyesini gördüğü panonun kapısı da bu dosyadaki `partnerId`
+bağına dayanıyor — tek hesap iki ortağa bağlanırsa ortak YANLIŞ ortağın
+parasını görür.
+
 Çalıştırma:
     .venv\\Scripts\\python.exe -m pytest tests/test_partner_rewards.py -q
 """
@@ -655,7 +660,10 @@ def _me_hatasi(monkeypatch, hata: ps.RedeemError):
     from api import partners as partners_api
     from core.auth import AuthUser
 
-    def _dus(_partner_id):
+    # İki argüman: uç `caller_uid`i de geçiriyor (bayat claim kapısı).
+    # Sahtenin imzası ucunkiyle uyuşmazsa test, ölçmek istediği hata
+    # eşlemesi yerine bir `TypeError` ölçer.
+    def _dus(_partner_id, _caller_uid=None):
         raise hata
 
     monkeypatch.setattr(partners_api.partner_service, "partner_self_view",
@@ -767,6 +775,370 @@ def test_uidsiz_ortagin_kodu_kapinin_calismadigini_LOGLAR(depo, monkeypatch,
     assert depo["users/kim-olursa/private/attribution"]["partnerId"] == "p-1"
 
 
+# --- Ortak ERİŞİMİ: claim'i komut satırından panele taşımak --------------
+#
+# Korunan şey panonun ULAŞILABİLİRLİĞİ: ortaklık claim'i yalnız
+# `tools/set_admin.py --partner` ile basılabildiği sürece, panelden ortak
+# açan yönetici için `web/ortak/` panosu pratikte YOKTU (ölçüldü — sahip
+# test ortağını ekledi ve ortağın nereden gireceği hiçbir yerde yazmıyordu).
+
+
+class UserNotFoundError(Exception):
+    """`firebase_admin.auth.UserNotFoundError`ın ADAŞI.
+
+    Ad birebir aynı olmak ZORUNDA: `ps._kullanici_yok_mu` sınıfın ADINA
+    bakıyor — gerçek sınıf `firebase_admin._auth_utils` içinde tanımlı,
+    yani alt çizgili bir modülde (emsal
+    `test_admin_audit.FailedPrecondition`). Ad kayarsa "böyle hesap yok"
+    hâli sessizce "geçici arıza"ya düşer ve aşağıdaki iki iddia birbirinin
+    yerine geçer.
+    """
+
+
+class SahteHesap:
+    def __init__(self, uid, email=None, claims=None):
+        self.uid = uid
+        self.email = email
+        self.custom_claims = dict(claims) if claims else None
+
+
+class SahteAuth:
+    """`firebase_admin.auth`ın test karşılığı; yazımları kaydeder."""
+
+    def __init__(self, hesaplar=None, *, okuma_hatasi=None,
+                 yazma_hatasi=None):
+        self.hesaplar = {h.uid: h for h in (hesaplar or [])}
+        self._okuma_hatasi = okuma_hatasi
+        self._yazma_hatasi = yazma_hatasi
+        self.yazimlar: list = []
+
+    def get_user(self, uid):
+        if self._okuma_hatasi is not None:
+            raise self._okuma_hatasi
+        if uid not in self.hesaplar:
+            raise UserNotFoundError(uid)
+        return self.hesaplar[uid]
+
+    def set_custom_user_claims(self, uid, claims):
+        if self._yazma_hatasi is not None:
+            raise self._yazma_hatasi
+        self.yazimlar.append((uid, claims))
+        self.hesaplar[uid].custom_claims = dict(claims) if claims else None
+
+
+def _auth_pinle(monkeypatch, sahte):
+    """Auth'u BİLEREK sınayan testin kendi sahtesi.
+
+    `conftest.auth_hermetik` `_auth_modulu`yu her testte açık hatayla
+    düşen bir pine bağlıyor (CLAUDE.md: dışa çıkan her istemciye ayrı
+    pin); bu yama onun ÜSTÜNE yazdığı için kazanır —
+    `kapi_hermetik`/`depolama_hermetik` ile aynı çıkış yolu.
+    """
+    monkeypatch.setattr(ps, "_auth_modulu", lambda: sahte)
+    return sahte
+
+
+def _sahip_kullanici():
+    from core.auth import AuthUser
+    return AuthUser(uid="sahip", email="sahip@ornek.com", admin=True,
+                    role="owner")
+
+
+def test_hesap_yok_hatasi_GERCEK_sinif_adiyla_taniniyor():
+    """Yukarıdaki adaşın dayandığı şey ÖLÇÜLÜYOR: kurulu `firebase_admin`in
+    gerçek sınıfı da aynı adı taşıyor. Ad kayarsa (ya da sınıf yeniden
+    adlandırılırsa) bütün `user_not_found` yolu sessizce `unavailable`a
+    döner — yönetici "hesap yok"u hiç görmez, sonsuza kadar "biraz sonra
+    tekrar dene" okur."""
+    from firebase_admin import auth as fb_auth
+
+    assert ps._kullanici_yok_mu(fb_auth.UserNotFoundError("yok")) is True
+    assert ps._kullanici_yok_mu(UserNotFoundError("yok")) is True
+    assert ps._kullanici_yok_mu(RuntimeError("deadline exceeded")) is False
+
+
+def test_erisim_acilinca_claim_basilir_ve_admin_claimi_KORUNUR(depo,
+                                                               monkeypatch):
+    """Claim BİRLEŞTİRİLİR, ezilmez (`tools/set_admin.py` disiplini).
+
+    Somut kırılma: sahip kendi hesabını test ortağı yapar. Claim komple
+    ezilseydi `admin`/`role` de silinir ve sahip PANELDEN KİLİTLENİRDİ —
+    geri dönüşün tek yolu komut satırı olurdu.
+    """
+    _ortak(depo, uid="sahip-uid")
+    sahte = _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("sahip-uid", "sahip@ornek.com",
+                   {"admin": True, "role": "owner"})]))
+
+    erisim = ps.set_partner_access("p-1", True)
+
+    assert erisim == {"uid": "sahip-uid", "granted": True,
+                      "email": "sahip@ornek.com", "reason": None}
+    assert sahte.hesaplar["sahip-uid"].custom_claims == {
+        "admin": True, "role": "owner", "partner": True, "partnerId": "p-1"}
+
+
+def test_erisim_kapatilinca_YALNIZ_ortaklik_anahtarlari_silinir(depo,
+                                                                monkeypatch):
+    """Kaldırma da birleştirmedir: `admin`/`role` DURUR."""
+    _ortak(depo, uid="sahip-uid")
+    sahte = _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("sahip-uid", "sahip@ornek.com",
+                   {"admin": True, "role": "owner", "partner": True,
+                    "partnerId": "p-1"})]))
+
+    erisim = ps.set_partner_access("p-1", False)
+
+    assert erisim["granted"] is False
+    assert sahte.hesaplar["sahip-uid"].custom_claims == {"admin": True,
+                                                         "role": "owner"}
+
+
+def test_sade_hesapta_erisim_kapatmak_claimi_TAMAMEN_bosaltir(depo,
+                                                              monkeypatch):
+    """`mevcut or None`: Firebase'de "claim yok" hâli boş sözlük değil
+    ``None``dur (set_admin.py deseni)."""
+    _ortak(depo, uid="ortak-uid")
+    sahte = _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("ortak-uid", "o@ornek.com",
+                   {"partner": True, "partnerId": "p-1"})]))
+
+    ps.set_partner_access("p-1", False)
+
+    assert sahte.yazimlar == [("ortak-uid", None)]
+
+
+def test_ayni_ortaga_yeniden_basmak_IDEMPOTENT(depo, monkeypatch):
+    """Panel iki kez basılabilir; ikinci basış hata değil aynı sonuç."""
+    _ortak(depo, uid="ortak-uid")
+    sahte = _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("ortak-uid", "o@ornek.com",
+                   {"partner": True, "partnerId": "p-1"})]))
+
+    assert ps.set_partner_access("p-1", True)["granted"] is True
+    assert sahte.hesaplar["ortak-uid"].custom_claims == {
+        "partner": True, "partnerId": "p-1"}
+
+
+def test_uidsiz_ortakta_erisim_basilamaz(depo, monkeypatch):
+    """`partners/{id}.uid` yoksa basılacak hedef de yok. 400 `no_uid`:
+    yönetici önce hesabı bağlamalı."""
+    _ortak(depo)                                  # uid alanı YOK
+    sahte = _auth_pinle(monkeypatch, SahteAuth())
+    with pytest.raises(ps.RedeemError) as h:
+        ps.set_partner_access("p-1", True)
+    assert (h.value.status, h.value.reason) == (400, "no_uid")
+    assert sahte.yazimlar == []
+
+
+def test_olmayan_hesaba_erisim_basilamaz(depo, monkeypatch):
+    """uid yazılı ama Firebase hesabı yok (yanlış yazım ya da silinmiş
+    hesap). GEÇİCİ arızadan ayrı bir sebep dönmeli, yoksa yönetici doğru
+    yazılmış bir uid'i "düzeltmeye" başlar."""
+    _ortak(depo, uid="hayalet-uid")
+    _auth_pinle(monkeypatch, SahteAuth())
+    with pytest.raises(ps.RedeemError) as h:
+        ps.set_partner_access("p-1", True)
+    assert (h.value.status, h.value.reason) == (400, "user_not_found")
+
+
+def test_olmayan_ortakta_erisim_404(depo, monkeypatch):
+    _ortak(depo)
+    _auth_pinle(monkeypatch, SahteAuth())
+    with pytest.raises(ps.RedeemError) as h:
+        ps.set_partner_access("yok-boyle-ortak", True)
+    assert (h.value.status, h.value.reason) == (404, "not_found")
+
+
+def test_BASKA_ortaga_bagli_uid_reddedilir(depo, monkeypatch):
+    """Sızıntı kapısı: tek hesap iki ortağa bağlanırsa `/partners/me`
+    claim'deki `partnerId`yi okur ve ortak YANLIŞ ortağın bakiyesini
+    görür."""
+    _ortak(depo, pid="p-1", uid="ortak-uid")
+    _ortak(depo, pid="p-2", uid="ortak-uid")       # aynı hesap, ikinci ortak
+    sahte = _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("ortak-uid", "o@ornek.com",
+                   {"partner": True, "partnerId": "p-1"})]))
+
+    with pytest.raises(ps.RedeemError) as h:
+        ps.set_partner_access("p-2", True)
+    assert (h.value.status, h.value.reason) == (400, "uid_taken")
+    # p-1'in claim'i DOKUNULMADI.
+    assert sahte.hesaplar["ortak-uid"].custom_claims["partnerId"] == "p-1"
+
+
+def test_BASKA_ortagin_erisimi_buradan_KAPATILAMAZ(depo, monkeypatch):
+    """Kapı kaldırmada da geçerli: p-2'de "kapat"a basmak, silinecek
+    claim p-1'in claim'i olduğu için p-1'in panosunu sessizce kapatırdı."""
+    _ortak(depo, pid="p-1", uid="ortak-uid")
+    _ortak(depo, pid="p-2", uid="ortak-uid")
+    sahte = _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("ortak-uid", "o@ornek.com",
+                   {"partner": True, "partnerId": "p-1"})]))
+
+    with pytest.raises(ps.RedeemError) as h:
+        ps.set_partner_access("p-2", False)
+    assert h.value.reason == "uid_taken"
+    assert sahte.yazimlar == []
+
+
+def test_claim_yazimi_dusverse_500_unavailable(depo, monkeypatch):
+    """Yazım düşerse sessiz kalınamaz: yönetici "açtım" sanıp ortağı
+    kapıda bırakır."""
+    _ortak(depo, uid="ortak-uid")
+    _auth_pinle(monkeypatch, SahteAuth(
+        [SahteHesap("ortak-uid", "o@ornek.com")],
+        yazma_hatasi=RuntimeError("503 Auth backend hatasi")))
+    with pytest.raises(ps.RedeemError) as h:
+        ps.set_partner_access("p-1", True)
+    assert (h.value.status, h.value.reason) == (500, "unavailable")
+
+
+def test_erisim_gostergesi_AUTH_patlayinca_FIRLATMAZ(depo, monkeypatch):
+    """`granted` üçüncü değeri (None) tam olarak bunun için var: "kapalı"
+    ile "bilmiyoruz" aynı şey değil. Auth kesintisi ortak detay sayfasının
+    tamamını — hakediş ve ödeme sayılarını — düşürmemeli."""
+    _ortak(depo, uid="ortak-uid")
+    _auth_pinle(monkeypatch, SahteAuth(
+        okuma_hatasi=RuntimeError("deadline exceeded")))
+
+    erisim = ps.partner_access("p-1")
+    assert erisim == {"uid": "ortak-uid", "granted": None, "email": None,
+                      "reason": "unavailable"}
+    # Sayfanın geri kalanı ayakta: `partner_detail` de fırlatmadı.
+    assert ps.partner_detail("p-1")["access"]["reason"] == "unavailable"
+
+
+def test_erisim_gostergesi_uid_yoksa_no_uid(depo, monkeypatch):
+    _ortak(depo)                                  # uid alanı YOK
+    _auth_pinle(monkeypatch, SahteAuth())
+    assert ps.partner_access("p-1") == {"uid": None, "granted": None,
+                                        "email": None, "reason": "no_uid"}
+
+
+def test_erisim_gostergesi_hesap_yoksa_user_not_found(depo, monkeypatch):
+    _ortak(depo, uid="hayalet-uid")
+    _auth_pinle(monkeypatch, SahteAuth())
+    assert ps.partner_access("p-1")["reason"] == "user_not_found"
+    assert ps.partner_access("p-1")["granted"] is None
+
+
+def test_erisim_gostergesi_BASKA_ortaga_bagliysa_FALSE(depo, monkeypatch):
+    """Bu claim bu panoyu açmıyor — "erişimi var" demek yanlış olurdu.
+    `granted` None DEĞİL: durum ölçüldü ve biliniyor."""
+    _ortak(depo, pid="p-2", uid="ortak-uid")
+    _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("ortak-uid", "o@ornek.com",
+                   {"partner": True, "partnerId": "p-1"})]))
+    erisim = ps.partner_access("p-2")
+    assert erisim["granted"] is False
+    assert erisim["reason"] is None
+
+
+def test_partner_detail_erisim_gostergesini_TASIR(depo, monkeypatch):
+    """Panel sözleşmesi: yönetici ortağın giremediğini detay sayfasında
+    görmek zorunda."""
+    _ortak(depo, uid="ortak-uid")
+    _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("ortak-uid", "o@ornek.com",
+                   {"partner": True, "partnerId": "p-1"})]))
+    assert ps.partner_detail("p-1")["access"] == {
+        "uid": "ortak-uid", "granted": True, "email": "o@ornek.com",
+        "reason": None}
+
+
+def test_ortak_panosu_ve_ODEME_yolu_AUTHA_GITMEZ(depo, monkeypatch):
+    """Dar görünüm değişmedi (ortağın kendi claim'ini görmesine gerek yok)
+    ve para yolu Firebase Auth'a bağlanmadı: `add_payout` bakiye için
+    `partner_detail` çağırıyor, claim'le işi yok."""
+    class _Patlar:
+        def get_user(self, uid):                       # noqa: ARG002
+            raise AssertionError("bu yol Firebase Auth'a gitmemeli")
+
+    _ortak(depo, uid="ortak-uid")
+    _tetikle(depo)
+    simdi = depo["partnerQualifications/u1"]["maturesAt"] + \
+        dt.timedelta(seconds=1)
+    ps.mature_qualifications(now=simdi)                # bakiye 30
+    monkeypatch.setattr(ps, "_auth_modulu", lambda: _Patlar())
+
+    gorunum = ps.partner_self_view("p-1")
+    assert "access" not in gorunum
+    ps.add_payout("p-1", 30.0, "TRY", "tam")           # kapı Auth'suz çalıştı
+
+
+def test_erisim_ucu_denetim_izine_duser(depo, monkeypatch):
+    """Yetki değişikliğinin TEK kaydı bu iz: Firebase Auth'ta okunabilir
+    bir geçmiş yok, yani iz düşmezse kimin ne zaman erişim açtığı hiçbir
+    yerde kalmaz."""
+    from api import admin as admin_api
+
+    _ortak(depo, uid="ortak-uid")
+    _auth_pinle(monkeypatch, SahteAuth([SahteHesap("ortak-uid",
+                                                   "o@ornek.com")]))
+    yanit = admin_api.partner_access_set(
+        "p-1", admin_api.PartnerAccessRequest(grant=True), _sahip_kullanici())
+
+    assert yanit["status"] == "ok"
+    assert yanit["access"]["granted"] is True
+    izler = [v for k, v in depo.items() if k.startswith("adminAudit/")]
+    assert len(izler) == 1
+    assert izler[0]["action"] == "partner.access"
+    assert izler[0]["params"] == {"partnerId": "p-1", "grant": True}
+    assert izler[0]["phase"] == "done"
+    assert izler[0]["adminRole"] == "owner"
+    # Claim'i ALAN hesap izde duruyor: "kim erişim aldı" sorusu diğer
+    # eylemlerle aynı alandan (`targetUid`) cevaplanıyor.
+    assert izler[0]["targetUid"] == "ortak-uid"
+
+
+def test_iz_yazilamazsa_claim_BASILMAZ(depo, monkeypatch):
+    """Ön-iz (`zorunlu=True`) emsali `user.disable`: iz yazılamazken yetki
+    değiştirmek, kaydı hiç olmayan bir erişim açmaktır.
+
+    503 iddiası sırayı da kilitliyor: eylem izden ÖNCE koşsaydı servis
+    Firestore'suz `unavailable` fırlatır ve yanıt 500 olurdu.
+    """
+    from api import admin as admin_api
+    from fastapi import HTTPException
+
+    _ortak(depo, uid="ortak-uid")
+    sahte = _auth_pinle(monkeypatch, SahteAuth([SahteHesap("ortak-uid")]))
+    monkeypatch.setattr(admin_api.firestore_client, "get_client",
+                        lambda: None)
+
+    with pytest.raises(HTTPException) as h:
+        admin_api.partner_access_set(
+            "p-1", admin_api.PartnerAccessRequest(grant=True),
+            _sahip_kullanici())
+    assert h.value.status_code == 503
+    assert sahte.yazimlar == []
+
+
+def test_erisim_ucu_OWNER_kapisi_arkasinda(monkeypatch):
+    """Destek rolü bir hesaba yetki BASAMAZ; emsal `user.disable` ve
+    `config.min_build` (ikisi de owner). Owner'ın 403 DEĞİL 503 alması
+    kapının geçildiğini gösteriyor: gövdedeki ön-iz, pinli Firestore
+    yokluğunda düşüyor."""
+    from fastapi.testclient import TestClient
+    from core import config
+    from main import app
+
+    monkeypatch.setattr(config, "DEV_MODE", True)
+    monkeypatch.setattr(config, "DEV_ADMIN", True)
+    monkeypatch.setattr(config, "DEV_ADMIN_ROLE", "support")
+    with TestClient(app) as istemci:
+        assert istemci.post("/api/v1/admin/partners/p-1/access",
+                            json={"grant": True}).status_code == 403
+        monkeypatch.setattr(config, "DEV_ADMIN_ROLE", "owner")
+        yanit = istemci.post("/api/v1/admin/partners/p-1/access",
+                             json={"grant": True})
+    assert yanit.status_code == 503
+    # Sebep ÖLÇÜLÜYOR: 503'ün ön-izden geldiği yazılmazsa test başka bir
+    # arızayla da yeşil kalır ve "kapı geçildi" iddiası kanıtsız olur.
+    assert yanit.json()["detail"] == "Denetim izi yazılamadı; işlem yapılmadı."
+
+
 def test_huni_ve_bakiye(depo):
     _ortak(depo)
     depo["partnerCodes/K1"] = {"partnerId": "p-1", "redemptionCount": 7,
@@ -781,3 +1153,79 @@ def test_huni_ve_bakiye(depo):
     assert detay["qualifiedCount"] == 2
     assert detay["earnedTry"] == 60.0
     assert detay["balanceTry"] == 60.0
+
+
+# ---------------------------------------------------------------------------
+# Bayat claim kapısı: uid değişince ESKİ hesap düşmeli
+# ---------------------------------------------------------------------------
+
+
+def test_bayat_claim_bir_sonraki_istekte_duser(depo):
+    """Claim `partnerId` taşır; kaynaktaki bağ değişince ESKİ hesap düşer.
+
+    Ölçülen sızıntı buydu: `_ortak_coz` partnerId'yi YALNIZ claim'den
+    okuyor. uid A→B değiştirildiğinde A'nın claim'i hiçbir ekranda
+    görünmüyor ve Firebase propagasyonu yüzünden bir saate kadar
+    geçerli kalıyordu. Kapı kaynakta olmalı.
+    """
+    _ortak(depo, uid="B")
+    assert ps.partner_self_view("p-1", "B")["name"] == "Ortak"
+    with pytest.raises(ps.RedeemError) as h:
+        ps.partner_self_view("p-1", "A")
+    assert h.value.status == 404
+
+
+def test_self_view_uidsiz_cagride_bagi_DOGRULAMAZ(depo):
+    """Geriye uyum: `caller_uid` verilmeyen çağrı eski davranışta kalır.
+
+    `add_payout` ve yönetim yolları bu biçimi kullanıyor; oradaki
+    çağıran ortak DEĞİL, bağ karşılaştırması anlamsız olurdu.
+    """
+    _ortak(depo, uid="B")
+    assert ps.partner_self_view("p-1")["name"] == "Ortak"
+
+
+def test_uid_degisince_ESKI_hesabin_claimi_dusurulur(depo, monkeypatch):
+    """Yazma anındaki temizlik: eski hesapta ölü bağ kalmaz.
+
+    Okuma kapısının yerine GEÇMEZ (Firebase claim'i bir saate kadar
+    taşımaya devam eder) — Firebase tarafını da tutarlı tutar.
+    """
+    _ortak(depo, uid="A")
+    auth = _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("A", "a@x.co", {"partner": True, "partnerId": "p-1"}),
+        SahteHesap("B", "b@x.co"),
+    ]))
+    ps.update_partner("p-1", {"uid": "B"})
+    assert depo["partners/p-1"]["uid"] == "B"
+    assert auth.hesaplar["A"].custom_claims is None
+
+
+def test_uid_degisiminde_eski_hesabin_ADMIN_claimi_KORUNUR(depo, monkeypatch):
+    """Temizlik yalnız ortaklık anahtarlarını siler.
+
+    Somut kırılma: sahip kendi hesabını test ortağı yapar, sonra uid'i
+    gerçek ortağa çevirir. Claim komple ezilseydi kendi `admin`
+    claim'ini kaybeder ve PANELDEN KİLİTLENİRDİ.
+    """
+    _ortak(depo, uid="A")
+    auth = _auth_pinle(monkeypatch, SahteAuth([
+        SahteHesap("A", "a@x.co", {"admin": True, "role": "owner",
+                                   "partner": True, "partnerId": "p-1"}),
+        SahteHesap("B", "b@x.co"),
+    ]))
+    ps.update_partner("p-1", {"uid": "B"})
+    assert auth.hesaplar["A"].custom_claims == {"admin": True,
+                                                "role": "owner"}
+
+
+def test_eski_hesap_silinmisse_uid_degisimi_DUSMEZ(depo, monkeypatch):
+    """Temizlik best-effort: Firestore yazımı ZATEN olmuş durumda.
+
+    Auth erişilemiyor diye yöneticiye hata döndürmek, yapılmış bir
+    değişikliği başarısız gibi gösterir ve tekrar denemeye iter.
+    """
+    _ortak(depo, uid="A")
+    _auth_pinle(monkeypatch, SahteAuth([SahteHesap("B", "b@x.co")]))
+    ps.update_partner("p-1", {"uid": "B"})   # fırlatmamalı
+    assert depo["partners/p-1"]["uid"] == "B"

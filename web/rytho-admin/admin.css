@@ -704,3 +704,9 @@ table.tablo { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .gb-yanit { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: var(--r-md); background: var(--yuzey-2); }
 .gb-yanit-bas { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .gb-not { white-space: normal; }
+/* Ortaklar (ortaklar.js): kod satırında kod + kopyala, altında TAM bağlantı.
+   `.vt .vt-kimlik span` kalıbı burada KULLANILAMAZ — o kalıp nowrap +
+   ellipsis ile kırpıyor, kırpılmış bir bağlantı ise ne okunur ne elle
+   kopyalanır. Bu yüzden sarma (`anywhere`) var, kırpma yok. */
+.ortak-kod-hucre { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ortak-bag { display: block; margin-top: 2px; color: var(--parchment-mid); font-size: 12px; overflow-wrap: anywhere; }

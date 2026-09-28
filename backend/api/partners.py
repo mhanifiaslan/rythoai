@@ -38,7 +38,11 @@ def partner_me(user: AuthUser = Depends(require_partner)):
     çıkmaz. Ortağın görmesi gereken tek şey kendi performansı.
     """
     try:
-        return partner_service.partner_self_view(user.partner_id)
+        # `user.uid` ŞART: claim tek başına yetmez. `partner_self_view`
+        # bağı kaynaktan doğruluyor, yani uid değiştirilmiş bir ortağın
+        # ESKİ hesabındaki bayat claim bir sonraki istekte düşüyor —
+        # Firebase'in bir saate kadar süren jeton gecikmesini beklemeden.
+        return partner_service.partner_self_view(user.partner_id, user.uid)
     except partner_service.RedeemError as exc:
         if exc.reason in partner_service.TRANSIENT_REASONS:
             # GEÇİCİ hata KALICI yetki kaybı gibi görünmemeli. Ölçülen hâl:

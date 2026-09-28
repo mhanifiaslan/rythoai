@@ -572,8 +572,48 @@ def update_partner(partner_id: str, alanlar: dict[str, Any]) -> None:
         if not yeni_uid:
             raise RedeemError(400, "uid_required")
         izinli["uid"] = yeni_uid
+    eski_uid = None
+    if "uid" in izinli:
+        anlik = client.collection("partners").document(partner_id).get()
+        eski_uid = ((anlik.to_dict() or {}).get("uid")
+                    if getattr(anlik, "exists", False) else None)
     if izinli:
         client.collection("partners").document(partner_id).update(izinli)
+    if eski_uid and eski_uid != izinli.get("uid"):
+        _eski_bagi_temizle(partner_id, str(eski_uid))
+
+
+def _eski_bagi_temizle(partner_id: str, eski_uid: str) -> None:
+    """uid değişti — ESKİ hesaptaki ortaklık claim'ini düşür.
+
+    Olmazsa ne olur (ölçüldü): claim `partnerId` taşıyor ve panel artık
+    YENİ uid'i ölçtüğü için eski hesabın claim'i hiçbir ekranda görünmez;
+    yönetici onu ne görebilir ne kapatabilir. Eski hesap o ortağın
+    bakiyesini okumaya devam ederdi.
+
+    ⚠️ Bu temizlik TEK BAŞINA yeterli DEĞİL ve öyle sunulmamalı: Firebase
+    claim'i yalnız yeni bir ID jetonunda taşındığı için iptal en çok bir
+    saat gecikir. Asıl sınır `partner_self_view`'daki bağ doğrulaması —
+    o, bayat claim'i bir sonraki istekte düşürür. Buradaki temizlik onun
+    yerine geçmez, Firebase tarafını da tutarlı tutar (bir denetim
+    `custom_claims`e baktığında ölü bir bağ görmesin).
+
+    BEST-EFFORT: fırlatmaz. `update_partner` çağıranı bir panel PATCH'i
+    ve Firestore yazımı ZATEN olmuş durumda; Auth erişilemiyor diye
+    yöneticiye hata döndürmek, yapılmış bir değişikliği başarısız gibi
+    gösterir ve tekrar denemeye iter.
+    """
+    try:
+        set_partner_access_for_uid(partner_id, eski_uid, False)
+    except RedeemError as exc:
+        if exc.reason == "user_not_found":
+            return  # Hesap zaten yok; temizlenecek claim de yok.
+        logger.warning("Eski ortaklik bagi temizlenemedi "
+                       "(ortak=%s eski uid=%s): %s",
+                       partner_id, eski_uid, exc.reason)
+    except Exception as exc:  # pragma: no cover — savunma
+        logger.warning("Eski ortaklik bagi temizlenemedi "
+                       "(ortak=%s eski uid=%s): %s", partner_id, eski_uid, exc)
 
 
 def create_code(partner_id: str, code: str | None, bonus_tokens: int,
@@ -622,8 +662,19 @@ def _odeme_birimi(ortak: dict[str, Any]) -> str:
             .strip().upper())
 
 
-def partner_detail(partner_id: str) -> dict[str, Any]:
-    """Ortak + kodları + atfedilen gelir + hakediş + ödemeler."""
+def partner_detail(partner_id: str, *, erisim: bool = True) -> dict[str, Any]:
+    """Ortak + kodları + atfedilen gelir + hakediş + ödemeler + erişim.
+
+    `erisim=False` Firebase Auth'a HİÇ gitmez ve yanıtta `access` anahtarı
+    OLMAZ. Anahtarın yokluğu "bakılmadı", `granted: None` ise "bakıldı,
+    bilinemedi" demek; ikisini aynı şekle sıkıştırmak ölçülmemiş bir şeyi
+    ölçülmüş gibi sunmak olurdu.
+
+    Kapatan iki çağıran ve gerekçeleri: `add_payout` (para yolu — bakiye
+    kapısı için çağırıyor, claim'le işi yok) ve `partner_self_view`
+    (ortağın kendi panosu, her yüklemede çalışır ve dar görünüm zaten
+    `access` taşımıyor). İkisinde de Auth isteği katıksız israf olurdu.
+    """
     client = firestore_client.get_client()
     if client is None:
         raise RedeemError(500, "unavailable")
@@ -710,7 +761,8 @@ def partner_detail(partner_id: str) -> dict[str, Any]:
         else:
             uyumsuz += 1
 
-    return {"partner": ortak, "codes": kodlar,
+    sonuc: dict[str, Any] = {
+            "partner": ortak, "codes": kodlar,
             # Huni — sahibin sorduğu "kaç kişi geldi, kaçı alım yaptı".
             "referredUsers": gelen,
             "pendingCount": huni[STATUS_PENDING],
@@ -743,6 +795,11 @@ def partner_detail(partner_id: str) -> dict[str, Any]:
             "attributedGrossUsd": round(brut, 2),
             "attributedEvents": olay,
             "payouts": odemeler}
+    if erisim:
+        # Ortak dokümanı ELDE: `partner_access` yerine iç yardımcı
+        # çağrılıyor, yoksa aynı doküman bir kez daha okunurdu.
+        sonuc["access"] = _erisim_durumu(partner_id, ortak.get("uid"))
+    return sonuc
 
 
 def add_payout(partner_id: str, amount: float, currency: str,
@@ -788,7 +845,9 @@ def add_payout(partner_id: str, amount: float, currency: str,
         raise RedeemError(400, "currency_mismatch")
 
     if tutar > 0:
-        mevcut = partner_detail(partner_id)
+        # `erisim=False`: burada bakiye ölçülüyor, claim değil — para
+        # yolunun Firebase Auth'a bağımlılığı olmaması gerekir.
+        mevcut = partner_detail(partner_id, erisim=False)
         if int(mevcut.get("payoutCurrencyMismatchCount") or 0) > 0:
             # Defterde ortağın birimine UYMAYAN kayıt varsa bakiye kapısı
             # ölçtüğünü sandığı şeyi ölçmez: `paidTry` o kayıtları saymadığı
@@ -821,6 +880,241 @@ def add_payout(partner_id: str, amount: float, currency: str,
 
 
 # ---------------------------------------------------------------------------
+# Ortak ERİŞİMİ: panonun kapısını açan claim (api/admin.py çağırır)
+# ---------------------------------------------------------------------------
+#
+# Ortağın `web/ortak/` panosunu görebilmesi Firebase custom claim'ine bağlı
+# (`{partner: true, partnerId: ...}` → `core/auth.require_partner`). O claim
+# bu tura kadar YALNIZ `tools/set_admin.py --partner` ile, yerel makinede,
+# servis hesabı kimliğiyle basılabiliyordu; panel bunu söylemiyordu bile.
+# Ölçülen sonuç: yönetici panelden ortak açıyor, ortağa "hazır" diyor ve
+# ortak hiçbir yere giremiyor — panonun kendisi pratikte ULAŞILAMAZ.
+# Buradaki iki fonksiyon o komutu panele taşıyor; komut satırı yolu
+# (kurtarma yolu) olduğu gibi duruyor.
+
+#: Ortaklık claim'inin İKİ anahtarı — ve bu listenin kapsamı KASTEN dar.
+#: `admin`/`role` bu kümede YOK: claim yazımı birleştirmedir, ezme değil
+#: (bkz. `set_partner_access`).
+PARTNER_CLAIM_KEYS = ("partner", "partnerId")
+
+
+def _auth_modulu():
+    """`firebase_admin.auth` modülü — testin pinleyebileceği TEK kapı.
+
+    İçe aktarma fonksiyon içinde ve tek yerde: modül düzeyinde olsaydı bu
+    dosyanın her içe aktarımı `firebase_admin`e bağlanırdı (emsal:
+    `services/admin_service.py`, `core/auth.py` — hepsi çağrı anında alıyor).
+    Tek kapı olması ayrıca test hermetikliğinin şartı: `conftest.py`
+    Firestore'u ve Storage'ı pinliyor, Firebase Auth'u DEĞİL — yani bu
+    modülü doğrudan içe aktaran bir dal, makinede ADC varken GERÇEK
+    `rhytoai` hesaplarını okuyabilir, hatta CLAIM YAZABİLİRDİ. Aynı
+    SINIFTAN bir boşluk (pinlenmemiş dış istemci) 2026-09-18'de üretim
+    Firestore'una `users/dev-user` dokümanını yazdırmıştı; oradaki ders
+    şuydu: kaza ile güvenli olan şey güvence değildir. Tek fonksiyon
+    üzerinden geçirmek, o pini tek satırla kurulabilir kılıyor
+    (`tests/test_partner_rewards._auth_pinle`).
+    """
+    from firebase_admin import auth as fb_auth
+
+    return fb_auth
+
+
+def _kullanici_yok_mu(exc: BaseException) -> bool:
+    """İstisna "böyle bir Firebase hesabı yok" mu, yoksa geçici bir arıza mı?
+
+    Sınıf ADIYLA bakılıyor, sembolle değil (`push_service._olu_token` ile
+    aynı desen). ÖLÇÜLEN gerekçe: sınıf `firebase_admin.auth`ta değil
+    `firebase_admin._auth_utils` içinde tanımlı ve oraya yalnız yeniden
+    ihraç ediliyor (7.5.0'da MRO:
+    `_auth_utils.UserNotFoundError → exceptions.NotFoundError`). ALT ÇİZGİLİ
+    bir modüle bağlanmak sürüm yükseltmesinde sessizce kopar; ada bakmak
+    ayrıca sahte auth modülünün bu sınıfı taşımasını gerektirmiyor.
+
+    Ayrım ZORUNLU: iki hâl aynı sebebe düşerse panel geçici bir arızada
+    "hesap yok" der ve yönetici doğru yazılmış bir uid'i "düzeltmeye"
+    başlar (ya da tersi — silinmiş hesap "birazdan geçer" sanılır).
+    """
+    return type(exc).__name__ == "UserNotFoundError"
+
+
+def _erisim_durumu(partner_id: str, uid: Any) -> dict[str, Any]:
+    """`access` sözleşmesini uid ELDEYKEN üretir. ASLA FIRLATMAZ.
+
+    `granted` ÜÇ değerlidir ve üçüncüsü (``None``) bilinçli: "kapalı" ile
+    "bilmiyoruz" aynı şey değil. Auth okunamazken `False` dönmek, yöneticiye
+    ölçülmemiş bir şeyi ölçülmüş gibi söylemek olurdu — ortak aslında
+    girebiliyorken panel "erişimi yok" der, yönetici ikinci kez basar ve
+    hiçbir şey açıklanmaz.
+
+    `granted` yalnız claim BU ortağa aitse `True`. Başka bir ortağa bağlı
+    uid `False` döner (ve uyarı log'u düşer): o claim ortağa bu panonun
+    değil BAŞKASININ bakiyesini açar, yani "erişimi var" demek yanlış olur.
+    """
+    temiz = str(uid or "").strip()
+    if not temiz:
+        # Ortak kaydında hesap bağı yok: claim basılacak bir hedef de yok.
+        # Yeni kayıtta uid zorunlu (`create_partner`), yani bu hâl o
+        # zorunluluktan ÖNCE açılmış kayıtlardır.
+        return {"uid": None, "granted": None, "email": None,
+                "reason": "no_uid"}
+    try:
+        kullanici = _auth_modulu().get_user(temiz)
+    except Exception as exc:
+        if _kullanici_yok_mu(exc):
+            # KALICI ve bilinen hâl: `partners/{id}.uid` yanlış yazılmış ya
+            # da hesap silinmiş. `granted` None kalır çünkü claim durumu
+            # gerçekten okunamadı; sebep onu açıklıyor.
+            return {"uid": temiz, "granted": None, "email": None,
+                    "reason": "user_not_found"}
+        # GEÇİCİ hâl. Bu dal, ortak detay sayfasının tamamını düşürmemek
+        # için var: `partner_detail` canlı bir paneli besliyor ve orada
+        # hakediş/ödeme sayıları da duruyor — Auth kesintisi o sayıları
+        # görünmez etmemeli. Gösterge düşer, sayfa ayakta kalır.
+        logger.warning("Ortak erisim durumu okunamadi (ortak=%s uid=%s): %s",
+                       partner_id, temiz, exc)
+        return {"uid": temiz, "granted": None, "email": None,
+                "reason": "unavailable"}
+    claimler = dict(getattr(kullanici, "custom_claims", None) or {})
+    bagli = str(claimler.get("partnerId") or "")
+    verili = claimler.get("partner") is True and bagli == str(partner_id)
+    if claimler.get("partner") is True and bagli and bagli != str(partner_id):
+        # Bu hesap BAŞKA bir ortağın panosunu açıyor. Ekranda yalnız
+        # "erişim yok" görünür (sözleşme dört alanlı) ve yazma kapısı
+        # `uid_taken` ile reddeder; bu log o sessizliği kırıyor.
+        logger.warning("Ortak %s uid'i BASKA ortaga bagli (%s) — panoda o "
+                       "ortagin bakiyesi gorunur", partner_id, bagli)
+    return {"uid": temiz, "granted": verili,
+            "email": getattr(kullanici, "email", None), "reason": None}
+
+
+def partner_access(partner_id: str) -> dict[str, Any]:
+    """Ortağın pano erişim durumu (GÖSTERGE — asla fırlatmaz).
+
+    Ortak kaydı ya da Firestore okunamazsa da şekil korunur: gösterge bir
+    sayfanın köşesidir, sayfayı düşürmemeli. Eylem tarafı (`ortağı yok`
+    demek gerekiyorsa) `set_partner_access`in işi; o FIRLATIR.
+
+    ⚠️ PROPAGASYON: `granted: True` "ortak ŞU AN girebiliyor" demek DEĞİL.
+    Firebase custom claim değişikliği o kişinin ID jetonu yenilenene kadar
+    (en çok 1 saat, ya da çıkış/yeniden giriş) geçerli olmaz — bu gösterge
+    SUNUCUDAKİ claim'i okur, ortağın elindeki jetonu değil.
+    """
+    client = firestore_client.get_client()
+    if client is None:
+        return {"uid": None, "granted": None, "email": None,
+                "reason": "unavailable"}
+    try:
+        anlik = client.collection("partners").document(partner_id).get()
+    except Exception as exc:
+        logger.warning("Ortak %s okunamadi (erisim gostergesi): %s",
+                       partner_id, exc)
+        return {"uid": None, "granted": None, "email": None,
+                "reason": "unavailable"}
+    if not getattr(anlik, "exists", False):
+        # Ortak yok: bağlanacak uid de yok. `no_uid` doğru sebep — kayıt
+        # yokluğu için ayrı bir sebep uydurmak, sözleşmeyi bu fonksiyon
+        # için genişletmek olurdu; çağıran (uç) 404'ü zaten kendisi görür.
+        return {"uid": None, "granted": None, "email": None,
+                "reason": "no_uid"}
+    return _erisim_durumu(partner_id, (anlik.to_dict() or {}).get("uid"))
+
+
+def set_partner_access(partner_id: str, grant: bool) -> dict[str, Any]:
+    """Ortaklık claim'ini basar (grant) ya da kaldırır. FIRLATIR.
+
+    `partner_access`in tersine bu bir EYLEM: sessizce başarısız olması,
+    yöneticiye "açtım" dedirtip ortağı kapıda bırakır.
+
+    CLAIM BİRLEŞTİRİLİR, EZİLMEZ (`tools/set_admin.py` ile aynı disiplin).
+    Somut kırılma: sahip kendi hesabını test ortağı yapar, sonra erişimi
+    kapatır; claim komple ezilseydi kendi `admin` claim'i de silinir ve
+    PANELDEN KİLİTLENİRDİ — geri almanın tek yolu komut satırı olurdu.
+    Kaldırmada yalnız [PARTNER_CLAIM_KEYS] silinir.
+
+    `uid_taken` kapısı GRANT ve REVOKE için birden geçerli:
+    * grant'ta tek hesap iki ortağa bağlanırsa `/partners/me` claim'deki
+      `partnerId`yi okur ve ortak YANLIŞ ortağın bakiyesini görür — sızıntı.
+    * revoke'ta ise silinecek claim BAŞKA ortağın claim'idir: B ortağında
+      "kapat"a basmak A ortağının panosunu sessizce kapatırdı.
+    Aynı ortağa yeniden basmak serbest ve idempotenttir.
+
+    ⚠️ PROPAGASYON GERÇEĞİ: dönüş `granted: True` olsa bile ortak HEMEN
+    giremez. Custom claim yalnız yeni bir ID jetonunda taşınır; eski jeton
+    yenilenene kadar (en çok 1 saat) ya da ortak çıkıp yeniden girene kadar
+    ESKİ claim geçerlidir. Kaldırmada da aynısı: erişim anında kesilmez.
+
+    Bu yüzden `revoke_refresh_tokens` BİLEREK ÇAĞRILMIYOR — iki gerekçe:
+    (1) jeton iptali erişimi yine de anında kesmez, çünkü `core/auth._verify`
+    `check_revoked` KULLANMIYOR; yani "anında kesildi" hissi yanlış olurdu.
+    (2) ortağın uid'i sıradan bir Rytho hesabıdır: jetonlarını iptal etmek
+    onu MOBİL UYGULAMADAN da atardı — ortaklık erişimini kapatmanın bedeli
+    müşterinin oturumu olamaz.
+    """
+    client = firestore_client.get_client()
+    if client is None:
+        raise RedeemError(500, "unavailable")
+    anlik = client.collection("partners").document(partner_id).get()
+    if not getattr(anlik, "exists", False):
+        raise RedeemError(404, "not_found")
+    uid = str((anlik.to_dict() or {}).get("uid") or "").strip()
+    if not uid:
+        raise RedeemError(400, "no_uid")
+    return set_partner_access_for_uid(partner_id, uid, grant)
+
+
+def set_partner_access_for_uid(partner_id: str, uid: str,
+                               grant: bool) -> dict[str, Any]:
+    """[set_partner_access]'in uid'i AÇIKÇA verilen biçimi.
+
+    Ayrı durmasının tek sebebi var: uid değiştiğinde ESKİ hesabın
+    claim'i düşürülmeli ve o uid artık `partners/{id}.uid` alanında
+    YAZMIYOR — kaynaktan okuyan biçim onu bulamaz. Kapıların hepsi
+    (birleştirme, `uid_taken`, geçici/kalıcı hata ayrımı) burada,
+    yani iki yol aynı disipline uyuyor.
+    """
+    fb_auth = _auth_modulu()
+    try:
+        kullanici = fb_auth.get_user(uid)
+    except Exception as exc:
+        if _kullanici_yok_mu(exc):
+            raise RedeemError(400, "user_not_found")
+        # Geçici arıza KALICI bir veri hatası gibi görünmemeli: yönetici
+        # 400 görünce `partners/{id}.uid` alanını "düzeltmeye" başlar.
+        logger.warning("Ortak %s icin hesap okunamadi (uid=%s): %s",
+                       partner_id, uid, exc)
+        raise RedeemError(500, "unavailable")
+
+    mevcut = dict(getattr(kullanici, "custom_claims", None) or {})
+    bagli = str(mevcut.get("partnerId") or "")
+    if mevcut.get("partner") is True and bagli and bagli != str(partner_id):
+        raise RedeemError(400, "uid_taken")
+
+    if grant:
+        mevcut["partner"] = True
+        mevcut["partnerId"] = str(partner_id)
+    else:
+        for anahtar in PARTNER_CLAIM_KEYS:
+            mevcut.pop(anahtar, None)
+
+    try:
+        # `mevcut or None`: boşalan claim sözlüğü yerine None geçmek
+        # `set_admin.py`nin deseni — Firebase'de "claim yok" hâli budur.
+        fb_auth.set_custom_user_claims(uid, mevcut or None)
+    except Exception as exc:
+        logger.warning("Ortaklik claim'i yazilamadi (ortak=%s uid=%s): %s",
+                       partner_id, uid, exc)
+        raise RedeemError(500, "unavailable")
+
+    logger.info("Ortak erisimi %s: ortak=%s uid=%s",
+                "ACILDI" if grant else "KAPATILDI", partner_id, uid)
+    # Yazdığımız değer döndürülüyor, Auth yeniden OKUNMUYOR: claim yazımı
+    # okumaya anında yansımayabilir ve tazeleme uğruna ikinci bir istek
+    # atmak, başarılı yazımdan sonra "bilinmiyor" dönme riski demektir.
+    return {"uid": uid, "granted": bool(grant),
+            "email": getattr(kullanici, "email", None), "reason": None}
+
+
+# ---------------------------------------------------------------------------
 # Ortağın KENDİ paneli (api/partners.py çağırır)
 # ---------------------------------------------------------------------------
 
@@ -837,15 +1131,43 @@ def partner_id_for_uid(uid: str) -> str | None:
     return None
 
 
-def partner_self_view(partner_id: str) -> dict[str, Any]:
+def partner_self_view(partner_id: str,
+                      caller_uid: str | None = None) -> dict[str, Any]:
     """Ortağa gösterilecek DAR görünüm.
 
     `partner_detail`'in alt kümesi: işletmeye ait hiçbir sayı (atfedilen
     gelir, diğer ortaklar, kullanıcı kimlikleri) DIŞARI ÇIKMAZ. Ortak
     yalnız kendi hunisini, bakiyesini ve kodlarını görür.
+
+    `erisim=False`: ortağın kendi claim durumunu görmesine gerek yok —
+    claim'i yoksa bu görünümü hiç göremiyor (`require_partner`). Alanı
+    burada ayıklamak yerine hiç istememek, her pano yüklemesinde bir
+    Firebase Auth isteğini de ortadan kaldırıyor.
+
+    ⚠️ `caller_uid` BAYAT CLAIM KAPISI ve asıl güvenlik sınırı burası.
+    Ölçülen sızıntı: claim `{partner, partnerId}` taşır ve `_ortak_coz`
+    partnerId'yi YALNIZ claim'den okur — `partners/{id}.uid` ile hiç
+    karşılaştırmazdı. Senaryo: ortak uid=A ile açılır, erişim verilir
+    (A claim alır), sonra panelden uid B'ye düzeltilir. Panel artık B'yi
+    ölçtüğü için "erişim kapalı" gösterir ve yönetici B'ye erişim verir;
+    **A'nın claim'i hiçbir yerde görünmez ve hiç silinmez**, yani A o
+    ortağın bakiyesini sonsuza kadar okumaya devam eder.
+
+    Claim'i temizlemek (`update_partner`) TEK BAŞINA yetmez: Firebase
+    claim'i yalnız yeni bir ID jetonunda taşınır, yani iptal en çok bir
+    saat gecikir. Kaynaktaki bağı her okumada doğrulamak o pencereyi
+    kapatıyor — bağ bozuksa BİR SONRAKİ istek düşer.
     """
-    tam = partner_detail(partner_id)
+    tam = partner_detail(partner_id, erisim=False)
     ortak = tam["partner"]
+    if caller_uid is not None and ortak.get("uid") != caller_uid:
+        # Jenerik `not_found`: çağırana "claim'in bayat" demek, silinmiş
+        # ya da devredilmiş bir kaydın varlığını anlatır. Uç bunu zaten
+        # jenerik 403'e çeviriyor.
+        logger.warning(
+            "Bayat ortaklik claim'i reddedildi: partnerId=%s claim uid=%s "
+            "kayitli uid=%s", partner_id, caller_uid, ortak.get("uid"))
+        raise RedeemError(404, "not_found")
     return {
         "name": ortak.get("name"),
         "active": ortak.get("active"),
