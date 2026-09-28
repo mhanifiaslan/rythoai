@@ -140,8 +140,25 @@ derlerken artırma.
 sayacı, testçiler **opt-in bağlantısını açıp "Testçi ol"a basana kadar
 başlamaz**; listeye e-posta eklemek hiçbir şey saymaz. Kök neden ölçüldü
 (2026-09-26): sayaç 0'dı çünkü bağlantı **hiç dağıtılmamıştı** — sahibi de
-o sayfayı ilk kez o gün gördü. Bağlantı canlı (HTTP 200):
-`https://play.google.com/apps/testing/ai.rytho`.
+o sayfayı ilk kez o gün gördü. Bağlantı:
+`https://play.google.com/apps/testing/ai.rytho`
+
+⚠️ **"HTTP 200" bu sayfa için HİÇBİR ŞEY KANITLAMAZ** (2026-09-28, ölçüldü).
+Bu notun eski hâli bağlantıyı "canlı (HTTP 200)" diye kaydediyordu ve o
+çıkarım yanlıştı: kimliksiz `curl` **Google giriş sayfasına** yönleniyor ve
+o sayfa 200 dönüyor (`<title>Sign in - Google Accounts</title>`). Oturum
+açılmış bir tarayıcıda ise sayfa yine **200** döndürüp gövdesinde
+*"App not available — a testing version of this app hasn't been published
+yet or isn't available for this account"* yazabiliyor. Yani durum kodu
+değil **gövde** okunur; opt-in sayfasının çalıştığını kanıtlayan tek şey
+sayfada "Testçi ol / Become a tester" düğmesinin GÖRÜNMESİDİR.
+
+⚠️ **Sahibin kendi hesabı TESTÇİ DEĞİL** (2026-09-28, iki kez zaman yedi).
+Testçiler bir Google Grubu üzerinden eklendi ve sahip o grubun üyesi değil;
+geliştirici olmak testçi yapmıyor. Sonuç: opt-in sayfası sahibe
+"App not available" diyor ve Console'daki opt-in kutusu da ona görünmüyor.
+Link bozuk sanılıp aranmasın — **gruptaki bir hesapla** açılır. Sahip kendi
+cihazında denemek isterse yol kapalı test değil **dahili test** kanalıdır.
 
 Üç sessiz kopma noktası: testçi bağlantıyı **listedeki Google hesabıyla**
 açmalı (telefonda ikinci hesap varsa Play varsayılanı seçer ve kayıt
