@@ -128,9 +128,11 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ---
 
-## 6. Bugünkü durum (2026-09-25)
+## 6. Bugünkü durum (2026-09-28)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.16.0+45**. Backend rev **00096**.
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.17.0+46**. Backend rev **00104**.
+⚠️ 46 **Play'e henüz yüklenmedi** — sürüm kodu hâlâ serbest, yeniden
+derlerken artırma.
 
 **Kapalı test yürüyor** (Alpha kanalı). 45 hem dahili hem kapalı testte.
 
@@ -200,6 +202,34 @@ yazılır — PATCH gövdesine mevcut girdiler de konmazsa eski ana makinelerden
 giriş kapanır:
 `PATCH identitytoolkit.googleapis.com/admin/v2/projects/rhytoai/config?updateMask=authorizedDomains`
 
+**Ortaklık (affiliate) programı CANLI** (OP-turu, 2026-09-27/28). Ayrıntı
+`docs/ortaklik-programi.md`; buraya yalnız **makineler arası taşınmayan**
+kısım yazıldı:
+
+- Model: kullanıcıya ödül **YOK**; ortak, getirdiği kişinin **ilk**
+  aboneliğinde sabit ₺ kazanır (`partners/{id}.rewardTry`, ortak başına,
+  tavan 500). 15 gün sonra kesinleşir.
+- Ortağın panosu `rytho.app/ortak/` — **hiçbir yerden linklenmez**, adres
+  ortağa elden verilir. Girebilmesi için custom claim şart ve o claim artık
+  **panelden** basılıyor (Ortak erişimi → Erişimi aç). `tools/set_admin.py
+  --partner` kurtarma yolu olarak duruyor.
+- ⚠️ Claim **anında geçerli olmaz**: ortağın ID jetonu yenilenene kadar (en
+  çok 1 saat ya da çıkış/yeniden giriş) eski hâl sürer. Bunu bilmeden test
+  eden "açtım ama giremiyor" der. Claim'i olmayan hesap panoda "yetkin yok"
+  DEĞİL **"böyle bir sayfa yok"** görür (panelin varlığı ele verilmesin).
+- ⚠️ `/api/v1/partners/` öneki **sürüm kapısından muaf** ve öyle kalmalı:
+  üç ucu da `x-app-build` göndermeyen istemciler çağırıyor (tarayıcı ×2,
+  Cloud Scheduler). Bir tur boyunca muaf DEĞİLDİ ve gerekçesi yanlış bir
+  yorumla çivilenmişti — eşik > 0 yazıldığı an ortak panosu ölür ve gecelik
+  olgunlaştırma 426 yiyip **ortaklara para ödenmezdi**.
+- Etiket iki kez yanlış kondu: sayılan şey "gelen" de "kuran" da değil,
+  **"bağlantıyı kullanan"**. `redemptionCount` tek satırdan artıyor ve oraya
+  iki yol ulaşıyor (kurulum + Install Referrer, VE kurulu uygulamada
+  `/r/` derin bağlantısı); ikincisinde kurulum hiç olmaz.
+- Tıklama sayacı herkese açık bir **yazan** uç: kapılar kod varlığı + kod
+  başına dakikalık tavan. IP kovası tek başına yetmez — `x-forwarded-for`un
+  ilk öğesi çağıranın denetiminde.
+
 **Panele girebilen tek hesap:** `aslan.mh@gmail.com`, rol `owner`, üç giriş
 yöntemi kayıtlı (google.com · password · phone). Paneldeki şifre **Firebase
 Auth hesabının** şifresidir, Google hesabının değil — unutulursa "Şifreni mi
@@ -217,9 +247,23 @@ listelemesi, `x-default` hreflang, ve davet sayfası çifti — `/i/` **noindex
 taşımalı ama taranabilir kalmalı**, çünkü `Disallow` indekslemeyi durdurmaz
 ve Google noindex'i görebilmek için sayfayı çekebilmek zorundadır.
 
-**Açık bulgular** (`docs/test-raporu.md`): **B9** silinen hesap "en iyi
-çaba" aynalarıyla diriliyor (ölçüldü); **B10** 402 kapısı ve cüzdan
-tazelemesi Riverpod halkasına çarpıyor (ölçüldü, uygulanmadı).
+**B9 ve B10 KAPANDI** (2026-09-28, 1.17.0+46). İkisinin de kaydındaki
+teşhis kısmen YANLIŞTI ve bu bir ders: bulgu notu bir hipotezdir, onarımdan
+önce yeniden ölçülür.
+
+- **B9** — "iki ayna da doküman yaratıyor" deniyordu; `search_mirror.ensure`
+  doğduğu günden beri `exists` kapısı taşıyor. Tek suçlu
+  `app_gate.remember_build`'di (`set(merge=True)` → `update`, iki satır).
+  Kaydın "silinmiş uid ile yaratılmamış uid ayırt edilmeli" şartı da
+  gereksiz çıktı — dokümanı doğurma işi aynanın değil.
+- **B10** — "ödemiş kullanıcıya paywall"ın sebebi kayıtta yazan Riverpod
+  halkası DEĞİLDİ (o düzeltme hiç uygulanmamış, kod yolu yok). Gerçek
+  sebep `people_service.py` kontenjan 402'si: istemci `X-Paywall-Reason`
+  başlığını "tokens mı değil mi" diye ikiye indiriyordu, Plus abonesi 11.
+  kişiyi eklerken satış ekranı görüyordu.
+- Onarımın kendi doğurduğu risk de kapatıldı: cüzdan tazelemesi artık her
+  turda koştuğu için tek bir 429, dolu cüzdanı **0** gösterirdi.
+  `WalletStatus.bilinmiyor` → ekranlar "—" çiziyor.
 
 **Konsol borcu:** Play Console ürün adları hâlâ uygulamanın sözlüğüne
 uymuyor (makbuzda "1000 Jeton", uygulamada "1000 kredi") — girilecek tam
