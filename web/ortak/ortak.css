@@ -145,13 +145,31 @@ body { font-size: 14.5px; min-height: 100vh; overflow-x: clip; }
 
 /* ================= Bant ================= */
 /* Akış (block) BİLEREK: flex olduğunda cümle içindeki <b> ayrı bir esnek
-   öğe olup kendi sütununa düşüyordu ("Hesabın şu anda | pasif | : …").
-   Dar ekranda ölçüldü. */
+   öğe oluyor ve dar ekranda kendi kutusuna düşüyordu
+   ("Hesabın şu anda | pasif | : …").
+
+   ⚠️ AMA BU TEK BAŞINA YETMİYORDU ve eski hâlinde bu yorumun gerekçesi
+   EKSİK olduğu için kusur canlıda DURUYORDU (tarayıcıda ölçüldü,
+   2026-09-28). Asıl sebep rytho.css'teki pazarlama kuralı:
+   `.uyari b { display: block }` (satır 347). `.bant.uyari` o seçiciye de
+   uyuyor, yani <b> HER İKİ hâlde de blok oluyor. Ölçülen dört hâl:
+     .bant block + <b> blok  → <b> KENDİ SATIRINDA (bugünkü canlı hâl)
+     .bant flex  + <b> blok  → aynı satırda ama ayrı esnek öğe
+     .bant block + <b> inline→ aynı satırda, akış doğru   ← seçilen
+   Yani `display:block` kök nedeni çözmedi, sorunu esnek-öğeden
+   blok-çocuğa taşıdı; pasif ortak ve ödül tutarı girilmemiş ortak
+   uyarıyı üç parçaya bölünmüş okuyordu. Kapatan satır aşağıdaki
+   `.bant b`. Kural rytho.css'te DEĞİŞTİRİLEMEZ — orası pazarlama
+   sayfalarının `.uyari` bileşeni ve bu pano onun sahibi değil. */
 .bant {
   display: block; padding: 12px 16px; border-radius: var(--r-md);
   border: 1px solid var(--ort-cizgi); background: var(--ort-yuzey);
   font-size: 13.5px; line-height: 1.5;
 }
+/* `font-size` de geri alınıyor: aynı kural <b>'yi 13px yapıyor ve cümlenin
+   ortasında yarım punto düşen bir kelime, vurgu değil dizgi hatası gibi
+   okunuyor. Kalınlık KALIYOR — vurgu zaten istenen şey. */
+.bant b { display: inline; font-size: inherit; }
 .bant.bilgi { border-color: var(--ort-cizgi-guclu); background: var(--ort-lilac-zemin); }
 .bant.uyari {
   border-color: color-mix(in srgb, var(--gold) 40%, transparent);
@@ -182,6 +200,116 @@ body { font-size: 14.5px; min-height: 100vh; overflow-x: clip; }
 }
 .kpi.altin .deger { color: var(--gold-bright); }
 .kpi .alt { font-size: 12.5px; color: var(--ort-metin-orta); }
+
+/* ================= Huni (üç basamak) ================= */
+/* Yatay akış BİLEREK: dönüşüm oranı ancak iki basamağın ARASINDA durursa
+   hangi ikiliye ait olduğunu söyler; ayrı bir satıra alınsa "%12,4" hangi
+   geçişin oranı olduğunu kaybederdi. Dar ekranda sütuna düşüyor ve ok da
+   90° dönüyor — yönü kaybetmek okuma SIRASINI kaybetmek olurdu, huninin
+   tek anlamı da o sıra.
+
+   `.izgara-kpi` KULLANILMADI: orada kartlar eşit ve bağımsız: burada
+   aralara oran kutuları giriyor ve onlar kart genişliğinde olmamalı. */
+.huni { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; }
+.huni-adim {
+  flex: 1 1 200px; min-width: 0;
+  background: var(--ort-yuzey); border: 1px solid var(--ort-cizgi);
+  border-radius: var(--r-md); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.huni-adim .bas { display: flex; align-items: center; gap: 8px; }
+.huni-adim .no {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; flex: 0 0 auto; border-radius: 50%;
+  background: var(--ort-lilac-zemin); color: var(--lilac);
+  font-size: 11px; font-weight: 700; line-height: 1;
+}
+.huni-adim .ad {
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.8px;
+  text-transform: uppercase; color: var(--lilac);
+}
+.huni-adim .deger {
+  font-family: 'Sora', system-ui, sans-serif; font-size: 25px;
+  font-variant-numeric: tabular-nums; line-height: 1.15;
+}
+.huni-adim.altin .deger { color: var(--gold-bright); }
+.huni-adim .kirilim {
+  font-size: 12.5px; color: var(--ort-metin-orta);
+  font-variant-numeric: tabular-nums;
+}
+.huni-adim .anlam { font-size: 12.5px; color: var(--ort-metin-orta); line-height: 1.45; }
+/* Ölçülmemiş basamağın notu: altın = "burada bir eksik var", madder
+   değil — ölçümün açılmamış olması hata değil, eksik bir yetenek. */
+.huni-adim .not { font-size: 12px; color: var(--gold); line-height: 1.4; }
+
+.huni-oran {
+  flex: 0 0 auto; align-self: center; min-width: 98px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  text-align: center;
+}
+.huni-oran .ok {
+  font-size: 18px; line-height: 1;
+  color: color-mix(in srgb, var(--lilac) 70%, transparent);
+}
+.huni-oran .etiket {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--ort-metin-orta);
+}
+.huni-oran .oran {
+  font-size: 15px; font-weight: 700; color: var(--celadon);
+  font-variant-numeric: tabular-nums;
+}
+.huni-oran .yok { font-size: 11.5px; color: var(--ort-metin-orta); }
+
+/* Huni dipnotu `.govde`nin doğrudan çocuğu, yani 20px'lik ızgara boşluğu
+   ALTINDA da ÜSTÜNDE de duruyor: dipnot huniyle KPI ızgarası arasında eşit
+   uzaklıkta kalıp hangisini açıkladığını kaybediyordu. Negatif üst kenar
+   onu açıkladığı bloğa yaklaştırıyor; `gap`ı değiştirmek bütün sayfayı
+   etkilerdi. */
+.huni-dipnot { margin-top: -12px; }
+
+@media (max-width: 720px) {
+  .huni { flex-direction: column; }
+  /* `flex: 1 1 200px` sütuna dönünce 200px'lik bir YÜKSEKLİK TABANI olur
+     (temel eksen artık dikey) ve kısa basamak kartının altında ölü boşluk
+     bırakıyordu — telefonda ölçüldü. Yatayda o taban gerekli (kartlar eşit
+     genişlik alsın diye), dikeyde zararlı: burada içerik boyuna dönüyor. */
+  .huni-adim { flex: 0 0 auto; }
+  .huni-oran {
+    align-self: stretch; flex-direction: row; justify-content: center;
+    gap: 8px; min-width: 0;
+  }
+  /* Statik dönüş, geçiş DEĞİL: `prefers-reduced-motion` bloğu
+     `transition`/`animation` kapatıyor, `transform` ona dokunmuyor —
+     yani ok azaltılmış harekette de aşağı bakmaya devam eder. */
+  .huni-oran .ok { transform: rotate(90deg); }
+}
+
+/* ================= Tıklama serisi (kütüphanesiz) ================= */
+/* charts.js (53 KB) ve bilesenler.js (34 KB) bu sayfaya BİLEREK
+   yüklenmiyor (dosya başındaki gerekçe); otuz çubuk saf flex ile çiziliyor
+   ve toplam maliyeti bu blok kadar. Yükseklik satır içi stille geliyor
+   çünkü değer VERİDEN geliyor — CSS'te ifade edilemez. */
+.seri-kap { display: flex; flex-direction: column; gap: 8px; }
+.seri { display: flex; align-items: flex-end; gap: 3px; height: 96px; padding-top: 4px; }
+.seri > .cubuk {
+  flex: 1 1 0; min-width: 3px; border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--lilac) 85%, transparent),
+    color-mix(in srgb, var(--lilac) 45%, transparent));
+  transform-origin: bottom;
+  animation: cubuk-gir var(--base) var(--enter) both;
+}
+/* Sıfır gün de bir GÜNDÜR: çubuk hiç çizilmezse o gün seriden düşmüş
+   görünür ve "son 30 gün" başlığı otuz sütun göstermez. 2px'lik sönük bir
+   taban çizgisi günü yerinde tutuyor. */
+.seri > .cubuk.bos { background: var(--ort-cizgi); }
+.seri-bilgi {
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  font-size: 12px; color: var(--ort-metin-orta);
+  font-variant-numeric: tabular-nums;
+}
+@keyframes cubuk-gir { from { transform: scaleY(0); } to { transform: none; } }
 
 /* ================= Modül (başlıklı kutu) ================= */
 .modul {
@@ -268,7 +396,13 @@ table.tablo .sag { text-align: right; font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--lilac); outline-offset: 2px; }
 
 /* Tasarım sistemi kuralı: azaltılmış hareket isteyen kullanıcıda HİÇ
-   hareket olmaz (starfield.js da tek statik kare çizer). */
+   hareket olmaz (starfield.js da tek statik kare çizer).
+   Tıklama çubukları buraya AYRI bir kural gerektirmiyor ve gerekmemesi
+   tasarım: giriş `animation` ile yapılıyor, yükseklik ise satır içi
+   stille. `animation: none` çubuğu başlangıç durumunda DONDURMUYOR —
+   `scaleY(0)` hiç uygulanmaz, çubuk doğrudan son yüksekliğinde çizilir.
+   Hareketi `transform`la (geçişle) yapmak, bu kuralın altında otuz görünmez
+   çubuk bırakırdı. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .iskelet { background: var(--ort-yuzey); }

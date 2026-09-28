@@ -61,12 +61,36 @@ BUILD_MEMO_TTL = 24 * 3600
 #: * admin/   : panel tarayıcıdan gelir, versionCode'u yok.
 #: * billing/revenuecat, notify/run, maintenance/ : RevenueCat ve Cloud
 #:   Scheduler — başlık göndermeyen makine istemcileri.
+#: * partners/ : ortaklık uçlarının HİÇBİRİNİ uygulama çağırmıyor —
+#:   üçü de `x-app-build` göndermeyen istemcilerden geliyor. ÖLÇÜLDÜ
+#:   (2026-09-28, `grep -rn "partners/" apps/mobile/lib --include=*.dart`
+#:   → SIFIR sonuç; uygulamanın ortaklıkla tek teması
+#:   `/billing/redeem-code`, o da bu önekte değil):
+#:     - `partners/click`  → tarayıcı (`web/r/index.html`)
+#:     - `partners/me`     → tarayıcı (`web/ortak/ortak.js`)
+#:     - `partners/mature` → Cloud Scheduler; `create-scheduler.ps1`
+#:       yalnız `Authorization` başlığı yolluyor (satır 178/186).
+#:
+#:   ⚠️ Bu önek bir tur boyunca YANLIŞ gerekçeyle dışarıda tutuldu
+#:   ("uygulamanın ve zamanlayıcının uçlarıdır, kapının arkasında
+#:   KALMALI") ve o gerekçe iki sessiz ölümü çiviliyordu. Eşik > 0
+#:   yazıldığı an:
+#:     - ortak panosu TAMAMEN ölür: `/me` 426 döner, `ortak.js` bunu ne
+#:       403 ne 5xx gördüğü için KALICI hata bandına düşer ve ortağa
+#:       "uygulamanı güncelle" der — oysa ortağın uygulaması yok.
+#:     - gecelik `rytho-partner-mature` işi her gece 426 alır;
+#:       `pending` hakedişler 15 gün dolsa da `qualified` olmaz ve
+#:       ORTAKLARA PARA ÖDENMEZ. Zamanlayıcıda yeniden deneme yok, hata
+#:       yalnız Cloud Scheduler günlüğünde durur.
+#:   Kapının amacı eski UYGULAMAYI kilitlemek; tarayıcıyı ve makine
+#:   istemcisini kilitlemek amacın dışında.
 EXEMPT_PREFIXES = (
     "/api/v1/config/",
     "/api/v1/admin/",
     "/api/v1/billing/revenuecat",
     "/api/v1/notify/run",
     "/api/v1/maintenance/",
+    "/api/v1/partners/",
 )
 
 #: Eşik memo'su: (değer, monotonic son kullanma). None = hiç okunmadı.

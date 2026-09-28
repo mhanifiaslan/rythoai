@@ -6,10 +6,16 @@ değil · atıf var) tek tek sınanıyor, çünkü biri gevşerse kayıp sessizd
 panel "hakediş" gösterir, sahip öder, yanlış olduğu ancak mutabakatta
 anlaşılır.
 
-Son blok (ortak ERİŞİMİ) para değil YETKİ koruyor ve buraya ait: ortağın
+Ortak ERİŞİMİ bloğu para değil YETKİ koruyor ve buraya ait: ortağın
 kendi bakiyesini gördüğü panonun kapısı da bu dosyadaki `partnerId`
 bağına dayanıyor — tek hesap iki ortağa bağlanırsa ortak YANLIŞ ortağın
 parasını görür.
+
+Son blok (TIKLAMA) ne para ne yetki, ÖLÇÜMÜN DÜRÜSTLÜĞÜNÜ koruyor:
+huninin tepesi, kimliksiz bir uçtan gelen bir sayaç. İki şeyi birden
+sınıyor — kimliksiz uca konan kapılar (kod gerçekten var mı, yazım
+best-effort mi, kişisel veri yazılmıyor mu) ve sayının doğru ADLA
+sunulması (`referredUsers` = KURAN, tıklama ayrı).
 
 Çalıştırma:
     .venv\\Scripts\\python.exe -m pytest tests/test_partner_rewards.py -q
@@ -19,6 +25,7 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+from google.cloud.firestore_v1.transforms import Increment
 
 from api.billing import _ortaklik_hakedisi
 from services import partner_service as ps
@@ -49,6 +56,22 @@ class SahteAnlik:
         return dict(self._data) if self._data else {}
 
 
+def _artimi_coz(mevcut: dict, veri: dict) -> dict:
+    """`Increment` dönüşümünü sahte depoda uygular.
+
+    Sahte istemci bunu ANLAMAK zorunda: `Increment` çözülmezse depoya bir
+    NESNE yazılır, `int(...)` fırlar ve test "sayaç artmadı" değil
+    "sahtelik eksik" diye düşer — iki arıza birbirine benzemez.
+    """
+    cozulmus = {}
+    for anahtar, deger in veri.items():
+        if isinstance(deger, Increment):
+            cozulmus[anahtar] = int(mevcut.get(anahtar) or 0) + deger.value
+        else:
+            cozulmus[anahtar] = deger
+    return cozulmus
+
+
 class SahteDoc:
     def __init__(self, depo, yol):
         self._depo = depo
@@ -57,6 +80,15 @@ class SahteDoc:
     @property
     def id(self):
         return self._yol.rsplit("/", 1)[-1]
+
+    def _yazimi_say(self):
+        # YAZIM SAYACI (isteğe bağlı, `_okumalar` emsali): "var olmayan kod
+        # HİÇBİR ŞEY yazdırmaz" iddiası ancak yazımın YOKLUĞU ölçülerek
+        # kurulabilir. Depoya bakıp "doküman yok" demek yetmez — yazım
+        # olup da boş veri yazılmış olabilir.
+        sayaclar = self._depo.get("_yazimlar")
+        if sayaclar is not None:
+            sayaclar[self._yol] = sayaclar.get(self._yol, 0) + 1
 
     def get(self, transaction=None):
         # OKUMA SAYACI (isteğe bağlı): testler "aynı dokümanı döngü içinde
@@ -69,21 +101,28 @@ class SahteDoc:
 
     def set(self, data, merge=False):
         mevcut = dict(self._depo.get(self._yol) or {}) if merge else {}
-        mevcut.update(data)
+        mevcut.update(_artimi_coz(mevcut, data))
         self._depo[self._yol] = mevcut
+        self._yazimi_say()
 
     def update(self, data):
         mevcut = dict(self._depo.get(self._yol) or {})
-        mevcut.update(data)
+        mevcut.update(_artimi_coz(mevcut, data))
         self._depo[self._yol] = mevcut
+        self._yazimi_say()
 
     def create(self, data):
         if self._yol in self._depo:
             raise RuntimeError("already-exists")
         self._depo[self._yol] = dict(data)
+        self._yazimi_say()
 
     def collection(self, ad):
         return SahteKoleksiyon(self._depo, f"{self._yol}/{ad}")
+
+    @property
+    def var_mi(self):
+        return self._yol in self._depo
 
 
 def _karsilastir(deger, op, hedef):
@@ -147,6 +186,36 @@ class SahteTransaction:
         ref.update(data)
 
 
+class SahteToplu:
+    """`client.batch()` — gerçek `WriteBatch` gibi ATOMİK.
+
+    Atomiklik taklit değil test edilen bir özellik: tıklama, gün sayacını
+    ve kod dokümanındaki koşan toplamı AYNI toplu yazımda artırıyor. İkisi
+    ayrı ayrı yazılsaydı biri düşünce ekrandaki "toplam", gün serisinin
+    toplamını sessizce tutmazdı. Bu yüzden `update` hedefi yoksa HİÇBİR
+    işlem uygulanmaz — gerçek Firestore da tam böyle davranır.
+    """
+
+    def __init__(self):
+        self._islemler = []
+
+    def set(self, ref, data, merge=False):
+        self._islemler.append(("set", ref, data, merge))
+
+    def update(self, ref, data):
+        self._islemler.append(("update", ref, data))
+
+    def commit(self):
+        for islem in self._islemler:
+            if islem[0] == "update" and not islem[1].var_mi:
+                raise RuntimeError("not-found")
+        for islem in self._islemler:
+            if islem[0] == "set":
+                islem[1].set(islem[2], merge=islem[3])
+            else:
+                islem[1].update(islem[2])
+
+
 class SahteClient:
     def __init__(self, depo):
         self._depo = depo
@@ -156,6 +225,18 @@ class SahteClient:
 
     def transaction(self):
         return SahteTransaction()
+
+    def batch(self):
+        return SahteToplu()
+
+    def get_all(self, referanslar, **_):
+        """Gerçek `get_all` SIRASIZ döner; sahte bunu TERSİNE ÇEVİRİP kanıtlar.
+
+        Çağıran anlık görüntüleri doküman kimliğiyle (gün) eşleştirmek
+        zorunda. Sahte sırayı korusaydı, sıraya bel bağlayan bir hata
+        yeşil test verir ve ancak canlıda görünürdü.
+        """
+        return [r.get() for r in reversed(list(referanslar))]
 
 
 @pytest.fixture()
@@ -826,6 +907,22 @@ class SahteAuth:
         self.hesaplar[uid].custom_claims = dict(claims) if claims else None
 
 
+@pytest.fixture(autouse=True)
+def _tiklama_tavani_sifirla():
+    """Kod başına tıklama sayacı MODÜL DÜZEYİNDE bir sözlük.
+
+    Pinlenmezse testler arası sızar: bir testte tavana dayanan kod,
+    sonraki testte ilk istekte reddedilir ve o test ölçmek istediği
+    şey yerine komşusunun artığını ölçer. (Bu tam olarak oldu:
+    `..._AUTHORIZATION_basligiyla_ATLATILAMAZ` komşusu yüzünden
+    kırmızıya döndü.) `conftest` pinleri ile aynı doktrin — süreç içi
+    durum testin girdisidir, testler arası taşınamaz.
+    """
+    from api import partners as partners_api
+    partners_api._kod_vurus.clear()
+    yield
+    partners_api._kod_vurus.clear()
+
 def _auth_pinle(monkeypatch, sahte):
     """Auth'u BİLEREK sınayan testin kendi sahtesi.
 
@@ -1229,3 +1326,566 @@ def test_eski_hesap_silinmisse_uid_degisimi_DUSMEZ(depo, monkeypatch):
     _auth_pinle(monkeypatch, SahteAuth([SahteHesap("B", "b@x.co")]))
     ps.update_partner("p-1", {"uid": "B"})   # fırlatmamalı
     assert depo["partners/p-1"]["uid"] == "B"
+
+
+# ---------------------------------------------------------------------------
+# Huninin TEPESİ: tıklama sayacı
+#
+# Buradaki iddialar para değil ÖLÇÜMÜN DÜRÜSTLÜĞÜNÜ koruyor ve bu dosyaya
+# ait: huninin geri kalanı (kuran → hakediş → ödeme) yukarıda ölçülüyor,
+# tıklama onun bölenidir. Sayaç sessizce ölürse kimse zarar görmez ama
+# ortak tanıtımının işe yarayıp yaramadığını bilemez ve dönüşüm oranı
+# hesaplanamaz.
+#
+# Uç KİMLİKSİZ ve herkese açık: kapı testleri (biçim, kodun varlığı, yazım
+# yokluğu) bu yüzden ödül kapıları kadar sıkı.
+# ---------------------------------------------------------------------------
+
+#: Gün dokümanının kimliğini ÖLÇÜLEBİLİR kılan sabit an (UTC).
+_AN = dt.datetime(2026, 9, 28, 12, 0, tzinfo=dt.timezone.utc)
+_BUGUN = "2026-09-28"
+
+
+@pytest.fixture()
+def gun(monkeypatch):
+    """Saati sabitler. `_now` sahtelenmezse gün kimliği koşu tarihine bağlı
+    olur ve test yarın kendiliğinden çöker."""
+    monkeypatch.setattr(ps, "_now", lambda: _AN)
+    return _AN
+
+
+def _kod(depo, kod="KOD1", pid="p-1", **ek):
+    veri = {"partnerId": pid, "active": True, "redemptionCount": 0}
+    veri.update(ek)
+    depo[f"partnerCodes/{kod}"] = veri
+
+
+def _saat(monkeypatch, gun_metni: str):
+    """Saati belirli bir güne kurar — geçmiş güne tıklama yazmanın tek yolu."""
+    an = dt.datetime.fromisoformat(gun_metni + "T12:00:00+00:00")
+    monkeypatch.setattr(ps, "_now", lambda: an)
+
+
+# --- Yazım yolu ve kapılar ----------------------------------------------
+
+def test_tiklama_dogru_GUN_dokumanina_yazilir(depo, gun):
+    _kod(depo)
+    # Küçük harf de kabul: link büyük/küçük yazılmış olabilir ve
+    # `normalize_code` aynı kodu iki ayrı sayaca bölmemeli.
+    assert ps.record_click("kod1") is True
+    assert depo[f"partnerCodes/KOD1/clicks/{_BUGUN}"]["count"] == 1
+    assert depo["partnerCodes/KOD1"]["clickCount"] == 1
+
+
+def test_ayni_gun_ikinci_tiklama_sayaci_ARTIRIR(depo, gun):
+    """`Increment` yolu: iki eşzamanlı tıklama birbirinin üstüne yazmaz."""
+    _kod(depo)
+    ps.record_click("KOD1")
+    ps.record_click("KOD1")
+    assert depo[f"partnerCodes/KOD1/clicks/{_BUGUN}"]["count"] == 2
+    assert depo["partnerCodes/KOD1"]["clickCount"] == 2
+
+
+def test_tiklama_kaydinda_KISISEL_VERI_yok(depo, gun):
+    """Gizlilik çizgisinin bekçisi — sahibin pazarlıksız şartı.
+
+    Gün dokümanında sayaçtan BAŞKA hiçbir alan olmamalı: IP, User-Agent,
+    kimlik, çerez, zaman damgası bile yok. Bir gün "hangi ülkeden geldi"
+    eklemek isteyen biri bu testi kırmak zorunda kalır — sessizce
+    ekleyemez.
+    """
+    _kod(depo)
+    ps.record_click("KOD1")
+    assert set(depo[f"partnerCodes/KOD1/clicks/{_BUGUN}"]) == {"count"}
+
+
+def test_var_olmayan_kod_HIC_YAZIM_uretmez(depo, gun):
+    """Uç herkese açık: bu kapı olmadan uydurma kodlarla SINIRSIZ doküman
+    yazdırılabilirdi (fatura + çöp veri)."""
+    depo["_yazimlar"] = {}
+    assert ps.record_click("YOKKOD") is False
+    assert depo["_yazimlar"] == {}
+
+
+@pytest.mark.parametrize("kod", ["", "AB", "K!1", "A" * 25, "  "])
+def test_bicimsiz_kod_HIC_OKUMA_HIC_YAZIM_uretmez(depo, gun, kod):
+    """Biçim kapısı en dışta: geçersiz kod bir OKUMAYA bile mal olmamalı."""
+    depo["_yazimlar"] = {}
+    depo["_okumalar"] = {}
+    assert ps.record_click(kod) is False
+    assert depo["_yazimlar"] == {}
+    assert depo["_okumalar"] == {}
+
+
+def test_firestore_patlarsa_tiklama_YUTULUR(depo, gun, monkeypatch):
+    """Best-effort: telemetri ziyaretçinin mağazaya gitmesini engellemez."""
+    _kod(depo)
+
+    def _patlak():
+        raise RuntimeError("firestore down")
+
+    monkeypatch.setattr(depo["_client"], "batch", _patlak)
+    assert ps.record_click("KOD1") is False      # fırlatmadı, False döndü
+
+
+def test_kod_arada_silinirse_GUN_sayaci_da_yazilmaz(depo, gun, monkeypatch):
+    """Atomiklik: iki sayaç AYNI toplu yazımda artıyor.
+
+    Ayrı yazımlar olsaydı, silinmiş bir kodun gün dokümanı yazılır ve
+    sahibi olmayan bir alt koleksiyon kalırdı; `set(merge=True)` ile kod
+    dokümanı da yalnız `clickCount` alanıyla yeniden DOĞARDI.
+    """
+    _kod(depo)
+    gercek_batch = depo["_client"].batch
+
+    def _sil_ve_ver():
+        del depo["partnerCodes/KOD1"]            # okuma ile commit arasında
+        return gercek_batch()
+
+    monkeypatch.setattr(depo["_client"], "batch", _sil_ve_ver)
+    assert ps.record_click("KOD1") is False
+    assert "partnerCodes/KOD1" not in depo       # yeniden doğmadı
+    assert f"partnerCodes/KOD1/clicks/{_BUGUN}" not in depo
+
+
+def test_PASIF_kod_tiklamayi_YINE_sayar(depo, gun):
+    """Bilinçli karar: kapatılmış kodun linki internette durmaya devam
+    eder ve o trafik GERÇEKTEN olmuş bir olaydır. Kapalı kod yalnız
+    `redeem`i düşürür."""
+    _kod(depo, active=False)
+    assert ps.record_click("KOD1") is True
+
+
+# --- Toplama: seri, toplam, dönüşüm -------------------------------------
+
+def test_seri_30_GUN_ve_eksik_gunler_SIFIR(depo, monkeypatch):
+    """Seri hep 30 uzunlukta, delik YOK ve pencere DIŞI gün girmiyor.
+
+    Ayrıca `clicks` (tüm zaman) ile `clicks30` (pencere) AYRI şeyler:
+    ikisini karıştırmak, ocak ayındaki tıklamayı bu ayın performansı
+    gibi göstermek olurdu.
+    """
+    _ortak(depo)
+    _kod(depo)
+    _saat(monkeypatch, "2026-01-01")
+    ps.record_click("KOD1")                      # pencere DIŞI
+    _saat(monkeypatch, "2026-09-20")
+    for _ in range(2):
+        ps.record_click("KOD1")
+    _saat(monkeypatch, _BUGUN)
+    for _ in range(5):
+        ps.record_click("KOD1")
+
+    detay = ps.partner_detail("p-1")
+    seri = detay["clickSeries"]
+    assert len(seri) == ps.CLICK_SERIES_DAYS
+    assert seri[0]["day"] == "2026-08-30", "eskiden yeniye sıralı"
+    assert seri[-1]["day"] == _BUGUN
+    gunler = {g["day"]: g["count"] for g in seri}
+    assert gunler[_BUGUN] == 5
+    assert gunler["2026-09-20"] == 2
+    assert gunler["2026-09-19"] == 0, "eksik gün 0 ile DOLU"
+    assert detay["clicks30"] == 7
+    assert detay["clicks"] == 8, "tüm zaman: pencere dışı tıklama da sayılır"
+
+
+def test_seri_IKI_KODUN_ayni_gununu_toplar(depo, gun):
+    """Seri ortak düzeyinde; kod başına toplam ayrı alanda."""
+    _ortak(depo)
+    _kod(depo, "KOD1")
+    _kod(depo, "KOD2")
+    ps.record_click("KOD1")
+    ps.record_click("KOD2")
+    ps.record_click("KOD2")
+
+    detay = ps.partner_detail("p-1")
+    assert detay["clickSeries"][-1]["count"] == 3
+    assert detay["clicks"] == 3
+    assert {k["code"]: k["clicks"] for k in detay["codes"]} == {"KOD1": 1,
+                                                               "KOD2": 2}
+
+
+def test_donusum_orani_tiklama_YOKKEN_None(depo, gun):
+    """"%0 dönüşüm" ile "henüz ölçüm yok" AYNI ŞEY DEĞİL: ilkini göstermek
+    ortağa tanıtımının başarısız olduğunu söyler — ölçülmemiş bir hüküm."""
+    _ortak(depo)
+    _kod(depo, redemptionCount=3)
+    detay = ps.partner_detail("p-1")
+    assert detay["clicks"] == 0
+    assert detay["conversionRate"] is None
+
+
+def test_donusum_orani_KURAN_bolu_tiklama(depo, gun):
+    _ortak(depo)
+    _kod(depo, redemptionCount=2)
+    for _ in range(8):
+        ps.record_click("KOD1")
+    detay = ps.partner_detail("p-1")
+    assert detay["referredUsers"] == 2
+    assert detay["conversionRate"] == 0.25
+
+
+def test_donusum_orani_1in_USTUNE_cikabilir(depo, gun):
+    """Kırpılmıyor: Play linkini doğrudan paylaşan kurulum `redemptionCount`ı
+    artırır, tıklamayı artırmaz. Kırpmak ölçüm boşluğunu gizlemek olurdu."""
+    _ortak(depo)
+    _kod(depo, redemptionCount=3)
+    ps.record_click("KOD1")
+    assert ps.partner_detail("p-1")["conversionRate"] == 3.0
+
+
+def test_seri_okumasi_dusverse_pano_AYAKTA_ve_anahtar_DUSER(depo, gun,
+                                                            monkeypatch):
+    """Ortak bakiyesini bir telemetri okuması yüzünden kaybetmez. Anahtar
+    0 ile DOLDURULMAZ: 0 "ölçtük, hiç yok" demek olurdu."""
+    _ortak(depo)
+    _kod(depo)
+
+    def _patlak(*_a, **_k):
+        raise RuntimeError("get_all down")
+
+    monkeypatch.setattr(depo["_client"], "get_all", _patlak)
+    detay = ps.partner_detail("p-1")
+    assert "clickSeries" not in detay
+    assert "clicks30" not in detay
+    assert detay["balanceTry"] == 0.0          # panonun geri kalanı ayakta
+
+
+# --- Para yolu tıklama okumaz -------------------------------------------
+
+def test_PARA_yolu_tiklama_gunlerini_OKUMAZ(depo, gun):
+    """`add_payout` bakiye için `partner_detail` çağırıyor; 30 gün
+    dokümanı okumak orada katıksız israf. Emsal: aynı çağrıdaki
+    `erisim=False` (Firebase Auth'a gitmeme) kararı."""
+    _ortak(depo, uid="ortak-uid")
+    _tetikle(depo)
+    simdi = depo["partnerQualifications/u1"]["maturesAt"] + \
+        dt.timedelta(seconds=1)
+    ps.mature_qualifications(now=simdi)
+
+    depo["_okumalar"] = {}
+    ps.add_payout("p-1", 30.0, "TRY", "tam")
+    assert [y for y in depo["_okumalar"] if "/clicks/" in y] == []
+
+
+def test_bayrak_KAPALIYKEN_bedava_sayilar_DURUR(depo, gun):
+    """Bayrağın kapsamı DAR ve bilinçli: yalnız gün dokümanı okumalarını
+    kapatır. `clicks`/`conversionRate` elde olan kod dokümanlarından
+    geliyor — bedava bir sayıyı gizlemenin gerekçesi olmazdı."""
+    _ortak(depo)
+    _kod(depo)
+    ps.record_click("KOD1")
+    dar = ps.partner_detail("p-1", tiklama_serisi=False)
+    assert "clickSeries" not in dar
+    assert "clicks30" not in dar
+    assert dar["clicks"] == 1
+    assert dar["codes"][0]["clicks"] == 1
+
+
+# --- Ortağın dar görünümü -----------------------------------------------
+
+def test_ortak_panosu_tiklamayi_GORUR(depo, gun):
+    """Sahibin sorusunun cevabı: ortak kaç kişi gelmiş, kaçı kurmuş
+    görebiliyor — ve hiçbiri kişisel veri değil (sadece sayı)."""
+    _ortak(depo, uid="ortak-uid")
+    _kod(depo, redemptionCount=1)
+    ps.record_click("KOD1")
+
+    gorunum = ps.partner_self_view("p-1")
+    assert gorunum["clicks"] == 1
+    assert gorunum["clicks30"] == 1
+    assert len(gorunum["clickSeries"]) == ps.CLICK_SERIES_DAYS
+    assert gorunum["conversionRate"] == 1.0
+    assert gorunum["codes"][0]["clicks"] == 1
+    # Dar görünüm hâlâ dar: işletme verisi sızmadı.
+    assert "attributedGrossUsd" not in gorunum
+    assert "uid" not in gorunum
+
+
+def test_ortak_panosunda_seri_DUSERSE_anahtar_YOK(depo, gun, monkeypatch):
+    """`tam.get(...)` ile kopyalamak `None` yazardı ve pano "ölçüldü, boş"
+    ile "ölçülemedi"yi ayırt edemezdi."""
+    _ortak(depo, uid="ortak-uid")
+    _kod(depo)
+
+    def _patlak(*_a, **_k):
+        raise RuntimeError("get_all down")
+
+    monkeypatch.setattr(depo["_client"], "get_all", _patlak)
+    gorunum = ps.partner_self_view("p-1")
+    assert "clickSeries" not in gorunum
+    assert "clicks30" not in gorunum
+    assert gorunum["clicks"] == 0               # bedava sayı yine var
+
+
+# --- Uç: kimliksiz, her hâlde 204 ---------------------------------------
+
+def _istemci():
+    from fastapi.testclient import TestClient
+    from main import app
+    return TestClient(app)
+
+
+def test_tiklama_ucu_204_ve_GOVDESIZ(depo, gun):
+    _kod(depo)
+    with _istemci() as istemci:
+        yanit = istemci.post("/api/v1/partners/click", json={"code": "kod1"},
+                             headers={"x-forwarded-for": "10.9.0.1"})
+    assert yanit.status_code == 204
+    assert yanit.content == b""
+    assert depo[f"partnerCodes/KOD1/clicks/{_BUGUN}"]["count"] == 1
+
+
+@pytest.mark.parametrize("tur", [
+    # ⚠️ `navigator.sendBeacon(url, "…")` TAM BU içerik türünü gönderir ve
+    # Pydantic modeli olsaydı FastAPI 422 dönerdi: sayaç sessizce ölür,
+    # sayfa beacon yanıtını okumadığı için hiçbir yerde hata görünmez.
+    "text/plain;charset=UTF-8",
+    "application/json",
+    None,                                       # başlıksız
+])
+def test_tiklama_ucu_her_ICERIK_TURUNDE_sayar(depo, gun, tur):
+    _kod(depo)
+    basliklar = {"x-forwarded-for": "10.9.0.2"}
+    if tur:
+        basliklar["content-type"] = tur
+    with _istemci() as istemci:
+        yanit = istemci.post("/api/v1/partners/click",
+                             content='{"code":"KOD1"}', headers=basliklar)
+    assert yanit.status_code == 204, tur
+    assert depo[f"partnerCodes/KOD1/clicks/{_BUGUN}"]["count"] == 1, tur
+
+
+@pytest.mark.parametrize("govde", ["", "bozuk-json", "[]", '{"code":123}',
+                                   '{"code":"YOKKOD"}', '{"kod":"KOD1"}'])
+def test_tiklama_ucu_BOZUK_istekte_de_204(depo, gun, govde):
+    """Uç 4xx dönmez: ziyaretçinin konsoluna hata basmanın hiçbir faydası
+    yok ve "kod yok" ile "kod bozuk" ayrımı kod tahmin etmeyi ucuzlatır."""
+    _kod(depo)
+    depo["_yazimlar"] = {}
+    with _istemci() as istemci:
+        yanit = istemci.post("/api/v1/partners/click", content=govde,
+                             headers={"x-forwarded-for": "10.9.0.3"})
+    assert yanit.status_code == 204, govde
+    assert depo["_yazimlar"] == {}, govde
+
+
+def test_tiklama_ucu_BUYUK_govdeyi_okumaz(depo, gun):
+    """Kimliksiz uca megabaytlık gövde pompalamak ucuz olmamalı."""
+    _kod(depo)
+    depo["_yazimlar"] = {}
+    with _istemci() as istemci:
+        yanit = istemci.post(
+            "/api/v1/partners/click",
+            content='{"code":"KOD1","dolgu":"' + "x" * 2000 + '"}',
+            headers={"x-forwarded-for": "10.9.0.4"})
+    assert yanit.status_code == 204
+    assert depo["_yazimlar"] == {}
+
+
+def test_tiklama_kotasi_AYRI_kovada(depo, gun):
+    """Kimliksiz uç → kota anahtarı IP. Türkiye'de mobil operatörler CGNAT
+    kullanıyor: yüzlerce ziyaretçi TEK IP paylaşabilir. Genel kovada
+    (dakikada 60) bir tanıtım tweet'i kendi ölçümünü kırpardı.
+
+    İki yönü de ölçülüyor (`adm:` emsali): 61 tıklama geçiyor VE aynı
+    IP'nin genel kotası hâlâ boş."""
+    _kod(depo)
+    basliklar = {"x-forwarded-for": "10.9.9.9"}
+    with _istemci() as istemci:
+        for sira in range(61):
+            yanit = istemci.post("/api/v1/partners/click",
+                                 json={"code": "KOD1"}, headers=basliklar)
+            assert yanit.status_code == 204, sira
+        # Aynı IP'den genel kovaya bir istek: tıklama seli onu YEMEDİ.
+        genel = istemci.get("/api/v1/partners/me", headers=basliklar)
+    assert genel.status_code != 429
+    assert depo[f"partnerCodes/KOD1/clicks/{_BUGUN}"]["count"] == 61
+
+
+# --- Sürüm kapısı: SESSİZ ÖLÜM TUZAĞI -----------------------------------
+
+def test_tiklama_yolu_SURUM_KAPISINDAN_muaf(depo, gun, monkeypatch):
+    """ÖLÇÜLEN TUZAK: çağıran tarayıcıdır ve `x-app-build` GÖNDERMEZ; K7
+    gereği build 0 sayılır. Eşik > 0 açıldığı gün uç 426 dönmeye başlar ve
+    sayaç SESSİZCE ölür — sayfa yanıtı okumaz, hiçbir ekranda hata
+    görünmez, ortak "kimse tıklamıyor" sanır."""
+    from core import app_gate, config
+
+    _kod(depo)
+    monkeypatch.setattr(config, "MIN_APP_BUILD", 999)
+    app_gate.reset_memo()
+    with _istemci() as istemci:
+        yanit = istemci.post("/api/v1/partners/click", json={"code": "KOD1"},
+                             headers={"x-forwarded-for": "10.9.0.5"})
+        # POZİTİF KONTROL (test_app_gate emsali): kapı gerçekten AÇIK mı.
+        # Olmasa iddia boşa düşer — kapı kapalıyken de 204 gelirdi.
+        kontrol = istemci.get("/api/v1/astrology/olmayan-uc",
+                              headers={"x-forwarded-for": "10.9.0.5"})
+    assert yanit.status_code == 204
+    assert kontrol.status_code == 426
+    assert depo[f"partnerCodes/KOD1/clicks/{_BUGUN}"]["count"] == 1
+
+
+def test_partners_me_de_surum_kapisindan_MUAF(monkeypatch):
+    """`/partners/me` KAPININ DIŞINDA — bu test bir turu tersine çevirdi.
+
+    Önceki hâli 426 bekliyordu ve gerekçesi "uygulamanın kendi ucu"ydu.
+    ÖLÇÜLDÜ, yanlıştı: `grep -rn "partners/" apps/mobile/lib
+    --include=*.dart` SIFIR sonuç veriyor; ucun tek çağıranı tarayıcı
+    (`web/ortak/ortak.js`) ve tarayıcı `x-app-build` göndermiyor.
+
+    Yani o test bir sessiz ölümü ÇİVİLİYORDU: eşik > 0 yazıldığı an
+    ortak panosu 426 alır, `ortak.js` bunu ne 403 ne 5xx gördüğü için
+    kalıcı hata bandına düşer ve ortağa olmayan bir uygulamayı
+    güncellemesini söyler. Kapının amacı eski UYGULAMAYI kilitlemek.
+
+    Kimlik kapısı (403) bekleniyor: sürüm kapısına HİÇ takılmamalı.
+    """
+    from core import app_gate, config
+
+    monkeypatch.setattr(config, "MIN_APP_BUILD", 999)
+    app_gate.reset_memo()
+    with _istemci() as istemci:
+        yanit = istemci.get("/api/v1/partners/me",
+                            headers={"x-forwarded-for": "10.9.0.6"})
+        # POZİTİF KONTROL: kapı gerçekten açık mı — olmasa iddia boşa düşer.
+        kontrol = istemci.get("/api/v1/astrology/olmayan-uc",
+                              headers={"x-forwarded-for": "10.9.0.6"})
+    # 403: sürüm kapısı DEĞİL kimlik kapısı karşıladı — iddia bu.
+    assert yanit.status_code == 403, yanit.text
+    assert kontrol.status_code == 426
+
+
+def test_partners_mature_surum_kapisindan_MUAF(monkeypatch):
+    """Zamanlayıcı `x-app-build` GÖNDERMEZ — kapı arkasında kalsaydı
+    gecelik olgunlaştırma her gece 426 alır ve ORTAKLARA PARA ÖDENMEZDİ.
+
+    `infra/create-scheduler.ps1` (satır 178/186) işe yalnız `Authorization`
+    başlığı veriyor; kardeş zamanlayıcı yolları (`/notify/run`,
+    `/maintenance/`, `/admin/collect`) tam bu yüzden muaf. Bu yol bir tur
+    boyunca unutulmuştu ve hata yalnız Cloud Scheduler günlüğünde
+    görünürdü: panoda, panelde, hiçbir ekranda uyarı çıkmazdı.
+    """
+    from core import app_gate, config
+
+    monkeypatch.setattr(config, "MIN_APP_BUILD", 999)
+    app_gate.reset_memo()
+    with _istemci() as istemci:
+        yanit = istemci.post("/api/v1/partners/mature",
+                             headers={"x-forwarded-for": "10.9.0.7"})
+    # Sürüm kapısı DEĞİL, sırrın/kimliğin kapısı karşılamalı.
+    assert yanit.status_code != 426, yanit.text
+
+
+# --- Kimliksiz uç: tavanın GERÇEKTEN tavan olması -----------------------
+
+def test_tiklama_kotasi_AUTHORIZATION_basligiyla_ATLATILAMAZ(depo, gun):
+    """ÖLÇÜLEN DELİK: kota anahtarı `Authorization` özetine düşüyordu.
+
+    Uçta kimlik kapısı YOK, yani başlık hiç doğrulanmaz: her isteğe farklı
+    bir `Authorization` yazan istemci her istekte YENİ bir kova açıyordu ve
+    aynı IP'den 700 istek tek bir 429 görmüyordu. Kimliksiz + YAZAN bir
+    uçta bu, tavanın hiç olmaması demekti (Firestore yazımı = fatura).
+
+    Sınırın hemen üstünde ölçülüyor: `CLICK_LIMIT_PER_MINUTE` kadar istek
+    geçer, bir sonraki 429 alır — kova başlığa bakmadığı için.
+    """
+    from core.ratelimit import CLICK_LIMIT_PER_MINUTE
+
+    _kod(depo)
+    sinir = CLICK_LIMIT_PER_MINUTE
+    with _istemci() as istemci:
+        for sira in range(sinir):
+            yanit = istemci.post(
+                "/api/v1/partners/click", json={"code": "KOD1"},
+                headers={"x-forwarded-for": "10.9.8.1",
+                         "authorization": "Bearer sahte-%d" % sira})
+            assert yanit.status_code == 204, sira
+        tasan = istemci.post(
+            "/api/v1/partners/click", json={"code": "KOD1"},
+            headers={"x-forwarded-for": "10.9.8.1",
+                     "authorization": "Bearer sahte-yeni"})
+    assert tasan.status_code == 429
+    # Kota kesilen istek YAZMADI: sayaç sınırda durdu.
+    assert depo[f"partnerCodes/KOD1/clicks/{_BUGUN}"]["count"] == sinir
+
+
+def test_tiklama_ucu_CHUNKED_govdeyi_de_KESER(depo, gun):
+    """ÖLÇÜLEN DELİK: `Content-Length` YOKKEN başlık kapısı hiç çalışmıyor.
+
+    `Transfer-Encoding: chunked` bir istekte `await request.body()` gövdenin
+    TAMAMINI belleğe alıyordu; sınıra ancak sonra bakıldığı için 2 MB'lık
+    bir gövde uca kadar gelip tamponlanıyordu (yazım engelleniyordu, bellek
+    engellenmiyordu). Kimliksiz bir uçta bellek maliyetini istemcinin
+    seçimine bırakmak, kotanın tavan olmasını boşa çıkarır.
+
+    Burada UÇ davranışı ölçülüyor (204 + yazım yok); okunan bayt sayısı
+    BURADAN ölçülemez, çünkü `TestClient`in taşıyıcısı akışı sunucuya
+    vermeden önce kendi belleğinde topluyor — istemci tarafındaki bir sayaç
+    httpx'i ölçer, ucu ölçmez (ölçüldü: delik kapatıldıktan SONRA da 2 MB
+    sayıyordu). Kesmenin kendisi bir alttaki testte ölçülüyor.
+    """
+    _kod(depo)
+
+    def _akis():
+        yield b'{"code":"KOD1","dolgu":"'
+        for _ in range(200):
+            yield b"x" * 10000            # toplam ~2 MB
+        yield b'"}'
+
+    depo["_yazimlar"] = {}
+    with _istemci() as istemci:
+        yanit = istemci.post("/api/v1/partners/click", content=_akis(),
+                             headers={"x-forwarded-for": "10.9.8.2"})
+    assert yanit.status_code == 204
+    assert depo["_yazimlar"] == {}, "sınırı aşan gövde yazdırmamalı"
+
+
+def test_tiklama_govdesi_SINIRI_ASINCA_akisi_BIRAKIR():
+    """Kesmenin kendisi: okuma sınırdan sonra DEVAM ETMEMELİ.
+
+    Bu iddia ancak akış tüketicisinin yanında ölçülebilir (yukarıdaki
+    notun gerekçesi). `await request.body()` ile aynı gövde sonuna kadar
+    tamponlanıyordu; parça 10 KB ve sınır 1 KB olduğu için doğru davranış
+    TEK parçadan sonra bırakmaktır.
+    """
+    import asyncio
+
+    from api import partners as ap
+
+    okunan = {"bayt": 0}
+
+    class _SahteIstek:
+        async def stream(self):
+            for _ in range(200):
+                okunan["bayt"] += 10000
+                yield b"x" * 10000
+
+    govde = asyncio.run(ap._tiklama_govdesi(_SahteIstek()))
+    assert govde == b"", "sınırı aşan gövde çağırana VERİLMEZ"
+    assert okunan["bayt"] == 10000, (
+        "akış sınırdan sonra da tüketildi: %d bayt" % okunan["bayt"])
+
+
+def test_kod_basina_tiklama_TAVANI_IP_sahtelemesini_bosa_cikarir(depo):
+    """Kota anahtarı XFF'e bağlı ve XFF çağıranın denetiminde.
+
+    Ölçüldü: Google'ın yük dengeleyicisi istemcinin gönderdiği
+    `x-forwarded-for`un SONUNA ekliyor, `_client_key` ise İLK öğeyi
+    alıyor — yani her isteğe farklı bir XFF yazan istemci her istekte
+    YENİ bir IP kovası açar ve dakikalık tavan hiç devreye girmez.
+    Kimliksiz + YAZAN bir uçta bedeli fatura: istek başına 1 okuma + 2
+    Firestore yazımı. Tavanın KODA bağlı olması bu yüzden şart.
+    """
+    from api import partners as partners_api
+
+    _kod(depo)
+    tavan = partners_api._KOD_TIKLAMA_TAVANI
+    partners_api._kod_vurus.clear()
+    with _istemci() as istemci:
+        for i in range(tavan + 25):
+            istemci.post("/api/v1/partners/click", json={"code": "KOD1"},
+                         headers={"x-forwarded-for": f"10.1.{i // 250}.{i % 250}"})
+    # Sahte IP her istekte değişti, ama sayaç tavanda durdu.
+    assert depo[f"partnerCodes/KOD1/clicks/{_BUGUN}"]["count"] == tavan

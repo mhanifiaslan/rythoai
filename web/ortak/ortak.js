@@ -10,6 +10,33 @@
  * kod başına limit (`maxRedemptions`) bu görünümde YOK, o yüzden kod
  * durumunda "limit doldu" diye bir hâl gösterilmiyor.
  *
+ * HUNİ ÜÇ BASAMAK ve basamakların adı ÖLÇÜLENE göre konuldu:
+ * Tıklama → Bağlantıyı kullanan → Abone. Ortadaki basamağın eski adı "Gelen
+ * kullanıcı"ydı ve YANLIŞTI. Sayılan şey `referredUsers`, yani kodların
+ * `redemptionCount` toplamı; o sayaç `partner_service.redeem` içindeki
+ * işlemde artıyor ve o uca (`/api/v1/billing/redeem-code`) yalnız KURULU
+ * ve OTURUM AÇMIŞ uygulama istek atıyor (`apps/mobile/lib/core/
+ * partner_referrer.dart` — 401 bilerek yeniden denenir, çünkü atıf UID
+ * başına yazılıyor). Yani ölçülen "gelen" değil "kurup açan": bağlantıya
+ * dokunup vazgeçen kimse bu sayının içinde YOK. Alan ADI `referredUsers`
+ * olarak KALIYOR (sözleşme kırılmasın), değişen yalnız EKRAN ETİKETİ.
+ *
+ * Huninin tepesi (tıklama) olmadan pano ortağa bir şey ÖĞRETMİYORDU:
+ * bağlantısını beş yüz kişiye gönderen ortak "3" görüp tanıtımının mı
+ * yoksa uygulamanın mı tutmadığını ayırt edemiyordu. Dönüşüm oranı da
+ * matematiksel olarak ilk basamak olmadan hesaplanamaz.
+ *
+ * ⚠️ ALAN YOK ile ALAN SIFIR bu panoda AYNI ŞEY DEĞİL. Tıklama alanları
+ * (`clicks`, `clicks30`, `clickSeries`, `conversionRate`) panodan ÖNCE
+ * yayına girmiş bir backend'de hiç dönmez; orada "0" yazmak ölçülmemiş
+ * bir sayıyı ölçülmüş gibi sunmak olurdu. Yokluk "—" ve açık bir notla
+ * gösterilir, sıfırla karıştırılmaz. Pano her iki yanıtla da çizilir.
+ *
+ * Tıklama ölçümünde KİMLİK YOK: ne IP, ne User-Agent, ne çerez — saklanan
+ * tek şey gün başına bir sayaç. Bunun ortak için GÖRÜNÜR sonucu var ve
+ * panoda yazılı: aynı kişinin ikinci dokunuşu ayrı sayılır, çünkü tekilleme
+ * yapısal olarak İMKÂNSIZ. Yazılmazsa ortak tıklamayı "kişi" sanır.
+ *
  * Yönetim panelinin bileşen kitaplığı (bilesenler.js 53 KB) ve admin.css
  * (54 KB) BİLEREK yüklenmiyor; bu pano yedi KPI ve iki tablodan oluşuyor.
  * Ortak olan yalnız kimlik kurulumu (/assets/ry-auth.js) ve API katmanı
@@ -81,6 +108,45 @@
     if (!d) return '—';
     return d.toLocaleDateString('tr-TR',
       { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  /* "Bu alan ÖLÇÜLDÜ mü" kapısı. `d.clicks || 0` yazmak kısa olurdu ama
+     eski backend'in hiç göndermediği alanı sıfıra çevirirdi — dosya
+     başındaki "alan yok ≠ alan sıfır" kuralının tek uygulama noktası
+     burası. Sıfır ölçülmüş bir sonuçtur ve öyle gösterilir. */
+  function olculdu(v) {
+    return v != null && v !== '' && isFinite(Number(v));
+  }
+
+  /* Oran 0..1 arası bir kesir olarak gelir (sözleşme: kuran / tıklama) →
+     "%12,4". `null` dönmesi "oran YOK" demektir ve çağıran onu "henüz
+     ölçüm yok" diye yazar; "%0" YAZILMAZ çünkü bölen sıfırken oran
+     tanımsızdır, sıfır değil.
+
+     Sıfıra yuvarlanan ama sıfır OLMAYAN oran ayrı yazılıyor: 500 tıklamada
+     1 kuran %0,2'dir ve "%0" göstermek ölçülen bir dönüşümü yok saymak
+     olurdu. */
+  function oranMetni(oran) {
+    var n = Number(oran);
+    if (oran == null || !isFinite(n) || n < 0) return null;
+    var p = n * 100;
+    if (p > 0 && p < 0.1) return '%0,1’den az';
+    return '%' + p.toLocaleString('tr-TR', { maximumFractionDigits: 1 });
+  }
+
+  /* 'YYYY-MM-DD' → '28 Eyl'.
+     ⚠️ `new Date('2026-09-28')` ISO tarih dizgesini UTC GECE YARISI sayar;
+     negatif ofsetli bir saat diliminde (ortak yurt dışındaysa) yerel gün
+     BİR GERİ kayar ve çubuğun etiketi yanlış günü gösterir. Sunucu bu
+     dizgeyi doküman kimliği olarak yazıyor, yani o bir ETİKET; saat
+     dilimine çevrilecek bir an değil. Bileşenleri elle ayırıp YEREL bir
+     Date kurmak kaymayı kapatıyor. */
+  function gunEtiketi(gun) {
+    var p = String(gun || '').split('-');
+    if (p.length !== 3) return String(gun || '—');
+    var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    if (isNaN(d.getTime())) return String(gun);
+    return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
   }
 
   function $(id) { return document.getElementById(id); }
@@ -232,6 +298,208 @@
       '<div class="ic">' + ic + '</div></section>';
   }
 
+  /* ------------------------------------------------ huni */
+
+  /* Bir basamak. `anlam` ZORUNLU tutuluyor (imzada opsiyonel değil):
+     "Tıklama 500 / kullanan 3" satırını açıklamasız gören ortak ikisini aynı
+     şeyin iki ölçümü sanıp panoyu bozuk sanıyor. Basamağın ne SAYDIĞINI
+     yazmak sayının kendisi kadar veri. */
+  function huniAdim(no, ad, deger, anlam, kirilim, not, altin) {
+    return '<div class="huni-adim' + (altin ? ' altin' : '') + '">' +
+      '<span class="bas"><span class="no" aria-hidden="true">' + e(no) +
+      '</span><span class="ad">' + e(ad) + '</span></span>' +
+      '<span class="deger">' + e(deger) + '</span>' +
+      (kirilim ? '<span class="kirilim">' + e(kirilim) + '</span>' : '') +
+      '<span class="anlam">' + e(anlam) + '</span>' +
+      (not ? '<span class="not">' + e(not) + '</span>' : '') +
+      '</div>';
+  }
+
+  /* İki basamak ARASINDAKİ oran. Ok yalnız SÜSTÜR (`aria-hidden`) —
+     ekran okuyucuya "sağ ok" okutmak bilgi değil gürültü; oranın hangi
+     ikiliye ait olduğunu `etiket` söylüyor ve o okunuyor. */
+  function huniOran(etiket, oran) {
+    var metin = oranMetni(oran);
+    return '<div class="huni-oran">' +
+      '<span class="ok" aria-hidden="true">→</span>' +
+      '<span class="etiket">' + e(etiket) + '</span>' +
+      (metin ? '<span class="oran">' + e(metin) + '</span>'
+             : '<span class="yok">henüz ölçüm yok</span>') +
+      '</div>';
+  }
+
+  function huniBolumu(d) {
+    var tiklamaVar = olculdu(d.clicks);
+    var tiklama = tiklamaVar ? Number(d.clicks) : 0;
+    /* `referredUsers`/`pendingCount`/`qualifiedCount` ESKİ sözleşmenin
+       alanları: her zaman geliyorlar, yokluğu bozuk yanıt demek. Bu yüzden
+       burada `olculdu` kapısı YOK — kapıyı yeni alanlara koymanın nedeni
+       tam olarak eski ve yeni yanıtı ayırmak. */
+    var kuran = Number(d.referredUsers || 0);
+    var bekleyen = Number(d.pendingCount || 0);
+    var kesinlesen = Number(d.qualifiedCount || 0);
+    var dusen = Number(d.voidCount || 0);
+    var abone = bekleyen + kesinlesen;
+
+    /* Sunucunun hükmü ÖNCE gelir (`conversionRate`). Yerel hesap yalnız
+       alanın hiç gelmediği hâl için ve AYNI iki sayıdan türetiliyor, yani
+       ikinci bir gerçek kaynak değil — panoda çelişen iki oran çıkmaz. */
+    var oran1 = olculdu(d.conversionRate) ? Number(d.conversionRate)
+      : (tiklama > 0 ? kuran / tiklama : null);
+
+    /* İkinci oran sunucudan GELMİYOR ve gelmesi gerekmiyor: iki operandı
+       da bu yanıtta ölçülü, yani burada yapılan şey aritmetik — yeni bir
+       iddia değil. Bölen 0 ise oran YOK. */
+    var oran2 = kuran > 0 ? abone / kuran : null;
+
+    /* ⚠️ Burada "aynı kişinin ikinci dokunuşu ayrı sayılır" YAZIYORDU ve
+       ölçümle ÇELİŞİYORDU: `web/r/index.html` ping'i `sessionStorage`da kod
+       başına bir bayrak tutuyor, yani AYNI SEKMEDE yenileme ikinci kez
+       SAYILMAZ (dedup yalnız depolamaya erişilemezse — gizli sekme, site
+       verisi kapalı — devre dışı kalıyor). Yönetim paneli aynı olguyu doğru
+       yazıyordu ("sekme içi yenileme sayılmaz"); iki ekran aynı sayıyı iki
+       farklı şekilde tarif ediyordu ve biri yalandı. Tekil KİŞİ hâlâ
+       ölçülemez — bu doğru ve söylenen şey artık o. */
+    var anlam1 = 'Bağlantına dokunan sayısı — kurulum gerekmez. Kimlik ' +
+      'saklanmadığı için tekil kişi sayısı ölçülemez.';
+    if (olculdu(d.clicks30)) {
+      anlam1 += ' Son 30 gün: ' + sayi(d.clicks30) + '.';
+    }
+
+    var kirilim3 = 'kesinleşen ' + sayi(kesinlesen) +
+      ' · beklemede ' + sayi(bekleyen) +
+      (dusen > 0 ? ' · iptal ' + sayi(dusen) : '');
+
+    /* Huninin ALTINDAKİ dipnot: basamak açıklamalarına sığmayan ama oranı
+       YANLIŞ OKUTAN olguları kapatıyor. Hepsi ölçüldü.
+
+       En ağırı atıf platformu: `apps/mobile/lib/core/partner_referrer.dart`
+       ilk kapıda `defaultTargetPlatform != TargetPlatform.android` ise
+       DÖNÜYOR (Play Install Referrer'ın iOS'ta dengi yok). Yani iPhone ya da
+       masaüstünden gelen bir tıklama ATFA YAPISAL olarak
+       geçemez ve o tıklamalar oranın BÖLENİNDE duruyor. Yazılmazsa iPhone
+       kitlesine tanıtım yapan ortak "500 tıklama / 0 kuran" görüp kendi
+       tanıtımını suçlar — panonun tam da önlemek için var olduğu yanlış
+       teşhis. Bu dipnot YÖNETİM panelinde vardı, ortağın panosunda YOKTU;
+       `web/r/index.html` ise yorumunda "panolarda YAZILI" diyordu, yani
+       eksik olan yalnız metin değil o gerekçeydi.
+
+       Basamaklara ADIYLA gönderme yapılıyor, "2. basamak" diye DEĞİL: sıra
+       numaraları `aria-hidden` (bkz. `huniAdim`), yani ekran okuyucu onları
+       hiç duymuyor ve numaraya gönderen bir cümle o kullanıcıda boşa düşer. */
+    var dipnot = 'Atıf yalnız Android kurulumlarında yazılabiliyor ' +
+      '(iOS’ta Play Install Referrer dengi yok), yani iPhone ya da ' +
+      'bilgisayardan gelen biri uygulamayı kursa bile “Bağlantıyı kullanan” ' +
+      'sayısına girmez.';
+    if (tiklamaVar) {
+      dipnot = 'Tıklama kişi değil: aynı kişinin iki cihazı iki tıklamadır ' +
+        '(aynı sekmede yenilemek ikinci kez sayılmaz, tarayıcı depolaması ' +
+        'kapalıysa sayılır). ' + dipnot + ' Bu yüzden düşük oran her zaman ' +
+        'kötü tanıtım demek değil. Oran %100’ü de aşabilir ve bu bozuk veri ' +
+        'değil: mağaza bağlantısını doğrudan paylaşan bir kurulum “Bağlantıyı ' +
+        'kullanan”ı artırır, tıklamayı artırmaz.';
+    }
+
+    return '<section class="huni" aria-label="Huni: tıklamadan aboneye">' +
+      huniAdim('1', 'Tıklama', tiklamaVar ? sayi(tiklama) : '—', anlam1, '',
+        tiklamaVar ? '' : 'Tıklama ölçümü bu panoda henüz açılmadı.') +
+      huniOran('tıklayanın atfı', oran1) +
+      huniAdim('2', 'Bağlantıyı kullanan', sayi(kuran),
+        'Bağlantın bir hesaba yazıldığında sayılır: ya kurulumdan sonra ' +
+        'otomatik, ya da uygulaması zaten kurulu biri bağlantına ' +
+        'dokunduğunda. Kullanıcı başına bir kez.', '') +
+      huniOran('kullananın abonesi', oran2) +
+      huniAdim('3', 'Abone', sayi(abone),
+        'İlk ücretli aboneliğini başlatan sayısı; kazancın yalnız bu ' +
+        'basamaktan doğar. İptal olan hakedişler bu sayıda yok.',
+        kirilim3, '', abone > 0) +
+      '</section>' +
+      /* Dipnot `.huni`nin DIŞINDA: içine konsaydı esnek bir öğe olur ve
+         basamakların yanına bir sütun gibi otururdu. */
+      '<p class="dipnot huni-dipnot">' + e(dipnot) + '</p>';
+  }
+
+  /* Tıklama serisi — saf flex/div, kütüphane YOK (dosya başındaki gerekçe:
+     charts.js + bilesenler.js bu sayfaya bilerek yüklenmiyor). Yükseklik
+     satır içi stille geliyor çünkü değer VERİDEN geliyor, CSS'te ifade
+     edilemez.
+
+     ERİŞİLEBİLİRLİK ÇİFT KATMAN: görsel çubuklar `aria-hidden` (ekran
+     okuyucuya otuz anlamsız öğe okutmak bilgi değil) ve tam veri sr-only
+     bir TABLODA duruyor — tablo gezilebilir bir yapıdır, çubuk yığını
+     değil. `title` fare kullanıcısında kalıyor: `aria-hidden` yerel
+     tarayıcı ipucunu kapatmaz.
+
+     Boş dizi için `null` döner; çağıran o zaman modülü hiç çizmez. */
+  function tiklamaSerisi(seri) {
+    var gunler = [];
+    for (var i = 0; i < seri.length; i++) {
+      var g = seri[i] || {};
+      var n = Number(g.count);
+      /* Bozuk `count` günü seriden ATMIYOR, 0 çiziyor: günü düşürmek
+         pencereyi kısaltır ve "son 30 gün" başlığını yalan yapar. Bu,
+         sunucunun eksik günleri 0 ile doldurma sözleşmesiyle aynı
+         davranış — burada uydurulan bir gün yok, gelen gün çiziliyor. */
+      gunler.push({
+        gun: String(g.day || ''),
+        adet: (g.count == null || !isFinite(n) || n < 0) ? 0 : n
+      });
+    }
+    if (!gunler.length) return null;
+
+    var toplam = 0, enYuksek = 0, enYuksekGun = '';
+    gunler.forEach(function (g) {
+      toplam += g.adet;
+      if (g.adet > enYuksek) { enYuksek = g.adet; enYuksekGun = g.gun; }
+    });
+
+    /* Hepsi sıfırsa boş bir seri çizilmiyor: otuz tane 2px'lik çizgi
+       "veri yok" değil "pano bozuk" gibi okunur. */
+    if (toplam === 0) {
+      return {
+        gun: gunler.length, toplam: 0,
+        html: '<p class="bos-durum">Son ' + e(gunler.length) +
+          ' günde tıklama yok.</p>'
+      };
+    }
+
+    var cubuklar = gunler.map(function (g) {
+      /* Yükseklik EN YÜKSEK GÜNE göre — sabit bir tavan yoktu ve olmamalı,
+         çünkü ortağın büyüklüğü bilinmiyor. Sıfır dışı bir günün yüzdesi
+         sıfıra yuvarlanabiliyor (1/500 → %0) ve görünmez çubuk o günü
+         "tıklama yok" diye okutur; taban %5'e sabitleniyor. */
+      var yuzde = Math.round(g.adet / enYuksek * 100);
+      if (g.adet > 0 && yuzde < 5) yuzde = 5;
+      return '<div class="cubuk' + (g.adet > 0 ? '' : ' bos') +
+        '" style="height:' + (g.adet > 0 ? yuzde + '%' : '2px') +
+        '" title="' + e(gunEtiketi(g.gun) + ': ' + sayi(g.adet)) + '"></div>';
+    }).join('');
+
+    var satirlar = gunler.map(function (g) {
+      return '<tr><th scope="row">' + e(gunEtiketi(g.gun)) + '</th>' +
+        '<td>' + e(sayi(g.adet)) + '</td></tr>';
+    }).join('');
+
+    return {
+      gun: gunler.length, toplam: toplam,
+      html: '<div class="seri-kap">' +
+        '<div class="seri" aria-hidden="true">' + cubuklar + '</div>' +
+        '<div class="seri-bilgi">' +
+        /* Aralıkta ok değil KISA ÇİZGİ: bu satır `aria-hidden` değil ve
+           ekran okuyucu "→" işaretini "sağ ok" diye okur. */
+        '<span>' + e(gunEtiketi(gunler[0].gun) + ' – ' +
+          gunEtiketi(gunler[gunler.length - 1].gun)) + '</span>' +
+        '<span>' + e('en yüksek ' + gunEtiketi(enYuksekGun) + ': ' +
+          sayi(enYuksek)) + '</span>' +
+        '</div>' +
+        '<table class="sr-only"><caption>Son ' + e(gunler.length) +
+        ' günün tıklama sayıları</caption>' +
+        '<thead><tr><th scope="col">Gün</th>' +
+        '<th scope="col">Tıklama</th></tr></thead><tbody>' + satirlar +
+        '</tbody></table></div>'
+    };
+  }
+
   function kodDurumu(k) {
     if (k.active !== true) return '<span class="rozet">Pasif</span>';
     var son = tarihNesnesi(k.expiresAt);
@@ -250,7 +518,17 @@
       '<caption class="sr-only">Kodların ve paylaşılabilir bağlantıları</caption>' +
       '<thead><tr>' +
       '<th scope="col">Kod</th>' +
-      '<th scope="col" class="sag">Kullanım</th>' +
+      /* Sütun adı "Kullanım" değil "Bağlantıyı kullanan".
+         ⚠️ "Kuran kullanıcı" da YANLIŞTI ve bir tur boyunca öyle durdu:
+         `redemptionCount` tek bir satırdan artıyor
+         (`partner_service.py:400`) ve o satıra İKİ yol birden ulaşıyor —
+         kurulum + Install Referrer, VE uygulaması zaten kurulu birinin
+         bağlantıya dokunması (App Links). İkincisinde kurulum HİÇ olmaz.
+         Kapalı testte herkeste uygulama kurulu olduğu için oradaki her
+         sayı ikinci yoldan gelir: "Kuran" desek 12 kurulum olmadığı hâlde
+         12 kurulum raporlardık. */
+      '<th scope="col" class="sag">Tıklama</th>' +
+      '<th scope="col" class="sag">Bağlantıyı kullanan</th>' +
       '<th scope="col">Son gün</th>' +
       '<th scope="col">Durum</th>' +
       '<th scope="col">Paylaşılabilir bağlantı</th>' +
@@ -260,6 +538,10 @@
         var alanKimlik = 'bag-' + i;
         return '<tr>' +
           '<th scope="row" class="mono">' + e(k.code || '—') + '</th>' +
+          /* Kod başına tıklama eski yanıtta YOK → "—". Burada "0" yazmak,
+             hiç ölçülmemiş bir kanalı "denendi ama tutmadı" göstermek
+             olurdu ve ortak o kanalı bırakırdı. */
+          '<td class="sag">' + e(olculdu(k.clicks) ? sayi(k.clicks) : '—') + '</td>' +
           '<td class="sag">' + e(sayi(k.redemptionCount || 0)) + '</td>' +
           '<td class="mono">' + e(k.expiresAt ? tarih(k.expiresAt) : '—') + '</td>' +
           '<td>' + kodDurumu(k) + '</td>' +
@@ -310,6 +592,12 @@
     var odulSayisi = Number(d.rewardTry);
     var odulVar = isFinite(odulSayisi) && odulSayisi > 0;
     var odemeBirimi = simge(d.payoutCurrency);
+    var uyumsuz = Number(d.payoutCurrencyMismatchCount || 0);
+    /* Seri YOKSA modül hiç çizilmiyor (boş bir kutu "ölçüm yok" demez,
+       "pano eksik" der). Dizi geldiyse ama boşsa `tiklamaSerisi` null
+       döner — aynı yol. */
+    var seriKutu = Array.isArray(d.clickSeries)
+      ? tiklamaSerisi(d.clickSeries) : null;
     var bekleyenCumle = 'Bekleyen hakediş, satın almadan ' + OLGUNLASMA_GUN +
       ' gün sonra kendiliğinden kesinleşir: iade penceresi kapanmadan ödeme ' +
       'yapılmıyor. İade ya da erken sona erme olursa o hakediş iptal olur.';
@@ -350,14 +638,12 @@
         'tutar girilene kadar yeni hakediş açılmaz. Rytho ekibiyle ' +
         'konuşman gerekiyor.</div>' : '') +
 
-      '<section class="izgara-kpi" aria-label="Huni">' +
-      kpi('Gelen kullanıcı', sayi(d.referredUsers || 0),
-        'kodlarının kullanım toplamı') +
-      kpi('Beklemede', sayi(d.pendingCount || 0),
-        OLGUNLASMA_GUN + ' gün olgunlaşma') +
-      kpi('Kesinleşen', sayi(d.qualifiedCount || 0), 'ödemeye hazır',
-        Number(d.qualifiedCount) > 0) +
-      '</section>' +
+      /* Eski hâlde burada üç KPI vardı ve ikisi huninin AYNI basamağıydı
+         ("Beklemede" + "Kesinleşen" = abone), birincisinin adı ise
+         yanlıştı. Sayılar kaybolmuyor: ikisi 3. basamağın kırılımına
+         indi, `voidCount` de oraya eklendi — self_view onu bilerek
+         döndürüyor ama pano hiç göstermiyordu. */
+      huniBolumu(d) +
 
       '<section class="izgara-kpi" aria-label="Hakediş">' +
       kpi('Kesinleşen hakediş', para(d.earnedTry, '₺'), 'toplam kazanç', true) +
@@ -371,10 +657,61 @@
 
       '<div class="bant bilgi">' + e(bekleyenCumle) + '</div>' +
 
-      modul('Kodların', kodlarTablosu(kodlar),
+      /* Başlıktaki gün sayısı SERİNİN KENDİ uzunluğundan geliyor, sabit
+         30'dan değil: sunucu daha kısa bir pencere gönderirse başlık da
+         kısalır. Alt metindeki toplam da yine çizilen günlerin toplamı —
+         `clicks30` oraya YAZILMIYOR çünkü pencere 30 günden farklıysa iki
+         sayı çelişir. `clicks30` 1. basamağın açıklamasında kullanılıyor,
+         yani tam olarak "son 30 gün" dediği yerde. */
+      (seriKutu ? modul('Son ' + seriKutu.gun + ' gün — tıklama',
+        seriKutu.html, sayi(seriKutu.toplam) + ' tıklama') : '') +
+
+      modul('Kodların',
+        (kodlar.length
+          /* Kod başına tıklama, ortağın KANALLARINI kıyaslamasının tek
+             yolu (sektörde "sub-ID" denen şeyin karşılığı): aynı ortak
+             birden fazla kod taşıyabiliyor, yani her kanala ayrı kod
+             verilip hangisinin çalıştığı ölçülebilir. */
+          ? '<p class="dipnot">Her kanal için ayrı kod isteyebilirsin: ' +
+            'tıklama ve kuran sayıları kod başına ayrı tutulduğu için ' +
+            'hangi kanalın işe yaradığını yalnız bu tablodan görürsün.</p>'
+          : '') +
+        kodlarTablosu(kodlar),
         kodlar.length ? sayi(kodlar.length) + ' kod' : '') +
 
-      modul('Ödeme geçmişi', odemelerTablosu(odemeler),
+      /* ⚠️ ÖDEME EŞİĞİ GÖSTERİLMİYOR ve bu ÖLÇÜLDÜ (2026-09-28):
+         `minPayoutTry` yalnız YAZMA yolunda var — `api/admin.py` PATCH
+         modelinde ve `partner_service.update_partner` izinli listesinde.
+         `create_partner` onu HİÇ YAZMIYOR, `partner_detail` sonuca
+         KOYMUYOR, `partner_self_view` DÖNDÜRMÜYOR. Yani bu panoya hiç
+         gelmiyor ve buraya bir eşik yazmak, olmayan bir kuralı tarif
+         etmek olurdu — bu depoda en çok tekrarlanan kusur sınıfı.
+         Söylenen şey ölçülen şey: ödemeyi `add_payout` yazıyor ve tek
+         çağıranı yönetim ucu (`api/admin.py`), yani elle.
+
+         Ödeme YÖNTEMİ (iban/taxId) de bilerek gösterilmiyor: `self_view`
+         onları yapısal olarak dışarıda bırakıyor (`payoutCurrency` hariç
+         hiçbiri geçmiyor), ama karar sözleşmeyi genişletmemek yönünde —
+         ortak kendi IBAN'ını zaten biliyor, panoda tekrar okumasının
+         karar değeri yok, buna karşılık ekran görüntüsü paylaşılan bir
+         panoya bir ödeme kimliği daha koymak olurdu. */
+      modul('Ödeme geçmişi',
+        odemelerTablosu(odemeler) +
+        /* Sıfır dışı uyumsuzluk EKRANDAKİ PARAYI yanlış yapıyor ve bunu
+           ortağa söylemek şart: `partner_detail` yorumunun ölçtüğü hâl —
+           `paidTry` farklı birimdeki kayıtları saymaz, dolayısıyla
+           `balanceTry` olduğundan BÜYÜK çıkar. Para çıkışı da bu hâlde
+           kapalı (`add_payout` → `ledger_currency_mixed`). self_view bu
+           sayacı tam bunun için döndürüyordu, pano ise hiç göstermiyordu. */
+        (uyumsuz > 0 ? '<div class="bant uyari">Ödeme defterinde <b>' +
+          e(sayi(uyumsuz)) + '</b> kayıt senin ödeme biriminden (' +
+          e(odemeBirimi.trim()) + ') farklı bir birimde duruyor. ' +
+          'Yukarıdaki <b>Ödenen</b> ve <b>Bakiye</b> o kayıtları saymıyor, ' +
+          'yani bakiyen olduğundan büyük görünüyor; bu hâlde yeni ödeme de ' +
+          'yapılmıyor. Rytho ekibiyle konuşman gerekiyor.</div>' : '') +
+        '<p class="dipnot">Ödemeler Rytho ekibi tarafından elle kaydedilir; ' +
+        'bu panoda bir ödeme eşiği ya da takvim gösterilmiyor. Kesinleşen ' +
+        'bakiyen için Rytho ekibiyle yazışırsın.</p>',
         'ödeme para birimi ' + odemeBirimi.trim()) +
 
       /* Ödül kuralı, ölçülen davranışın birebir aynası

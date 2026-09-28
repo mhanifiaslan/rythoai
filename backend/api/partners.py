@@ -10,13 +10,23 @@ Bu modül `api/admin.py`'den AYRIDIR ve bu bilinçlidir. Yönetim uçları
 `partnerId` **claim'den** gelir, istekten değil — ortak başka bir ortağın
 kimliğini gövdede gönderip veri çekemez. Sınır kontrol listesine değil,
 yapıya dayanıyor.
+
+⚠️ TEK İSTİSNA: `/click`. Onu çağıran ziyaretçi henüz oturum AÇMAMIŞ bir
+yabancıdır, yani kimlik kapısı KURULAMAZ. Kapı yerine üç sınır var
+(`partner_service.record_click`): kod biçimi, kodun gerçekten var olması ve
+yazımın best-effort olması. Kimliksiz olduğu için kota kovası da ayrıdır
+(`core/ratelimit.py`) ve sürüm kapısından muaftır (`core/app_gate.py`).
 """
 from __future__ import annotations
 
+import collections
+import json
 import logging
+import time
 import secrets as py_secrets
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import (APIRouter, Depends, Header, HTTPException, Request,
+                     Response)
 from fastapi.security import HTTPAuthorizationCredentials
 
 from core import config
@@ -27,6 +37,128 @@ from services import partner_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+#: Tıklama gövdesinin üst sınırı (bayt). Beklenen gövde ~30 bayt; kapı
+#: kimliksiz bir uca megabaytlık gövde pompalamayı ucuzlatmamak için var.
+_TIKLAMA_GOVDE_SINIRI = 1024
+
+#: Kod başına dakikalık tıklama tavanı (süreç içi).
+#:
+#: NEDEN IP KOVASI YETMİYOR (ölçüldü): `core/ratelimit._client_key`
+#: anahtarı `x-forwarded-for`un İLK öğesinden alıyor, Google'ın yük
+#: dengeleyicisi ise istemcinin gönderdiği XFF'in SONUNA ekliyor —
+#: yani o ilk öğe çağıranın denetiminde. Her isteğe farklı bir XFF
+#: yazan istemci her istekte yeni bir kova açar ve dakikalık tavan hiç
+#: devreye girmez. Kimlikli uçlarda bunun bedeli yok (istek zaten
+#: 401'leniyor); burada bedel FATURA: istek başına 1 okuma + 2
+#: Firestore yazımı ve uç herkese açık.
+#:
+#: Bu tavan KODA bağlı, yani taşıyıcıdan (IP/başlık) bağımsız ve
+#: sahtelenemez: kod gövdede ve doğrulanıyor.
+#:
+#: 600/dk bilinçli yüksek: gerçek bir tanıtım anını kırpmamalı.
+#: Aşıldığında tıklama SAYILMAZ ama ziyaretçi etkilenmez (sayfa yanıtı
+#: zaten okumuyor) — ve sessiz kalmasın diye warning düşüyor.
+_KOD_TIKLAMA_TAVANI = 600
+_KOD_TIKLAMA_PENCERESI = 60.0
+
+#: kod → son pencere içindeki tıklama zaman damgaları.
+_kod_vurus: dict[str, collections.deque] = collections.defaultdict(
+    collections.deque)
+
+
+def _kod_kotasi_musait(kod: str) -> bool:
+    """Kod başına dakikalık tavan. Süreç içi — `ratelimit` ile aynı
+    doktrin (Cloud Run çoklu instance'ta tavan instance başınadır ve bu
+    kabul: amaç kesin bir kota değil, sınırsız faturayı kapatmak).
+    """
+    simdi = time.monotonic()
+    vurus = _kod_vurus[kod]
+    while vurus and simdi - vurus[0] > _KOD_TIKLAMA_PENCERESI:
+        vurus.popleft()
+    # Sözlük sınırsız büyümesin: boşalan kod kaydı atılır.
+    if not vurus and len(_kod_vurus) > 5000:
+        _kod_vurus.pop(kod, None)
+        _kod_vurus[kod].append(simdi)
+        return True
+    if len(vurus) >= _KOD_TIKLAMA_TAVANI:
+        logger.warning(
+            "Tiklama tavani asildi, sayilmadi (kod=%s, tavan=%s/dk)",
+            kod, _KOD_TIKLAMA_TAVANI)
+        return False
+    vurus.append(simdi)
+    return True
+
+
+async def _tiklama_govdesi(request: Request) -> bytes:
+    """Gövdeyi EN ÇOK `_TIKLAMA_GOVDE_SINIRI` bayt okur; aşan istek kesilir.
+
+    ⚠️ `await request.body()` DEĞİL, ve gerekçe ölçüldü: o çağrı gövdenin
+    TAMAMINI belleğe alır, sınır ancak sonra bakılır. `Content-Length`
+    başlığı ZORUNLU değildir (`Transfer-Encoding: chunked`) ve o hâlde
+    aşağıdaki başlık kapısı hiç çalışmaz — ölçümde 2 MB'lık chunked bir
+    gövde uca kadar gelip tamamen tamponlandı, yalnız yazım engellendi.
+    Kimliksiz ve herkese açık bir uçta bellek maliyetini istemcinin
+    seçimine bırakmak, kotanın tavan olmasını boşa çıkarır.
+
+    Sınır aşılırsa **boş** döner: çağıran onu "kod yok" gibi ele alır,
+    yani 1 KB'ı aşan istek 204 alır ama hiçbir şey yazdırmaz.
+    """
+    parcalar = bytearray()
+    async for parca in request.stream():
+        parcalar.extend(parca)
+        if len(parcalar) > _TIKLAMA_GOVDE_SINIRI:
+            return b""
+    return bytes(parcalar)
+
+
+@router.post("/click", status_code=204)
+async def click(request: Request) -> Response:
+    """Ortak linkinin açıldığını sayar — KİMLİKSİZ, her hâlde 204.
+
+    Ziyaretçi oturum açmamıştır; kimlik istenemez. Yanıt her zaman gövdesiz
+    204: kodun geçersiz ya da hiç var olmadığı bilgisi bile SIZDIRILMAZ
+    (404 ile 204 ayrımı, kod tahmin etmeyi ucuz bir oyuna çevirirdi) ve
+    telemetri ziyaretçinin mağazaya gitmesini hiçbir koşulda engellemez.
+
+    ⚠️ GÖVDE ELLE AYRIŞTIRILIYOR, Pydantic modeliyle DEĞİL. Gerekçe
+    ölçülebilir bir tuzak: `navigator.sendBeacon(url, "…")` gövdeyi
+    `text/plain` içerik türüyle gönderir ve FastAPI JSON olmayan içerik
+    türünde ham baytları modele vermeye çalışıp **422** döner. O hâlde
+    sayaç sessizce ölürdü — sayfa hata görmez (beacon yanıtı okunmaz),
+    ortak "kimse tıklamıyor" sanır. Model burada isteği düşürebilecek tek
+    şeydi; kaldırıldı.
+
+    ⚠️ GİZLİLİK: istekten YALNIZ `code` okunuyor. IP, User-Agent, çerez ve
+    kimlik hiçbir yere yazılmaz — `record_click` tek bir sayaç artırır.
+    Tam olmak için: kota katmanı (`core/ratelimit.py`) ziyaretçinin IP'sini
+    kova anahtarı olarak BELLEKTE tutar — kota penceresi 60 sn ama budama
+    beş dakikada bir koştuğu için kayıt o kadar kalabilir. Hiçbir
+    kalıcı yere gitmez ve bu uca özel değildir — kimliksiz her istek öyle
+    sayılıyor. "Saklanan tek şey bir sayaç" sözü kalıcı veri içindir.
+    """
+    # Önce başlık: gövdeyi hiç belleğe almadan reddedilebilen hâl.
+    uzunluk = request.headers.get("content-length")
+    if uzunluk and uzunluk.isdigit() and int(uzunluk) > _TIKLAMA_GOVDE_SINIRI:
+        return Response(status_code=204)
+
+    kod = ""
+    try:
+        govde = await _tiklama_govdesi(request)
+        if govde:
+            veri = json.loads(govde)
+            if isinstance(veri, dict):
+                kod = str(veri.get("code") or "")
+    except Exception:
+        # Bozuk JSON, eksik gövde, kopmuş bağlantı: hepsi sayılmayan bir
+        # tıklama. Uç yine 204 döner — buradan 4xx dönmek, tarayıcı
+        # konsoluna hata basıp ziyaretçiyi ürkütmekten başka iş yapmaz.
+        kod = ""
+
+    if kod and _kod_kotasi_musait(kod):
+        # Servis ASLA fırlatmaz; dönen değer yalnız testin ölçtüğü şey.
+        partner_service.record_click(kod)
+    return Response(status_code=204)
 
 
 @router.get("/me")

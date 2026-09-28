@@ -190,9 +190,15 @@ app.include_router(account_router, prefix="/api/v1/account", tags=["Account"])
 # Admin uçları (W5): panel /rytho-admin buradan beslenir. Her uç custom
 # claim ister (require_admin); collect ayrıca scheduler sırrını kabul eder.
 app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
-# Ortaklik: ortagin KENDI panosu (require_partner) + hakedis
-# olgunlastirma (scheduler sirri VEYA owner). Admin router'indan AYRI —
-# ortak yonetim uclarini goremez, yonetici de /me kapisindan gecemez.
+# Ortaklik UC uc tasiyor ve UCUNUN DE kapisi farkli:
+#   /me     → require_partner (ortagin KENDI panosu)
+#   /mature → scheduler sirri VEYA owner (hakedis olgunlastirma)
+#   /click  → KIMLIK YOK; ortak linkinin tiklama sayaci, cagiran tarayici.
+# Admin router'indan AYRI — ortak yonetim uclarini goremez, yonetici de
+# /me kapisindan gecemez.
+# ⚠️ Onek `app_gate.EXEMPT_PREFIXES` icinde: ucunu de cagiran istemciler
+# (tarayici, Cloud Scheduler) `x-app-build` GONDERMEZ, yani surum kapisi
+# acildiginda pano da gecelik olgunlastirma da 426 yerdi. Gerekce orada.
 app.include_router(partners_router, prefix="/api/v1/partners",
                    tags=["Partners"])
 # Açılış yapılandırması (F3): kimliksiz — giriş ekranından ÖNCE çağrılır.

@@ -7,7 +7,9 @@ yol varsayılan kapalı — kural değişikliği gerekmez):
                            uid, rewardModel, rewardTry, sharePercent,
                            payoutCurrency, taxId, iban, minPayoutTry
     partnerCodes/{KOD}:    partnerId, bonusTokens, maxRedemptions,
-                           redemptionCount, expiresAt, active, createdAt
+                           redemptionCount, expiresAt, active, createdAt,
+                           clickCount                   (koşan tıklama toplamı)
+    partnerCodes/{KOD}/clicks/{YYYY-MM-DD}: count       (kimliksiz gün sayacı)
     users/{uid}/private/attribution: code, partnerId, at   (TEK sefer)
     partnerQualifications/{uid}: partnerId, code, eventId, productId,
                            purchasedAt, maturesAt, status, rewardTry,
@@ -140,6 +142,16 @@ REWARD_EVENT_TYPES = frozenset({"INITIAL_PURCHASE", "TRIAL_CONVERTED"})
 #: 30 gün sürer): erken sona erme pratikte iade ya da tahsilat hatasıdır.
 VOID_EVENT_TYPES = frozenset({"REFUND", "EXPIRATION"})
 
+#: Tıklama serisinin uzunluğu (gün). Panodaki tek zaman serisi bu.
+CLICK_SERIES_DAYS = 30
+
+#: `get_all` başına en çok kaç doküman referansı. Seri, ortağın kod sayısı
+#: × 30 doküman okur; 20 kodlu bir ortakta tek çağrıda 600 referans olurdu
+#: ve BatchGetDocuments'in pratik sınırına dayanmak, panonun kod sayısı
+#: arttıkça SESSİZCE düşmesi demek. Parçalama sınırı test etmiyor —
+#: sınırın var olduğunu garanti ediyor.
+_GET_ALL_CHUNK = 300
+
 
 class RedeemError(Exception):
     """Kod kullanım hatası; `status` HTTP koduna eşlenir."""
@@ -168,6 +180,146 @@ def generate_code(prefix: str = "") -> str:
 
 def _now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# Huninin TEPESİ: tıklama telemetrisi
+# ---------------------------------------------------------------------------
+#
+# Neden var: pano tıklamayı hiç ölçmüyordu, yani ortak yalnız hunisinin
+# SONUCUNU görüyordu. Linkini 500 kişiye gönderen ortak "3" görür ve
+# tanıtımının işe yarayıp yaramadığını bilemez — dönüşüm oranı da tıklama
+# olmadan hesaplanamaz (bölen yok).
+#
+# ⚠️ GİZLİLİK ÇİZGİSİ (pazarlık yok): burada IP, User-Agent, kimlik ve
+# çerez YOK. Saklanan tek şey bir SAYAÇ. Ziyaretçi henüz oturum açmamış bir
+# yabancıdır; ona ait tek bir bayt bile yazılmaz. Bu yüzden "tekil ziyaretçi"
+# de ölçülemez — tekillik ancak bir işaretle ölçülür ve o işaret kişisel
+# veridir. Pano bu sayıyı TIKLAMA diye sunar, ziyaretçi diye SUNMAZ.
+#
+# Veri: `partnerCodes/{KOD}/clicks/{YYYY-MM-DD}` → {count}
+#   Gün başına ayrı doküman, tek dokümanda büyüyen bir harita DEĞİL: harita
+#   sınırsız büyür (1 MB doküman tavanına yürür), ayrı doküman hem sınırlı
+#   hem `Increment` ile yarış-güvenli.
+#
+# Buna EK olarak `partnerCodes/{KOD}.clickCount` koşan toplam tutulur.
+# Gerekçe: toplam tıklamayı gün dokümanlarını tarayarak bulmak, panoyu her
+# geçen gün yavaşlatır (kod başına yılda 365 doküman) ve bu yavaşlama
+# sinsidir — bugün 2 okuma, iki yıl sonra 730. Toplam ile gün sayacı AYNI
+# toplu yazımda (atomik) artar, yoksa ikisi sessizce ayrışır ve ekrandaki
+# "toplam" gün serisinin toplamını tutmaz.
+
+def _gun_kimligi(an: dt.date) -> str:
+    """Gün dokümanının kimliği — **UTC** takvim günü.
+
+    UTC seçimi keyfî değil: bu programdaki her tarih (`purchasedAt`,
+    `maturesAt`, ödeme `at`) UTC üretiliyor ve tıklamayı yerel takvime
+    almak, panoda yan yana duran iki seriyi farklı takvimlerde sayardı.
+    Günü SUNUCU koyar (sayfa yalnız kodu gönderir), yani tek bir saat var.
+
+    BİLİNEN SINIR: Türkiye UTC+3, yani yerel 00:00-03:00 arası tıklamalar
+    önceki günün çubuğuna düşer. Ortağın gördüğü gün toplamı bu kadar
+    kayabilir; kabul edildi çünkü alternatifi iki takvimi karıştırmak.
+    """
+    return an.strftime("%Y-%m-%d")
+
+
+def record_click(raw_code: str) -> bool:
+    """Ortak linkinin bir kez açıldığını sayar. **ASLA FIRLATMAZ.**
+
+    Dönen değer yalnız log ve test içindir: uç her hâlde 204 döner, çünkü
+    telemetri ziyaretçinin mağazaya gitmesini ENGELLEMEMELİ. Sayaç kayıpsa
+    kaybedilen şey bir istatistik, bir kurulum değil.
+
+    Uç KİMLİKSİZ ve herkese açık; üç kapı bu yüzden ZORUNLU:
+
+    1. Biçim (`normalize_code`) — desene uymayan kod hiç yazıma girmez.
+    2. Kod GERÇEKTEN var mı. Bu kapı olmadan herkes uydurduğu kodla istek
+       atıp sınırsız Firestore dokümanı yazdırabilir: hem fatura hem çöp
+       veri. Bir okumaya değer.
+    3. Her hata yutulur (best-effort).
+
+    Kodun VAR OLMADIĞI bilgisi çağırana SIZDIRILMAZ (uç 404 değil 204
+    döner): ayrım, kod tahmin etmeyi ucuz bir oyuna çevirir.
+
+    Kodun `active` olması ŞART DEĞİL — bilinçli. Kapatılmış bir kodun linki
+    internette durmaya devam eder ve o linke gelen trafik GERÇEKTEN olmuş
+    bir olaydır; saymamak, ortağın tanıtımını görünmez kılar. Kapalı kod
+    yalnız `redeem`i düşürür, tıklamayı değil.
+    """
+    try:
+        kod = normalize_code(raw_code)
+    except RedeemError:
+        return False
+
+    client = firestore_client.get_client()
+    if client is None:
+        return False
+
+    try:
+        from google.cloud import firestore as gcf
+
+        kod_ref = client.collection("partnerCodes").document(kod)
+        if not getattr(kod_ref.get(), "exists", False):
+            return False
+
+        gun = _gun_kimligi(_now())
+        toplu = client.batch()
+        # Gün sayacı `set(merge=True)`: doküman ilk tıklamada doğar.
+        toplu.set(kod_ref.collection("clicks").document(gun),
+                  {"count": gcf.Increment(1)}, merge=True)
+        # Koşan toplam `update`: kod dokümanı YUKARIDA var olduğu ölçüldü.
+        # `set(merge=True)` olsaydı, arada silinmiş bir kodu yalnız
+        # `clickCount` alanıyla yeniden DOĞURUR ve panelde sahibi olmayan
+        # bir kod belirirdi.
+        toplu.update(kod_ref, {"clickCount": gcf.Increment(1)})
+        toplu.commit()
+        return True
+    except Exception as exc:
+        # Uyarı seviyesi: ölçüm kaybı sessiz kalmasın ama isteği düşürmesin.
+        logger.warning("Tiklama sayilamadi (kod=%s): %s", kod, exc)
+        return False
+
+
+def _tiklama_serisi(client, kodlar: list[dict[str, Any]],
+                    bugun: dt.date | None = None,
+                    gun_sayisi: int = CLICK_SERIES_DAYS
+                    ) -> list[dict[str, Any]]:
+    """Son N günün günlük tıklaması — eskiden yeniye, EKSİK GÜNLER 0.
+
+    Eksik günü atlamak yerine 0 yazmak bir sunum kararı değil doğruluk
+    kararı: delikli bir seri panoda "veri kayboldu" gibi görünür ve
+    ortağın okuduğu şey "o gün tıklama olmadı" değil "bu pano bozuk" olur.
+
+    Okuma yolu: 30 belirli gün dokümanı KİMLİKLE çekilir (`get_all`),
+    sorgu kurulmaz. Yani hiçbir bileşik indeks gerekmez ve maliyet kod
+    başına SABİT 30 okumadır — `clicks` alt koleksiyonunu taramak
+    (gün sayısı büyüdükçe artan maliyet) bilinçli olarak seçilmedi.
+
+    Aynı gün birden çok kodda görünür ve TOPLANIR; bu yüzden anlık görüntü
+    hangi koda ait olduğu bilinmeden, yalnız doküman kimliği (gün)
+    üzerinden eşleştirilebiliyor.
+    """
+    bugun = bugun or _now().date()
+    gunler = [_gun_kimligi(bugun - dt.timedelta(days=i))
+              for i in range(gun_sayisi - 1, -1, -1)]
+    sayaclar = dict.fromkeys(gunler, 0)
+
+    referanslar = [
+        client.collection("partnerCodes").document(str(k.get("code")))
+        .collection("clicks").document(gun)
+        for k in kodlar if k.get("code")
+        for gun in gunler]
+
+    for bas in range(0, len(referanslar), _GET_ALL_CHUNK):
+        for anlik in client.get_all(referanslar[bas:bas + _GET_ALL_CHUNK]):
+            if not getattr(anlik, "exists", False):
+                continue
+            gun = getattr(anlik, "id", None)
+            if gun in sayaclar:
+                sayaclar[gun] += int((anlik.to_dict() or {}).get("count") or 0)
+
+    return [{"day": gun, "count": sayaclar[gun]} for gun in gunler]
 
 
 def redeem(uid: str, raw_code: str) -> dict[str, Any]:
@@ -662,8 +814,9 @@ def _odeme_birimi(ortak: dict[str, Any]) -> str:
             .strip().upper())
 
 
-def partner_detail(partner_id: str, *, erisim: bool = True) -> dict[str, Any]:
-    """Ortak + kodları + atfedilen gelir + hakediş + ödemeler + erişim.
+def partner_detail(partner_id: str, *, erisim: bool = True,
+                   tiklama_serisi: bool = True) -> dict[str, Any]:
+    """Ortak + kodlar + tıklama + gelir + hakediş + ödemeler + erişim.
 
     `erisim=False` Firebase Auth'a HİÇ gitmez ve yanıtta `access` anahtarı
     OLMAZ. Anahtarın yokluğu "bakılmadı", `granted: None` ise "bakıldı,
@@ -674,6 +827,19 @@ def partner_detail(partner_id: str, *, erisim: bool = True) -> dict[str, Any]:
     kapısı için çağırıyor, claim'le işi yok) ve `partner_self_view`
     (ortağın kendi panosu, her yüklemede çalışır ve dar görünüm zaten
     `access` taşımıyor). İkisinde de Auth isteği katıksız israf olurdu.
+
+    `tiklama_serisi=False` aynı doktrinin tıklama tarafı ama kapsamı DAHA
+    DAR, çünkü tıklamanın yalnız BİR ayağı okuma maliyeti taşıyor:
+
+    * `clicks` / `conversionRate` / `codes[].clicks` — kod dokümanlarındaki
+      `clickCount` alanından gelir, o dokümanlar ZATEN okundu. Bayrak
+      bunları kapatmaz; bedava bir sayıyı gizlemenin gerekçesi olmazdı.
+    * `clicks30` / `clickSeries` — kod başına 30 gün dokümanı okur. Bayrak
+      YALNIZ bunları kapatır ve anahtarlar yanıttan DÜŞER (`access`
+      emsali: yokluk "bakılmadı" demek, 0 ise "bakıldı, hiç yok").
+
+    `add_payout` kapatır: para yolu bakiye için çağırıyor, telemetri
+    okumasının orada hiçbir işi yok.
     """
     client = firestore_client.get_client()
     if client is None:
@@ -693,11 +859,37 @@ def partner_detail(partner_id: str, *, erisim: bool = True) -> dict[str, Any]:
               .stream()):
         veri = k.to_dict() or {}
         veri["code"] = k.id
+        # Ham alan `clickCount`, yanıttaki ad `clicks`: sözleşme tek bir ad
+        # kullanıyor ve panonun ham alan adını bilmesi gerekmiyor.
+        veri["clicks"] = int(veri.get("clickCount") or 0)
         kodlar.append(veri)
 
-    # Huninin ilk basamağı kodların sayacından gelir — atıf dokümanları
-    # kullanıcı altında dağınık olduğu için ayrıca taranmaz (bedava sayı).
-    gelen = sum(int(k.get("redemptionCount") or 0) for k in kodlar)
+    # ⚠️ ADLANDIRMA DÜZELTMESİ (ölçüldü): bu sayı "gelen kullanıcı" DEĞİL.
+    # Toplanan şey kodların `redemptionCount`ı ve o sayaç `redeem` içinde
+    # KURULUMDAN SONRA artıyor — yani ölçülen "KURAN" kullanıcıdır. Önceki
+    # ad (`gelen`) ve panodaki "Gelen kullanıcı" etiketi, gelen ile kuranı
+    # aynı şey sayıp dönüşüm oranını da yanlış yere bağlıyordu. Huninin
+    # gerçek tepesi artık ayrı ölçülüyor (`clicks`).
+    #
+    # Alan adı `referredUsers` DEĞİŞMEDİ (panel ve pano onu okuyor);
+    # değişen şey neyi anlattığı ve ekranda hangi etiketle sunulduğu.
+    #
+    # ⚠️ AMA "KURAN" da TAM DEĞİL, sınırı burada yazılı olmalı: bu dosyanın
+    # başındaki "kodun bu uca geliş yolları" listesi İKİ yol sayıyor ve
+    # ikincisi (App Links: KURULU uygulama ortak linkiyle açılıyor)
+    # kurulumdan doğmuyor. Yani sayaç "bu linkten dolayı kuran"ı değil
+    # "kodu KULLANAN (atfedilen) kullanıcı"yı ölçüyor; her ikisinde de
+    # uygulama kuruludur ama nedensellik yalnız birincisinde var.
+    #
+    # Bu fark ŞU AN en büyük: kapalı testte herkeste uygulama ZATEN kurulu,
+    # yani ortak linkine dokunan her testçi hiç kurulum olmadan bu sayacı
+    # artırır. Huni etiketi "kuran" okunursa sahibi 12 testçiyi 12 kurulum
+    # sanar. Ekran metinleri bu dosyada değil; buradaki iddia dar tutuldu.
+    #
+    # Atıf dokümanları kullanıcı altında dağınık olduğu için ayrıca
+    # taranmaz — bu sayı elde olan kod dokümanlarından bedava geliyor.
+    kuran = sum(int(k.get("redemptionCount") or 0) for k in kodlar)
+    tiklama = sum(int(k.get("clicks") or 0) for k in kodlar)
 
     # Hakediş: artık gelir taramasından DEĞİL, hakediş kayıtlarından.
     # Her kayıt kendi dondurulmuş `rewardTry`sini taşır.
@@ -763,8 +955,23 @@ def partner_detail(partner_id: str, *, erisim: bool = True) -> dict[str, Any]:
 
     sonuc: dict[str, Any] = {
             "partner": ortak, "codes": kodlar,
-            # Huni — sahibin sorduğu "kaç kişi geldi, kaçı alım yaptı".
-            "referredUsers": gelen,
+            # Huni — sahibin sorduğu "kaç kişi gelmiş, kaçı alım yapmış":
+            # tıklama → KURAN → hakediş.
+            "clicks": tiklama,
+            # `referredUsers` = KURAN kullanıcı (yukarıdaki gerekçe).
+            "referredUsers": kuran,
+            # Dönüşüm: kuran / tıklama. Tıklama 0 iken **None**, 0.0 DEĞİL —
+            # "%0 dönüşüm" ile "henüz ölçüm yok" aynı şey değildir ve
+            # ilkini göstermek ortağa tanıtımının başarısız olduğunu
+            # SÖYLER: ölçülmemiş bir hüküm.
+            #
+            # 1'in ÜSTÜNE çıkabilir ve bu bilinçli olarak kırpılmıyor:
+            # Play linkini doğrudan paylaşan (ya da tıklaması sayılamamış)
+            # bir kurulum sayacı artırır, tıklamayı artırmaz. Kırpmak
+            # ölçüm boşluğunu gizlemek olurdu; oran 1'i aşıyorsa
+            # gerçekten aşıyor.
+            "conversionRate": (round(kuran / tiklama, 4)
+                               if tiklama > 0 else None),
             "pendingCount": huni[STATUS_PENDING],
             "qualifiedCount": huni[STATUS_QUALIFIED],
             "voidCount": huni[STATUS_VOID],
@@ -795,6 +1002,19 @@ def partner_detail(partner_id: str, *, erisim: bool = True) -> dict[str, Any]:
             "attributedGrossUsd": round(brut, 2),
             "attributedEvents": olay,
             "payouts": odemeler}
+    if tiklama_serisi:
+        try:
+            seri = _tiklama_serisi(client, kodlar)
+            sonuc["clickSeries"] = seri
+            # Türetilmiş: serinin toplamı. Ayrı okuma YOK.
+            sonuc["clicks30"] = sum(g["count"] for g in seri)
+        except Exception as exc:
+            # Seri okuması panonun GERİ KALANINI düşürmemeli: ortak
+            # bakiyesini bir telemetri okuması yüzünden kaybetmez. Anahtar
+            # yanıttan DÜŞER (0 yazmak "ölçtük, hiç yok" demek olurdu) ve
+            # kayıp log'da durur.
+            logger.warning("Tiklama serisi okunamadi (%s): %s",
+                           partner_id, exc)
     if erisim:
         # Ortak dokümanı ELDE: `partner_access` yerine iç yardımcı
         # çağrılıyor, yoksa aynı doküman bir kez daha okunurdu.
@@ -847,7 +1067,10 @@ def add_payout(partner_id: str, amount: float, currency: str,
     if tutar > 0:
         # `erisim=False`: burada bakiye ölçülüyor, claim değil — para
         # yolunun Firebase Auth'a bağımlılığı olmaması gerekir.
-        mevcut = partner_detail(partner_id, erisim=False)
+        # `tiklama_serisi=False` aynı gerekçe: bakiye kapısı tıklamaya
+        # bakmıyor, 30 gün dokümanı okumak katıksız israf olurdu.
+        mevcut = partner_detail(partner_id, erisim=False,
+                                tiklama_serisi=False)
         if int(mevcut.get("payoutCurrencyMismatchCount") or 0) > 0:
             # Defterde ortağın birimine UYMAYAN kayıt varsa bakiye kapısı
             # ölçtüğünü sandığı şeyi ölçmez: `paidTry` o kayıtları saymadığı
@@ -1168,7 +1391,7 @@ def partner_self_view(partner_id: str,
             "Bayat ortaklik claim'i reddedildi: partnerId=%s claim uid=%s "
             "kayitli uid=%s", partner_id, caller_uid, ortak.get("uid"))
         raise RedeemError(404, "not_found")
-    return {
+    gorunum: dict[str, Any] = {
         "name": ortak.get("name"),
         "active": ortak.get("active"),
         "rewardTry": ortak.get("rewardTry"),
@@ -1179,9 +1402,19 @@ def partner_self_view(partner_id: str,
         "payoutCurrencyMismatchCount": tam["payoutCurrencyMismatchCount"],
         "codes": [{"code": k.get("code"),
                    "redemptionCount": k.get("redemptionCount"),
+                   # Kod başına tıklama: ortak hangi kanalın çalıştığını
+                   # ancak kod başına görürse bilebilir (tek toplam, iki
+                   # farklı tanıtımı tek sayıya karıştırır).
+                   "clicks": k.get("clicks"),
                    "active": k.get("active"),
                    "expiresAt": k.get("expiresAt")}
                   for k in tam["codes"]],
+        # Huninin TEPESİ. Kişisel veri değil — kimliksiz bir sayaç
+        # (`record_click`: IP/UA/çerez yok), bu yüzden dar görünüme giriyor
+        # ve ortağın bunu görmesi programın ASIL sorusunu cevaplıyor:
+        # "tanıtımım işe yarıyor mu?"
+        "clicks": tam["clicks"],
+        "conversionRate": tam["conversionRate"],
         "referredUsers": tam["referredUsers"],
         "pendingCount": tam["pendingCount"],
         "qualifiedCount": tam["qualifiedCount"],
@@ -1199,3 +1432,11 @@ def partner_self_view(partner_id: str,
                      "at": o.get("at"), "note": o.get("note")}
                     for o in tam["payouts"]],
     }
+    # Seri anahtarları KOPYALANARAK taşınıyor, `tam.get(...)` ile DEĞİL:
+    # okuma düşmüşse anahtar `partner_detail`de yok ve burada da OLMAMALI.
+    # `None` yazmak "ölçtük, bilinemedi" demek olurdu — pano ikisini ayırt
+    # edemez ve boş bir grafiği "hiç tıklama yok" diye okur.
+    for anahtar in ("clicks30", "clickSeries"):
+        if anahtar in tam:
+            gorunum[anahtar] = tam[anahtar]
+    return gorunum

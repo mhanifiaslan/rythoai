@@ -110,6 +110,88 @@
 
     function el(id) { return document.getElementById(id); }
 
+    /* ---- Tıklama pingi: huninin TEPESİ ---- */
+
+    /* NEDEN var: bu ping olmadan ortak yalnız KURAN kullanıcıyı görüyor.
+       Linkini 500 kişiye gönderip 3 kurulum alan ortak, işe yaramayanın
+       tanıtımı mı, bağlantısı mı, yoksa mağaza sayfası mı olduğunu
+       ayırt edemiyordu — dönüşüm oranının BÖLENİ tam burada üretiliyor.
+
+       ⚠️ Sayılan şey TIKLAMA, KİŞİ DEĞİL. Sayfa `noindex, nofollow`
+       taşıyor ama robots yönergesi WhatsApp/X gibi bağlantı önizleme
+       çekicilerini DURDURMAZ; onlar robots'a bakmadan sayfayı çeker.
+       Ping JS ile atıldığı için JS koşturmayan önizleyiciler sayıya
+       girmez, ama koşturan biri girer. Bu yüzden panolardaki etiket
+       "tıklama" der: "kişi" demek ölçülmeyeni beyan etmek olurdu.
+
+       Kimlik YOK: gövdede yalnız kod gider. Sunucu ne IP, ne User-Agent,
+       ne çerez, ne ziyaretçi kimliği YAZAR — artan tek şey gün başına bir
+       sayaç (bekçi: `test_tiklama_kaydinda_KISISEL_VERI_yok`).
+
+       ⚠️ İddia bilerek "yazmıyor", "okumuyor" DEĞİL: iki yerde okunan bir
+       şey var. `sendBeacon`'un çerez davranışı KAPATILAMAZ, yani çerez
+       varsa istekle gider; kota kovası da isteğin IP'sini BELLEKTE
+       anahtar yapıyor (`core/ratelimit.py`). İkisi de hiçbir yere
+       yazılmıyor — panolardaki metin de bu yüzden "saklanmıyor" der. */
+    function tiklamaBildir(kod) {
+      // Aynı sekmede yenileme çift saymasın. ⚠️ `sessionStorage` ERİŞİMDE
+      // fırlatabilir (gizli sekme, site verisi kapalı) — sarmalanmazsa
+      // fonksiyon düşer, yönlendirme hiç çağrılmaz ve ziyaretçi mağazaya
+      // GİTMEZ. Sayaç uğruna kurulum kaybetmek en kötü sonuç, o yüzden
+      // depolama yoksa dedup'tan vazgeçilir (en kötüsü bir yenileme iki
+      // tıklama sayılır).
+      var anahtar = 'rytho_r_ping_' + kod;
+      try {
+        if (sessionStorage.getItem(anahtar)) return;
+        sessionStorage.setItem(anahtar, '1');
+      } catch (h) { /* depolama yok: dedup'suz devam */ }
+
+      // Göreli adres BİLİNÇLİ: firebase.json `/api/**`i aynı kökende
+      // Cloud Run'a yeniden yazıyor. Ana makine sabit yazılsaydı sayfa
+      // rhytoai.web.app üstünden açıldığında çapraz kökene düşer ve
+      // beacon'un yapamadığı bir ön-uçuş gerekirdi.
+      var adres = '/api/v1/partners/click';
+      var govde = JSON.stringify({ code: kod });
+
+      // ⚠️ SIRA ÖLÜMCÜL: Android dalı hemen `location.replace` çağırıyor
+      // ve sıradan bir `fetch` o anda İPTAL EDİLİR — ölçüm sessizce
+      // kaybolur, hata da görünmez. `sendBeacon` tam bunun için var:
+      // isteği tarayıcıya devreder, sayfa kapansa bile gönderilir.
+      // Blob tipi AÇIKÇA veriliyor: verilmezse beacon gövdeyi `text/plain`
+      // diye yollar. ⚠️ Uç BUGÜN onu da yutuyor — gövdeyi Pydantic modeli
+      // yerine elle ayrıştırıyor (`api/partners.py`, gerekçesi tam bu),
+      // yani "tip verilmezse 422" DOĞRU DEĞİL. Tip, ucun o esnekliğine bel
+      // bağlamamak için veriliyor: uca bir gün model konursa `text/plain`
+      // gövde 422'ye düşer ve sayaç sessizce ölür (beacon yanıtı okunmaz).
+      try {
+        if (navigator.sendBeacon) {
+          var paket = new Blob([govde], { type: 'application/json' });
+          // `false` dönebilir (kuyruk sınırı): sessizce kabul etmek
+          // ölçümü kaybetmek olurdu, o yüzden yedeğe düşülür.
+          if (navigator.sendBeacon(adres, paket)) return;
+        }
+      } catch (h2) { /* Blob/sendBeacon yok ya da reddetti: yedek */ }
+
+      // Yedek zincirin ikinci halkası: `keepalive` isteği sayfa
+      // yıkılırken de sürdürür — bu bayrak olmadan yönlendirme isteği
+      // keser. `credentials: 'omit'` burada MÜMKÜN (beacon'da değil).
+      try {
+        if (typeof fetch === 'function') {
+          fetch(adres, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: govde,
+            keepalive: true,
+            credentials: 'omit'
+          }).catch(function () { /* ölçüm isteği: sessiz düşer */ });
+        }
+      } catch (h3) { /* ikisi de yoksa ping ATLANIR */ }
+
+      // Üçüncü halka YOK ve bu bilinçli: senkron XHR ölçümü kurtarırdı
+      // ama yönlendirmeyi geciktirir. Ziyaretçi mağazaya gitmeyi bir
+      // sayaç için BEKLEMEZ — eksik ölçüm kabul, geciken kurulum değil.
+    }
+
     // Kod yolun İKİNCİ parçasında: /r/ORTAK10
     var parcalar = location.pathname.split('/').filter(Boolean);
     var kod = (parcalar[1] || '').toUpperCase();
@@ -130,10 +212,24 @@
     el('magaza').textContent = t.indir;
 
     if (!gecerli) {
+      // Geçersiz kodda ping ATILMAZ. ⚠️ Gerekçe "çöp doküman" DEĞİL: uç
+      // hem biçimi hem kodun gerçekten var olduğunu kendisi doğruluyor
+      // (`partner_service.record_click`; biçim kapısı bir OKUMAYA bile mal
+      // olmuyor), yani yazım hiç oluşmazdı. Sebep daha basit: sayfa kodun
+      // kullanılamaz olduğunu BİLİYOR — mağaza bağlantısına referrer de
+      // eklenmedi — ve bilerek reddedilecek istek atmak yalnız kimliksiz
+      // ucun kotasını boşa yakar.
       el('baslik').textContent = t.gecersiz;
       el('govde').textContent = t.gecersizGovde;
       return;
     }
+
+    // Ping platformdan BAĞIMSIZ, çünkü tıklama tıklamadır. iOS ve
+    // masaüstü tıklaması atfa DÖNÜŞEMEZ (Install Referrer dengi yok) ve
+    // ortağın bunu görmesi işine yarıyor: 500 tıklama / 0 kurulum,
+    // kitlesinin iPhone'da olduğunu söyler. Bu yüzden panolarda dönüşüm
+    // oranının bölenine iOS tıklamalarının da girdiği YAZILI.
+    tiklamaBildir(kod);
 
     if (android) {
       // Kod mağaza bağlantısında taşınıyor: kullanıcı hiçbir şey yapmıyor.

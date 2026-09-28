@@ -220,6 +220,45 @@
     };
   }
 
+  /* ---------------- Huninin tepesi (tıklama) ---------------- */
+
+  /* Uçtan gelen tıklama alanlarını panelin kullandığı şekle indirger.
+
+     ⚠️ SAVUNMACI olmak zorunda ve gerekçe teorik değil: panel ile backend
+     AYNI ANDA deploy edilmiyor. Hosting saniyeler içinde yayılıyor, Cloud
+     Run revizyonu ise ayrı bir betikle çıkıyor (`infra/deploy-backend.ps1`)
+     — arada YENİ PANEL + ESKİ BACKEND penceresi gerçekten yaşanıyor. O
+     pencerede `clicks` alanı hiç gelmez; `Number(undefined)` NaN üretir ve
+     NaN'lı bir şablon panelin tamamını okunmaz yapardı.
+
+     `olcumVar` ile `0` arasındaki fark BİLİNÇLİ: "uç ölçüm göndermedi" ile
+     "hiç tıklama olmadı" aynı şey değil. İkincisini birincisi yerine
+     göstermek, panelin ölçmediği bir şeyi beyan etmesi olurdu. */
+  function huniOku(d) {
+    var ham = d || {};
+    var varMi = ham.clicks != null || ham.clickSeries != null;
+    var seri = Array.isArray(ham.clickSeries) ? ham.clickSeries : [];
+    // `clicks30` yanıttan DÜŞEBİLİR (seri okuması hata verdiyse uç anahtarı
+    // hiç koymuyor) — `Number(undefined)` NaN, aşağıda null'a çevriliyor.
+    // `== null` ayrıca gerekiyor çünkü `Number(null)` 0 döndürüp
+    // "ölçtük, sıfır" der; ölçülmeyeni sıfır diye göstermek yanlış beyan.
+    var sayi30 = ham.clicks30 == null ? NaN : Number(ham.clicks30);
+    var toplam = ham.clicks == null ? NaN : Number(ham.clicks);
+    // `conversionRate` null GELEBİLİR ve bu bir değer: "tıklama 0, oran
+    // hesaplanamaz" demek (sözleşme). 0 ile karıştırılamaz — 0 oran
+    // "tıklama var, kuran yok" demektir ve ortağa söyleyeceği şey bambaşka.
+    var oranHam = ham.conversionRate;
+    var oran = (oranHam == null || !isFinite(Number(oranHam)))
+      ? null : Number(oranHam);
+    return {
+      olcumVar: varMi,
+      toplam: isFinite(toplam) ? toplam : 0,
+      sayi30: isFinite(sayi30) ? sayi30 : null,
+      seri: seri.map(function (g) { return Number((g && g.count) || 0); }),
+      oran: oran
+    };
+  }
+
   /* ---------------- Liste ---------------- */
 
   async function liste(icerik) {
@@ -468,6 +507,7 @@
     var sahip = RY.sahipMi();
     var pasif = p.active === false;
     var er = erisimOku(d, p);
+    var huni = huniOku(d);
     adOnbellek[id] = p.name;
     RY.kirinti([{ metin: 'Yönetim', href: '#/genel' }, { metin: 'Ortaklar', href: '#/ortaklar' },
                 { metin: p.name || id }]);
@@ -566,9 +606,51 @@
           : (er.granted === false ? b.rozet('Kapalı', 'notr') : b.rozet('Bilinmiyor', 'uyari')),
         { alt: 'ortağın kendi panosuna girip kazancını görmesi' }) +
       // Huni — sahibin sorduğu "benden kaç kişi gelmiş, kaçı alım yapmış".
+      // ⚠️ TEPESİ BİR TUR BOYUNCA YOKTU: tıklama hiç ölçülmediği için
+      // ızgara ortağın SONUCUNU gösteriyordu, çabasını değil. Linkini 500
+      // kişiye gönderen ortak "3" görüyor ve tanıtımının işe yarayıp
+      // yaramadığını bilemiyordu; dönüşüm oranı da bölen olmadan
+      // hesaplanamıyordu.
       '<section class="izgara-kpi" aria-label="Huni">' +
-      b.istatistikKarti({ ad: 'Gelen kullanıcı', deger: b.sayi(d.referredUsers || 0),
-        alt: 'kod kullanımı' }) +
+      b.istatistikKarti({ ad: 'Tıklama',
+        deger: huni.olcumVar ? b.sayi(huni.toplam) : '—',
+        alt: huni.olcumVar
+          ? (huni.sayi30 != null ? 'son 30 gün ' + b.sayi(huni.sayi30)
+             : 'bağlantı açılışı')
+          : 'uç bu alanı döndürmedi — ölçülemedi',
+        // Kıvılcım son 30 günün günlük serisi: tek bir toplam, tanıtımın
+        // BİTTİĞİNİ (seri sıfıra indi) hiç göstermez.
+        kivilcim: huni.seri }) +
+      // ⚠️ ETİKET DÜZELTİLDİ. Burada "Gelen kullanıcı" yazıyordu ve
+      // ölçülen şey o DEĞİLDİ: sayı `referredUsers` = kodların
+      // `redemptionCount` toplamı, o sayaç ise `partner_service.redeem`
+      // içinde uygulama KURULDUKTAN sonra artıyor (kurulum sonrası ilk
+      // açılışta Install Referrer okunup `/billing/redeem-code` çağrılıyor
+      // — `partner_referrer.dart`). Yani bağlantıyı açıp kurmayan kimse bu
+      // sayıya hiç girmiyor. Alan adı `referredUsers` olarak KALIYOR
+      // (sözleşme kırılmasın); düzeltilen yalnız EKRAN ETİKETİ.
+      b.istatistikKarti({ ad: 'Bağlantıyı kullanan', deger: b.sayi(d.referredUsers || 0),
+        alt: 'kurulumdan sonra kod uygulandı' }) +
+      // `conversionRate` sözleşmede BÖLÜM (kuran / tıklama), yüzde değil —
+      // o yüzden 100 ile çarpılıyor. null "tıklama 0, oran hesaplanamaz"
+      // demek ve 0'dan AYRI gösterilmek zorunda: 0 oran "tıklama var,
+      // kuran yok" der ve ortağa söylediği şey bambaşkadır.
+      b.istatistikKarti({ ad: 'Dönüşüm',
+        deger: huni.oran == null ? '—' : b.yuzde(huni.oran * 100),
+        // ⚠️ `null` + ölçüm VAR hâli "ölçemedik" DEĞİL: uç oranı yalnız
+        // tıklama 0 iken null döndürüyor (`partner_service`), yani ölçtük ve
+        // bölen sıfır. "Henüz ölçüm yok" demek ölçüleni yanlış adla sunmak
+        // olurdu — özellikle tıklama sayacından ÖNCE kurulum almış eski
+        // ortaklarda (Tıklama 0, kullanan 5) operatör paneli bozuk sanardı.
+        alt: huni.oran == null
+          ? (huni.olcumVar ? 'tıklama 0 — oran hesaplanamaz'
+             : 'uç bu alanı döndürmedi')
+          // %100'ün ÜSTÜ bozuk veri değil: sunucu oranı bilerek kırpmıyor
+          // (`partner_service`), çünkü kırpmak ölçüm boşluğunu gizlerdi.
+          // Operatör açıklamasız bir "%150" görünce paneli suçlar, o yüzden
+          // sebep kartın altında yazıyor — uzun hâli aşağıdaki dipnotta.
+          : (huni.oran > 1 ? 'tıklaması sayılmayan kurulumlar var'
+             : 'tıklamanın kuruluma dönme oranı') }) +
       b.istatistikKarti({ ad: 'Bekleyen', deger: b.sayi(d.pendingCount || 0),
         alt: '15 gün olgunlaşma' }) +
       b.istatistikKarti({ ad: 'Kesinleşen', deger: b.sayi(d.qualifiedCount || 0),
@@ -576,6 +658,31 @@
       b.istatistikKarti({ ad: 'İptal', deger: b.sayi(d.voidCount || 0),
         alt: 'iade / süre bitti' }) +
       '</section>' +
+      // Bu dipnot KARTLARIN YANILTABİLECEĞİ üç noktayı kapatıyor; üçü de
+      // ölçülmüş davranış, tahmin değil.
+      '<p class="dipnot"><b>Tıklama kişi DEĞİL:</b> sayaç ' +
+      '<span class="mono">/r/KOD</span> sayfası açıldığında artar — aynı ' +
+      'kişinin iki cihazı iki tıklamadır (sekme içi yenileme sayılmaz). ' +
+      'Sayfa <b>noindex</b> taşır ama bu ' +
+      'WhatsApp/X önizleme çekicilerini durdurmaz; ping JS ile atıldığı için ' +
+      'çoğu önizleyici sayıya girmez, girenler olabilir. ' +
+      '<b>Dönüşümün böleni tüm platformları içerir:</b> atıf yalnız Android ' +
+      'kurulumlarında yazılıyor (Install Referrer), yani iOS ve masaüstü ' +
+      'tıklaması oranı kaçınılmaz olarak düşürür — düşük oran her zaman kötü ' +
+      'tanıtım demek değil. Oran <b>%100’ü aşabilir</b> ve bu bozuk veri ' +
+      'değildir: Play bağlantısını doğrudan paylaşan ya da tıklaması ' +
+      'sayılamamış bir kurulum "kuran"ı artırır, tıklamayı artırmaz — sunucu ' +
+      'oranı bilerek kırpmıyor, kırpmak ölçüm boşluğunu gizlemek olurdu. ' +
+      // ⚠️ "YAZILMAZ" diyor, "YOK" DEMİYOR ve fark ölçüldü: tarayıcının
+      // isteğe kendi eklediği çerez engellenemez (`sendBeacon`'un çerez
+      // davranışı kapatılamaz) ve kota kovası isteğin IP'sini BELLEKTE
+      // anahtar yapıyor (`core/ratelimit.py`). Panelde "IP yok" yazmak
+      // ürünün tutmadığı bir söz olurdu; tutulan söz saklamamak
+      // (bekçi: `test_tiklama_kaydinda_KISISEL_VERI_yok`).
+      '<b>Kimlik saklanmıyor:</b> tıklama kaydına IP, ' +
+      'User-Agent, çerez ya da ziyaretçi kimliği YAZILMAZ — saklanan tek ' +
+      'şey gün başına bir sayaç. Sayfa çerez okumuyor; tarayıcının kendi ' +
+      'eklediğini de sunucu ne okuyor ne kaydediyor.</p>' +
       // Para — ₺. Atfedilen brüt gelir ($) BİLEREK ayrı kartta: ödülü
       // artık o belirlemiyor ve iki birimi aynı ızgaraya koymak
       // "hakediş brütün yüzdesi" yanılgısını geri getirirdi.
@@ -625,7 +732,44 @@
         // "Bonus" sütunu KALDIRILDI (K-a): panel hep 0 yolladığı için sütun
         // her satırda 0 gösterip operatöre "ayarlanabilir bir ödül var"
         // izlenimi verirdi. Sıfır dolu bir sütun bilgi değil gürültüdür.
-        { ad: 'redemptionCount', baslik: 'Kullanım', hizala: 'sag', siralanir: true,
+        //
+        // Tıklama sütunu KOD BAŞINA gerekiyor: ortağın birden çok kodu
+        // olabiliyor (kampanya başına ayrı bağlantı) ve toplam tıklama
+        // hangi bağlantının çalıştığını söylemez. `clicks` alanı eski
+        // backend'de HİÇ GELMEZ — o durumda '—' çizilir, 0 çizilmez:
+        // "ölçüm yok" ile "tıklama yok" aynı şey değil ve ikincisi
+        // operatörü bağlantıyı yeniden üretmeye iterdi.
+        { ad: 'clicks', baslik: 'Tıklama', hizala: 'sag', siralanir: true,
+          // ⚠️ `k.clicks == null` kontrolü `Number()`den ÖNCE olmak zorunda:
+          // `Number(null)` 0 döner, yani ölçümü olmayan satır sıralamada
+          // "0 tıklama"ymış gibi davranır ve `bicim` '—' derken `deger` 0
+          // der — aynı hücre iki farklı şey söylerdi.
+          deger: function (k) {
+            if (k.clicks == null) return null;
+            var v = Number(k.clicks);
+            return isFinite(v) ? v : null;
+          },
+          bicim: function (k) {
+            if (k.clicks == null) return '—';
+            var v = Number(k.clicks);
+            return b.e(isFinite(v) ? b.sayi(v) : '—');
+          } },
+        // Başlık "Kullanım" değil "Bağlantıyı kullanan": sütun `redemptionCount`
+        // okuyor ve o sayaç kurulumdan sonra artıyor. Yukarıdaki KPI kartıyla
+        // AYNI kelime olmak zorunda, yoksa iki ekran aynı sayıyı iki ada
+        // bölerdi. ⚠️ "Kuran kullanıcı" da YANLIŞTI ve bir tur boyunca öyle
+        // durdu: `redemptionCount` TEK satırdan artıyor
+        // (`partner_service.py:400`) ve oraya İKİ yol ulaşıyor — kurulum +
+        // Install Referrer, VE uygulaması zaten kurulu birinin bağlantıya
+        // dokunması (App Links). İkincisinde kurulum HİÇ olmaz; kapalı
+        // testte herkeste uygulama kurulu olduğu için oradaki her sayı o
+        // yoldan gelir. Tek kelimeye de KISALTILAMAZ: Türkçede o kelime
+        // tek başına bambaşka bir şey okunur ve ortağın kendi panosu da tam
+        // bu gerekçeyle uzun hâli yazıyor (`web/ortak/ortak.js`,
+        // `kodlarTablosu`). Limit gösterimi (`3 / 100`) bozulmuyor —
+        // `maxRedemptions` tam bu sayacı sınırlıyor.
+        { ad: 'redemptionCount', baslik: 'Bağlantıyı kullanan', hizala: 'sag',
+          siralanir: true,
           bicim: function (k) {
             return b.e(b.sayi(k.redemptionCount || 0) + (k.maxRedemptions ? ' / ' + b.sayi(k.maxRedemptions) : ''));
           } },

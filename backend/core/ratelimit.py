@@ -63,6 +63,27 @@ WINDOW_SECONDS = 60.0
 ADMIN_PREFIX = "/api/v1/admin/"
 ADMIN_LIMIT_PER_MINUTE = 240
 
+# Ortak tıklama sayacı: KENDİ kovası (`clk:`), muafiyet DEĞİL.
+#
+# Uç kimliksiz olduğu için anahtar IP'ye düşer ve Türkiye'de mobil
+# operatörler CGNAT kullanıyor: yüzlerce ziyaretçi TEK egress IP'sini
+# paylaşabilir. Genel kovada (dakikada 60) bir tanıtım tweet'i kendi
+# ölçümünü kırpardı — tıklamalar tam işe yaradığı anda düşer, ortak
+# "kimse tıklamıyor" sanır ve hiçbir yerde hata görünmez. Emsal aynı
+# dosyada: `/api/v1/config/app` tam bu gerekçeyle muaf edildi.
+#
+# Muafiyet YERİNE ayrı kova, çünkü uç herkese açık ve YAZIYOR. Ayrımın
+# iki yönü de korunuyor (`adm:` emsali): tıklama seli uygulamanın mobil
+# kotasını yemez, mobil trafik de tıklama sayacını kırpmaz.
+#
+# 600 = saniyede 10. Tek bir NAT IP'sinden tek bir uygulamanın ortak
+# linkine dakikada 600'den fazla tıklama gerçek bir tanıtım değil,
+# kötüye kullanımdır — ve kovanın kendisi tavan olarak kalıyor: uçtaki
+# "kod gerçekten var mı" kapısı çöp dokümanı, bu kova fatura selini
+# durduruyor.
+CLICK_PATH = "/api/v1/partners/click"
+CLICK_LIMIT_PER_MINUTE = 600
+
 # Kota dışı tutulan hafif uçlar.
 # RevenueCat webhook'u da muaftır: tüm olaylar aynı Authorization başlığıyla
 # gelir, yani tek bir kovayı paylaşırlar ve yoğun anlarda abonelik olayları
@@ -94,8 +115,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._last_prune = time.monotonic()
 
     @staticmethod
-    def _client_key(request: Request) -> str:
-        auth = request.headers.get("authorization")
+    def _client_key(request: Request, sadece_ip: bool = False) -> str:
+        """Kova anahtarı: token özeti, yoksa IP.
+
+        `sadece_ip=True` Authorization başlığını HİÇ dinlemez ve bu yalnız
+        KİMLİK KAPISI OLMAYAN uçlar için doğrudur. Gerekçe ölçüldü: kimlikli
+        uçlarda uydurma bir token `core/auth`ta 401'lenir, yani ayrı kova
+        kazanmak bir şey kazandırmaz. Kimliksiz bir uçta ise token hiç
+        doğrulanmaz — istemci her isteğe farklı bir `Authorization` yazarak
+        her istekte YENİ bir kova açar ve kota hiç devreye girmez (ölçüm:
+        aynı IP'den 700 istek, tek 429 yok; sabit başlıkla 601'de düşüyor).
+        Herkese açık ve YAZAN bir uçta bu, tavanın hiç olmaması demektir.
+        """
+        auth = None if sadece_ip else request.headers.get("authorization")
         if auth:
             # Token içeriğini saklamamak için özetini kullan
             return hashlib.sha256(auth.encode()).hexdigest()[:16]
@@ -125,14 +157,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                   and path.startswith(LLM_PREFIXES)
                   and not path.startswith(LLM_EXEMPT_PREFIXES))
         is_admin = path.startswith(ADMIN_PREFIX)
-        if is_admin:
+        is_click = path == CLICK_PATH
+        if is_click:
+            kova, limit = "clk", CLICK_LIMIT_PER_MINUTE
+        elif is_admin:
             kova, limit = "adm", ADMIN_LIMIT_PER_MINUTE
         elif is_llm:
             kova, limit = "llm", LLM_LIMIT_PER_MINUTE
         else:
             kova, limit = "std", DEFAULT_LIMIT_PER_MINUTE
-        # Admin, LLM ve genel kotalar ayrı sayaçlarda tutulur
-        key = f"{kova}:{self._client_key(request)}"
+        # Tıklama, admin, LLM ve genel kotalar ayrı sayaçlarda tutulur.
+        # Tıklama ucunda anahtar YALNIZ IP: uçta kimlik kapısı olmadığı için
+        # `Authorization` doğrulanmaz ve başlığı dinlemek kotayı istemcinin
+        # eline verirdi (bkz. `_client_key` gerekçesi).
+        key = f"{kova}:{self._client_key(request, sadece_ip=is_click)}"
 
         now = time.monotonic()
         self._prune(now)

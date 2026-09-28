@@ -157,6 +157,119 @@ def test_ortak_baglanti_sayfasi_backend_ile_ayni_kod_desenini_kullaniyor():
     assert 'name="robots" content="noindex' in sayfa
 
 
+def _r_sayfasi_kodu() -> str:
+    r"""`web/r/index.html` içindeki JS'i YORUMLARI ATILMIŞ hâlde döndürür.
+
+    ⚠️ Yorumları atmak ŞART ve gerekçesi bu depoda iki kez patladı: bir
+    şeyin YOKLUĞUNU arayan bekçi, onu ANLATAN yorumu görmemeli. Aşağıdaki
+    testler tam bunu yapıyor — biri `document.cookie`nin geçmediğini
+    kanıtlıyor, öteki `location.replace(` ile ping çağrısının SIRASINA
+    bakıyor. Ping'i açıklayan yorum blokları hem "çerez" hem
+    "location.replace" kelimelerini geçiriyor; ham metinde arama yapan bir
+    bekçi ilkinde yanlış pozitif verir, ikincisinde yanlış NEGATİF —
+    yorum kodun önünde geldiği için sıra testi her hâlükârda "geçer".
+
+    Satır yorumları YALNIZ satır başından atılıyor, gövde içi kuyruk
+    yorumu bırakılıyor. Naif bir `//`→satır sonu temizliği dize
+    literallerini de keserdi: sayfada `'https://play.google.com/...'`
+    duruyor (ölçüldü, dosyadaki tek gövde-içi `//` tam o) ve mağaza
+    adresi yarısından kesilirdi.
+
+    ⚠️ SIRA ÖLÇÜLDÜ ve tersi SESSİZCE KOD YUTUYOR: satır yorumları blok
+    yorumlarından ÖNCE atılmalı. Sayfadaki bir satır yorumu Hosting
+    yeniden yazımından söz ediyor ve içinde `/api/**` geçiyor — o dizi
+    `/*` ile başlıyor. Blok temizliği önce koşarsa oradan başlayıp bir
+    sonraki `*/`ye kadar HER ŞEYİ siliyor; ping fonksiyonunun tamamı
+    kaybolmuş hâlde teste giriyordu (ilk yazımda tam bu oldu, testler
+    "sendBeacon yok" diye kırmızı döndü ve suçlu sayfa değil bu
+    yardımcıydı).
+    """
+    sayfa = (_WEB / "r" / "index.html").read_text(encoding="utf-8")
+    js = re.search(r"<script>(.*?)</script>", sayfa, re.S)
+    assert js, "sayfada <script> bloğu yok"
+    kod = re.sub(r"(?m)^[ \t]*//.*$", "", js.group(1))
+    return re.sub(r"/\*.*?\*/", "", kod, flags=re.S)
+
+
+def test_ortak_sayfasi_tiklamayi_YONLENDIRMEDEN_SAG_CIKACAK_bicimde_bildiriyor():
+    """Ping, mağaza yönlendirmesinden SAĞ ÇIKMAK zorunda.
+
+    Android dalı `location.replace` çağırıyor ve sıradan bir `fetch` o anda
+    İPTAL EDİLİR: istek hiç gitmez, konsolda hata da görünmez. Sonuç
+    tam olarak ölçülemeyen bir ölçüm olurdu — panoda tıklama 0 yazar,
+    "kimse tıklamamış" gibi okunur ve ortak tanıtımını boşuna suçlar.
+    `sendBeacon` bu iş için var (sayfa kapanırken de gönderir), `keepalive`
+    da yedeği. İkisi birden düşerse ping ATLANIR; ziyaretçi bir sayaç için
+    mağazaya gitmeyi beklemez.
+
+    Sıra da pinleniyor: ping çağrısı yönlendirmeden ÖNCE gelmeli. Sonra
+    gelirse hiç çalışmaz — Android'de o satıra varılmaz bile.
+    """
+    kod = _r_sayfasi_kodu()
+
+    assert "navigator.sendBeacon(" in kod, (
+        "ping `sendBeacon` kullanmıyor — `location.replace` sıradan bir "
+        "fetch'i iptal eder ve tıklama ölçümü sessizce kaybolur")
+    assert "keepalive: true" in kod, (
+        "sendBeacon yedeği `keepalive: true` taşımıyor; bayrak olmadan "
+        "yönlendirme yedek isteği de keser")
+
+    cagri = re.search(r"(?m)^[ \t]*tiklamaBildir\(", kod)
+    assert cagri, "ping hiçbir yerden ÇAĞRILMIYOR (yalnız tanımlı)"
+    yonlendirme = kod.index("location.replace(")
+    assert cagri.start() < yonlendirme, (
+        "ping çağrısı `location.replace(`'ten SONRA — Android'de o satıra "
+        "hiç varılmaz, tıklama hiç sayılmaz")
+
+    # Gizlilik çizgisi (sahibin şartı, pazarlık yok): gövdede YALNIZ kod.
+    # Bu iddia ekranda da yazıyor (yönetim panelinde "Kimlik saklanmıyor"),
+    # yani gövde büyürse ürün tutmadığı bir söz vermiş olur.
+    assert "JSON.stringify({ code: kod })" in kod, (
+        "ping gövdesi beklenen tek alanlı biçimde değil; tıklama ölçümünde "
+        "koddan başka hiçbir şey gönderilmez")
+    assert "document.cookie" not in kod, (
+        "sayfa çerez okuyor — tıklama ölçümü kimliksiz olmak zorunda")
+
+
+def test_ortak_sayfasinin_pingledigi_uc_backend_te_GERCEKTEN_tanimli():
+    """Sayfanın pinglediği yol ile backend'in mounted yolu AYNI olmalı.
+
+    `DESEN` testiyle aynı sınıf bir sessiz kopma: yol ayrışırsa sayfa
+    404'e ping atar, beacon sessiz olduğu için hiçbir yerde hata görünmez
+    ve pano "tıklama yok" der. Sözleşme yolu `POST /api/v1/partners/click`.
+
+    Bu test page↔route EŞLEŞMESİNİ pinliyor; ucun kendi davranışı
+    (204, gövde yok, kimlik yok) backend paketinin testlerinde.
+    """
+    kod = _r_sayfasi_kodu()
+    yol = re.search(r"var adres = '([^']+)';", kod)
+    assert yol, "sayfada ping adresi bulunamadı"
+    beklenen = yol.group(1)
+    assert beklenen.startswith("/api/"), (
+        f"ping adresi göreli /api/ yolu değil: {beklenen!r} — ana makine "
+        "sabit yazılırsa sayfa rhytoai.web.app üstünden çapraz kökene düşer")
+
+    from main import app
+
+    # ⚠️ `app.routes` ÜZERİNDEN OKUNMUYOR ve gerekçesi ölçüldü: bu FastAPI
+    # sürümünde `include_router` alt yolları düzleştirmiyor, `app.routes`
+    # içine `_IncludedRouter` sarmalayıcıları koyuyor. `getattr(r, "path")`
+    # o nesnelerde YOK, yani yolları orada arayan bir bekçi hiçbir uç
+    # bulamaz ve uç VARKEN bile kırmızı döner (ilk yazımda tam bu oldu).
+    # OpenAPI şeması mount edilmiş yolu tek gerçek kaynak olarak veriyor.
+    # Sınır: `include_in_schema=False` ile gizlenen bir uç burada
+    # görünmez — o gün bu test uca değil BEKÇİYE işaret eder.
+    yollar = app.openapi().get("paths", {})
+    assert beklenen in yollar, (
+        f"sayfa {beklenen!r} adresine POST atıyor ama backend bu yolu "
+        "tanımlamıyor; beacon sessiz olduğu için kayıp hiçbir yerde "
+        f"görünmez. Tanımlı ortak yolları: "
+        f"{sorted(p for p in yollar if 'partner' in p)}")
+    assert "post" in yollar[beklenen], (
+        f"{beklenen!r} tanımlı ama POST yok: {sorted(yollar[beklenen])} — "
+        "sayfa beacon'u POST olarak yolluyor")
+
+
 def test_hreflang_kumelerinde_x_default_var():
     """x-default yoksa dili eşleşmeyen ziyaretçiye Google kendi tahminiyle
     bir dil seçer. Ürün TR-öncelikli (uygulamada da desteklenmeyen dil
