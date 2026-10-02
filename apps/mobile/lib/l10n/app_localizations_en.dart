@@ -2338,7 +2338,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pointSheetFootnote =>
-      'The rows above are measurements. The two sentences below combine that planet\'s classical meaning with the house it falls in — ask Rytho for a reading specific to you.';
+      'This page shows the MEANING first, then the MEASUREMENT. The meaning sentence comes from classical interpretive tradition and describes the measured placement — it is not a reading specific to you; degree, house and speed are computed from the real sky at your birth moment (Swiss Ephemeris).';
+
+  @override
+  String pointPlacementSentence(String rol, String alan) {
+    return '$rol — these play out in $alan.';
+  }
 
   @override
   String get pointAscendant => 'Ascendant';

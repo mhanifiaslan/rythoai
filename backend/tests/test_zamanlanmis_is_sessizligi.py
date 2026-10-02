@@ -27,6 +27,8 @@ tek başına bir onarım DEĞİL: kırmızı olan şey durum kodu olmak zorunda.
 """
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -294,3 +296,135 @@ def test_kosu_kaydi_ayni_durumu_tasir(kosu):
     assert yanit.status_code == 503
     assert len(kosu["kosu"]) == 1
     assert kosu["kosu"][0].status == "uretim-tamamen-dustu"
+
+
+# --------------------------------------------------------------------------
+# B3: kirmizi esigi SLOT BASINA
+# --------------------------------------------------------------------------
+
+def _sonuc(type_: str, **gen) -> notify_runner.RunResult:
+    """Kapiyi UNIT olarak sinamak icin asgari RunResult.
+
+    Uctan ucu kurmak yerine kapi dogrudan olculuyor: `winback` icin tam
+    kuyruk kurmak (sessizlik epizodu + basamak durumu + olcum dususu)
+    testin olctugu seyi kapidan uzaklastirir ve kirilma yeri belirsizlesir.
+    `daily` ucu zaten yukaridaki uctan-uca bekcilerle civili.
+    """
+    return notify_runner.RunResult(
+        status="ok", type=type_, scanned=1, queued=gen.pop("queued", 0),
+        sent=gen.pop("sent", 0), failed=0, pruned=0, skipped={},
+        generation=dict(gen))
+
+
+def test_winback_tek_adayla_da_kirmizi_yanar():
+    """B3'un cekirdegi: esik 3 iken `winback` kapisi HIC dolmuyordu.
+
+    Olculdu (gercek `winback_tier`, 18 profil ve HEPSI sessiz — ust
+    sinir): bir kosunun kuyrugu ortalama 0.79, en cok 2, 3'e ulasma
+    orani %0. Cunku `winback_tier` basamagi bir kez gonderdikten sonra
+    susuyor, yani bir kullanici 30 gunluk sessizlik epizodunda EN FAZLA
+    UC kosuda kuyruga giriyor. Sabit esik 3'te uretim tamamen dusse de
+    uc 200 donuyordu: bu turun dersi yeni slotlar icin yarim kaliyordu.
+    """
+    assert notify_runner._dusus_gerekcesi(
+        _sonuc("winback", attempted=1, fallback=1)) == "uretim-tamamen-dustu"
+
+
+def test_ayni_dokum_daily_slotunda_kirmizi_YANMAZ():
+    """Esigin SLOTA bagli oldugunun bagimsiz isareti.
+
+    Ustteki bekci tek basina, esigi her slot icin 1 yapan bir mutasyondan
+    da GECER. Ayni dokumun `daily`de yesil kalmasi, farkin gercekten slot
+    basina oldugunu olcuyor — `daily` kuyrugu olculmustu (10/5/1) ve orada
+    tek deneme "hepsi dustu" ile "o tek profil bozuk" arasini AYIRMAZ.
+    """
+    assert notify_runner._dusus_gerekcesi(
+        _sonuc("daily", attempted=1, fallback=1)) is None
+
+
+def test_winback_olay_yokken_kirmizi_yanmaz():
+    """Esik 1 olsa bile "olay yok" dusus DEGILDIR.
+
+    Kuyrugun gunlerin yarisinda 0 oldugu olculdu (ortalama 0.79); bos
+    kuyruk kirmizi yansa slot her gun yanar ve okunmaz hale gelirdi —
+    yani 403'u bir ay saklayan kusurun aynisi ters yonden geri gelirdi.
+    """
+    assert notify_runner._dusus_gerekcesi(_sonuc("winback")) is None
+    assert notify_runner._dusus_gerekcesi(
+        _sonuc("winback", attempted=0)) is None
+
+
+def test_winback_esigi_olculen_kuyrugun_USTUNDE_olamaz():
+    """Esik, slotun gercek kuyrugundan buyukse bekci HIC dolmaz.
+
+    Kuyruk burada YENIDEN olculuyor (gercek `winback_tier` ile), yani
+    `WINBACK_TIERS` buyutulup esik guncellenmezse bu bekci yanar.
+    Capa tek bir sayiya degil OLCUME bagli.
+    """
+    profiller = [{"son_giris": -i, "gonderilen": 0} for i in range(18)]
+    gunluk = []
+    for gun in range(40):
+        yerel = dt.datetime(2026, 10, 1, 19, 0,
+                            tzinfo=dt.timezone.utc) + dt.timedelta(days=gun)
+        bugun = 0
+        for p in profiller:
+            fark = gun - p["son_giris"]
+            profil = {"timezone": "UTC",
+                      "lastSeenDaily": (yerel.date()
+                                        - dt.timedelta(days=fark)).isoformat()}
+            basamak, _ = ns.winback_tier(profil, yerel, p["gonderilen"])
+            if basamak is not None:
+                bugun += 1
+                p["gonderilen"] = basamak
+        gunluk.append(bugun)
+
+    # ⚠️ 0. GUN BIRIKMIS BACKLOG'U BOSALTIR ve olcume KATILMAZ: baslangicta
+    # her profilin `gonderilen`i 0, yani "sessizligi 3 gunu gecmis ama hic
+    # cagrilmamis" 16 kullanici AYNI GUN kuyruga giriyor (olculdu: 16).
+    # Bu gercek bir olay — slot ilk defa aciligi gun aynen yasanir — ama
+    # KALICI HAL degil; esik kalici hale gore secilir. Bu satiri silip 1.
+    # gunden baslamak olcumu 2'den 16'ya cikarir (ilk yazimda oyle yaptim
+    # ve bekci KENDI yontem hatasiyla kirmizi yandi).
+    kararli = gunluk[1:]
+    en_cok = max(kararli)
+    assert gunluk[0] > en_cok, \
+        "backlog gunu kalici halden buyuk olmali; kurulum bozulmus"
+    assert en_cok <= 2, f"kuyruk olcumu degismis: en cok {en_cok}"
+    assert notify_runner._kirmizi_esigi("winback") <= en_cok, (
+        "winback esigi olculen kuyrugun ustunde; bekci hic dolmaz "
+        f"(esik={notify_runner._kirmizi_esigi('winback')}, kuyruk={en_cok})")
+
+
+def test_uretim_saymayan_slotlar_esikten_muaf_kalir():
+    """`checkin`/`streak`/`midday` `generation` sayacini HIC artirmiyor.
+
+    Esik tablosuna eklenirlerse hicbir sey degismez ama yorum YANLIS
+    gerekce tasir ("esigi dusurduk ki gorunsun"), oysa o slotlarda uretim
+    kapisi tanim geregi sessiz. Bekci bu yanlis gerekceyi engelliyor.
+    """
+    for tur in ("checkin", "streak", "midday"):
+        assert tur not in notify_runner._SLOT_KIRMIZI_ESIGI
+        assert notify_runner._dusus_gerekcesi(_sonuc(tur)) is None
+
+
+def test_GONDERIM_kapisi_da_slot_esigini_kullanir():
+    """Esik IKI kapida da slottan okunmali — biri atlanirsa yarim kalir.
+
+    ⚠️ Bu bekci bir KOR BEKCI onarimidir (dogrulama turu, minimal
+    mutasyonla olculdu): gonderim kapisini sabit `_KIRMIZI_ESIGI`ye
+    geri dusuren mutasyon 61/61 YESIL geciyordu. Ustteki butun B3
+    bekcileri `generation` kapisini olcuyor; GONDERIM kapisi
+    olculmuyordu.
+
+    Neden ayni esik: `queued` ile `attempted` AYNI kuyruktan besleniyor
+    (olculdu: `winback` kuyrugu kararli halde 0-2). Gonderim kapisi 3'te
+    kalirsa `winback` push'u TAMAMEN olse de uc 200 doner — yani bu
+    turun dersi ("zamanlanmis isler bir ay yesil yalan soyledi")
+    uretim yolunda kapanip gonderim yolunda acik kalirdi.
+    """
+    assert notify_runner._dusus_gerekcesi(
+        _sonuc("winback", queued=1, sent=0)) == "gonderim-tamamen-dustu"
+    # BAGIMSIZ isaret: ayni dokum `daily`de yesil kalmali, yoksa
+    # ustteki iddia "esik her slotta 1" mutasyonundan da gecerdi.
+    assert notify_runner._dusus_gerekcesi(
+        _sonuc("daily", queued=1, sent=0)) is None

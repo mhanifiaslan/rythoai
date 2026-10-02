@@ -22,7 +22,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from core import wallet
+from core import entitlements, wallet
 from core.auth import AuthUser, get_current_user
 from core.entitlements import require_plus
 from core.i18n import get_language
@@ -96,12 +96,17 @@ def firasa_reading(
     user: AuthUser = Depends(require_plus("firasa")),
     lang: str = Depends(get_language),
 ):
-    """Yüz oranlarından firaset okuması — Rytho+.
+    """Yüz oranlarından firaset okuması — Rytho+, GÜNLÜK yüzey.
 
     Abonelik sınırı maliyet farkından geçiyor: okuma kullanıcıya özel
-    üretiliyor, yani kullanıcı başına bir LLM çağrısı. Aynı oranlar için
-    sonuç bir hafta önbellekte tutulur; kullanıcı ekranı her açtığında
-    yeniden üretilmez.
+    üretiliyor, yani kullanıcı başına bir LLM çağrısı.
+
+    Önbellek GÜN BAŞINA: aynı oranlar + aynı harita + aynı gün ikinci kez
+    açıldığında yeniden üretilmez, gün dönünce üretilir. Ömür 7 GÜNDÜ ve
+    yüzey o zaman kimlik sayılıyordu; sahip kararıyla (2026-10-03) üç yüzey
+    gerçekten günlüğe çekildi. Değişen şey ölçülen ORANLAR değil — onlar
+    güne göre değişmiyor ve değişmemeli — o oranların bugünün gökyüzüyle
+    KESİŞİMİ.
     """
     # Rıza kapısı yetkiden SONRA, işlemeden ÖNCE.
     #
@@ -132,14 +137,49 @@ def firasa_reading(
         profile = profile_service.get_profile(user.uid)
         # Harita varsa okumaya girer: firaset tek başına da çalışır ama
         # haritayla birlikte kişiye özgü olur.
-        chart = chart_context.chart_whisper(user.uid, profile, lang=lang)
+        #
+        # Blok İKİYE BÖLÜNÜYOR ve prompt'ta ayrı başlıklara giriyor: kalıcı
+        # olan (doğum haritası) ile bugüne ait olan (transitler + yaklaşan
+        # kesinleşmeler). Sebebi ölçülmüş bir kusur sınıfı: ikisi tek blokta
+        # geldiğinde model "bugün" ile "her zaman"ı aynı cümlede eritiyor,
+        # ve o metin önbellekte yaşadığı sürece dünkü gökyüzünü bugünmüş
+        # gibi anlatıyor. Gün bloğu artık aynı zamanda önbellek kovası
+        # (`report_service._gun_kovasi`), yani prompt'taki gün ile anahtardaki
+        # gün AYNI dizeden türüyor ve ayrışamıyor.
+        #
+        # Gün sınırı KULLANICININ yerel günü: sunucu UTC'de koşuyor ve
+        # Türkiye'de kullanıcının günü 03:00'te dönüyor (D2). Günlük okuma
+        # da aynı kaynağı kullanıyor; iki yüzeyin "bugün"ü ayrışmamalı.
+        #
+        # BİR KEZ okunuyor ve ÜÇ yere birden veriliyor: olguların önbellek
+        # kovasına, basılan damgaya ve (damga üzerinden) firaset anahtarına.
+        # ⚠️ Bu hizalama ÖLÇÜLEREK eklendi (doğrulama turu, 2026-10-03).
+        # `chart_facts` günü verilmezse transit kovasını `dt.date.today()`
+        # ile, yani SUNUCUNUN UTC günüyle kuruyor; damga ise kullanıcının
+        # yerel gününü basıyor. UTC+3'te ikisi her gün 21:00–24:00 UTC
+        # (= 00:00–03:00 yerel) arasında AYRIŞIYOR ve sonuç tam da bu
+        # paketin kapattığı kusur: damga YENİ günü söylerken olgular ESKİ
+        # UTC gününün kovasından geliyor (TTL 36 saat). O saatlerde ekranı
+        # açan kullanıcı, günün geri kalanında dünkü gökyüzüyle üretilmiş
+        # ama bugün tarihli bir metin görürdü — üstelik anahtar damgayla
+        # döndüğü için o metin için yeni bir jeton da ödenmiş olurdu.
+        bugun = entitlements.user_local_date(user.uid)
+        # `facts` bir kez hesaplanıp ikisine de veriliyor (sohbet ucuyla
+        # aynı desen): efemeris hesabı önbellekli ama iki ayrı çağrı iki
+        # ayrı önbellek turu demek olurdu.
+        facts = (chart_context.chart_facts(user.uid, profile, today=bugun)
+                 if profile else None)
+        chart = chart_context.chart_whisper(
+            user.uid, profile, lang=lang, facts=facts,
+            include_transits=False)
+        gokyuzu = chart_context.gunun_gokyuzu(facts, lang=lang, today=bugun)
 
         # `exclude_none`: gönderilmeyen hareket alanları sözlüğe HİÇ girmesin.
         # `heat_lean` alanın YOKLUĞUNU "ölçülemedi" diye okuyor; None olarak
         # taşımak da işe yarardı ama yokluk niyeti daha net ifade ediyor.
         rapor = report_service.firasa_report(
             user.uid, ratios.model_dump(exclude_none=True),
-            chart=chart, lang=lang,
+            chart=chart, sky=gokyuzu, lang=lang,
             spend=wallet.spender(user.uid, "face", lang=lang),
             refund=lambda: wallet.refund_spend(user.uid, "face"))
         return {"status": "success", "reading": rapor["text"],

@@ -112,6 +112,58 @@ NO_TOKEN_MESSAGE = "Bu hesabın push jetonu yok — mobilde bu hesapla giriş ya
 #: inerse eşik yeniden ÖLÇÜLÜP düşürülmeli, tahminle değiştirilmemeli.
 _KIRMIZI_ESIGI = 3
 
+#: SLOT BAŞINA kırmızı eşiği. Eksik slot varsayılana (`_KIRMIZI_ESIGI`)
+#: düşer.
+#:
+#: NEDEN slot başına gerekti (ölçüldü 2026-10-03): yukarıdaki "3" yalnız
+#: `daily` için ölçülmüştü (kuyruklar 06:05→10, 04:05→5, 08:05→1) ve o
+#: sayı diğer slotlara TAŞINMIYOR. `winback`in bir koşudaki adayı,
+#: sessizliği O GÜN 3/10/30. basamağa basan kullanıcılardır: `winback_tier`
+#: basamağı bir kez gönderdikten sonra susuyor (`aday <= gonderilen`),
+#: yani bir kullanıcı 30 günlük bir sessizlik epizodu boyunca EN FAZLA ÜÇ
+#: koşuda kuyruğa giriyor.
+#:
+#: Gerçek `winback_tier` ile ölçüldü (18 profil, HEPSİ sessiz — yani ÜST
+#: SINIR): günlük kuyruk ortalama **0.79**, en çok **2**, ve kuyruğun
+#: 3'e ULAŞTIĞI gün oranı **%0**. 12 profille ortalama 0.64, en çok 2.
+#: Yani `attempted >= 3` eşiği bu slotta HİÇ dolmuyordu: üretim tamamen
+#: düşse bile uç 200 dönüyor ve bu turun dersi ("zamanlanmış işler bir ay
+#: yeşil yalan söyledi") yeni slotlar için YARIM kalıyordu. Hiç dolmayan
+#: bir eşik, bekçi değil kusurun KORUYUCUSUDUR.
+#:
+#: BEDELİ (ölçülen, kabul edilmiş): eşik 1'de tek bir bozuk profil koşuyu
+#: kırmızı yapar. Üç şey bu bedeli sınırlıyor ve üçü de ölçülü:
+#:   1. Kuyruk günlerin yarısında 0'dır (ortalama 0.79) ve `attempted==0`
+#:      iken kapı HİÇ çalışmaz ("olay yok düşüş değildir").
+#:   2. `winback` günde bir koşar, `daily` gibi saatte bir değil — yani
+#:      yanlış alarm okunmaz hâle gelecek sıklıkta yanamaz.
+#:   3. Kırmızı ancak `ok == 0` iken yanar; kuyrukta iki kişi varsa ve
+#:      biri başarılıysa koşu yeşildir.
+#:
+#: `circle` varsayılanda (3) BİLEREK bırakıldı: kapısı "son 3 günde
+#: görülmüş" (`fark < WINBACK_TIERS[0]`), yani adayı AKTİF kullanıcılardır
+#: ve kuyruğu `daily` ile aynı büyüklük sırasında. `checkin`/`streak`/
+#: `midday` buraya hiç girmiyor çünkü `generation` sayacını HİÇ
+#: artırmıyorlar (LLM çağırmıyorlar: biri yazılmış soruyu okuyor, ikisi
+#: şablon) — onlarda üretim kapısı tanım gereği sessizdir.
+#:
+#: ⚠️ Eşikler kullanıcı sayısına bağlı. `winback` kuyruğu yapısal olarak
+#: "sessiz kullanıcıların %10'u" (3 basamak / 30 gün); nüfus büyüyünce bu
+#: sayı büyür ve eşik yeniden ÖLÇÜLÜP yükseltilmeli, tahminle değil.
+_SLOT_KIRMIZI_ESIGI = {
+    "winback": 1,
+}
+
+
+def _kirmizi_esigi(type_: str) -> int:
+    """Bu slotun kırmızı eşiği.
+
+    Tek okuma noktası: eşik iki yerde hesaplanırsa biri değişip öteki
+    kalır ve 503 ile `notifyRuns.lastStatus` sessizce ayrışır — aynı
+    gerekçe `tamamen_dustu`da da yazılı.
+    """
+    return _SLOT_KIRMIZI_ESIGI.get(type_, _KIRMIZI_ESIGI)
+
 #: `RunResult.status` bu değerlerden birini aldıysa koşu tamamen düşmüştür.
 #: Tek kaynak: uç 503 kararını `tamamen_dustu()` ile verir, panel aynı adı
 #: `notifyRuns.lastStatus`ta okur.
@@ -289,14 +341,26 @@ def _dusus_gerekcesi(sonuc: RunResult) -> str | None:
        `SendResult(0, N, …)` dönüyor ve koşu buna da "ok" diyordu.
 
     Eşik ve "kısmi başarısızlık kırmızı DEĞİLDİR" gerekçesi
-    `_KIRMIZI_ESIGI`de. Prova (`dry-run`) buraya hiç uğramaz: orada
-    gönderim tanım gereği denenmez, `sent` her zaman 0 olurdu.
+    `_KIRMIZI_ESIGI`de, slot başına sapması `_SLOT_KIRMIZI_ESIGI`de.
+    Prova (`dry-run`) buraya hiç uğramaz: orada gönderim tanım gereği
+    denenmez, `sent` her zaman 0 olurdu.
+
+    ⚠️ Eşik SLOTTAN okunuyor (`sonuc.type`), sabit değil: `winback`in bir
+    koşudaki kuyruğu ölçüldü (18 profil, hepsi sessiz → ortalama 0.79, en
+    çok 2) ve sabit 3 eşiği o slotta HİÇ dolmuyordu — üretim tamamen
+    düşse de uç 200 dönüyordu.
+
+    Gönderim eşiği de aynı slot değerini kullanıyor ve bu BİLİNÇLİ:
+    `queued` ile `attempted` aynı kuyruktan besleniyor, yani `winback`te
+    gönderim kuyruğu da 0-2'dir. İki kapıya iki ayrı eşik yazılsaydı
+    biri dolar öteki hiç dolmazdı.
     """
+    esik = _kirmizi_esigi(sonuc.type)
     uretim = sonuc.generation
-    if (uretim.get("attempted", 0) >= _KIRMIZI_ESIGI
+    if (uretim.get("attempted", 0) >= esik
             and uretim.get("ok", 0) == 0):
         return "uretim-tamamen-dustu"
-    if sonuc.queued >= _KIRMIZI_ESIGI and sonuc.sent == 0:
+    if sonuc.queued >= esik and sonuc.sent == 0:
         return "gonderim-tamamen-dustu"
     return None
 

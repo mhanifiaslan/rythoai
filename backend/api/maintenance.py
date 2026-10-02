@@ -33,7 +33,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from starlette.concurrency import run_in_threadpool
 
 from api.reports import SignName
-from core import config, i18n
+from core import cache, config, i18n
 from core.auth import get_current_user, require_admin, require_owner
 from core.i18n import get_language
 from services import chat_history, prompts, report_service
@@ -139,6 +139,66 @@ def cleanup(
     return {"status": "success", "dry_run": dry_run, **sonuc}
 
 
+def _katman_olc(burc: str, period: str, kova: str, dil: str) -> str:
+    """Bu kombinasyonun önbellek KATMANI — üretim çağrısından ÖNCE.
+
+    ⚠️ SIRA ZORUNLU, konfor değil: `cache.get_katmanli` kalıcı katmandan
+    okuduğu değeri belleğe TERFİ ettiriyor (maliyet kapısı). Yani
+    `report_service` bir kez `cache.get` çağırdıktan sonra aynı anahtara
+    sorulan katman HER ZAMAN ``KATMAN_BELLEK`` döner ve ölçüm
+    yapısal olarak işe yaramaz hâle gelir. Ölçüm bu yüzden üretimden
+    önce yapılıyor.
+
+    Anahtar `report_service.horoscope_cache_key` ile kuruluyor — formül
+    BURADA TEKRAR YAZILMIYOR. Kopyalansaydı iki doğruluk kaynağı olurdu
+    ve anahtar şeması değiştiği gün ısıtma, var olmayan bir anahtarı
+    ölçüp her kombinasyonu sessizce "soğuk" sayardı.
+
+    Fazladan maliyet YOK: kalıcı okumayı burada yapıyoruz, `cache.get`
+    bir satır sonra bellekten dönüyor — eskiden de aynı tek okuma vardı,
+    yalnız katmanı atılıyordu.
+    """
+    return cache.get_katmanli(
+        report_service.horoscope_cache_key(burc, period, kova, dil))[1]
+
+
+def _sicaklik_adi(katman: str) -> str:
+    """Ölçülen katmanın ISITMA sayacındaki DOĞRU adı.
+
+    İki ayrı şeyi ayırıyor ve ayrımın bedeli ölçüldü:
+
+    * ``paylasimli_sicak`` — değer KALICI katmandan geldi **ve** o katman
+      instance'lar arasında paylaşımlı (`cache.kalici_katman_paylasimli`,
+      yani arka uç firestore). Isıtmanın tek amacı bu: sabah ilk açan
+      kullanıcı, hangi instance'a düşerse düşsün beklemesin.
+    * ``paylasimsiz_sicak`` — isabet var ama PAYLAŞIMLILIK ÖLÇÜLEMEDİ.
+      Üç alt durum birden buraya düşüyor ve adın üçü için de doğru
+      olması gerektiği için ad "ölçülemedi" üzerine kurulu:
+
+      1. ``KATMAN_BELLEK`` — değer yalnız bu sürecin belleğinde.
+      2. ``KATMAN_KALICI`` ama katman paylaşımlı değil (`file` arka ucu
+         Cloud Run'ın yerel diskidir, kap ölünce gider).
+      3. ``KATMAN_YOK`` — ölçüm hiçbir şey bulmadı, buna rağmen
+         `report_service` isabet bildirdi. Gerçekte ancak iki okuma
+         ARASINDA başka bir süreç yazarsa olur (ya da bir testin sahtesi
+         önbelleği hiç kullanmıyorsa). Nadir, ama "paylaşımlı" saymak
+         ölçülmeyeni söylemek olurdu — bu yüzden bu kovada.
+
+    Eski ad ``zaten_sicak`` bu ayrımı hiç yapamıyordu ve ölçtüğü şey
+    (okunabildi) ile ima ettiği şey (ısıtma gereksiz) ayrışıyordu:
+    haftalık/aylık işler her gece koşuyor, bir önceki koşunun aynı
+    instance'ta bıraktığı bellek değeri "zaten sıcak" sayılıyordu ve o
+    kombinasyon paylaşımlı katmanda HİÇ olmayabiliyordu.
+
+    ⚠️ Adın ``surec_sicak`` OLMAMASI bilinçli (ilk yazımda öyleydi):
+    3. durumda değer bu süreçte de sıcak DEĞİL, yani o ad üç durumdan
+    birinde yalan olurdu. Ad bir KONUM değil, ölçümün SINIRINI anlatıyor.
+    """
+    if katman == cache.KATMAN_KALICI and cache.kalici_katman_paylasimli():
+        return "paylasimli_sicak"
+    return "paylasimsiz_sicak"
+
+
 def _isit(period: str, hedef_gun: dt.date, butce_sn: float
           ) -> tuple[dict[str, int], list[str], list[str], list[str],
                      str | None]:
@@ -166,13 +226,23 @@ def _isit(period: str, hedef_gun: dt.date, butce_sn: float
     # `toplam` denenen değil HEDEFLENEN kombinasyon sayısıdır: bütçe kesintisi
     # toplamı küçültürse "24'te 24 ısındı" gibi görünüp kesintiyi saklardı.
     sayac = {"toplam": len(BURCLAR) * len(i18n.SUPPORTED),
-             "isinan": 0, "zaten_sicak": 0, "dusen": 0, "atlanan": 0,
-             "yazilamayan": 0}
+             "isinan": 0, "paylasimli_sicak": 0, "paylasimsiz_sicak": 0,
+             "dusen": 0, "atlanan": 0, "yazilamayan": 0}
     dusenler: list[str] = []
     atlananlar: list[str] = []
     yazilamayanlar: list[str] = []
     kova: str | None = None
     bitis = time.monotonic() + butce_sn
+
+    # Kova döngüden ÖNCE bir kez: (dönem, gün) dışında hiçbir şeye bağlı
+    # değil, yani 24 kombinasyon için aynı. Katman ölçümünün anahtarı
+    # buna muhtaç ve ölçüm üretimden ÖNCE yapılmak zorunda (bkz.
+    # `_katman_olc`), yani `horoscope_reading`in dönüşündeki
+    # `generated_for`u beklemek SEÇENEK DEĞİL — ilk kombinasyon ölçümsüz
+    # kalırdı. ISO hafta formülü burada tekrar yazılmıyor: `isocalendar`
+    # yılı takvim yılından sapabiliyor (yıl sonu haftaları) ve ikinci bir
+    # kopya o tuzağı bir kez daha kurardı.
+    kova_hedef = report_service._horoscope_bucket(period, hedef_gun)
 
     for dil in i18n.SUPPORTED:
         # Gökyüzü yükü dil başına BİR kez yerelleştirilir: hesap paylaşımlı
@@ -183,6 +253,8 @@ def _isit(period: str, hedef_gun: dt.date, butce_sn: float
                 sayac["atlanan"] += 1
                 atlananlar.append(f"{burc}/{dil}")
                 continue
+            # Katman ÜRETİMDEN ÖNCE ölçülür; gerekçe `_katman_olc`te.
+            katman = _katman_olc(burc, period, kova_hedef, dil)
             try:
                 sonuc = report_service.horoscope_reading(
                     burc, period, gokyuzu, lang=dil, today=hedef_gun)
@@ -200,14 +272,18 @@ def _isit(period: str, hedef_gun: dt.date, butce_sn: float
                 sayac["dusen"] += 1
                 dusenler.append(f"{burc}/{dil}")
             elif sonuc.get("cached"):
-                # ⚠️ Bu dalın ölçtüğü şey "okunabildi", "PAYLAŞIMLI
-                # katmanda duruyor" DEĞİL: `cache.get` önce belleğe bakar
-                # ve aynı instance'ta bir önceki koşunun yazdığı değeri
-                # bulabilir. Haftalık/aylık işler her gece koştuğu için bu
-                # gerçek bir olasılık. Katmanı ayırt etmek `cache.get`in
-                # dönüş şeklini değiştirmeyi gerektirir (depodaki TÜM
-                # okuyucular); yapılmadı, bu yüzden ad mütevazı tutuldu.
-                sayac["zaten_sicak"] += 1
+                # Isabetin HANGİ katmandan geldiği artık ÖLÇÜLÜYOR ve
+                # sayaç ona göre adlandırılıyor (`_sicaklik_adi`). Eskiden
+                # tek bir `zaten_sicak` vardı ve "okunabildi"yi "ısıtma
+                # gereksiz" gibi sunuyordu: bellek katmanı instance'a
+                # özeldir (max-instances 3), süreç ölünce gider ve o
+                # kombinasyon paylaşımlı katmanda HİÇ olmayabilir.
+                #
+                # `paylasimsiz_sicak` bir BAŞARI DEĞİL: üretim yapılmadığı için
+                # `dusen` de değil, ama paylaşımlı önbellek o kombinasyon
+                # için boş olabilir. Aşağıdaki uyarı satırı ve 503 kapısı
+                # bu yüzden yalnız `paylasimli_sicak`a güveniyor.
+                sayac[_sicaklik_adi(katman)] += 1
             elif not sonuc.get("persisted"):
                 # ÖLÇÜLDÜ (2026-10-02): üretim oldu ama PAYLAŞIMLI katmana
                 # yazılamadı. `cache.set` kalıcı katman hatasını fail-open
@@ -304,11 +380,22 @@ async def horoscope_warm(
         raise HTTPException(status_code=503, detail="Isitma basarisiz.")
 
     logger.info(
-        "Burc isitmasi (%s, kova %s): %d isindi, %d zaten sicak, %d dustu, "
-        "%d atlandi, %d yazilamadi",
+        "Burc isitmasi (%s, kova %s): %d isindi, %d paylasimli sicak, "
+        "%d paylasimsiz sicak, %d dustu, %d atlandi, %d yazilamadi",
         period, kova or hedef_gun.isoformat(), sayac["isinan"],
-        sayac["zaten_sicak"], sayac["dusen"], sayac["atlanan"],
-        sayac["yazilamayan"])
+        sayac["paylasimli_sicak"], sayac["paylasimsiz_sicak"], sayac["dusen"],
+        sayac["atlanan"], sayac["yazilamayan"])
+    if sayac["paylasimsiz_sicak"]:
+        # Bu satır olmadan kusur görünmezdi: koşu "sıcak" sayıp üretim
+        # yapmıyor, ama ölçülen katman paylaşımlı DEĞİL — yani başka bir
+        # instance'a düşen kullanıcı yine bekliyor. Kalıcı katman
+        # paylaşımlı değilse (file arka ucu) bu satır her koşuda yanar ve
+        # yanmaya devam etmeli: yapılandırma ısıtmayı anlamsız kılıyor.
+        logger.warning(
+            "Isitma %d kombinasyonu sicak buldu ama PAYLASIMLILIGINI "
+            "olcemedi; baska bir instance'a dusen kullanici yine "
+            "bekleyebilir (kalici katman paylasimli mi: %s)",
+            sayac["paylasimsiz_sicak"], cache.kalici_katman_paylasimli())
     if yazilamayanlar:
         # Bu satır OLMADAN kusur tamamen görünmezdi: üretim parası ödendi,
         # paylaşımlı önbellek boş kaldı, sabah ilk açan yine bekledi.
@@ -335,11 +422,18 @@ async def horoscope_warm(
         # hiç fark edilmez. 503'ün bedeli yok — yeniden deneme yapılmıyor.
         yanit["status"] = "incomplete"
         raise HTTPException(status_code=503, detail=yanit)
-    if sayac["isinan"] == 0 and sayac["zaten_sicak"] == 0:
+    if sayac["isinan"] == 0 and sayac["paylasimli_sicak"] == 0:
         # Hiçbir kombinasyon sıcak değilse koşu BAŞARISIZDIR. 503 bir telafi
         # DEĞİL (zamanlayıcıda yeniden deneme yok, bkz. create-scheduler.ps1)
         # yalnız GÖRÜNÜRLÜK: aksi halde tamamen boşa koşan bir gece
         # Scheduler günlüğünde yeşil görünür ve ısıtmanın öldüğü hiç
         # fark edilmez.
+        #
+        # ⚠️ `paylasimsiz_sicak` BU KAPIYA KATILMAZ ve bu, eski davranıştan
+        # ölçülmüş bir sapmadır: eski `zaten_sicak` kapıyı açıyordu, yani
+        # yalnız bu sürecin belleğinden okunan 24 kombinasyon koşuyu
+        # YEŞİL yapıyordu — paylaşımlı önbellek bomboş olsa bile. Isıtmanın
+        # tek amacı paylaşımlı katmanı doldurmak olduğuna göre öyle bir
+        # gece hiçbir şey ısıtmamıştır.
         raise HTTPException(status_code=503, detail=yanit)
     return yanit

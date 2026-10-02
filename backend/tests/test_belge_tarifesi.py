@@ -39,7 +39,7 @@ Bekçi bilerek KIRILGAN DEĞİL:
   Bu yüzden mağaza metninin iki dili ve tarife belgesi için en az bir
   eşleşme ŞART.
 
-Dosya büyüdü; bugün ÜÇ konu var ve hepsi aynı sınıf kusurun örneği
+Dosya büyüdü; bugün DÖRT konu var ve hepsi aynı sınıf kusurun örneği
 ("bir sunucu gerçeği, onu gösteren yüzeyden sessizce ayrışıyor"):
 
 1. **Aylık hak** — yukarıdaki kalıplar; belgeler + paywall dizesi
@@ -49,6 +49,10 @@ Dosya büyüdü; bugün ÜÇ konu var ve hepsi aynı sınıf kusurun örneği
    haritadan üretiliyor; istemci ucu `apps/mobile/test/bedel_satiri_test.dart`.
 3. **Konsola elle girilen ürün adları** — tam tablo TEK belgede durur,
    ikinci belge oraya işaret eder ve onunla çelişmez.
+4. **Maliyet belgesindeki "bugünkü bedel" sütunu** — `docs/maliyet-calismasi.md`
+   §6l'nin bedel/marj tablosu `TOKEN_COSTS` ile aynı sayıyı söyler. Bu sütun
+   sahibin bedel kararının dayanağı; bedel değişip tablo kalırsa karar BAYAT
+   bir sayıya dayanır.
 """
 from __future__ import annotations
 
@@ -496,3 +500,99 @@ def test_ikinci_belge_kanonik_belgeyi_ANIYOR():
             "docs/konsol-gorevleri.md ürün adını yazdıran bölümde kanonik "
             f"tabloya ({_KANONIK}) işaret YOK. İşaret olmadan iki belge "
             "aynı Console alanına bağımsız iki metin yazdırır.")
+
+
+# ---------------------------------------------------------------------------
+# GÜNLÜK yüzeylerin bedeli: maliyet belgesindeki tablo ile TOKEN_COSTS (GÜ)
+# ---------------------------------------------------------------------------
+#
+# NEDEN burada: bu dosyanın konusu "bir sunucu sabiti ile onu METİNDE gösteren
+# yüzey arasındaki sessiz ayrışma" ve bu, o sınıfın DÖRDÜNCÜ örneği.
+# `docs/maliyet-calismasi.md` §6l üç günlük yüzeyin (firaset / BaZi / doğum
+# kapısı) **bugünkü bedelini** yazıyor ve aynı satırdaki marj hücrelerini o
+# bedele göre hesaplıyor. Bedel koddan okunmuyor, ELLE yazılı.
+#
+# Kusur sessiz olurdu ve zararı belgenin İŞİNDEN geliyor: o tablonun tek
+# amacı sahibin bedel kararına dayanak olmak (bugün 5 jeton, öneri 1-3
+# jeton). Bedel `TOKEN_COSTS`ta değişip tablo olduğu yerde kalırsa karar
+# BAYAT bir sayıya dayanır — hem "bugünkü bedel" sütunu hem de ondan
+# türeyen bütün marj yüzdeleri birden yanlışa döner.
+#
+# Bu bekçi FİYATI SABİTLEMİYOR: bedel özgürce değişir, yalnız belgenin
+# onunla BİRLİKTE düzeltilmesi gerekir.
+#
+# Çapa tek bir Türkçe kelimeye BAĞLI DEĞİL (CLAUDE.md §5) — iki bağımsız
+# işaret birlikte aranıyor: satırın bir hücresi `TOKEN_COSTS` ANAHTARINI
+# (ASCII, sunucunun kendi sözlüğünden) ters tırnak içinde taşıyor **ve**
+# ondan SONRAKİ hücrede bir sayı var. "jeton" kelimesi kalıbın hiçbir
+# yerinde geçmiyor; eşleşme satır YAPISINA bağlı, serbest metne değil.
+# Blockquote satırları `_canli_metin` ile boşaltılıyor: bu bekçi de bir
+# şeyin YOKLUĞUNU arıyor (sapmış bedel durmasın) ve bu depoda iki kez
+# kusuru ANLATAN not kusur sanıldı.
+
+#: Bedel satırı: `| <yüzey adı> | \`<anahtar>\` | <bedel hücresi> | …`
+#: Bedel hücresi ham alınıp içindeki İLK sayı okunuyor — kalın (`**5**`),
+#: birimli ("5 jeton") ya da çıplak ("5") yazım hepsi geçerli olsun diye.
+_BEDEL_SATIRI = re.compile(
+    r"^\|[^|\n]*\|\s*`([a-z_]+)`\s*\|([^|\n]*)\|", re.M)
+
+#: §6l'nin ölçtüğü üç yüzey. Küme SABİT ve gerekçesi var: tabloda bu üç
+#: satırın BULUNMASI da ölçülüyor (aşağıdaki taban testi). `TOKEN_COSTS`un
+#: tamamını istemek yanlış olurdu — belge her yüzeyi tablolamak zorunda
+#: değil, yalnız günlüğe çevrilen üçünü tablolamış durumda.
+_GUNLUK_YUZEYLER = {"face", "bazi", "birth_hexagram"}
+
+#: Bedel/marj tablosunun yaşadığı belge.
+_MALIYET = "docs/maliyet-calismasi.md"
+
+
+def _belgedeki_bedeller(yol: Path) -> list[tuple[str, int, int]]:
+    """(TOKEN_COSTS anahtarı, satır no, belgedeki bedel) üçlüleri."""
+    metin = _canli_metin(yol)
+    bulunan: list[tuple[str, int, int]] = []
+    for m in _BEDEL_SATIRI.finditer(metin):
+        anahtar = m.group(1)
+        if anahtar not in _GUNLUK_YUZEYLER:
+            continue
+        sayilar = re.findall(r"\d+", m.group(2))
+        if not sayilar:
+            continue
+        satir = metin[:m.start()].count("\n") + 1
+        bulunan.append((anahtar, satir, int(sayilar[0])))
+    return bulunan
+
+
+def test_belgedeki_gunluk_yuzey_bedeli_TOKEN_COSTS_ile_ayni():
+    """docs/ altındaki her canlı bedel satırı sunucudaki bedeli söyler."""
+    sapma = []
+    for yol in sorted((_KOK / "docs").glob("*.md")):
+        for anahtar, satir, bedel in _belgedeki_bedeller(yol):
+            if bedel != TOKEN_COSTS[anahtar]:
+                sapma.append(
+                    f"docs/{yol.name}:{satir} [{anahtar}] {bedel} "
+                    f"(TOKEN_COSTS {TOKEN_COSTS[anahtar]})")
+    assert not sapma, (
+        "Belgedeki bedel sunucudan saptı. `wallet.TOKEN_COSTS` değiştiyse "
+        "AŞAĞIDAKİ HER SATIR elle düzeltilir — ve satırın yalnız bedel "
+        "sütunu değil, o bedelden türeyen MARJ hücreleri de yeniden "
+        "hesaplanır (yöntem: marj = 1 − maliyet ÷ (bedel × jeton başına "
+        "gelir)):\n  " + "\n  ".join(sapma))
+
+
+@pytest.mark.parametrize("anahtar", sorted(_GUNLUK_YUZEYLER))
+def test_gunluk_yuzeyin_bedel_satiri_maliyet_belgesinde_duruyor(anahtar: str):
+    """Satır silinirse ya da kalıptan kaçarsa bekçi KIRMIZI olur.
+
+    Taban testi. Bu olmasa üstteki test "bulunan her bedel doğru" diyerek,
+    hiç satır kalmadığında da yeşil kalırdı — yani üç yüzeyden birinin
+    tablodan düşmesi ya da tablonun yeniden yazılıp kalıbın dışına çıkması
+    SESSİZCE geçerdi. İkisi ayrı kusur: birincisi sahibin kararına dayanak
+    bırakmaz, ikincisi bekçiyi kör bırakır.
+    """
+    bulunan = [a for a, _, _ in _belgedeki_bedeller(_KOK / _MALIYET)]
+    assert anahtar in bulunan, (
+        f"{_MALIYET} içinde `{anahtar}` yüzeyinin bedel satırı YOK "
+        f"(bulunan: {sorted(set(bulunan))}). Satır, günlüğe çevrilen üç "
+        f"yüzeyin bedel kararının dayanağı; yeniden yazıldıysa "
+        f"test_belge_tarifesi._BEDEL_SATIRI de birlikte güncellenir "
+        f"(satır kalıptan kaçarsa bekçi hiçbir şey ölçmez).")

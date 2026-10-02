@@ -465,12 +465,29 @@ def _yerlesim_metni(lang: str | None, y: dict[str, Any]) -> str:
     return f"{ad}: {burc}{parantez}"
 
 
-def render(facts: dict[str, Any], lang: str | None = None) -> str:
+def render(facts: dict[str, Any], lang: str | None = None,
+           include_transits: bool = True) -> str:
     """Olguları isteğin dilinde kompakt bir fısıltı bloğuna çevirir.
 
     Blok her sohbet turunda prompt'a giriyor; bu yüzden satırlar kısa ve
     ayrıştırılabilir tutuldu. Modelden bunu okumasını değil, üzerine
     konuşmasını istiyoruz.
+
+    ``include_transits=False`` GÜNE BAĞLI iki satırı (bugünün transitleri +
+    önümüzdeki 7 günün kesinleşmeleri) dışarıda bırakır. Bayrak bir
+    "ayıklama" aracı DEĞİL, bir BÖLME aracı: günü prompt'tan çıkarmak için
+    değil, kalıcı olanla bugüne ait olanı AYRI BAŞLIKLAR altında vermek için
+    var. Karşılığı `gunun_gokyuzu`; ikisi birlikte aynı olguların tamamını
+    verir, yalnız modele hangisinin kalıcı hangisinin bugüne ait olduğunu
+    söyleyerek.
+
+    Tek `False` geçen çağıran ölçüldü: firaset yolu (`api/face_reading`).
+    Sohbet `True` geçiyor çünkü orada blok tek bir turda tüketiliyor ve
+    "bugün" ile "her zaman" ayrımını modele cümlenin kendisi taşıyor.
+    Savunma ESKİDEN tüketicide, `report_service`te etiket literaline göre
+    satır ayıklayan bir süzgeçteydi; o süzgeç kaldırıldı çünkü aynı işi
+    kaynakta bir bayrak yapıyor ve yeni bir tüketici ayıklamayı hatırlamak
+    zorunda kalmıyor.
     """
     p = prompts.get(lang)
     satirlar: list[str] = []
@@ -524,7 +541,7 @@ def render(facts: dict[str, Any], lang: str | None = None) -> str:
                 orb=f"{a['orb']:.1f}") for a in acilar)))
 
     transitler = facts.get("transits") or []
-    if transitler:
+    if include_transits and transitler:
         satirlar.append("- {}: {}".format(
             p.CHART_TRANSITS_LABEL,
             " · ".join(p.CHART_TRANSIT_FMT.format(
@@ -535,8 +552,13 @@ def render(facts: dict[str, Any], lang: str | None = None) -> str:
 
     # Yaklaşan 7 günün kesinleşmeleri (KA8): hesap zaten vardı, sohbete
     # hiç girmiyordu — "bu hafta beni ne bekliyor?" dayanaksız kalıyordu.
+    #
+    # Bu satır transit bayrağına BAĞLI ve bilerek: taşıdığı şey TAKVİM
+    # TARİHİ ("2026-10-07: Satürn → Venüs"). Kalıcı sayılan bir bloğa giren
+    # bir tarih, o bloğu tüketen metnin ömrü boyunca dondurulur; transit
+    # satırıyla aynı sınıfta.
     yaklasan = facts.get("upcoming") or []
-    if yaklasan:
+    if include_transits and yaklasan:
         satirlar.append("- {}: {}".format(
             p.CHART_UPCOMING_LABEL, upcoming_lines(yaklasan, lang)))
 
@@ -577,6 +599,53 @@ def upcoming_lines(events: list[dict[str, Any]],
         transit=prompts.planet_name(lang, e["transit"]),
         natal=prompts.planet_name(lang, e["natal"]),
         aspect=prompts.aspect_name(lang, e["aspect"])) for e in events)
+
+
+def gunun_gokyuzu(facts: dict[str, Any] | None, lang: str | None = None,
+                  today: dt.date | None = None) -> str:
+    """`render`in GÜN yarısı: tarih damgası + transitler + yaklaşanlar.
+
+    `render(..., include_transits=False)` ile birlikte kullanılır: o kalıcı
+    olanı verir, bu bugüne ait olanı. Bölmenin sebebi modele hangi satırın
+    kaç gün geçerli olduğunu söylemek; iki blok ayrı başlıklara girdiği için
+    "bugün" iddiası artık metnin içinde kaybolmuyor.
+
+    Tarih damgası ŞART çünkü `yaklasan` satırları mutlak tarih taşıyor
+    ("2026-10-07: …"); bugünün tarihi bilinmezse model o tarihi bugünden
+    kaç gün sonra olduğunu bilemez ve "yarın" diye okuyabilir.
+
+    **Günün olgusu yoksa BOŞ döner** ve bu kuralın bedeli ölçülmüştür:
+    bu blok tüketicinin önbellek KOVASIDIR (bkz. `report_service._gun_kovasi`).
+    Yalnız tarih damgası basılsa kova her gün dönerdi; dönen her kova bir
+    LLM üretimi demek, yani içeriği gün gün AYNI olan bir metin için günde
+    5 jeton. Ölçüm (2026-10-03, 30 günlük efemeris taraması, Istanbul 1990
+    doğumu): transit satırı 30 günün 30'unda farklı ve hiçbir gün boş değil
+    — yani doğum verisi olan kullanıcıda blok zaten her gün dönüyor; boş
+    dönmesi yalnız doğum verisi olmayan ya da efemerisin düştüğü hâlde olur
+    ve o hâlde söylenecek bir "bugün" de yoktur.
+
+    ``today`` verilmezse SUNUCUNUN günü kullanılır; çağıranlar KULLANICININ
+    yerel gününü geçer (`entitlements.user_local_date`) — gün sınırının tek
+    kaynağı orası, çünkü sunucu UTC'de koşuyor ve Türkiye'de kullanıcının
+    günü 03:00'te dönüyor.
+    """
+    if not facts:
+        return ""
+    vurus = facts.get("transits") or []
+    yaklasan = facts.get("upcoming") or []
+    if not vurus and not yaklasan:
+        return ""
+
+    p = prompts.get(lang)
+    satirlar = ["- {}: {}".format(
+        p.CHART_TODAY_LABEL, (today or dt.date.today()).isoformat())]
+    if vurus:
+        satirlar.append("- {}: {}".format(
+            p.CHART_TRANSITS_LABEL, transit_lines(vurus, lang)))
+    if yaklasan:
+        satirlar.append("- {}: {}".format(
+            p.CHART_UPCOMING_LABEL, upcoming_lines(yaklasan, lang)))
+    return "\n".join(satirlar)
 
 
 def render_bazi(facts: dict[str, Any], lang: str | None = None) -> str:
@@ -620,7 +689,8 @@ def render_bazi(facts: dict[str, Any], lang: str | None = None) -> str:
 def chart_whisper(uid: str, profile: dict[str, Any] | None,
                   lang: str | None = None,
                   facts: dict[str, Any] | None = None,
-                  include_bazi: bool = False) -> str:
+                  include_bazi: bool = False,
+                  include_transits: bool = True) -> str:
     """Sohbete iliştirilecek harita bloğu.
 
     Derin sürüm ancak gerçek doğum verisi varsa ve hesap başarılıysa üretilir;
@@ -634,6 +704,12 @@ def chart_whisper(uid: str, profile: dict[str, Any] | None,
     ``include_bazi`` (Revize B8) yalnızca Rytho+ sohbetinde açılır: BaZi
     ücretli üründür ve fısıltıdan sızdırılmaz — dürüst kapı, gizli tanıtım
     değil. Açıkken "BaZi'm ne?" sorusu deterministik veriyle cevaplanır.
+
+    ``include_transits=False`` güne bağlı satırları bu bloktan çıkarır;
+    onları ayrı bir başlık altında isteyen çağıran `gunun_gokyuzu`yu
+    kullanır (bkz. `render`). SIĞ özete düşüldüğünde bayrak etkisizdir ve
+    olması gereken de bu: sığ özet (Güneş/Ay/Yükselen) hiç transit
+    taşımıyor.
     """
     if not profile:
         return ""
@@ -645,7 +721,8 @@ def chart_whisper(uid: str, profile: dict[str, Any] | None,
         logger.info("Harita fısıltısı SIĞ özete düştü (%s): olgular yok "
                     "(doğum verisi eksik ya da hesap üretilemedi)", uid)
         return profile_service.chart_summary(profile, lang=lang)
-    metin = render(facts, lang=lang).strip()
+    metin = render(facts, lang=lang,
+                   include_transits=include_transits).strip()
     if include_bazi:
         bazi = bazi_facts(uid, profile)
         if bazi:

@@ -104,6 +104,22 @@ tam ekran açılıyor (`sky_now_screen.dart`).
 
 ### Kehanet araçları (dördü de Rytho+)
 
+> **Üçü artık GÜNLÜK yüzey** (2026-10-03): BaZi, Doğum Kapısı ve Yüz Okuma
+> kimlik yüzeyiyken günlük yüzeye geçti. Üçünün de **ölçülmüş çekirdeği
+> KALICI** (doğumun dört sütunu · sabit kapı ve pasajı · cihazda hesaplanan
+> yüz oranları) ve değişmiyor; her gün değişen şey o çekirdeğin **bugünle
+> KESİŞİMİ** — prompt kalıcı olanı ve bugüne ait olanı ayrı başlıklar
+> altında veriyor, gün bölümü 2-3 cümleyle sınırlı. Teknik karşılığı:
+> okuma önbelleği günde bir kez tazeleniyor (TTL 24 saat; eskiden sırasıyla
+> 30 / 30 / 7 gün) ve ekran o gün açılırsa **yüzey başına günde en fazla
+> bir üretim** olur — ön-ısıtma yok, ekranı açmayan kullanıcıda hiç üretim
+> yok. Aynı gün ikinci bakış ücretsiz (önbellekten).
+>
+> **Bedeller DEĞİŞMEDİ** ve kanonik yerleri `wallet.TOKEN_COSTS`
+> (bkz. §8'deki "Rapor başına bedeller burada TEKRARLANMIYOR" notu).
+> Günlüklüğün ölçülen maliyeti ve bedel ÖNERİSİ
+> `docs/maliyet-calismasi.md` §6l'de; **bedel kararı sahipte**.
+
 **🀄 BaZi — Dört Sütun.** Projedeki en özgün mühendislik; hazır kütüphane
 yok, sıfırdan yazıldı:
 - Dört sütun (Li Chun yıl sınırı, güneş boylamı ay sınırı, 60'lık gün
@@ -118,6 +134,10 @@ yok, sıfırdan yazıldı:
 - Şans sütunları (Da Yun) + **takvim yılları** ("1993-2003"), yıllık sütun
   (Liu Nian), **5 Shen Sha yıldızı** (her bulgu hangi kuraldan geldiğini
   taşır), Kong Wang.
+- **Bugünün katmanı (günlük):** Liu Ri (gün sütunu) + Liu Yue (ay sütunu),
+  doğumun dört sütunuyla kesişimi en fazla üç cümlede. Günlüklüğü taşıyan
+  terim Liu Ri — ölçüldü: gün sütunu 30 günde 30 ayrı etiket alıyor, ay
+  sütunu 2 (Jie sınırına bağlı), o yüzden ay sütunu bağlam olarak basılıyor.
 
 **🪙 İ Ching — Değişimler Kitabı.**
 - İki çekim yöntemi **gerçek olasılıklarıyla**: madeni para ve
@@ -130,8 +150,12 @@ yok, sıfırdan yazıldı:
 - Niyetsiz sorular ("test", "asdf") çekim hakkını harcamadan geri çevrilir.
 
 **☯ Doğum Kapısı.** Doğum anındaki Güneş'in 64 kapılı çarktaki yeri —
-çekim değil, kalıcı kimlik katmanı. Saat bilinmiyorsa kapı sınırı
-aşılıyorsa **iki aday da bildirilir**.
+çekim değil: **gövdesi kalıcı kimlik katmanı**, günlük olan yalnız son
+bölüm (Güneş'in bugün aynı çarkta durduğu kapı + çizgi ve onun doğum
+kapısıyla konuşması). Günlük olanın "kapı + çizgi" olması ölçüm sonucu:
+bir kapı ~5,7 gün sürüyor, kapı+çizgi ise her gün değişiyor — çizgi
+basılmasa yüzey "günlük" değil ~5,7 günlük olurdu. Saat bilinmiyorsa ve
+kapı sınırı aşılıyorsa **iki aday da bildirilir**.
 
 **👁️ Yüz Okuma (Firaset).**
 - **Fotoğraf sunucuya hiç gitmez.** Tespit cihazda (Google ML Kit + TFLite
@@ -140,6 +164,12 @@ aşılıyorsa **iki aday da bildirilir**.
 - Ölçülenler: San Ting üç bölge oranı, çene/elmacık, ağız genişliği, dudak
   dolgunluğu, göz aralığı, simetri + **hareketlilik**.
 - **Belirti üretir, hüküm değil** ("geniş alın" — "zeki" değil).
+- **Bugünün katmanı (günlük):** belirtilerin kendisi KALICI — yüz oranları
+  güne göre değişmez ve güne göre oynatılmaz. Her gün değişen tek şey,
+  bugünün gökyüzünün aynı belirtilerin hangi tarafını sınadığı (en fazla
+  iki cümle). Doğum verisi olmayan kullanıcıda bugüne dair ölçülmüş bir
+  olgu yoktur, o yüzden prompt o hâlde "bugün" kelimesini **yasaklıyor** —
+  yüzey o kullanıcı için günlük değildir ve olmadığı söylenir.
 - Ten rengi (etnisite ölçerdi) ve ses perdesi (cinsiyete bağlı) **bilinçli
   olarak reddedildi**.
 - Ayrı, sürümlü, geri alınabilir **biyometrik rıza**; rıza geri alınınca
@@ -302,7 +332,7 @@ Sonunda "Büyük Üçlü" perdesi (Güneş/Ay/Yükselen açılışı).
 | Canlı gökyüzü ("Şu an") | Tam natal rapor (AI okuması) + 6 detay ekranı |
 | Doğum haritası çarkı, yerleşimler, açılar (hesap) | Yıl Haritası (solar return) |
 | Günlük seri | İç Takvim (progresyon + transit) |
-| Arkadaş listesi, seri, hazır tepkiler, ilişki eksenlerinin ÖLÇÜMÜ | BaZi · İ Ching · Doğum Kapısı · Yüz Okuma |
+| Arkadaş listesi, seri, hazır tepkiler, ilişki eksenlerinin ÖLÇÜMÜ | BaZi · İ Ching · Doğum Kapısı · Yüz Okuma (**BaZi, Doğum Kapısı ve Yüz Okuma GÜNLÜK** — §4; İ Ching çekim başına) |
 | Profil, doğum kaydı, avatar, bildirimler, dil, sohbet (jeton) | Arkadaşla günlük ikili okuma |
 | **1 kişi ekleme** — harita, Büyük Üçlü ve ilişki ÖLÇÜMÜ açık, yorum kilitli | **10 kişi kontenjanı** + ilişki AI yorumu (jetonsuz) |
 

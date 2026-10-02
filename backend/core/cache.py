@@ -221,6 +221,15 @@ def get_katmanli(key: str) -> tuple[Any | None, str]:
       bıraktığı değeri bulmak gerçek bir olasılık. Yani "zaten sıcak"
       sayılan bir kombinasyon paylaşımlı katmanda HİÇ olmayabilir ve
       ısıtmanın tek amacı (sabah ilk açan beklemesin) ölçülmemiş kalır.
+      **BAĞLANDI** (2026-10-03): ısıtma artık ``_katman_olc`` ile buraya
+      geliyor ve sayaç ikiye ayrıldı (``paylasimli_sicak`` /
+      ``paylasimsiz_sicak``); 503 kapısı yalnız birincisine güveniyor.
+      ⚠️ İkinci ad bir KONUM değil ölçümün SINIRINI anlatıyor
+      ("paylaşımlılık ölçülemedi"): ``KATMAN_YOK`` isabeti de o
+      kovaya düşüyor, yani ``surec_sicak`` gibi bir ad üç durumdan
+      birinde yalan olurdu — gerekçesi ``_sicaklik_adi``de.
+      ⚠️ Çağrı ÜRETİMDEN ÖNCE yapılmak zorunda — aşağıdaki bellek
+      terfisi yüzünden ikinci okuma her zaman ``KATMAN_BELLEK`` döner.
     * ``services/report_service.py:_cached_generate`` yanıtındaki
       ``cached: True`` — aynı sınıf iddia. Orada ``persisted`` anahtarı
       bilerek YOKTU, çünkü katman ölçülmemişti; artık ölçülebiliyor.

@@ -31,7 +31,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import maintenance
-from core import app_gate, config, i18n
+from core import app_gate, cache, config, i18n
 from services import prompts, report_service
 
 try:
@@ -65,9 +65,36 @@ class _Kayit:
         #: Üretim OLDU ama kalıcı katmana yazılamadı (Firestore düştü).
         self.yazilamayan: set[tuple[str, str]] = set()
         self.hepsi_sicak = False
+        #: İsabetin ölçülen KATMANI ve katmanın paylaşımlı olup olmadığı.
+        #: Burada taklit ediliyor, çünkü bu dosyanın ölçtüğü şey ısıtmanın
+        #: KABLOLAMASI (katmanı okuyor mu, sayacı doğru adla mı sunuyor);
+        #: katman SEMANTİĞİ `tests/test_onbellek_yazim_raporu.py`de çivili
+        #: ve ikisini tek testte ölçmek hangisinin kırıldığını belirsiz
+        #: yapardı.
+        self.katman = cache.KATMAN_YOK
+        self.paylasimli = True
+        #: Katman ölçümünün sorduğu anahtarlar, SIRASIYLA.
+        self.olculen_anahtarlar: list[str] = []
+        #: ÖLÇÜM ve ÜRETİM olaylarının İÇ İÇE geçmiş TEK kaydı.
+        #:
+        #: ⚠️ İki ayrı liste yetmez ve bu MUTASYONLA ölçüldü: ölçümü
+        #: üretimden SONRAYA taşıyan mutasyon, iki listenin UZUNLUĞUNU
+        #: değiştirmiyor — uzunluk karşılaştıran ilk bekçim bu yüzden KÖR
+        #: çıktı (mutasyon yeşil geçti). Sıra ancak tek bir zaman
+        #: çizgisinde görünür.
+        self.iz: list[str] = []
+
+    def get_katmanli(self, key: str):
+        self.olculen_anahtarlar.append(key)
+        self.iz.append("olcum")
+        return (("yorum", self.katman) if self.katman != cache.KATMAN_YOK
+                else (None, cache.KATMAN_YOK))
 
     def horoscope_reading(self, sign, period, sky, lang=None, today=None):
+        # Katman ölçümü ÜRETİMDEN ÖNCE gelmek zorunda; burada kayda
+        # geçiyor ki sıra bekçisi gerçekten bir şey ölçsün.
         self.cagrilar.append((sign, period, lang, today))
+        self.iz.append("uretim")
         if (sign, lang) in self.patlayan:
             raise RuntimeError("Gemini erişilemiyor")
         if (sign, lang) in self.yedege_dusen:
@@ -96,6 +123,10 @@ def isitma(monkeypatch):
                                  "moon_phase": None})
     monkeypatch.setattr(maintenance.report_service, "horoscope_reading",
                         kayit.horoscope_reading)
+    monkeypatch.setattr(maintenance.cache, "get_katmanli",
+                        kayit.get_katmanli)
+    monkeypatch.setattr(maintenance.cache, "kalici_katman_paylasimli",
+                        lambda: kayit.paylasimli)
     return kayit
 
 
@@ -291,7 +322,7 @@ def test_hicbiri_yazilamazsa_kosu_basarili_gorunmez(isitma):
     assert yanit.status_code == 503, yanit.text
     ayrinti = yanit.json()["detail"]
     assert ayrinti["isinan"] == 0
-    assert ayrinti["zaten_sicak"] == 0
+    assert ayrinti["paylasimli_sicak"] == 0
     assert ayrinti["yazilamayan"] == (len(maintenance.BURCLAR)
                                      * len(i18n.SUPPORTED))
 
@@ -311,19 +342,134 @@ def test_hepsi_dusen_kosu_basarili_gorunmez(isitma):
 
 
 @uygulama_gerekir
-def test_zaten_sicak_kova_ayri_sayilir(isitma):
+def test_paylasimli_sicak_isabet_isinma_sayilmaz(isitma):
     """Haftalık/aylık işler her gece koşuyor; isabetli gece 'ısındı' DEMEZ —
-    operatör 24 üretim olduğunu sanmasın."""
+    operatör 24 üretim olduğunu sanmasın.
+
+    Katman PAYLAŞIMLI kalıcı olduğu için koşu başarılıdır (200): ısıtmanın
+    amacı olan şey (paylaşımlı önbellek dolu) ÖLÇÜLEREK sağlanmış.
+    """
     isitma.hepsi_sicak = True
+    isitma.katman = cache.KATMAN_KALICI
+    isitma.paylasimli = True
     with TestClient(app) as client:
         yanit = client.post(YOL + "?period=weekly",
                             headers=_basliklar("sicak"))
     assert yanit.status_code == 200, yanit.text
     veri = yanit.json()
     assert veri["isinan"] == 0
-    assert veri["zaten_sicak"] == len(maintenance.BURCLAR) * len(i18n.SUPPORTED)
+    assert veri["paylasimli_sicak"] == (len(maintenance.BURCLAR)
+                                        * len(i18n.SUPPORTED))
+    assert veri["paylasimsiz_sicak"] == 0
     assert veri["period"] == "weekly"
     assert {p for _, p, _, _ in isitma.cagrilar} == {"weekly"}
+
+
+@uygulama_gerekir
+def test_yalniz_bellekte_sicak_kosu_basarili_gorunmez(isitma):
+    """B2'nin ÇEKİRDEĞİ: "okunabildi" ile "paylaşımlı katmanda" aynı şey DEĞİL.
+
+    Eski `zaten_sicak` sayacı ikisini tek kovada topluyordu ve 503 kapısını
+    AÇIYORDU: yalnız bu sürecin belleğinden okunan 24 kombinasyon koşuyu
+    YEŞİL yapıyordu, paylaşımlı önbellek bomboş olsa bile. Bellek katmanı
+    instance'a özeldir (max-instances 3) ve süreç ölünce gider — yani
+    sabah ilk açan kullanıcı başka bir instance'a düşerse yine bekler ve
+    ısıtmanın İŞE YARADIĞI hiçbir yerde ölçülmemiş olur.
+    """
+    isitma.hepsi_sicak = True
+    isitma.katman = cache.KATMAN_BELLEK
+    with TestClient(app) as client:
+        yanit = client.post(YOL, headers=_basliklar("bellek-sicak"))
+    assert yanit.status_code == 503, yanit.text
+    ayrinti = yanit.json()["detail"]
+    assert ayrinti["paylasimli_sicak"] == 0
+    assert ayrinti["paylasimsiz_sicak"] == (len(maintenance.BURCLAR)
+                                            * len(i18n.SUPPORTED))
+
+
+@uygulama_gerekir
+def test_kalici_ama_paylasimsiz_katman_da_isinma_sayilmaz(isitma):
+    """`file` arka ucu da KALICIdır ama Cloud Run'ın yerel diskidir.
+
+    `KATMAN_KALICI` tek başına "paylaşımlı" demek değil; bu ayrımı atlayan
+    bir sayaç, ısıtmayı anlamsız kılan bir yapılandırmada da yeşil yanardı.
+    """
+    isitma.hepsi_sicak = True
+    isitma.katman = cache.KATMAN_KALICI
+    isitma.paylasimli = False
+    with TestClient(app) as client:
+        yanit = client.post(YOL, headers=_basliklar("dosya-katmani"))
+    assert yanit.status_code == 503, yanit.text
+    ayrinti = yanit.json()["detail"]
+    assert ayrinti["paylasimli_sicak"] == 0
+    assert ayrinti["paylasimsiz_sicak"] == (len(maintenance.BURCLAR)
+                                            * len(i18n.SUPPORTED))
+
+
+@uygulama_gerekir
+def test_olcum_HICBIR_SEY_bulmazsa_paylasimli_sayilmaz(isitma):
+    """Ölçüm hiçbir şey bulmadı ama `report_service` isabet bildirdi.
+
+    ⚠️ Bu bekçi bir KÖR BEKÇİ onarımıdır (doğrulama turu, minimal
+    mutasyonla ölçüldü): `_sicaklik_adi`in kapısını
+    ``katman != KATMAN_BELLEK`` yapan mutasyon — yani ``KATMAN_YOK``
+    isabetini de PAYLAŞIMLI sayan mutasyon — bu dosyayı 37/37 YEŞİL
+    bırakıyordu. Üç alt durumdan ikisi (bellek, kalıcı-ama-paylaşımsız)
+    çiviliydi, üçüncüsü yalnız docstring'de duruyordu.
+
+    Neden bu durum ÖLÇÜLMEYENİ SÖYLEMEK olur: ölçüm `None` döndüyse o
+    kombinasyonun paylaşımlı katmanda durduğuna dair HİÇBİR kanıt yok.
+    Gerçekte iki okuma ARASINDA başka bir sürecin yazmasıyla olur (ya
+    da bir sahte önbelleği hiç kullanmıyorsa). Nadir — ama 503 kapısı
+    tam buna güveniyor, yani "nadir" burada "zararsız" DEMEK DEĞİL:
+    paylaşımlı önbellek bomboşken koşu yeşil görünürdü ve B2'nin
+    kapatmak istediği kusur aynen geri gelirdi.
+    """
+    isitma.hepsi_sicak = True
+    isitma.katman = cache.KATMAN_YOK
+    # Paylaşımlılık AÇIK bırakıldı bilerek: mutasyonun tek dayanağı o
+    # bayraktı, yani kapatmak bekçiyi kendi ölçtüğü şeye kör yapardı.
+    isitma.paylasimli = True
+    with TestClient(app) as client:
+        yanit = client.post(YOL, headers=_basliklar("olcum-bos"))
+    assert yanit.status_code == 503, yanit.text
+    ayrinti = yanit.json()["detail"]
+    assert ayrinti["paylasimli_sicak"] == 0
+    assert ayrinti["paylasimsiz_sicak"] == (len(maintenance.BURCLAR)
+                                            * len(i18n.SUPPORTED))
+
+
+@uygulama_gerekir
+def test_katman_olcumu_uretimden_ONCE_ve_gercek_anahtarla(isitma):
+    """İki bağımsız işaret; ikisi de olmadan ölçüm sessizce işe yaramaz.
+
+    1. SIRA: `cache.get_katmanli` kalıcı katmandan okuduğunu belleğe
+       TERFİ ettiriyor. Ölçüm üretimden SONRA yapılırsa `report_service`in
+       okuması değeri belleğe çeker ve katman HER ZAMAN `KATMAN_BELLEK`
+       döner — yani ölçüm yapısal olarak yalan söyler.
+    2. ANAHTAR: ölçülen anahtar `report_service.horoscope_cache_key`in
+       ürettiğiyle BİREBİR olmalı. Formül ısıtmada tekrar yazılsaydı
+       anahtar şeması değiştiği gün ısıtma var olmayan bir anahtarı ölçüp
+       her kombinasyonu sessizce "soğuk" sayardı.
+    """
+    with TestClient(app) as client:
+        yanit = client.post(YOL, headers=_basliklar("sira-ve-anahtar"))
+    assert yanit.status_code == 200, yanit.text
+
+    # 1. SIRA: tek zaman çizgisinde olaylar ölçüm→üretim diye
+    # ÇİFTLENMELİ. Ölçüm üretimden sonra yapılsaydı aynı liste
+    # "uretim, olcum, uretim, …" olurdu — uzunluk ise DEĞİŞMEZDİ, ve
+    # uzunluğa bakan ilk bekçim tam o yüzden kör çıktı.
+    assert isitma.iz, "ne olcum ne uretim olmus"
+    assert isitma.iz == ["olcum", "uretim"] * len(isitma.cagrilar), \
+        f"olcum/uretim sirasi bozuk: {isitma.iz[:6]}"
+
+    # 2. ANAHTAR: beklenen küme report_service'in KENDİ kurucusundan.
+    kova = report_service._horoscope_bucket(
+        "daily", dt.datetime.now(dt.timezone.utc).date())
+    beklenen = {report_service.horoscope_cache_key(b, "daily", kova, d)
+                for b in maintenance.BURCLAR for d in i18n.SUPPORTED}
+    assert set(isitma.olculen_anahtarlar) == beklenen
 
 
 @uygulama_gerekir

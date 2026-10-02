@@ -259,16 +259,21 @@ class _PlanetRow extends StatelessWidget {
 /// Artık `basis_sheet` deseniyle aynı: önce insan cümlesi, sonra "Neye
 /// dayanıyor?" başlığı altında ölçüm.
 ///
-/// ⚠️ Eski dipnot (`pointSheetFootnote`) bu sayfada YAPILMAYAN bir şeyi
-/// beyan ediyordu — ölçülen metni birebir şu: "Üstteki satırlar ölçümdür.
-/// Altındaki iki cümle, o gezegenin klasik anlamı ile bulunduğu ev
-/// alanını birleştirir…". İki cümle hiçbir zaman birleştirilmiyordu, yan
-/// yana basılıyordu; yani kusur "biliyor ama göstermiyor" değil, YANLIŞ
-/// BEYAN'dı. (Bu doktrinin ilk yazımında dipnot "bu satırlar ölçümdür,
-/// kendisi yorum değildir" diye alıntılanmıştı — o cümle depoda hiç
-/// olmadı; `git log -S` tek ekleme gösteriyor. Yanlış gerekçe kusurdur.)
-/// Dipnot artık basılmıyor, çünkü konum beyanı da geçersizleşti; yerine
-/// geçecek anahtar metni raporda önerildi, l10n paylaşımlı durum.
+/// ⚠️ Dipnotun (`pointSheetFootnote`) ÜÇ HÂLİ oldu; üçü de ders:
+///   1. İlk hâli bu sayfada YAPILMAYAN bir şeyi beyan ediyordu — "Üstteki
+///      satırlar ölçümdür. Altındaki iki cümle … birleştirir". İki cümle
+///      hiçbir zaman birleştirilmiyordu, yan yana basılıyordu; yani kusur
+///      "biliyor ama göstermiyor" değil, YANLIŞ BEYAN'dı. (Bu doktrinin
+///      ilk yazımında dipnot "bu satırlar ölçümdür, kendisi yorum
+///      değildir" diye alıntılanmıştı — o cümle depoda hiç olmadı;
+///      `git log -S` tek ekleme gösteriyor. Yanlış gerekçe kusurdur.)
+///   2. Sıra tersine çevrilince metin iki kez yanlış hâle geldi ve dipnot
+///      BASILMAZ oldu. Bu da kayıptı: üstteki cümlenin ölçüm mü gelenek
+///      mi olduğu ekranda HİÇBİR YERDE yazmıyordu, oysa o ayrım bir ürün
+///      ilkesi ("ölçülmeyen söylenmez").
+///   3. Şimdiki hâli ölçülen sırayı anlatıyor ve geleneği ölçümden adıyla
+///      ayırıyor; konum sözcüğü taşımadığı için yeniden düzenlemede
+///      bayatlamıyor. Basıldığı yer gövdenin sonu.
 ///
 /// Açıklama SABİT TABLODAN gelir (gezegenin doğası × evin alanı) — LLM
 /// yok, jeton yok. Uydurma da yok: cümle ölçülen yerleşimi anlatır.
@@ -359,11 +364,22 @@ class _PointSheet extends StatelessWidget {
               _OlcumSatiri(
                   etiket: l10n.planetSpeed,
                   deger: '${hiz.toStringAsFixed(3)}°/${l10n.perDay}'),
-            // ⚠️ `pointSheetFootnote` BİLEREK basılmıyor: metni "üstteki
-            // satırlar ölçümdür, ALTINDAKİ İKİ CÜMLE …" diyor ve bu sıra
-            // artık yok (anlam üstte, tek cümle). Yanlış bir konum beyanı
-            // basmak, hiç basmamaktan kötüdür — yerine geçecek anahtar
-            // metni raporda önerildi, l10n bu turda paylaşımlı durum.
+            const SizedBox(height: RythoSpace.md),
+            // DÜRÜSTLÜK DİPNOTU — ürün ilkesinin ("ölçülmeyen söylenmez")
+            // ekrandaki karşılığı. Bir tur boyunca HİÇ basılmadı, çünkü
+            // metni yanlıştı; ama basılmaması da bir kayıptı: üstteki
+            // cümlenin ÖLÇÜM mü KLASİK GELENEK mi olduğu bu sayfada
+            // hiçbir yerde yazmıyordu. Yeni metin ikisini adıyla ayırıyor
+            // ve ölçülen sırayı ("önce anlam, sonra ölçüm") söylüyor.
+            //
+            // ⚠️ Metinde KONUM SÖZCÜĞÜ yok ("üstteki/altındaki"). Eski
+            // metin tam o yüzden bayatladı: sıra bir kez tersine
+            // çevrilince dipnot sessizce YANLIS BEYANA döndü. Sayfadaki
+            // sırayı anlatmak başka, dipnotun kendi konumuna göre
+            // konuşmak başka — ikincisi her yeniden düzenlemede kırılır.
+            Text(l10n.pointSheetFootnote,
+                style: RythoText.body(11.5,
+                    color: RythoColors.parchmentDim, height: 1.4)),
           ],
         ),
       ),
@@ -954,10 +970,12 @@ class _AspectSheet extends StatelessWidget {
                   etiket: l10n.basisMovement,
                   deger: aspect['movement_local'] as String),
             const SizedBox(height: RythoSpace.md),
-            // Bu dipnot KALDI çünkü konumdan bağımsız: "açı ve orb
-            // ölçülür; açıklama klasik yorum geleneğidir" sıra değişince
-            // de doğru kalıyor (`pointSheetFootnote` kalmadı, o konum
-            // beyanı taşıyor).
+            // Bu dipnot hiç düşmedi çünkü metni KONUMDAN BAĞIMSIZ: "açı
+            // ve orb ölçülür; açıklama klasik yorum geleneğidir" sıra
+            // değişince de doğru kalıyor. Nokta sayfasının dipnotu aynı
+            // dersi pahalı yoldan öğrendi (konum beyanı taşıdığı için
+            // sıra tersine çevrilince yanlışa döndü) ve artık o da bu
+            // kalıpta yazılıyor.
             Text(l10n.aspectSheetFootnote,
                 style: RythoText.body(11,
                     color: RythoColors.parchmentDim, height: 1.4)),
@@ -1141,10 +1159,31 @@ String? houseAreaText(AppLocalizations l10n, int house) => switch (house) {
 /// Etiket solda bir kez durur: alt-sayfanın başlığı zaten "Mars — Başak"
 /// yazıyor, cümlenin de "Mars:" diye başlaması aynı adın üçüncü tekrarıydı.
 ///
-/// ⚠️ EKSİK KALAN: "şu yetenek şu alanda İŞLER" ilişkisini kuran bir
-/// bağlaç (TR "… alanında işler", EN "… at work in …") yeni bir l10n
-/// anahtarı ister; l10n bu turda paylaşımlı durum olduğu için
-/// birleştirme noktalama düzeyinde kaldı. Anahtar önerisi raporda.
+/// Birleştirme artık NOKTALAMA değil ANLAM düzeyinde (`pointPlacementSentence`).
+///
+/// Önceki hâl `"etiket · etiket — gövde; gövde."` üretiyordu ve
+/// 168 ayrı cümle çıkmasına rağmen hâlâ "iki liste yan yana" gibi
+/// okunuyordu: noktalı virgül iki ansiklopedi maddesini AYIRIYOR, aralarında
+/// bir ilişki KURMUYORDU. Yeni biçim dizesi ilişkiyi açıkça söylüyor —
+/// TR "… bunlar `alan` alanında işler", EN "… these play out in `alan`".
+///
+/// NEDEN tek bir l10n anahtarı yetiyor: ilişki iki dilde ayrı dilbilgisi
+/// ister (Türkçe'de son çekim eki, İngilizce'de fiil öbeği) ve biçim dizesi
+/// bunu çevirmene bırakıyor. 168 yerleşim için sabit cümle TABLOSU
+/// doğmuyor; 14 rol gövdesi × 12 alan gövdesi hâlâ çarpılıyor.
+///
+/// NEDEN ev ETİKETİ ("6. ev") cümleden çıktı: aynı ölçüm bir satır altta
+/// "Ev · 6. ev" olarak zaten duruyor (`_OlcumSatiri`), yani bilgi
+/// kaybı YOK — ve etiket yığını ("Mars · 6. ev —") tam olarak "iki liste"
+/// izlenimini veren şeydi. Gezegen etiketi KALIYOR, çünkü cümlenin öznesi
+/// o ve kalkınca cümle küçük harfle başlardı.
+///
+/// ⚠️ Büyük harfe ÇEVİRME YOK ve bu bilinçli: gövdeler küçük harfle
+/// başlıyor, cümleyi `rol` etiketi (zaten büyük harfli) açıyor. Dart'ın
+/// `toUpperCase()` yerelden bağımsızdır — `'i'.toUpperCase()` Türkçe'de
+/// yanlış olan `'I'`yı verir (doğrusu `'İ'`). Ölçüldü: bugün hiçbir
+/// gövde `i` ile başlamıyor, ama bir çeviri düzeltmesi onu her an
+/// üretebilir; sorunu kapıyla değil KURGUYLA kaldırmak daha güvenli.
 String? yerlesimCumlesi(AppLocalizations l10n, String? name, int? house) {
   final rol = planetRoleText(l10n, name);
   final alan = house == null ? null : houseAreaText(l10n, house);
@@ -1152,10 +1191,11 @@ String? yerlesimCumlesi(AppLocalizations l10n, String? name, int? house) {
   if (alan == null) return rol;
   final r = _ikiyeBol(rol);
   final a = _ikiyeBol(alan);
-  final etiket =
-      [r.etiket, a.etiket].where((e) => e.isNotEmpty).join(' · ');
-  final govde = [r.govde, a.govde].where((g) => g.isNotEmpty).join('; ');
-  return etiket.isEmpty ? '$govde.' : '$etiket — $govde.';
+  // Rol kendi etiketiyle yeniden kuruluyor: `_ikiyeBol` sondaki noktayı
+  // attığı için biçim dizesinin noktası çift noktalama üretmiyor.
+  // Etiket yoksa (çeviri kalıbı bıraktıysa) gövde tek başına geçer.
+  final solTaraf = r.etiket.isEmpty ? r.govde : '${r.etiket}: ${r.govde}';
+  return l10n.pointPlacementSentence(solTaraf, a.govde);
 }
 
 String? aspectMeaningText(AppLocalizations l10n, String? key) =>

@@ -20,22 +20,26 @@ model uydurur.
 **3. Adlar dilden bağımsız.** Belirtiler anahtar olarak üretilir, adlandırma
 isteğin dilinde yapılır. Bu, projedeki her hesap katmanının kuralı.
 
-**4. GÜN BURADA DEĞİL.** Bu dosyanın KODUNDA tarih, gökyüzü ya da transit
-tek kelime geçmiyor (bu paragraf dışında; bir şeyin yokluğunu arayan bekçi
-onu anlatan yorumu görmemeli) ve yokluk kasıtlı: oranlar güne göre
-değişmiyor, dolayısıyla belirtiler de değişmiyor. Üstelik `prompt_block`un
-çıktısı prompt'ta "ÖLÇÜLEN BELİRTİLER (kullanıcının cihazında hesaplandı)"
+**4. GÜN BU DOSYADA DEĞİL.** Bu dosyanın KODUNDA tarih, gökyüzü ya da
+transit tek kelime geçmiyor (bu paragraf dışında; bir şeyin yokluğunu arayan
+bekçi onu anlatan yorumu görmemeli) ve yokluk kasıtlı: oranlar güne göre
+değişmiyor, dolayısıyla belirtiler de değişmiyor. `prompt_block`un çıktısı
+prompt'ta "ÖLÇÜLEN BELİRTİLER (kullanıcının cihazında hesaplandı)"
 başlığının altına giriyor; oraya günün gökyüzünü koymak, ölçülmeyen bir şeyi
 ölçülmüş adıyla sunmak olurdu.
 
-Günün ışığı firaset prompt'una ŞU AN HİÇ TAŞINMIYOR — `report_service` onu
-tam tersine AYIKLIYOR (`_kimlik_haritasi`), çünkü harita bloğu günün
-transitlerini ve tarihli kesinleşmelerini taşıyordu ve o satırlar 7 gün
-boyunca "bugün" diye servis ediliyordu. Taşınacak olursa orada tek bir
-kural geçerli: gün prompt'a giriyorsa ÖNBELLEK ANAHTARINA da girmeli
-— bkz. `report_service._kimlik_haritasi` üzerindeki üç hâl. Maliyeti de
-oradadır: firaset 5 jetonluk bir yüzey, günlük yeniden üretim 150 jeton/ay
-eder: aylık hakkın (100 jeton) 1,5 katı.
+⚠️ Bu, FİRASET YÜZEYİNİN günden habersiz olduğu anlamına GELMEZ — gelmiyor
+(sahip kararı, 2026-10-03: yüzey gerçekten günlük). Gün prompt'a AYRI bir
+blok ve AYRI bir başlıkla giriyor: `chart_context.gunun_gokyuzu` üretiyor,
+`api/face_reading` taşıyor, `report_service.firasa_report` `sky` olarak
+alıyor ve aynı dizeden önbellek kovasını kuruyor (`_gun_kovasi`). Yani
+günün prompt'taki hâli ile anahtardaki hâli tek bir kaynaktan türüyor,
+ayrışamıyor.
+
+Bu dosyanın işi değişmedi ve DEĞİŞMEMELİ: belirti tablosu sabit kalır,
+günün ışığında YORUMLANMASI modelin işi. Buraya bir "bugüne göre belirti
+seç" mantığı eklemek, ölçülen oranları güne göre oynatmak olurdu — yani
+ölçülmüş bir çekirdeği uydurmaya çevirmek.
 """
 from __future__ import annotations
 

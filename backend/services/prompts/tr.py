@@ -425,6 +425,10 @@ CHART_STELLIUM_LABEL = "Yığılma"
 CHART_STELLIUM_FMT = "{house} ({count} gezegen)"
 CHART_NATAL_ASPECTS_LABEL = "Doğum haritasının en sıkı açıları"
 CHART_TRANSITS_LABEL = "Bugün haritasına dokunan transitler"
+#: Gün bloğunun tarih damgası (`chart_context.gunun_gokyuzu`). Yaklaşan
+#: kesinleşmeler MUTLAK tarih taşıyor; bugünün tarihi olmadan model
+#: "2026-10-07"nin kaç gün sonrası olduğunu bilemez.
+CHART_TODAY_LABEL = "Bugünün tarihi"
 #: Sohbet fısıltısının yaklaşan-kesinleşmeler satırı (KA8).
 CHART_UPCOMING_LABEL = "Önümüzdeki 7 günün kesinleşmeleri"
 #: Transit satırı: "Satürn → Güneş Karşıt (0.8°)". Ok yönü hangi gezegenin
@@ -1197,6 +1201,7 @@ HESAPLANMIŞ BAZI HARİTASI (gerçek güneş zamanı + gerçek güneş terimleri
 - Şans Sütunları (Da Yun): {luck}
 - İlk dönemin başlangıcı: {luck_start}
 - İÇİNDE BULUNULAN DÖNEM: Da Yun {current_luck} · bu yılın sütunu {current_year}
+- BUGÜNÜN SÜTUNLARI (Liu Ri / Liu Yue — KALICI DEĞİL, yalnız bugün): {today}
 - Hesap beyanları: {notes}
 
 KAYNAK PASAJLARI:
@@ -1210,10 +1215,17 @@ Bölümler:
 (3) Yıldızların dokunuşu — yalnız listede VARSA; liste boşsa bu bölümü atla.
 (4) İçinde bulunulan dönem: aktif Da Yun'un teması + bu yılın sütunuyla
     kesişimi.
+(5) BUGÜNÜN KESİŞİMİ — en fazla üç cümle: bugünün gün sütunu (Liu Ri) ve ay
+    sütunu (Liu Yue), DOĞUMDAN GELEN dört sütunla hangi ilişkiye giriyor
+    (destekliyor mu, çatışıyor mu, yararlı elementi mi getiriyor)? Dört sütun
+    DEĞİŞMEZ; değişen yalnız bugünün onlara değme biçimidir. Bugünün
+    sütunları verilmemişse bu bölümü ATLA ve "bugün" kelimesini kullanma.
 
 KURALLAR:
 - Pohpohlama yok: hüküm neyse onu söyle. Zayıf Day Master kusur değildir,
   dengelenme yoludur — ama süsleme de yapma.
+- Bugünün sütunundan OLAY kehaneti çıkarma: gün sütunu bir eğilim penceresi,
+  bir takvim değil.
 - Hüküm "Dengeli" ise kesin konuşma; olasılık diliyle yaz.
 - Sağlık, ölüm, kesin tarih kehaneti YOK.
 - Listede verilmeyen yıldızdan veya kombinasyondan söz etme.
@@ -1230,6 +1242,10 @@ BAZI_FALLBACK = (
 #: Rapor satırı biçimleri — dile bağlı küçük kalıplar (B6).
 BAZI_LUCK_START_FMT = "{years} yıl {months} ay ({date})"
 BAZI_CLIMATE_FMT = " | Mevsim iklimi düzenleyici ister: {element}"
+#: Gün katmanı satırı: Liu Ri (gün sütunu) + Liu Yue (ay sütunu). Tarih
+#: damgası ŞART — gün sütunu etiketi 60 günde bir aynıya dönüyor, yani tek
+#: başına hangi günü gösterdiğini söylemiyor.
+BAZI_TODAY_FMT = "{date} · gün sütunu {day} · ay sütunu {month}"
 
 #: Sorusuz çekimde kullanılan varsayılan soru (İ0). Şemadaki Türkçe sabit
 #: İngilizce prompt'a sızıyordu; artık dil modülünden gelir.
@@ -1352,10 +1368,11 @@ ICHING_RAG_QUERY = ("Değişimler Kitabı, heksagram {name}, hareketli çizgi, "
 # --- Doğum Heksagramı (İ5) ---
 BIRTH_HEXAGRAM = """
 GÖREV: Kişinin DOĞUM heksagramından 250-350 kelimelik bir karakter/tema
-okuması yaz. Bu bir çekim (kehanet) DEĞİL, kalıcı bir kimlik katmanıdır —
-"bugün ne olacak" dili yasak; "senin dokun bu" dili doğru.
+okuması yaz. DOĞUM KAPISI kalıcı bir kimlik katmanıdır, bir çekim (kehanet)
+DEĞİL: "bugün şu olacak" dili yasak, "senin dokun bu" dili doğru. Yalnız son
+bölüm bugüne bakar ve o da olay değil TEMAS anlatır.
 
-HESAPLANAN KONUM:
+HESAPLANAN KONUM (KALICI — doğum anından gelir):
 - Doğum anında Güneş: {longitude}° → Kapı {gate}, {line}. çizgi
 - Heksagram #{gate}: {name_tr} ({name} {name_cn}) {unicode}
 - Hüküm: {judgment}
@@ -1365,21 +1382,38 @@ HESAPLANAN KONUM:
 - Trigramlar: {lower} altında, {upper} üstte
 - Beyanlar: {notes}
 
+GÜNEŞ BUGÜN (aynı çarkta — KALICI DEĞİL, yalnız bugün): {today}
+
 KAYNAK PASAJLARI:
 {rag}
 
 Bölümler: (1) Kapının özü — bu heksagramın temasının bir KARAKTER olarak
 taşınması; (2) Doğum çizgisi — aynı kapının içindeki kişisel ton (çizgi
-metni omurgadır); (3) Gölge ve olgunluk — temanın ham ve işlenmiş hâli.
+metni omurgadır); (3) Gölge ve olgunluk — temanın ham ve işlenmiş hâli;
+(4) BUGÜNÜN TEMASI, en fazla üç cümle — Güneş bugün aynı çarkın hangi
+kapısında ve o kapı DOĞUM kapısıyla nasıl konuşuyor (aynı kapı mı, karşı
+kıyı mı, besleyen mi)? Doğum kapısı DEĞİŞMEZ; değişen yalnız Güneş'in bugün
+ona nereden baktığı. Bugünkü kapı verilmemişse bu bölümü ATLA ve "bugün"
+kelimesini kullanma.
 KURALLAR: Beyanlarda ikinci bir kapı adayı geçiyorsa iki temayı da kısaca
 tanıt, birini kesinmiş gibi sunma ve çizgi yorumuna girme. Pohpohlama yok;
-gölgeyi de söyle. Sağlık/kader kehaneti yok.
+gölgeyi de söyle. Sağlık/kader kehaneti yok. Bugünkü kapıdan olay kehaneti
+çıkarma.
 """
 
 BIRTH_HEXAGRAM_FALLBACK = (
     "Doğum kapın #{gate} {name_tr} {unicode}: {judgment} "
     "Detaylı okuma için tekrar dene."
 )
+
+#: Gün katmanı satırı: Güneş'in BUGÜN aynı çarktaki yeri. Çizgi de yazılır
+#: ve bu ölçüm sonucudur — bir kapı 5,71 gün sürüyor (`GATE_SPAN` 5,625°
+#: bölü günlük hız), kapı+çizgi ise 30 günde 30 ayrı değer alıyor; yani bu
+#: yüzeyin gerçekten GÜNLÜK olgusu kapı değil kapı+çizgidir. Pencerede
+#: görülen ayrı kapı sayısı fazına göre 5-7 değişir, o yüzden gerekçe
+#: oranla yazılıyor (yeniden ölçüldü 2026-10-03).
+BIRTH_HEXAGRAM_TODAY_FMT = (
+    "{date} · Kapı {gate}, {line}. çizgi — #{gate} {name} {unicode}")
 
 #: Saatsiz doğumda iki adaylı sınır beyanı.
 BIRTH_HEXAGRAM_BOUNDARY_NOTE = (
@@ -1483,13 +1517,24 @@ okuması yaz. "Sen" diye hitap et.
 hiç gelmedi):
 {signs}
 
-KULLANICININ HARİTASI:
+KULLANICININ HARİTASI — KALICI (doğum anından gelir, güne göre değişmez):
 {chart}
+
+BUGÜNE AİT GÖKYÜZÜ (yalnız bugün geçerli; yarın başkası olacak):
+{today}
 
 KAYNAK PASAJLARI:
 {rag}
 
 GELENEĞİN KENDİ KOYDUĞU SINIR — BUNA UY:
+- SABİT OLANLA BUGÜNE AİT OLANI KARIŞTIRMA. Belirtiler KALICIDIR: yüz
+  oranları güne göre değişmez, dolayısıyla belirtilerin kendisi de değişmez.
+  Günün gökyüzüne göre değiştirilebilecek tek şey KESİŞİM — aynı belirtilerin
+  hangi tarafı bugün sınanıyor. "Bugün şu eğilimin sınanıyor" demek doğru;
+  "bugün yüz hatların şunu söylüyor" demek yanlış olurdu.
+- Okumanın gövdesi BELİRTİLERDİR; bugüne ait gökyüzü en fazla iki cümle alır.
+- Bugüne ait gökyüzü boşsa ("—") bugünden HİÇ söz etme ve "bugün" kelimesini
+  kullanma: ölçülmemiş bir günü anlatmak uydurmaktır.
 - TEK BELİRTİ HÜKÜM VERMEZ. Belirtileri topla ve bir EĞİLİM çıkar; tek bir
   ölçüye bakıp karar verme. En az iki belirtiyi birbiriyle konuştur.
 - BELİRTİ EĞİLİMDİR, KADER DEĞİLDİR. Kişinin nereye meyilli olduğunu söyle,

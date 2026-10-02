@@ -114,17 +114,62 @@ KALICI_YARILANMA_GUN = 365
 #: tercihiyle PAYLAŞIR ve KA9'daki "sığmayanı atla" onarımı kısa parçaları
 #: kurtarıyor ama onlara yer AYIRMIYOR.
 #:
-#: Dilim bu yüzden bir ÜST SINIR, çözüm değil — ilk hâlindeki yorum
-#: paylaşımı çözülmüş gibi yazıyordu, ölçüm öyle demiyor (40 taze olgu,
+#: Dilim bir ÜST SINIR, tek başına çözüm DEĞİL — ilk hâlindeki yorum
+#: paylaşımı çözülmüş gibi yazıyordu, ölçüm öyle demiyordu (40 taze olgu,
 #: ~40 karakterlik değerler): `max_chars=600`'de dilimsiz hâlde olgular
 #: bütçenin tamamını yiyor, dilimle ruh hali seyri geri geliyor ama günlük
 #: ve ton tercihi YİNE düşüyor; `report_service`'in kullandığı
 #: `max_chars=400`'de dilimle bile 7 olgu bütçeyi bitiriyor ve geriye
-#: hiçbir şey kalmıyor. Yani dilim en kötü hâli 40'tan 8'e indiriyor;
-#: bütçe AYIRMA (her parçaya garanti pay) ayrı bir iş ve bu turda
-#: yapılmadı — sayıyı düşürmek olguları keser, asıl onarım bütçeyi
-#: paylara bölmektir.
+#: hiçbir şey kalmıyor. Yani dilim en kötü hâli 40'tan 8'e indiriyordu.
+#:
+#: Bütçe AYIRMA artık yapıldı (`_FISILTI_PAYLARI`), yani bu dilim bugün
+#: olguların PAYI içindeki satır sayısını sınırlıyor; aç bırakma kapısı
+#: orada. Dilim yine de duruyor: payı büyük bir bütçede (ör. 4000) pay
+#: tek başına olguları sınırlamaz ve fısıltı 40 satıra çıkabilirdi.
 MAX_WHISPER_FACTS = 8
+
+#: Fısıltı bütçesinin BİLEŞEN PAYLARI — her bileşenin GARANTİ tabanı.
+#:
+#: NEDEN pay gerekti (ölçüldü 2026-10-03, 40 taze olgu / 5 ruh hali / 6
+#: günlük / ton ipucu): paysız hâlde `max_chars=400`'de fısıltıya **7
+#: olgu ve BAŞKA HİÇBİR ŞEY** giriyordu — ruh hali seyri, günlük ve ton
+#: tercihi 0 satır. `max_chars=600`'de yalnız ruh hali seyri kurtuluyordu
+#: (8 olgu + 1 seyir, günlük 0, ton 0). Yani bileşenler birbirini
+#: AÇLIKTAN öldürüyordu ve en ısrarlı olgu bütçenin başını yiyordu — K6
+#: onarımının (sığmayanı atla) kesmeyi amaçladığı şey tam buydu, ama
+#: "atla" kısa parçaları KURTARIYOR, onlara yer AYIRMIYORdu.
+#:
+#: Sayılar ölçülen DOĞAL orandan geliyor (bileşenlerin bütçe sınırı
+#: olmadan ürettiği karakter payı: olgu %40, ruh hali %17, günlük %38,
+#: ton %5) — yani pay, bileşenin gerçekten ürettiği hacme oranlı; eşit
+#: dörde bölmek günlüğü ve olguları aynı kefeye koyup ikisini de keserdi.
+#: Günlük %38 → %35 ve ton %5 → %8 kaydırıldı: tek satırlık ton ipucu
+#: (ölçülen 52 karakter) %5 payla `max_chars=400`'de (20 karakter) HİÇ
+#: sığmazdı, günlük ise altı satırlı olduğu için üç puanı kayıpsız verir.
+#:
+#: ⚠️ PAYIN TAM ANLAMI (yoksa bu sayılar yanlış okunur): pay ne saf taban
+#: ne saf tavandır. `_paylara_bol`un ORANSAL turunda TAVAN gibi davranır
+#: (bileşen payını aşan satır almaz), garanti turunda ise payına
+#: BAKILMAZ, artan turunda da pay yoktur. Yani bileşenin gerçek aldığı
+#: oran paydan sapabilir.
+#:
+#: Ölçülen sonuç (aynı sahte hafıza, onarımdan sonra) — bu sapmanın
+#: büyüklüğü de görünsün diye yazıldı:
+#:   `max_chars=400` → 2 olgu · 1 ruh hali seyri · 2 günlük · 1 ton
+#:   `max_chars=600` → 4 olgu · 1 ruh hali seyri · 3 günlük · 1 ton
+#:   `max_chars=900` → 7 olgu · 1 seyir · 1 "aradığı" · 4 günlük · 1 ton
+#: 400'de olguların aldığı yer %27'dir, payı olan %40 değil: garanti turu
+#: dört bileşenin İLK satırına 255 karakter harcıyor ve 400'lük bütçede
+#: geri kalan oransal tura 145 karakter kalıyor. Bu, payın ihlali DEĞİL
+#: bedeli — "her bileşen en az bir satır" kuralının ücreti olgulardan
+#: ödeniyor ve onarımın amacı tam olarak buydu (önce 7 olgu + SIFIR
+#: başka bileşen vardı).
+_FISILTI_PAYLARI = {
+    "olgu": 0.40,
+    "ruh_hali": 0.17,
+    "gunluk": 0.35,
+    "ton": 0.08,
+}
 
 #: Olguların bağlanabileceği HAYAT ALANLARI (konu). Kategoriden ayrıdır:
 #: kategori olgunun TÜRÜDÜR ("bu bir kaygı"), konu NEYLE ilgili olduğudur
@@ -593,6 +638,125 @@ def _yas_etiketi(yas_gun: float) -> str:
     return f"{gun} gün önce"
 
 
+def _ruh_hali_satiri(trail: list[dict[str, Any]], pay: int) -> str:
+    """Ruh hali seyri satırı — payına sığacak kadar GİRİŞLE.
+
+    NEDEN kırpma burada ve neden EN AZ İKİ giriş: seyir TEK bir satıra
+    sıkıştığı için uzunluğu giriş sayısıyla büyüyor (ölçüldü: giriş başına
+    ~30 karakter, beş girişte 152). Payına sığmayan bir satır garanti
+    turunda yine içeri girerdi ve `max_chars=400`'de tek başına bütçenin
+    %38'ini yerdi — yani payın anlamı kalmazdı.
+
+    Kırpma OLUŞTAN değil SONDAN alır (en yeni girişler kalır) ve ikinin
+    altına İNMEZ: "seyir" adı bir EĞİLİM iddia ediyor ve tek girişle
+    gösterilen şey eğilim değil FOTOĞRAFtır — ölçüleni yanlış adla
+    sunmak olurdu. İki giriş payı aşıyorsa satır yine iki girişle kurulur;
+    o hâli bütçeye sığdıran şey garanti turudur.
+    """
+    def _yaz(e: dict[str, Any]) -> str:
+        metin = f"{e['date']}: {e['mood']}"
+        if e.get("intensity"):
+            metin += f"({e['intensity']})"
+        return metin
+
+    def _satir(n: int) -> str:
+        return "- (ruh hali seyri) " + ", ".join(
+            _yaz(e) for e in trail[-n:])
+
+    for n in range(len(trail), 1, -1):
+        satir = _satir(n)
+        if len(satir) <= pay:
+            return satir
+    return _satir(min(2, len(trail)))
+
+
+def _paylara_bol(bilesenler: list[tuple[str, list[str]]],
+                 max_chars: int) -> str:
+    """Satırları bileşen PAYLARINA göre bütçeye yerleştirir.
+
+    Üç tur, ve sıraları gerekçeli:
+
+    1. **GARANTİ** — her boş olmayan bileşenin İLK satırı, bütçeye
+       sığdığı sürece payına BAKILMADAN girer. Pay tek başına yetmez:
+       ölçülen ton ipucu 52 karakter, `max_chars=400`'de payı 32 — payla
+       sınırlı kalsaydı ton tercihi yine hiç görünmezdi. "Her bileşen en
+       az bir satır" kuralını tutan tur budur.
+    2. **ORANSAL** — kalan satırlar, bileşen kendi payını aşmadığı
+       sürece eklenir. Pay burada TAVANdır ve en ısrarlı olgunun bütçenin
+       başını yemesini kesen tur budur.
+    3. **ARTAN** — paylardan artan yer, bileşen sırasıyla ve pay
+       GÖZETİLMEDEN dağıtılır. Olmazsa günlüğü olmayan kullanıcının
+       bütçesinin %35'i boş durur; pay aç bırakmayı önlerken israf
+       üretirdi. Artanı ilk gören bileşen olgulardır (sıra önce onlar) —
+       bu bilinçli: olgu, fısıltının en çok iş yapan bileşeni.
+
+    Satırlar SEÇİM sırasına göre değil BİLEŞEN sırasına göre basılır
+    (olgu → ruh hali → günlük → ton): garanti turu bileşenler arasında
+    gezindiği için seçim sırası karışıktır ve fısıltının okunma sırası
+    bundan etkilenmemeli.
+
+    Tek satır tek başına bütçeden büyükse ve henüz hiçbir şey
+    eklenmediyse kelime sınırından kırpılır — fısıltı hiç boş kalmasın
+    (KA9'dan devralındı).
+    """
+    # Seçim DEĞERLE değil DİZİNLE izleniyor: iki bileşen satırı birebir
+    # aynı olabilir (aynı gün iki kez yazılmış bir günlük girdisi) ve
+    # değer üyeliğiyle çalışan bir kapı ikisini birden atlardı. Ayrıca
+    # pay turunda sığmayan uzun bir satır atlanıp SONRAKİ kısa satır
+    # girebiliyor, yani seçilenler listenin ÖNEKİ olmak zorunda değil.
+    secilen: dict[str, set[int]] = {ad: set() for ad, _ in bilesenler}
+    kirpik: dict[str, str] = {}
+    kullanilan: dict[str, int] = {ad: 0 for ad, _ in bilesenler}
+    toplam = 0
+
+    def _ekle(ad: str, i: int, satir: str) -> None:
+        nonlocal toplam
+        secilen[ad].add(i)
+        kullanilan[ad] += len(satir) + 1
+        toplam += len(satir) + 1
+
+    # 1. GARANTİ
+    for ad, satirlar in bilesenler:
+        if not satirlar:
+            continue
+        satir = satirlar[0]
+        if toplam + len(satir) + 1 <= max_chars:
+            _ekle(ad, 0, satir)
+        elif toplam == 0 and max_chars > 40:
+            # Kırpma kelime sınırından: boşluksuz çok uzun bir değer
+            # burada neredeyse tamamen gider ve bu BİLEREK öyle —
+            # anlamsız bir karakter yığını bütçeyi yemesin, kalan
+            # bileşenler yine girebilsin.
+            kirpik[ad] = satir[:max_chars - 1].rsplit(" ", 1)[0] + "…"
+            _ekle(ad, 0, kirpik[ad])
+
+    # 2. PAY
+    for ad, satirlar in bilesenler:
+        pay = int(max_chars * _FISILTI_PAYLARI[ad])
+        for i, satir in enumerate(satirlar):
+            if i in secilen[ad]:
+                continue
+            if kullanilan[ad] + len(satir) + 1 > pay:
+                continue
+            if toplam + len(satir) + 1 > max_chars:
+                continue
+            _ekle(ad, i, satir)
+
+    # 3. ARTAN
+    for ad, satirlar in bilesenler:
+        for i, satir in enumerate(satirlar):
+            if i in secilen[ad]:
+                continue
+            if toplam + len(satir) + 1 > max_chars:
+                continue
+            _ekle(ad, i, satir)
+
+    return "\n".join(
+        kirpik.get(ad) if i == 0 and ad in kirpik else satirlar[i]
+        for ad, satirlar in bilesenler
+        for i in sorted(secilen[ad])).strip()
+
+
 def memory_context(uid: str, max_chars: int = 600,
                    simdi: dt.datetime | None = None) -> str:
     """Hafızayı prompt'a iliştirilebilecek kompakt bir özete indirger.
@@ -604,13 +768,13 @@ def memory_context(uid: str, max_chars: int = 600,
     1. geçersiz kılınmış ve ömrü geçmiş olgular HİÇ girmez (unutma),
     2. kalanlar güven × tazelik ile sıralanır (en ısrarlı değil en güncel
        olan bütçenin başını kapar),
-    3. ``MAX_WHISPER_FACTS`` dilimi uygulanır — bütçe ruh hali seyri,
-       günlük ve ton tercihiyle paylaşılıyor ve dilim olmadan olgular
-       hepsini yiyordu.
+    3. ``MAX_WHISPER_FACTS`` dilimi uygulanır.
+
+    Bütçe bileşenler arasında PAYLARA bölünür (`_FISILTI_PAYLARI`); hangi
+    kusurun kapandığı ve payların nereden geldiği orada ölçüldü.
     """
     an = _simdi(simdi)
     memory = get_memory(uid)
-    parts: list[str] = []
 
     uygun = [f for f in memory["facts"]
              if not f.get("invalidatedAt") and not _omru_gecti(f, an)]
@@ -620,54 +784,42 @@ def memory_context(uid: str, max_chars: int = 600,
                        _etkin_agirlik(f, an)),
         reverse=True,
     )
+    olgu_satirlari: list[str] = []
     for fact in sirali[:MAX_WHISPER_FACTS]:
         etiket = str(fact.get("category"))
         yas = _yas_gun(fact, an)
         if yas is not None:
             etiket += f", {_yas_etiketi(yas)}"
-        parts.append(f"- ({etiket}) {fact['value']}")
+        olgu_satirlari.append(f"- ({etiket}) {fact['value']}")
 
     # Ruh hali SEYRİ — tek fotoğraf değil eğilim (S-turu). Yoğunluk da
     # yazılıyor: modelin "üç gündür ağırlaşıyor" ile "dün biraz yorgundu"
     # arasındaki farkı görmesi, tonunu ona göre kurmasının tek yolu.
+    ruh_hali_satirlari: list[str] = []
     trail = memory["moodTrail"][-5:]
     if trail:
-        def _yaz(e: dict[str, Any]) -> str:
-            metin = f"{e['date']}: {e['mood']}"
-            if e.get("intensity"):
-                metin += f"({e['intensity']})"
-            return metin
-        parts.append("- (ruh hali seyri) " + ", ".join(_yaz(e) for e in trail))
+        ruh_hali_satirlari.append(_ruh_hali_satiri(
+            trail, int(max_chars * _FISILTI_PAYLARI["ruh_hali"])))
         # En son turda kullanıcının ne aradığı, tonun en güçlü ipucu.
         son = trail[-1]
         if son.get("needs"):
-            parts.append(f"- (son turda aradığı) {son['needs']}")
+            ruh_hali_satirlari.append(f"- (son turda aradığı) {son['needs']}")
 
     # Günlük (R2-G1): son girişler sohbetin gözüne girer — "son ayda ne
     # oldu?" sorusu bu satırlar + gökyüzü verisiyle cevaplanabilir.
-    gunluk = memory.get("diary") or []
-    for g in gunluk[-6:]:
-        parts.append(f"- (günlük {g.get('date')}) {g.get('text')}")
+    gunluk_satirlari = [
+        f"- (günlük {g.get('date')}) {g.get('text')}"
+        for g in (memory.get("diary") or [])[-6:]]
 
-    if memory.get("toneHint"):
-        parts.append(f"- (ton tercihi) {memory['toneHint']}")
+    ton_satirlari = ([f"- (ton tercihi) {memory['toneHint']}"]
+                     if memory.get("toneHint") else [])
 
-    # `continue`, `break` DEĞİL (KA9): eski döngü sığmayan İLK parçada
-    # duruyordu — olgular bütçeyi doldurunca ruh hali seyri, günlük ve
-    # ton tercihi TAMAMEN düşüyordu (hepsi olgulardan sonra geliyor).
-    # Şimdi sığmayan parça atlanır, sonraki kısa parçalar yine girer.
-    # Tek parça tek başına bütçeden büyükse ve henüz hiçbir şey
-    # eklenmediyse kelime sınırından kırpılır — hafıza fısıltısı hiç
-    # boş kalmasın.
-    context = ""
-    for part in parts:
-        kalan = max_chars - len(context) - 1
-        if len(part) > kalan:
-            if not context and kalan > 40:
-                context += part[:kalan].rsplit(" ", 1)[0] + "…\n"
-            continue
-        context += part + "\n"
-    return context.strip()
+    return _paylara_bol([
+        ("olgu", olgu_satirlari),
+        ("ruh_hali", ruh_hali_satirlari),
+        ("gunluk", gunluk_satirlari),
+        ("ton", ton_satirlari),
+    ], max_chars)
 
 
 def delete_memory(uid: str) -> None:

@@ -428,6 +428,10 @@ CHART_STELLIUM_LABEL = "Stellium"
 CHART_STELLIUM_FMT = "{house} ({count} planets)"
 CHART_NATAL_ASPECTS_LABEL = "Tightest natal aspects"
 CHART_TRANSITS_LABEL = "Transits touching the chart today"
+#: Date stamp of the day block (`chart_context.gunun_gokyuzu`). The upcoming
+#: perfections carry ABSOLUTE dates; without today's date the model cannot
+#: tell how far away "2026-10-07" is.
+CHART_TODAY_LABEL = "Today's date"
 #: Upcoming-perfections line of the chat whisper (KA8).
 CHART_UPCOMING_LABEL = "Perfections in the next 7 days"
 #: Transit line: "Saturn → Sun opposition (0.8°)". The arrow separates the
@@ -1218,6 +1222,7 @@ CALCULATED BAZI CHART (true solar time + true solar terms):
 - Luck Pillars (Da Yun): {luck}
 - Start of the first period: {luck_start}
 - CURRENT PERIOD: Da Yun {current_luck} · this year's pillar {current_year}
+- TODAY'S PILLARS (Liu Ri / Liu Yue — NOT lasting, today only): {today}
 - Calculation disclosures: {notes}
 
 SOURCE PASSAGES:
@@ -1232,10 +1237,17 @@ Sections:
     the list is empty.
 (4) The current period: the theme of the active Da Yun and how this year's
     pillar intersects it.
+(5) TODAY'S INTERSECTION — at most three sentences: how do today's day pillar
+    (Liu Ri) and month pillar (Liu Yue) meet the four pillars THE BIRTH gave
+    (support, clash, or bringing the favorable element)? The four pillars DO
+    NOT change; only the way today touches them does. If today's pillars are
+    not given, SKIP this section and do not use the word "today".
 
 RULES:
 - No flattery: state the verdict as it is. A weak Day Master is not a flaw
   but a path of balancing — yet do not embellish either.
+- Do not draw EVENT prophecy from today's pillar: a day pillar is a window of
+  tendency, not a calendar.
 - If the verdict is "Balanced", avoid certainty; write in the language of
   likelihood.
 - No health, death or exact-date prophecy.
@@ -1253,6 +1265,10 @@ BAZI_FALLBACK = (
 #: Report line formats — small language-bound patterns (B6).
 BAZI_LUCK_START_FMT = "{years}y {months}m ({date})"
 BAZI_CLIMATE_FMT = " | The season's climate calls for a regulator: {element}"
+#: Day-layer line: Liu Ri (day pillar) + Liu Yue (month pillar). The date
+#: stamp is REQUIRED — a day-pillar label repeats every 60 days, so on its
+#: own it does not say which day it stands for.
+BAZI_TODAY_FMT = "{date} · day pillar {day} · month pillar {month}"
 
 #: Default question for a cast without one (İ0). The Turkish constant in
 #: the schema used to leak into the English prompt; now language-bound.
@@ -1380,10 +1396,12 @@ ICHING_RAG_QUERY = ("Book of Changes, hexagram {name}, moving lines, "
 # --- Birth Hexagram (İ5) ---
 BIRTH_HEXAGRAM = """
 TASK: Write a 250-350 word character/theme reading from this person's BIRTH
-hexagram. This is NOT a cast (no divination) but a lasting layer of identity —
-"what will happen today" language is forbidden; "this is your weave" is right.
+hexagram. THE BIRTH GATE is a lasting layer of identity, NOT a cast (no
+divination): "this will happen today" language is forbidden, "this is your
+weave" is right. Only the last section looks at today, and even there it
+speaks of CONTACT, not events.
 
-CALCULATED POSITION:
+CALCULATED POSITION (LASTING — from the moment of birth):
 - Sun at birth: {longitude}° → Gate {gate}, line {line}
 - Hexagram #{gate}: {name_tr} ({name} {name_cn}) {unicode}
 - Judgment: {judgment}
@@ -1393,22 +1411,38 @@ CALCULATED POSITION:
 - Trigrams: {lower} below, {upper} above
 - Disclosures: {notes}
 
+THE SUN TODAY (same wheel — NOT lasting, today only): {today}
+
 SOURCE PASSAGES:
 {rag}
 
 Sections: (1) The essence of the gate — this hexagram's theme carried as a
 CHARACTER; (2) The birth line — the personal tone within the same gate (the
 line text is the spine); (3) Shadow and ripeness — the raw and the worked
-form of the theme.
+form of the theme; (4) TODAY'S THEME, at most three sentences — which gate of
+the same wheel is the Sun in today, and how does that gate speak to the BIRTH
+gate (same gate, opposite shore, feeding one)? The birth gate DOES NOT change;
+only where the Sun looks at it from today does. If today's gate is not given,
+SKIP this section and do not use the word "today".
 RULES: If the disclosures mention a second candidate gate, briefly introduce
 both themes, present neither as certain, and do not interpret the line. No
-flattery — name the shadow too. No health or fate prophecy.
+flattery — name the shadow too. No health or fate prophecy. Draw no event
+prophecy from today's gate.
 """
 
 BIRTH_HEXAGRAM_FALLBACK = (
     "Your birth gate is #{gate} {name_tr} {unicode}: {judgment} "
     "Check back shortly for the full reading."
 )
+
+#: Day-layer line: where the Sun sits TODAY on the same wheel. The line is
+#: printed too, and that is a measurement result — a gate lasts 5.71 days
+#: (`GATE_SPAN` 5.625° over daily speed; a 30-day window shows 5-7 distinct
+#: gates depending on its phase) while gate+line takes 30 distinct values
+#: in 30 days; so this surface's genuinely DAILY fact is gate+line, not the
+#: gate alone (measured 2026-10-03).
+BIRTH_HEXAGRAM_TODAY_FMT = (
+    "{date} · Gate {gate}, line {line} — #{gate} {name} {unicode}")
 
 #: Boundary disclosure for hour-unknown births.
 BIRTH_HEXAGRAM_BOUNDARY_NOTE = (
@@ -1512,13 +1546,25 @@ MEASURED SIGNS (computed on the reader's own device; the image never reached
 this server):
 {signs}
 
-THE READER'S CHART:
+THE READER'S CHART — LASTING (from the moment of birth; it does not change
+with the day):
 {chart}
+
+TODAY'S SKY (valid for today only; tomorrow's will be another):
+{today}
 
 SOURCE PASSAGES:
 {rag}
 
 THE LIMIT THE TRADITION SETS ON ITSELF — OBSERVE IT:
+- DO NOT CONFUSE THE LASTING WITH TODAY. The signs are PERMANENT: facial
+  ratios do not change with the day, so the signs themselves do not either.
+  The only thing today's sky may change is the INTERSECTION — which side of
+  the same signs is being tested today. "Today that inclination of yours is
+  being tested" is right; "today your features say this" would be wrong.
+- The body of the reading is THE SIGNS; today's sky gets at most two sentences.
+- If today's sky is empty ("—"), say NOTHING about today and do not use the
+  word "today": narrating an unmeasured day is invention.
 - A SINGLE SIGN DECIDES NOTHING. Gather the signs and draw a TENDENCY; do not
   judge on one measurement. Make at least two signs speak to each other.
 - A SIGN IS A TENDENCY, NOT A FATE. Say what they incline toward, not what

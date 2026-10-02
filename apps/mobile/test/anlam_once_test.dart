@@ -166,11 +166,47 @@ void main() {
           final govde = tam.substring(tam.indexOf(':') + 1).trim();
           expect(c, contains(govde.substring(0, govde.length - 1)));
         }
-        // Tek cumle: iki govdeyi ayiran noktali virgul.
-        expect(c, contains(';'));
-        // Etiket SOLDA bir kez: "Mars · 6. ev — ...".
-        expect(c.indexOf('—'), greaterThan(0));
-        expect(c.substring(0, c.indexOf('—')), contains('Mars'));
+        // Gezegen etiketi cumleyi ACIYOR: cumle buyuk harfle baslasin
+        // diye orada (govdeler kucuk harfli ve `toUpperCase()` Turkce
+        // bilmez — `'i'` icin `'I'` verir, dogrusu `'İ'`).
+        expect(c, startsWith('Mars'));
+        // Ev ETIKETI ("6. ev" / "House 6") cumleden CIKTI: ayni olcum
+        // bir satir altta `_OlcumSatiri` ile zaten duruyor.
+        final evEtiketi = houseAreaText(l10n, 6)!.split(':').first;
+        expect(c, isNot(contains(evEtiketi)),
+            reason: 'ev etiketi cumlede tekrar ediyor');
+      }
+    });
+
+    test('birlesme ANLAM duzeyinde: iki govde arasinda BAGLAC var', () {
+      // ⚠️ B1(b)'nin cekirdek bekcisi. Onceki hal noktalama duzeyinde
+      // birlestiriyordu (`"... istegin; gundelik duzen ..."`): 168 ayri
+      // cumle uretiyordu ama noktali virgul iki ansiklopedi maddesini
+      // AYIRIYOR, aralarinda bir ILISKI kurmuyordu — ekran hala "iki
+      // liste yan yana" gibi okunuyordu.
+      //
+      // Olculen sey: iki yer tutucu ARASINDAKI metin. Capa hicbir dile,
+      // kelimeye ya da diyakritige bagli DEGIL — yalniz "orada
+      // noktalamadan baska bir sey var mi" sorusu. `'$rol; $alan.'`
+      // seklinde bir geri alis bu bekciyi KIRMIZI yapar.
+      for (final l10n in [_tr, _en]) {
+        const rolIz = 'ROLYERI';
+        const alanIz = 'ALANYERI';
+        final kalip = l10n.pointPlacementSentence(rolIz, alanIz);
+        expect(kalip, contains(rolIz));
+        expect(kalip, contains(alanIz));
+        expect(kalip.indexOf(rolIz), lessThan(kalip.indexOf(alanIz)),
+            reason: 'rol, alandan sonra geliyor');
+
+        final orta = kalip.substring(
+            kalip.indexOf(rolIz) + rolIz.length, kalip.indexOf(alanIz));
+        // Noktalama ve bosluklar atildiginda GERIYE HARF KALMALI.
+        final harfler = orta.replaceAll(RegExp(r'[^\p{L}]', unicode: true), '');
+        expect(harfler.length, greaterThan(2),
+            reason: 'iki govde arasinda yalniz noktalama var: "$orta"');
+
+        // Ve o baglac uretilen cumlede GERCEKTEN duruyor.
+        expect(yerlesimCumlesi(l10n, 'Mars', 6)!, contains(orta));
       }
     });
 
@@ -319,27 +355,71 @@ void main() {
       expect(find.text(_tr.planetSpeed.toUpperCase()), findsOneWidget);
     });
 
-    test('YANLIS KONUM BEYANI geri donmez', () {
-      // `pointSheetFootnote` metni: "Ustteki satirlar olcumdur. Altindaki
-      // IKI CUMLE … birlestirir." Bu sayfada artik ikisi de YANLIS —
-      // olcum ALTTA ve cumle TEK. Dipnot bilerek basilmiyor, ama hicbir
-      // sey onu geri eklemeyi ENGELLEMIYORDU: geri gelse ekran
-      // yapmadigi bir seyi yeniden beyan ederdi ve bu, hic dipnot
-      // basmamaktan kotu. (Depo bu kusur sinifini bir kez odedi: dipnot
-      // "iki cumleyi birlestirir" diyordu, birlestiren kod hic yoktu.)
+    test('DURUSTLUK DIPNOTU basiliyor ve KONUM BEYANI tasimiyor', () {
+      // B1(a). Dipnotun uc hali oldu ve bekci de iki kez degisti:
+      //  1. Ilk metin YANLIS BEYAN'di ("Ustteki satirlar olcumdur.
+      //     Altindaki IKI CUMLE … birlestirir") — olcum ALTTA ve cumle
+      //     TEK oldugu icin iki cumlesi de yanlisti.
+      //  2. Bu yuzden dipnot HIC basilmaz oldu ve onceki bekci tam o
+      //     hali civiliyordu ("geri donmez"). Ama basilmamasi da kayipti:
+      //     ustteki cumlenin OLCUM mu KLASIK GELENEK mi oldugu ekranda
+      //     HICBIR YERDE yazmiyordu — oysa o ayrim bir urun ilkesi
+      //     ("olculmeyen soylenmez"). Yani eski bekci, kapanmasi gereken
+      //     bir bosluga "dogru hal" diyordu.
+      //  3. Simdiki metin olculen sirayi anlatiyor ve KONUM SOZCUGU
+      //     tasimiyor; bayatlamasinin sebebi tam olarak o sozcuklerdi.
       //
-      // ⚠️ Eslesmeden ONCE yorumlar atiliyor. Bu dosyada dipnotun ADINI
-      // ANLATAN UC yorum var (261, 362, 949 civari) ve yoklugu arayan bir
-      // bekci onlara takilirdi — depoda bu tam iki kez patladi.
+      // ⚠️ Eslesmeden ONCE yorumlar atiliyor: bu dosyada da, kaynakta da
+      // dipnotun adini ANLATAN yorumlar var ve varligini/yoklugunu arayan
+      // bir bekci onlara takilirdi (depoda bu tam iki kez patladi).
       final k = _yorumsuz('lib/features/atlas/atlas_detail_screens.dart');
-      expect(k, isNot(contains('pointSheetFootnote')),
-          reason: 'yanlis konum beyani tasiyan dipnot geri eklenmis');
-      // Ikinci ve BAGIMSIZ isaret: aci sayfasinin dipnoti KALMALI. O metin
-      // konumdan bagimsiz ("aci ve orb olculur, aciklama klasik yorum
-      // gelenegidir"), yani bu bekci "dipnot dusmani" degil — yalniz
-      // YANLIS olani kovuyor.
+      expect(k, contains('pointSheetFootnote'),
+          reason: 'durustluk dipnoti ekranda basilmiyor');
+      // Ikinci ve BAGIMSIZ isaret: aci sayfasinin dipnoti da KALMALI.
       expect(k, contains('aspectSheetFootnote'),
-          reason: 'konumdan bagimsiz durustluk dipnotu da dusmus');
+          reason: 'aci sayfasinin durustluk dipnotu dusmus');
+
+      // Ucuncu isaret, METNIN KENDISI: konum sozcugu tasimamali.
+      //
+      // ⚠️ `toLowerCase()` CAGRILMIYOR: Turkce'de noktali I iki kod
+      // noktasina acilir ve esleme sessizce kayar. Onun yerine her
+      // sozcugun iki yazimi ELLE listelenmis.
+      for (final l10n in [_tr, _en]) {
+        final dipnot = l10n.pointSheetFootnote;
+        for (final konum in const [
+          'Üstteki', 'üstteki', 'Altındaki', 'altındaki',
+          'Yukarıdaki', 'yukarıdaki', 'Aşağıdaki', 'aşağıdaki',
+          'above', 'Above', 'below', 'Below',
+        ]) {
+          expect(dipnot, isNot(contains(konum)),
+              reason: 'dipnot konuma gore konusuyor ("$konum"); '
+                  'sira degisince sessizce yanlisa doner');
+        }
+        // Dorduncu isaret: "iki cumle" iddiasi da geri donmemeli —
+        // sayfada TEK anlam cumlesi var.
+        for (final sayi in const [
+          'iki cümle', 'İki cümle', 'two sentences', 'Two sentences',
+        ]) {
+          expect(dipnot, isNot(contains(sayi)),
+              reason: 'dipnot hala "iki cumle" diyor');
+        }
+        // Ve dipnot GERCEKTEN bir sey soylemeli: bos/kisa bir dize
+        // yukaridaki dort kapinin hepsinden gecerdi.
+        expect(dipnot.length, greaterThan(60));
+      }
+    });
+
+    testWidgets('dipnot OLCUM satirlarinin ALTINDA', (tester) async {
+      // Metin konum sozcugu tasimiyor ama sayfanin sirasi yine de
+      // olculuyor: dipnot bir DIPnottur ve olcumun ustune cikarsa
+      // "once anlam, sonra olcum" anlatisi gorsel olarak bozulur.
+      await _sayfaAc(tester, (c) => showPointSheet(c, nokta));
+
+      final dipnot = find.text(_tr.pointSheetFootnote);
+      expect(dipnot, findsOneWidget);
+      expect(_dy(tester, find.text('12.30°')),
+          lessThan(_dy(tester, dipnot)),
+          reason: 'dipnot olcum satirlarinin ustune cikmis');
     });
 
     testWidgets('ingilizce arayuzde de anlam once', (tester) async {

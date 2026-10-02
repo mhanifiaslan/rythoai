@@ -1149,7 +1149,18 @@
   "planetMotion": "Hareket",
   "planetSpeed": "Günlük hız",
   "planetRetrograde": "retro",
-  "pointSheetFootnote": "Üstteki satırlar ölçümdür. Altındaki iki cümle, o gezegenin klasik anlamı ile bulunduğu ev alanını birleştirir — kişiye özel yorum için Rytho'ya sorabilirsin.",
+  "pointSheetFootnote": "Bu sayfa önce ANLAMI, sonra ÖLÇÜMÜ gösterir. Anlam cümlesi klasik yorum geleneğinden gelir ve ölçülen yerleşimi anlatır — sana özel bir yorum değildir; derece, ev ve hız ise doğum anının gerçek gökyüzünden hesaplanır (Swiss Ephemeris).",
+  "pointPlacementSentence": "{rol} — bunlar {alan} alanında işler.",
+  "@pointPlacementSentence": {
+    "placeholders": {
+      "rol": {
+        "type": "String"
+      },
+      "alan": {
+        "type": "String"
+      }
+    }
+  },
   "pointAscendant": "Yükselen",
   "traitsElements": "Element dengesi",
   "traitsModalities": "Nitelik dengesi",

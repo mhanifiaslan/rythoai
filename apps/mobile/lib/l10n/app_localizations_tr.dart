@@ -2334,7 +2334,12 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get pointSheetFootnote =>
-      'Üstteki satırlar ölçümdür. Altındaki iki cümle, o gezegenin klasik anlamı ile bulunduğu ev alanını birleştirir — kişiye özel yorum için Rytho\'ya sorabilirsin.';
+      'Bu sayfa önce ANLAMI, sonra ÖLÇÜMÜ gösterir. Anlam cümlesi klasik yorum geleneğinden gelir ve ölçülen yerleşimi anlatır — sana özel bir yorum değildir; derece, ev ve hız ise doğum anının gerçek gökyüzünden hesaplanır (Swiss Ephemeris).';
+
+  @override
+  String pointPlacementSentence(String rol, String alan) {
+    return '$rol — bunlar $alan alanında işler.';
+  }
 
   @override
   String get pointAscendant => 'Yükselen';

@@ -1080,7 +1080,18 @@
   "planetMotion": "Motion",
   "planetSpeed": "Daily speed",
   "planetRetrograde": "retrograde",
-  "pointSheetFootnote": "The rows above are measurements. The two sentences below combine that planet's classical meaning with the house it falls in — ask Rytho for a reading specific to you.",
+  "pointSheetFootnote": "This page shows the MEANING first, then the MEASUREMENT. The meaning sentence comes from classical interpretive tradition and describes the measured placement — it is not a reading specific to you; degree, house and speed are computed from the real sky at your birth moment (Swiss Ephemeris).",
+  "pointPlacementSentence": "{rol} — these play out in {alan}.",
+  "@pointPlacementSentence": {
+    "placeholders": {
+      "rol": {
+        "type": "String"
+      },
+      "alan": {
+        "type": "String"
+      }
+    }
+  },
   "pointAscendant": "Ascendant",
   "traitsElements": "Element balance",
   "traitsModalities": "Modality balance",

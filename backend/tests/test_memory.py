@@ -1084,3 +1084,165 @@ def test_cikarim_promptu_mevcut_anahtarlari_ve_konuyu_tasir(monkeypatch):
                      if "`topic`" in s][0]
     assert not any(k in sablon_satiri for k in memory_service.KONULAR), \
         "konu adlari sablonda sabit yazili; bekci kor"
+
+
+# ---------------------------------------------------------------------------
+# B4: fisilti butcesinin BILESEN PAYLARI
+# ---------------------------------------------------------------------------
+
+def _b4_hafiza(olgu_sayisi: int = 40):
+    """Butceyi ZORLAYAN hafiza: her bilesen dolu ve olgular bol.
+
+    Olgu sayisi bilerek `MAX_WHISPER_FACTS`in cok ustunde: aclik kusuru
+    ancak olgular butceyi doldurabildiginde gorunur, az olguyla her
+    bilesen zaten sigar ve bekci hicbir sey olcmez.
+    """
+    return {
+        "facts": [
+            {"category": "concern", "key": "concern.is%d" % i,
+             "value": "is yerinde surekli bir tedirginlik var %02d" % i,
+             "confidence": 0.9, "updatedAt": _gun_once(1)}
+            for i in range(olgu_sayisi)
+        ],
+        "moodTrail": [
+            {"date": "2026-09-%02d" % (20 + i), "mood": "kaygili",
+             "intensity": "orta", "needs": "sakinlesmek"}
+            for i in range(5)
+        ],
+        "diary": [
+            {"date": "2026-09-%02d" % (25 + i),
+             "text": "bugun uzun bir yuruyus yaptim ve kafam dagildi"}
+            for i in range(6)
+        ],
+        "toneHint": "kisa ve dogrudan yanit tercih ediyor",
+    }
+
+
+def _b4_bilesenler(metin: str) -> dict[str, int]:
+    """Fisiltiyi BILESENE gore sayar.
+
+    Capa her bilesenin kendi ETIKET ONEKI (`- (ton tercihi)` gibi), tek
+    bir Turkce kelime DEGIL: "gunluk" gibi bir kelime olgu
+    degerlerinin icinde de gecebilir ve sayac sessizce sisirdi.
+    Diyakritik de capaya giriyor (`gunluk` yerine `g\u00fcnl\u00fck`),
+    cunku ASCII'ye indirgenen bir capa uretim satirini hic gormez.
+    """
+    sayac = {"olgu": 0, "ruh_hali": 0, "aradigi": 0, "gunluk": 0, "ton": 0}
+    for satir in metin.splitlines():
+        if not satir.startswith("- ("):
+            continue
+        if satir.startswith("- (ruh hali seyri)"):
+            sayac["ruh_hali"] += 1
+        elif satir.startswith("- (son turda arad"):
+            sayac["aradigi"] += 1
+        elif satir.startswith("- (g\u00fcnl\u00fck "):
+            sayac["gunluk"] += 1
+        elif satir.startswith("- (ton tercihi)"):
+            sayac["ton"] += 1
+        else:
+            sayac["olgu"] += 1
+    return sayac
+
+
+def test_fisilti_her_bilesene_en_az_bir_satir_ayirir(monkeypatch):
+    """B4: olgular otekileri ACLIKTAN olduruyordu.
+
+    OLCULDU (onarim oncesi, ayni hafiza): `max_chars=400`'de fisiltiya
+    **7 olgu ve baska HICBIR SEY** giriyordu; ruh hali seyri, gunluk ve
+    ton tercihi 0 satirdi. `report_service` tam o butceyle cagiriyor,
+    yani raporlarda kullanicinin ruh hali ve gunlugu HIC gorunmuyordu.
+
+    Bekci uretim butcesine (400) baglanmistir: 4000'de her sey zaten
+    sigar ve ayni bekci hicbir sey olcmez.
+    """
+    monkeypatch.setattr(memory_service, "get_memory",
+                        lambda uid: _b4_hafiza())
+    sayac = _b4_bilesenler(memory_service.memory_context(
+        "u", max_chars=400, simdi=_AN))
+    for ad in ("olgu", "ruh_hali", "gunluk", "ton"):
+        assert sayac[ad] >= 1, \
+            f"'{ad}' uretim butcesinde fisiltiya hic girmedi: {sayac}"
+
+
+def test_fisilti_payi_olgularin_tekelini_kesiyor(monkeypatch):
+    """B4 ikinci isaret: garanti turu TEK BASINA yetmez.
+
+    Ustteki bekci yalnizca "en az bir satir" olcuyor, yani paylari
+    bozan bir mutasyon (ornegin olgu payini 1.0 yapmak) ondan GECER:
+    garanti turu her bilesene birer satir vermeye devam eder. Bu yuzden
+    pay ayri olculuyor — gunluk uretim butcesinde BIRDEN COK satir
+    almali ve olgular dilimi doldurmamali.
+    """
+    monkeypatch.setattr(memory_service, "get_memory",
+                        lambda uid: _b4_hafiza())
+    sayac = _b4_bilesenler(memory_service.memory_context(
+        "u", max_chars=600, simdi=_AN))
+    assert sayac["gunluk"] >= 2, \
+        f"gunluk payini alamamis, tek satirda kalmis: {sayac}"
+    assert sayac["olgu"] < memory_service.MAX_WHISPER_FACTS, \
+        f"olgular yine butcenin tamamini yiyor: {sayac}"
+    # Paylarin toplami 1.0 olmali: eksikse butce bosa gider, fazlaysa
+    # oransal tur tavan olmaktan cikar ve ilk bilesen yine tekel kurar.
+    assert abs(sum(memory_service._FISILTI_PAYLARI.values()) - 1.0) < 1e-9
+
+
+def test_ruh_hali_seyri_tek_girise_inmez(monkeypatch):
+    """"Seyir" adi bir EGILIM iddia eder; tek giris FOTOGRAFtir.
+
+    Payina sigdirmak icin satiri kirpan kod ikinin altina inerse
+    olculen sey (tek gun) yanlis adla (seyir) sunulmus olur. Dar butce
+    secildi: pay ne kadar kucukse kirpma o kadar agresif.
+    """
+    monkeypatch.setattr(memory_service, "get_memory",
+                        lambda uid: _b4_hafiza(olgu_sayisi=2))
+    metin = memory_service.memory_context("u", max_chars=400, simdi=_AN)
+    seyir = [s for s in metin.splitlines()
+             if s.startswith("- (ruh hali seyri)")]
+    assert len(seyir) == 1, f"seyir satiri yok: {metin!r}"
+    # Giris sayisi iki nokta sayisiyla olculuyor: her giris "tarih: ruh"
+    # kalibinda ve etiketin kendisinde iki nokta YOK ("- (ruh hali
+    # seyri)"). Yani tek giris 1, iki giris 2 eder; esik bu yuzden 2.
+    # (Ilk yazimda 3 yazmistim ve bekci KENDI hatasiyla kirmizi yandi —
+    # kod dogru davraniyordu.)
+    assert seyir[0].count(":") >= 2, \
+        f"seyir tek girise inmis (ad artik yanlis): {seyir[0]!r}"
+
+
+def test_fisilti_kullanilmayan_PAYI_bos_birakmaz(monkeypatch):
+    """B4 ucuncu isaret: paylar aclik keserken ISRAF uretmemeli.
+
+    ⚠️ Bu bekci bir KOR BEKCI onarimidir (dogrulama turu, minimal
+    mutasyonla olculdu): `_paylara_bol`un ARTAN turunu TAMAMEN
+    kaldiran mutasyon dosyanin tamamini 57/57 YESIL birakiyordu.
+    Sebep olculdu: ustteki iki bekci de `_b4_hafiza()` kullaniyor ve
+    ORADA her bilesen dolu oldugu icin ARTAN turu hicbir sey
+    eklemiyor (370 -> 370 karakter, BIREBIR ayni). Yani turun
+    gerekcesi ("gunlugu olmayan kullanicinin butcesinin %35'i bos
+    durur") yoruma yazilmis ama HIC olculmemisti.
+
+    Kusur GUNLUGU OLMAYAN kullanicida gorunur — cogu kullanici.
+    Olculdu (uretim butcesi 400, gunluk bos):
+      ARTAN VAR -> 5 olgu, 394 karakter (butcenin %98'i)
+      ARTAN YOK -> 2 olgu, 232 karakter (butcenin %58'i)
+    """
+    hafiza = _b4_hafiza()
+    hafiza["diary"] = []
+    monkeypatch.setattr(memory_service, "get_memory",
+                        lambda uid: hafiza)
+    metin = memory_service.memory_context("u", max_chars=400,
+                                          simdi=_AN)
+    sayac = _b4_bilesenler(metin)
+    assert sayac["gunluk"] == 0, f"kurulum bozuk, gunluk dolu: {sayac}"
+
+    # 1. Bos kalan pay BASKA bilesenlere gecmeli.
+    assert len(metin) >= 340, (
+        f"butcenin {400 - len(metin)} karakteri bos durdu; "
+        f"kullanilmayan pay dagitilmiyor: {sayac}")
+
+    # 2. BAGIMSIZ isaret, uzunluktan degil SAYIMDAN: olgular kendi
+    # payinin (400 * 0.40 = 160 karakter, yani ~2 satir) USTUNE
+    # cikabilmeli. Garanti turu 1, oransal tur 1 satir verir; DORT
+    # satira ancak ARTAN turuyla cikilir. Bu yuzden esik uzunluga
+    # paralel bir kapi DEGIL, turun kendi imzasi.
+    assert sayac["olgu"] >= 4, (
+        f"olgular artan payi alamadi, kendi tavaninda kaldi: {sayac}")

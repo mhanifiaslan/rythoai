@@ -4193,8 +4193,14 @@ abstract class AppLocalizations {
   /// No description provided for @pointSheetFootnote.
   ///
   /// In tr, this message translates to:
-  /// **'Üstteki satırlar ölçümdür. Altındaki iki cümle, o gezegenin klasik anlamı ile bulunduğu ev alanını birleştirir — kişiye özel yorum için Rytho\'ya sorabilirsin.'**
+  /// **'Bu sayfa önce ANLAMI, sonra ÖLÇÜMÜ gösterir. Anlam cümlesi klasik yorum geleneğinden gelir ve ölçülen yerleşimi anlatır — sana özel bir yorum değildir; derece, ev ve hız ise doğum anının gerçek gökyüzünden hesaplanır (Swiss Ephemeris).'**
   String get pointSheetFootnote;
+
+  /// No description provided for @pointPlacementSentence.
+  ///
+  /// In tr, this message translates to:
+  /// **'{rol} — bunlar {alan} alanında işler.'**
+  String pointPlacementSentence(String rol, String alan);
 
   /// No description provided for @pointAscendant.
   ///

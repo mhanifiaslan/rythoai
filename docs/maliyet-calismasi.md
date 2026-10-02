@@ -6,20 +6,30 @@
 > sonuçları ±%7 oynatır). KDV %20, Google Play komisyonu %15
 > (küçük geliştirici katmanı).
 
-## 1. Birim maliyetler (LLM: gemini-flash-latest ≈ 2.5 Flash)
+## 1. Birim maliyetler (LLM: `gemini-3.5-flash`)
 
 Fiyat: ~$0,30 / 1M girdi token'ı · ~$2,50 / 1M çıktı token'ı (düşünme
 kapalı — gemini_service thinking_budget=0). Embedding sorgusu ihmal
 edilebilir (~$0,000008/çağrı; önbellek isabetinde hiç yok).
 
+⚠️ Model adı bu satırda bir tur boyunca **`gemini-flash-latest` ≈ 2.5 Flash**
+yazıyordu ve o ad artık kodda YOK: `core/config.py` `GEMINI_MODEL`
+varsayılanı S-turu'nda `gemini-3.5-flash`'e SABİTLENDİ (takma ad arkasındaki
+model kaydı değişince düşünme sızıyordu). Birim fiyatlar değişmedi —
+`usage_service._USD_PER_M_INPUT/_OUTPUT` aynı iki sayıyı taşıyor ve
+`config.py`'deki ölçüm notu da çıktı fiyatını $2,50/M olarak anıyor.
+
 | İş | Girdi (token) | Çıktı (token) | Maliyet/çağrı | Jeton bedeli | Jeton başına gelir* | Marj |
 |---|---|---|---|---|---|---|
 | Sohbet turu | ~4.000 (tavanlı en kötü ~9.000†) | ≤300 | **~$0,0021‡** (kötü $0,0034) | 1 | ~$0,010 | ~%79 |
-| Natal / BaZi / SR / Progresyon / Firasa | ~3.500 | 700-900 | **~$0,0033** | 5 | ~$0,050 | %93 |
+| Natal / SR / Progresyon / Sinastri (kimlik; bu turda ÖLÇÜLMEDİ) | ~3.500 | 700-900 | **~$0,0033** | 5 | ~$0,050 | %93 |
+| Firaset (yüz okuma) — **GÜNLÜK**, ölçüldü §6l | ~3.110 | 360-440 | **~$0,0020** | 5 | ~$0,050 | %96 |
+| BaZi — **GÜNLÜK**, ölçüldü §6l | ~3.230 | 800-1.010 | **~$0,0035** | 5 | ~$0,050 | %93 |
+| Doğum kapısı — **GÜNLÜK**, ölçüldü §6l | ~2.810 | 500-700 | **~$0,0026** | 5 | ~$0,050 | %95 |
 | İching (+soru hükmü çağrısı) | ~3.500+800 | ~500 | **~$0,0030** | 2 | ~$0,020 | %85 |
 | Dyad (çift başına günlük) | ~2.700 | ~200 | **~$0,0018** | 3 | ~$0,030 | %94 |
 | Kişisel günlük (abone, jetonsuz) | ~3.000 | ~250 | ~$0,0015 × 30/ay = **~$0,045/ay** | — | abonelik içinde | — |
-| Genel burç yorumu (paylaşımlı) | ~2.800 | ~250 | 72 üretim/gün → **~$4,5/AY TOPLAM** (kullanıcı sayısından bağımsız) | — | — | — |
+| Genel burç yorumu (paylaşımlı) | ~2.610 (ölçüldü §6l) | 240-320 | 24 üretim/gün → **~$1,2/AY TOPLAM** (kullanıcı sayısından bağımsız) | — | — | — |
 | Hafıza çıkarımı (günde ≤1) | ~2.000 | ~100 | ~$0,0009 → ≤$0,03/ay/kullanıcı | — | — | — |
 | Günlük push metni (paylaşımlı, burç başına) | ~1.100 | ~30 | ihmal | — | — | — |
 
@@ -33,9 +43,35 @@ düzeltildi: $0,0021 ÷ $0,010 ile marj 79'dur, 80 değil — yuvarlamayla
 "%80+" yazmak §3'ün "%79-93" satırıyla açık çelişki üretiyordu (iki sayı da
 aynı iki girdiden türüyor).
 
+⚠️ **"Natal / BaZi / SR / Progresyon / Firasa" tek satırı BÖLÜNDÜ** (§6l,
+2026-10-03). İki sebep: (1) üç yüzey (firaset, BaZi, doğum kapısı) günlük
+yüzeye geçti, yani artık KULLANIM SIKLIĞI da farklı; (2) üçü ölçüldüğünde
+aralarında **1,7 kat** maliyet farkı çıktı ve tek satır bunu saklıyordu.
+Ölçülen üç satır birbirinin yerine geçmez. ~$0,0033'lük eski tahmin
+büyüklük mertebesinde doğrulandı ama ölçülmemiş yüzeyler (natal, solar
+return, progresyon, sinastri) için HÂLÂ TAHMİN — satırda öyle yazıyor.
+
+⚠️ **Burç yorumu satırı da düzeltildi**: "72 üretim/gün → ~$4,5/AY" diyordu
+ve o sayı üç dönemin birden ısıtıldığı hâle aitti. Bugün zamanlayıcıda
+yalnız bir iş var (`infra/create-scheduler.ps1`, `period=daily`) ve ısıtılan
+küme 12 burç × 2 dil = **24 üretim/gün** (`api/maintenance.BURCLAR` ×
+`i18n.SUPPORTED`; ikisi de sayılarak doğrulandı). §4'ün sabit gider kalemi
+de bu düzeltmeyle birlikte indi.
+
 Önbellek çarpanı: raporlar kişi başına 24s-90g önbellekli; harcama ve
 LLM çağrısı YALNIZ önbellek kaçırıldığında. İkinci okuma hem ücretsiz
 hem maliyetsiz — yani yukarıdaki maliyetler kullanım başına ÜST sınır.
+
+⚠️ Tek istisna ve bu bir ALT sınır uyarısı: `fact_guard.enforce` uydurma
+yakalarsa aynı üretim için **bir LLM turu daha** koşuyor
+(`report_service._cached_generate` → `regenerate`), yani o çağrının maliyeti
+~2 katına çıkar ve jeton bir kez düşer. Üç günlük yüzeyde bu turun ne
+sıklıkta koştuğu **ÖLÇÜLMEDİ**; depodaki tek ölçüm natal raporlara ait ve
+oradaki oran yüksek (`_cached_generate` yorumu: üç üretimin üçünde de 2-3
+işaret, hepsi yanlış pozitif). İki katı da sonucu değiştirmiyor (§6l
+senaryoları $0,06 → ~$0,11 olur, abonelik neti $3,0), o yüzden bu
+belirsizlik bir fiyat gerekçesi DEĞİL — ama "maliyet şudur" diye tek sayı
+yazmanın da önünde duruyor.
 
 ## 2. Gelir ve marj — abonelik
 
@@ -191,29 +227,38 @@ ayrıca ele alınır.
 | Kalem | Aylık |
 |---|---|
 | Cloud Run (min-instance 1, 2 vCPU/2Gi — soğuk başlatmayı öldüren bilinçli karar) | ~$25 |
-| Genel burç üretimi (paylaşımlı LLM) | ~$4,5 |
+| Genel burç üretimi (paylaşımlı LLM) | **~$1,2** (en kötü ~$2,3) |
 | Firestore (küçük ölçek; aiCache+kullanıcı verisi) | ~$1-5 |
 | SMS (Türkiye ~$0,01-0,05/adet; kayıt başına 1) | kullanıcıyla ölçeklenir, ~$0,03/yeni kullanıcı |
 | NASA/GeoNames/RevenueCat (ücretsiz katman) | $0 |
-| **Toplam sabit** | **~$32-35 ≈ ₺1.400** |
+| **Toplam sabit** | **~$27-32 ≈ ₺1.150-1.350** |
 
-**Başabaş: ~11-13 abone** (K1 sonrası yeniden türetildi). Abone başına net
-katkı = net gelir $3,0 − LLM: hafif senaryoda $3,0 − $0,09 = **$2,91**,
-yoğun senaryoda $3,0 − $0,29 = **$2,71**. Başabaş = sabit ÷ katkı: en iyi
-uç $32 ÷ $2,91 ≈ 11,0 · yoğun senaryo ucu $35 ÷ $2,71 ≈ 12,9.
+⚠️ Burç üretimi kalemi **~$4,5'ten ~$1,2'ye indi** (§6l): sayı düşmedi,
+ÖLÇÜLDÜ — eski değer üç dönemin birden ısıtıldığı hâle aitti, bugün
+zamanlayıcıda yalnız günlük iş var (24 üretim/gün, ölçülen birim ~$0,0016).
+"En kötü ~$2,3" ikinci tarih kovasının da canlı olduğu hâl: ısıtma tek kovayı
+dolduruyor, yerel günü farklı olan kullanıcılar kendi kovasını kaçırıp
+üretim tetikliyor.
+
+**Başabaş: ~9-13 abone** (§6l'deki sabit gider düzeltmesinden sonra yeniden
+türetildi; K1 sonrası hâli "~11-13" diyordu ve o aralık $32-35'lik sabit
+gidere dayanıyordu). Abone başına net katkı = net gelir $3,0 − LLM: hafif
+senaryoda $3,0 − $0,09 = **$2,91**, yoğun senaryoda $3,0 − $0,29 = **$2,71**.
+Başabaş = sabit ÷ katkı: en iyi uç $27 ÷ $2,91 ≈ 9,3 · yoğun senaryo ucu
+$32 ÷ $2,71 ≈ 11,8.
 
 ⚠️ Bu iki uç §2'nin SENARYO satırlarından türüyor, yani yalnız üç kalemi
 (jeton + günlük okuma + hafıza) topluyor. Belgenin kendi **en kötü durumu**
 §2'deki "tüm Plus yüzeyleri dahil GERÇEK tavan" tablosudur ($0,47): katkı
-$3,0 − $0,47 = **$2,53** ve başabaş $35 ÷ $2,53 ≈ **13,8 abone**. Yani
-"~11-13" aralığına "en kötü" demek yanlış etiketti; gerçek bant
-**~11-14 abone**. (Pratikte her abonenin aynı anda hem 100 jetonunun
+$3,0 − $0,47 = **$2,53** ve başabaş $32 ÷ $2,53 ≈ **12,6 abone**. Yani
+"~9-13" aralığının üst ucu zaten en kötü durumu kapsıyor; gerçek bant
+**~9-13 abone**. (Pratikte her abonenin aynı anda hem 100 jetonunun
 tamamını sohbete yatırması hem takvim/sinyal/ilişki yüzeylerini doyurması
 beklenmez; $0,47 bir ÜST sınırdır, tahmin değil.)
 
 100 abonede kaba tablo: gelir ~$300, LLM 100 × ($0,09…$0,29) = ~$9-29,
-sabit ~$35 → **aylık net ~$235-255 ≈ ₺10 bin**; aynı hesap $0,47'lik
-tavanla ~$218. (Eski 300'lük hakta ~$200-250 veriyordu; fark hakkın maliyet
+sabit ~$32 → **aylık net ~$239-259 ≈ ₺10 bin**; aynı hesap $0,47'lik
+tavanla ~$221. (Eski 300'lük hakta ~$200-250 veriyordu; fark hakkın maliyet
 tavanını daraltmasından geliyor, fiyattan değil.)
 
 Ücretsiz kullanıcı maliyeti: günde ≤5 sohbet + 1 İching → tavan
@@ -583,6 +628,203 @@ Ayrıca rollup durumu **toplama ânında** fotoğraflar: satın alma gününden
 sonra `void`a düşen hakediş o günün rollup'ında maliyet olarak durur
 (sapma tek yönlü — marj olduğundan DÜŞÜK; düzeltmesi "Yeniden hesapla").
 
+## 6l. GÜ-turu: üç yüzey GERÇEKTEN GÜNLÜK oldu — ölçülen maliyet (2026-10-03)
+
+Firaset (yüz okuma), BaZi ve doğum kapısı **kimlik yüzeyinden günlük yüzeye**
+geçti: prompt artık o güne ait ayrı bir blok taşıyor, önbellek kovası o
+bloktan türüyor ve TTL üçünde de **24 saate** indi (eskiden sırasıyla 7 / 30 /
+30 gün — eski değerler `report_service`'in kendi yorumlarında yazılı).
+**FİYAT DEĞİŞMEDİ:** `wallet.TOKEN_COSTS` üçünde de **5 jeton** ve bu turda
+o dosyaya dokunulmadı. Sahibin kararı aynen şuydu — *"gerçekten günlük yap
+ama maliyetlerini ölçeceğiz sonra jeton miktarına karar vereceğiz"* — yani
+bu bölümün işi karar vermek değil, **kararın dayanacağı sayıyı üretmek**.
+
+### Ne ölçüldü, nasıl (CANLI ÇAĞRI YOK)
+
+Prompt'lar gerçek motor çıktılarıyla kuruldu (Istanbul 1990-05-12 14:30, gün
+2026-10-03); `gemini_service.generate` ve `retrieve_context` sahteyle
+değiştirildi ve `GEMINI_API_KEY` boşaltıldı, yani **tek bir üretim ya da
+embedding çağrısı yapılmadı** (gerekçe: üretim kotası gerçek para ve proje
+aynı günlerde `Lightning dunning` reddi alıyor). Dönüşümler deponun kendi
+ölçümleriyle:
+
+* **~3,6 karakter/token** — `gemini_service.py` içindeki ölçüm satırı.
+* **Kelime → token**: korpus taramasıyla ölçüldü (TR ortalama kelime 6,24
+  karakter → **~2,01 token/kelime**; EN 4,54 → ~1,54). Çıktı bütçeleri
+  prompt'larda KELİME cinsinden yazılı, dolar hesabı token istiyor.
+* Birim fiyatlar koddan: `usage_service._USD_PER_M_INPUT` = $0,30/M,
+  `_USD_PER_M_OUTPUT` = $2,50/M. Model `core/config.GEMINI_MODEL` =
+  `gemini-3.5-flash`; rapor yolunda çıktı tavanı 2048 (kesilirse 8192),
+  düşünme kapalı.
+
+### Girdinin yarısından çoğu KORPUS PASAJI — ve bu hiç ölçülmemişti
+
+| Girdi kalemi (TR, karakter) | firaset | BaZi | doğum kapısı |
+|---|---|---|---|
+| Şablon + ölçülen çekirdek + kalıcı harita | 2.972 | 3.404 | 1.884 |
+| …bunun içindeki GÜN bloğu | 268 | 62 | 43 |
+| RAG pasajları (ölçüldü, aşağıda) | ~6.224 | ~6.224 | ~6.224 |
+| Sistem talimatı (her çağrıda girdiye yazılır) | 2.015 | 2.015 | 2.015 |
+| **Girdi token toplamı** | **~3.110** | **~3.230** | **~2.810** |
+
+Üç yüzeyin üçü de `retrieve_context(..., top_k=3)` çağırıyor ve pasaj başına
+tavan 2.000 karakter (`rag_service._MAX_CONTEXT_PASSAGE_CHARS`). Korpus
+taraması (1.253 TR / 1.255 EN parça, yerel dosyadan): ham parçalar 118-5.697
+karakter, **%85,5'i tavanı aşıyor**, yani kırpılmış ortanca tam tavanın
+kendisi. Üç pasaj + kaynak başlıkları + ayırıcılar ≈ **6.224 karakter ≈ 1.730
+token** — firasetin girdisinin **%55'i**, doğum kapısının **%61'i**.
+
+⚠️ Önceki turun ölçümü (firaset 2.179 karakter) RAG'ı HARİÇ tutuyordu ve
+"alt sınır" diye işaretlemişti; **işaret doğruydu, büyüklüğü bilinmiyordu** —
+gerçek girdi iddia edilenin ~2,5 katı. İkinci sapma aynı ölçümde: firaset
+blokları İMLE (tek satırlık sahte harita) kuruluyordu, oysa gerçek yolda
+`chart_whisper` **698** karakterlik kalıcı blok, `gunun_gokyuzu` **268**
+karakterlik gün bloğu basıyor. Yani "gün bloğunun ek maliyeti 124 karakter"
+değil **268 karakter (~74 token)**. Üç yüzeyde de gün bloğu girdinin küçük
+payı (%1-7): **günlüklüğün maliyeti ek GİRDİ değil, ÜRETİM SAYISI.**
+
+⚠️ Ölçülemeyen taraf dürüstçe: RAG'ın HANGİ üç pasajı döndürdüğü
+ölçülmedi — öğrenmek bir embedding çağrısı isterdi. Blok boyutu korpusun
+kendi uzunluk dağılımından türetildi ve %85,5 tavana dayandığı için ortanca
+= tavan. Bir yan bulgu: üç sorgunun HİÇBİRİ kullanıcıya özgü serbest metin
+taşımıyor — `FIRASA_RAG_QUERY` dil başına SABİT, kapı sorgusu heksagram
+adından (64 değer), BaZi sorgusu element + hüküm adından türüyor — ve sorgu
+vektörleri süreç içi LRU'da tutuluyor (`_QUERY_CACHE_MAX` = 128), yani
+embedding maliyeti kullanıcı sayısıyla ÖLÇEKLENMİYOR.
+Aynı yapı şunu da söylüyor: **aynı ~6.200 karakter her kullanıcıya, her gün,
+yeniden faturalanıyor** (girdi önbelleği indirimi beklenmiyor —
+`usage_service`: "cached hep 0 bekleniyor").
+
+### Yüzey başına birim maliyet (TR = pahalı dil)
+
+| Yüzey | Model | Çıktı bütçesi (prompt kuralı) | Çıktı token | RAG/embedding | **Maliyet/üretim** |
+|---|---|---|---|---|---|
+| Firaset | `gemini-3.5-flash` | 180-220 kelime | 360-440 | var (top_k=3) | **$0,0018-0,0020** |
+| BaZi | `gemini-3.5-flash` | 400-500 kelime | 800-1.010 | var (top_k=3) | **$0,0030-0,0035** |
+| Doğum kapısı | `gemini-3.5-flash` | 250-350 kelime | 500-700 | var (top_k=3) | **$0,0021-0,0026** |
+| **Üçü birden, bir gün** | | | | | **$0,0069-0,0081** |
+
+İngilizcede üçü de biraz UCUZ ($0,0018 / $0,0029 / $0,0022): girdisi daha
+uzun ama kelime başına token'ı düşük. Aradaki **1,7 katlık** fark tek bir
+kalemden geliyor — çıktı bütçesi; girdi kalemi üçünde neredeyse aynı, çünkü
+RAG ve sistem talimatı ortak.
+
+Üretim sıklığının yapısal tavanı: **kullanıcı başına, yüzey başına, GÜNDE EN
+FAZLA 1 üretim** — o da ekranı o gün açarsa. Ön-ısıtma YOK (üç fonksiyonun
+tek çağıranı HTTP uçları; zamanlanmış iş yok, kaynaktan tarandı) ve harcama
+yalnız önbellek kaçırıldığında işliyor, üretim yedeğe düşerse jeton iade
+ediliyor (`_cached_generate`).
+
+### Kullanıcı başına aylık maliyet — ÜÇ SENARYO
+
+| Senaryo | Üretim/ay | İstenen jeton (ay) | 100'lük hakka göre | LLM maliyeti (ay) |
+|---|---|---|---|---|
+| (a) Sahibin ÖLÇÜLEN hızı ~7 jeton/gün | — (karışık) | ~210 | hak ~14. günde biter | hakkın tamamı bu üç yüzeye giderse **~$0,05**; karışıkta §2'nin tavanı geçerli |
+| (b) Ağır: üç yüzeye de her gün | 90 | **450** | **hakkın 4,5 katı** · hak **6,7. günde** biter | hak tavanlı **~$0,054**; tavansız $0,21-0,24 |
+| (c) Hafif: her yüzeye haftada bir | ~12,9 | ~64 | hak bitmez, geriye 36 jeton kalır | **~$0,030-0,035** |
+
+(a) satırı §2a'daki ölçümdür (iki gün gerçek kullanım) ve ⚠️ **bu
+değişiklikten ÖNCE** ölçüldü: o gün üç yüzey KİMLİKTİ, bir kez üretilip
+7/30/30 gün önbellekten okunuyordu. Aynı davranış bugün daha pahalı — yüzeyi
+her gün açmak günde 5 jeton demek. **Yeni hız ÖLÇÜLMEDİ**; ölçülmeyen
+söylenmez, (b) onun üst sınırıdır.
+
+"Hak tavanlı" sütunu şunu söylüyor: ağır kullanıcı 450 jeton İSTESE de
+elinde 100 var, yani ayda en çok 20 üretim ödeyebiliyor. **Maliyet tarafında
+risk YOK ve bu ölçümün en net sonucu budur:** en ağır kullanıcı bile aylık
+hak tavanı yüzünden ~$0,06'yı geçemiyor, aboneliğin neti ise $3,0 (§2). Üç
+yüzeyin günlük olması **marj matematiğini bozmuyor** — §2'deki "tüm Plus
+yüzeyleri dahil GERÇEK tavan" tablosu ($0,47) zaten 100 jetonun TAMAMINI
+sohbete yatıran kullanıcıyı sayıyor ve jetonun en pahalı harcanma biçimi
+sohbet; bu üç yüzey jetonu sohbetten **ucuza** yakıyor (jeton başına
+$0,0004-0,0007 vs $0,0021).
+
+### ⚠️ EN ÖNEMLİ TEK SAYI: ağır kullanıcı 100 jetonu **7. GÜNDE** bitirir
+
+100 ÷ 15 = **6,67 gün**. Üç yüzeye de her gün bakan bir abone, ayın ilk
+haftası dolmadan hakkını tüketir; kalan ~23 günde ya durur ya paket alır — ve
+bu hesap sohbeti, İ Ching'i, ikili okumayı HİÇ saymıyor (hepsi aynı kovadan
+yiyor). Günde hakkın **%15'i** gidiyor.
+
+Aynı üç yüzey düne kadar **~31 jeton/ay** istiyordu (firaset 7 günlük TTL ile
+~4,3 üretim + BaZi 1 + kapı 1, hepsi 5 jeton); bugün **450 jeton/ay**
+istiyor — **14,3 kat**. Fiyat kararının asıl konusu bu çarpandır, maliyet
+değil.
+
+İki yönlü okunmalı: bu, K1'in (§2a) aradığı şeyin ta kendisi — hak ölçülen
+hızın altına indirilmişti ki `purchased` bakiyeye sıra gelsin. 14 kat, "sıra
+gelir" tarafında fazlasıyla yeterli; sorusu artık **kullanıcı bunu bir vaadin
+tutulması mı, bir duvarın erken gelmesi mi sayar** sorusu. O soru maliyet
+tablosunda cevaplanamaz, canlı ölçümde cevaplanır (§7).
+
+### Önbellek PAYLAŞILMIYOR — fiyat kararının gerçek dayanağı
+
+Üç yüzeyin önbellek anahtarı `user_id` taşıyor (`firasa-v3-{uid}-…`,
+`bazi-report-v3-{uid}-…`, `birthhex-v2-{uid}-…`) ve `_cached_generate`
+kayıtları `owner_uid` ile yazıyor: **her kullanıcı her gün kendi üretimini
+ödetiyor.** Maliyet kullanıcı sayısıyla DOĞRUSAL büyür — 1.000 ağır kullanıcı
+= 1.000 × ~$0,054/ay.
+
+Genel burç yorumu bunun TAM TERSİ: anahtarı `horoscope-{burç}-{dönem}-{tarih
+kovası}-{dil}`, yani kullanıcıdan bağımsız ve doküman SAHİPSİZ. Günde **24
+üretim** (12 burç × 2 dil) ve bu sayı **kullanıcı sayısından bağımsız**;
+ölçülen birim ~$0,0016 → filo toplamı **~$1,2/ay**. 10 kullanıcıda da 10.000
+kullanıcıda da aynı.
+
+**Tek cümle: paylaşımlı bir yüzeyi günlük yapmak filoya SABİT bir maliyet
+ekler, kişiye özel bir yüzeyi günlük yapmak kullanıcı başına ÇARPAN ekler.**
+Üç yüzeyin üçü de ikinci sınıftadır ve fiyat kararı buna dayanıyor: burç
+yorumu bedava verilebiliyor çünkü 12 × 2 kova herkesi doyuruyor; firaset
+bedava verilemez çünkü her kullanıcı kendi kovasıdır.
+
+### Jeton bedeli ÖNERİ tablosu — ⚠️ SAHİP KARARI BEKLİYOR
+
+Jeton başına gelir §1'in kuralıyla ~$0,010 (100'lük paketin KDV + Play
+komisyonu sonrası neti ÷ 100). Marj = 1 − maliyet ÷ (bedel × $0,010).
+Belgenin kendi marj bandı: sohbet turu ~%79, rapor sınıfı %93, paket satışı
+%70-93 (§1, §3) — yani **%79, bu belgede bugüne kadar kabul edilmiş en düşük
+marj**. Aşağıdaki hücreler ölçülen ÜST maliyetle (en kötü uç) hesaplandı.
+
+| Yüzey | `TOKEN_COSTS` | Bugünkü bedel | Ölçülen maliyet | 1 jeton | 2 jeton | 3 jeton | 5 jeton |
+|---|---|---|---|---|---|---|---|
+| Firaset (yüz okuma) | `face` | **5 jeton** | $0,0020 | %80 | %90 | %93 | **%96** |
+| BaZi | `bazi` | **5 jeton** | $0,0035 | %65 | %83 | %88 | **%93** |
+| Doğum kapısı | `birth_hexagram` | **5 jeton** | $0,0026 | %74 | %87 | %91 | **%95** |
+
+Aynı seçeneklerin ÖTEKİ yüzü — üç yüzeye de her gün bakan kullanıcıda 100'lük
+hak kaç gün yaşar:
+
+| Bedel (yüzey başına) | Günlük jeton | Hakkın ömrü |
+|---|---|---|
+| 1 jeton | 3 | 33,3 gün |
+| 2 jeton | 6 | 16,7 gün |
+| 3 jeton | 9 | 11,1 gün |
+| **5 jeton (bugün)** | **15** | **6,7 gün** |
+
+Öneri (karar DEĞİL, ölçümün söylediği):
+
+* **Firaset 1-2 jeton.** Tek jetonda bile marj %80, yani belgenin kabul
+  ettiği en düşük marjın (sohbet, %79) üstünde. Çıktı bütçesi üç yüzeyin en
+  küçüğü (180-220 kelime) ve maliyeti ölçülen en düşük.
+* **Doğum kapısı 2 jeton** (%87). 1 jetonda %74 ile bandın altına düşüyor.
+* **BaZi 2-3 jeton** (%83-88). 1 jeton %65 ile bandın açıkça altında; BaZi
+  400-500 kelime yazıyor, yani ölçülen en pahalı yüzey — bedelinin de en
+  yüksek kalması maliyetle TUTARLI olur.
+* Karma 1/3/2 (firaset/BaZi/kapı) = günde 6 jeton → hak **16,7 gün** yaşar;
+  bu karmada en düşük marj firasetin **%80**'i, yani hiçbir yüzey belgenin
+  kabul ettiği en düşük marjın (sohbet, %79) altına inmez.
+
+⚠️ Bu tablo bir fiyat kararı DEĞİL; kodda hiçbir sayı değiştirilmedi. İki
+satırı birlikte okumak gerekiyor: **(1)** marj hiçbir seçenekte sorun değil —
+en kötü hücre %65, yani asıl kısıt maliyet DEĞİL; **(2)** 5 jeton kalırsa
+yüzeyler "günlük" adını taşır ama kullanıcının ayı 7 günde biter. §3'ün kendi
+kuralı burada da geçerli — bedeller maliyet oranına değil ALGILANAN değere
+göre konmuştu — ve değişen şey tam da algılanan değer: aynı yüzey artık her
+gün yeni bir şey söylüyor, yani "büyük iş" algısı bir kerelik bir rapordan
+günlük bir alışkanlığa kaydı. §3'ün ölçüm disiplini uyarısı da geçerli: aynı
+sürümde iki değişkeni birden oynatmak etkiyi ölçülemez kılar, o yüzden
+bedel kararı canlı ölçümden sonra verilmeli (§7'ye metrik eklendi).
+
 ## 7. İzlenecek metrikler (canlıda)
 
 **AP-turu (2026-08-29) itibarıyla bu bölümdeki tahminler CANLI ÖLÇÜMLE
@@ -610,6 +852,20 @@ yapısal olarak doğru.
 - **Takvim yorumu (§6d) kalemi.** Abonenin en büyük jetonsuz LLM
   kalemi (~$0,10-0,15/ay, tavanın ~%21-32'si); `usageEvents` kırılımında
   ayrıca izlenmeli.
+- **§6l'nin tek doğrulama metriği: üç günlük yüzeyin GÜNLÜK ÜRETİM SAYISI
+  ve hakkın bittiği gün.** Bedel kararı (bugün 5 jeton, öneri 1-3) ancak şu
+  üç sayı birlikte okunursa verilebilir: (a) `usageEvents` kırılımında
+  `face` / `bazi` / `birth_hexagram` özelliklerinin kullanıcı başına günlük
+  üretim sayısı — yani kaç kullanıcı GERÇEKTEN her gün açıyor (ölçüm "ağır
+  kullanıcı" senaryosunun ne kadar gerçek olduğunu söyler); (b) cüzdan
+  defterindeki `debit` kayıtlarından hakkın tükendiği gün dağılımı (tahmin:
+  ağır kullanıcıda 7. gün); (c) hak tükendikten sonra o kullanıcıların kaçı
+  paket aldı. (a) yüksek + (c) düşükse duvar erken geliyor demektir ve
+  bedel indirimi (§6l önerisi) gündeme gelir; (a) düşükse yüzeyler günlük
+  olduğu hâlde günlük KULLANILMIYOR ve bedel tartışmasının konusu kalmaz.
+  ⚠️ Birim maliyetler ölçülürken `fact_guard`ın ikinci LLM turu hariç
+  tutuldu; aynı kırılımda özellik başına ÇAĞRI sayısı ile ÜRETİM sayısının
+  oranı o turun gerçek sıklığını canlıda verir (bugün ölçülmemiş tek kalem).
 - Ücretsiz→abone dönüşüm oranı (%3 eşiği ücretsiz katman maliyetinin
   dengesi).
 - Kur 45+₺/$ kalıcılaşırsa: fiyat merdiveni adım 2 öne çekilir.
