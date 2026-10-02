@@ -184,9 +184,218 @@ def test_tembel_tazeleme_yeni_donemde_hak_verir(depo, monkeypatch):
     _abone_yap(monkeypatch, _DONEM)
     _cuzdan_yaz(depo, allowance=0, allowanceExpiresAt=eski_donem, purchased=0)
 
-    wallet.spend("u1", "chat")  # bedel 1, tazelenen 300'den düşer
+    wallet.spend("u1", "chat")  # bedel 1, tazelenen haktan düşer
 
     assert _cuzdan(depo)["allowance"] == wallet.MONTHLY_TOKEN_ALLOWANCE - 1
+
+
+def test_K1_yeni_donemde_aylik_hak_YUZ(depo, monkeypatch):
+    """K1: aylık hak 300 → 100. Sayı burada LİTERAL pinli, sabite göre
+    DEĞİL — yukarıdaki test sabitle hesapladığı için sabit 7'ye düşse de
+    yeşil kalır ve "hak değişti" sessizce geçerdi. 100 bir ekonomi kararıdır
+    (bkz. wallet.MONTHLY_TOKEN_ALLOWANCE gerekçesi): hak 210 jeton/ay
+    ölçülen kullanım hızının ALTINA çekilsin ki paket satışı doğsun.
+    """
+    eski_donem = dt.datetime(2026, 8, 1, tzinfo=dt.timezone.utc)
+    _abone_yap(monkeypatch, _DONEM)
+    _cuzdan_yaz(depo, allowance=0, allowanceExpiresAt=eski_donem, purchased=0)
+
+    wallet.spend("u1", "chat")
+
+    assert _cuzdan(depo)["allowance"] == 99
+    assert wallet.get_wallet("u1")["monthly_allowance"] == 100
+
+
+def test_K3_mevcut_donemde_eski_hak_GERI_ALINMAZ(depo, monkeypatch):
+    """K3: hak değişimi BİR SONRAKİ dönemden; elindeki hak geri alınmaz.
+
+    En sessiz kırılma noktası burası: `_spend_txn` içindeki TEMBEL TAZELEME
+    dönem ortasında da koşuyor ve `allowance = MONTHLY_TOKEN_ALLOWANCE`
+    yazıyor. Koşulsuz olsaydı eski dönemde 300 hak almış hesap, 300'üncü
+    jetonunu harcamaya çalıştığı anda bakiyesini 100'e DÜŞÜRÜLMÜŞ bulurdu —
+    kapalı testte gerçek alım yapmış hesaplar var (sahibinki dahil) ve
+    "jetonlarım gitti" şikâyeti tam buradan doğar. Kapı: tazeleme yalnız
+    dönem işareti İLERİ gittiğinde yazar, aynı dönemde bir daha tetiklenmez.
+    """
+    _abone_yap(monkeypatch, _DONEM)  # abonelik dönemi: cüzdandaki işaretle AYNI
+    _cuzdan_yaz(depo, allowance=300, allowanceExpiresAt=_DONEM, purchased=0)
+
+    wallet.spend("u1", "chat")  # bedel 1
+
+    assert _cuzdan(depo)["allowance"] == 299, "yeni tavan eski hakkı yemiş"
+    assert _cuzdan(depo)["allowanceExpiresAt"] == _DONEM
+
+    # Görünüm de kırpmıyor: kullanıcının GERÇEK hakkı 299, tavan 100 —
+    # ikisi bir dönem boyunca tutarsız görünür ve bu doğrudur.
+    gorunum = wallet.get_wallet("u1")
+    assert gorunum["allowance"] == 299
+    assert gorunum["monthly_allowance"] == 100
+
+
+# --- K3'ün gerçek kırılma yolu: işaret dönem ORTASINDA ileri gidebiliyor ----
+#
+# Yukarıdaki test işaretin EŞİT olduğu hâli ölçüyor ve o hâlde tembel tazeleme
+# hiç koşmuyor — yani kapıyı değil kapının kapalı olduğu bir ânı ölçüyor.
+# Aşağıdaki üç test, tazelemenin GERÇEKTEN koştuğu yolu çağırır. Sebebi
+# ölçüldü: `_ACTIVATING_EVENTS` yalnız dönem başlarında gelmiyor
+# (SUBSCRIPTION_EXTENDED, UNCANCELLATION, PRODUCT_CHANGE dönem ortasında
+# düşebiliyor) ve `api/billing.py` son kullanma taşımayan olayda işareti
+# "şimdi + 35 gün" yapıyor — bu, aylık bir dönemin işaretinden HER ZAMAN
+# ileridir. 300 → 100 inişinden ÖNCE bu yol zararsızdı (300'ü yine 300
+# yapıyordu); tavan düştüğü an KAYIP üretir.
+
+_ILERI = _DONEM + dt.timedelta(days=20)
+
+
+def test_K3_webhook_donem_ORTASINDA_isareti_ileri_atarsa_hak_KORUNUR(depo):
+    """`reset_allowance` webhook'un BİRİNCİL yolu ve hakkı azaltamaz.
+
+    Düz atama (`"allowance": MONTHLY_TOKEN_ALLOWANCE`) burada 287 hakkı olan
+    kullanıcıyı 100'e indiriyordu. Mutasyon kontrolü: `max(...)` yerine düz
+    atama yazılırsa bu test KIRMIZI olmak zorunda.
+    """
+    _cuzdan_yaz(depo, allowance=287, allowanceExpiresAt=_DONEM, purchased=1000)
+
+    wallet.reset_allowance("u1", _ILERI)  # EXTENDED: dönem ortasında, ileri
+
+    assert _cuzdan(depo)["allowance"] == 287, "tazeleme hakkı AZALTTI (K3 ihlali)"
+    assert _cuzdan(depo)["allowanceExpiresAt"] == _ILERI, "işaret taşınmadı"
+    assert _cuzdan(depo)["purchased"] == 1000, "parayla alınan bakiye bozuldu"
+
+
+def test_K3_tazeleme_hakki_tavana_kadar_YUKARI_ceker(depo):
+    """Aynı kapı gerçek dönem dönüşünde hâlâ çalışmak zorunda.
+
+    `max` korumasının bedeli "tazeleme hiç çalışmıyor" OLMAMALI: elinde
+    tavanın ALTINDA hak kalan kullanıcı yeni dönemde tam hakkını alır.
+    Bu test, korumanın kapıyı tümden kapatmadığını sabitler.
+    """
+    _cuzdan_yaz(depo, allowance=12, allowanceExpiresAt=_DONEM, purchased=0)
+
+    wallet.reset_allowance("u1", _ILERI)
+
+    assert _cuzdan(depo)["allowance"] == wallet.MONTHLY_TOKEN_ALLOWANCE
+
+
+def test_K3_harcama_yolunda_isaret_ileri_giderse_hak_KORUNUR(depo, monkeypatch):
+    """Yazan ikinci yol: `_spend_txn` içindeki tembel tazeleme.
+
+    Webhook'un reseti düşmüşse (istisna yutuluyor) kayıp buradan da girebilir:
+    abonelik kaydı ileri tarihliyken cüzdan işareti geride kalır, tazeleme
+    koşar ve düz atama olsaydı 287 → 100 yazılırdı. Harcama o yazımı KALICI
+    yapar, yani en pahalı kırılma noktası burasıdır.
+    """
+    _abone_yap(monkeypatch, _ILERI)  # abonelik dönemi İLERİ
+    _cuzdan_yaz(depo, allowance=287, allowanceExpiresAt=_DONEM, purchased=0)
+
+    wallet.spend("u1", "chat")  # bedel 1
+
+    assert _cuzdan(depo)["allowance"] == 286, "tembel tazeleme hakkı yedi"
+    assert _cuzdan(depo)["allowanceExpiresAt"] == _ILERI
+
+
+def test_K2_son_kullanma_YOKSA_hak_verilir_isaret_UYDURULMAZ(depo):
+    """Son kullanma taşımayan aktive eden olay: hak verilir, işaret DURUR.
+
+    İşaretin uydurulması (eski hâl: "şimdi + 35 gün") bir sonraki GERÇEK
+    yenilemeyi yutuyordu — aşağıdaki test onu ayrıca ölçüyor.
+    """
+    _cuzdan_yaz(depo, allowance=0, purchased=0)
+
+    wallet.reset_allowance("u1", None)
+
+    assert _cuzdan(depo)["allowance"] == wallet.MONTHLY_TOKEN_ALLOWANCE
+    assert "allowanceExpiresAt" not in _cuzdan(depo), "işaret uyduruldu"
+
+
+def test_K2_son_kullanmasiz_olay_hakki_IKINCI_KEZ_vermez(depo):
+    """İşaret taşınmadığı için idempotency ayrı bir bayrakla kurulu.
+
+    Aksi hâlde tekrarlanan bir UNCANCELLATION, harcanmış hakkı her seferinde
+    100'e geri doldurur — bedava hak musluğu. Bayrak olmadan bu dal tarihten
+    "bu dönemde verdim mi" sorusunu CEVAPLAYAMAZ.
+    """
+    _cuzdan_yaz(depo, allowance=0, purchased=0)
+
+    wallet.reset_allowance("u1", None)
+    assert _cuzdan(depo)["allowance"] == wallet.MONTHLY_TOKEN_ALLOWANCE
+    assert _cuzdan(depo)["allowanceGrantedWithoutExpiry"] is True
+
+    _cuzdan_yaz(depo, **{**_cuzdan(depo), "allowance": 40})  # harcandı
+    wallet.reset_allowance("u1", None)  # olay TEKRARLANDI
+
+    assert _cuzdan(depo)["allowance"] == 40, "hak ikinci kez verildi"
+
+
+def test_K2_gercek_son_kullanma_bayragi_TEMIZLER(depo):
+    """Bayrak kalıcı olsaydı bir sonraki son kullanmasız olay yutulurdu.
+
+    Yani bayrağı silmemek, onu koymanın kendisi kadar önemli: aksi hâlde
+    kullanıcı ileride gerçekten hak alması gereken bir aktivasyonda hiçbir
+    şey almaz. Bu test o temizliği çiviliyor.
+    """
+    _cuzdan_yaz(depo, allowance=0, purchased=0)
+    wallet.reset_allowance("u1", None)
+    assert _cuzdan(depo)["allowanceGrantedWithoutExpiry"] is True
+
+    wallet.reset_allowance("u1", _DONEM)  # gerçek son kullanma
+
+    assert _cuzdan(depo)["allowanceGrantedWithoutExpiry"] is False
+
+
+def test_K2_uydurulmayan_isaret_sonraki_YENILEMEYI_YUTMAZ(depo):
+    """Bu turun asıl kusuru: uydurma işaret bir dönemin hakkını yiyordu.
+
+    Senaryo ölçülebilir: son kullanmasız olay gelir (hak verilir), ÜÇ GÜN
+    sonra gerçek yenileme düşer ve son kullanması BİR AY sonrasıdır. Eski
+    hâlde işaret "şimdi + 35 gün"dü, yani yenilemenin tarihi (bir ay) ondan
+    GERİDE kalıyor, `_ts(expires_at) <= _ts(marker)` kapısı düşüyor ve hak
+    HİÇ tazelenmiyordu. İşaret uydurulmadığı için artık tazeleniyor.
+    """
+    _cuzdan_yaz(depo, allowance=0, purchased=0)
+    wallet.reset_allowance("u1", None)          # son kullanmasız aktivasyon
+    _cuzdan_yaz(depo, **{**_cuzdan(depo), "allowance": 3})  # harcandı
+
+    gercek_donem_sonu = _DONEM + dt.timedelta(days=30)
+    wallet.reset_allowance("u1", gercek_donem_sonu)
+
+    assert _cuzdan(depo)["allowance"] == wallet.MONTHLY_TOKEN_ALLOWANCE, \
+        "gerçek yenileme yutuldu: kullanıcı o dönemin hakkını almadı"
+    assert _cuzdan(depo)["allowanceExpiresAt"] == gercek_donem_sonu
+
+
+def test_K3_deneme_kullanicisi_hak_dususunden_ETKILENMEZ(depo, monkeypatch):
+    """SUNUCU TARAFI kartsız deneme (OT6) hakkın değil `purchased` kovasının
+    müşterisi.
+
+    O yolda abonelik KAYDI yoktur, yani `get_wallet`/`_spend_txn` hakkı
+    0'a sabitler ve 30'luk karşılama jetonu `purchased`a yazılır. 300 → 100
+    inişinin bu denemeye dokunacak bir yolu yok; bu test o ayrımı sabitliyor
+    ki ileride "hak düştü, deneme de orantılı düşsün" diye sessizce
+    bağlanmasın. TRIAL_TOKENS literal pinli (30 ≈ $0,06 tavan maliyet).
+
+    ⚠️ Kapsam bilinçli olarak DAR: "deneme = aylık hak 0" GENEL bir doğru
+    DEĞİL. Mağaza denemesi (RevenueCat `period_type=TRIAL`) başka bir yol —
+    `TRIAL_STARTED` `api/billing.py::_ACTIVATING_EVENTS` içinde olduğu için
+    aktif abonelik kaydı yazılır ve `reset_allowance` çağrılır, yani o
+    kullanıcı tam hakkı alır. Bu test onu kapsamıyor; burada `in_trial`
+    yamalanıp abonelik kaydı KASITLI olarak yaratılmıyor.
+    """
+    assert wallet.TRIAL_TOKENS == 30
+    monkeypatch.setattr(wallet.entitlements, "in_trial", lambda uid: True,
+                        raising=False)
+
+    wallet.ensure_trial_tokens("u1")
+    assert _cuzdan(depo)["purchased"] == 30
+
+    wallet.spend("u1", "natal")  # bedel 5 — hak 0 olduğu için tamamı paketten
+
+    assert _cuzdan(depo)["allowance"] == 0
+    assert _cuzdan(depo)["purchased"] == 25
+
+    gorunum = wallet.get_wallet("u1")
+    assert gorunum["allowance"] == 0, "denemeye aylık hak yazılmış"
+    assert gorunum["purchased"] == 25
 
 
 def test_sonmus_abonelikte_allowance_harcanamaz(depo, monkeypatch):
@@ -200,12 +409,19 @@ def test_sonmus_abonelikte_allowance_harcanamaz(depo, monkeypatch):
 
 
 def test_reset_allowance_idempotent(depo, monkeypatch):
-    """Aynı dönemin tekrarlanan webhook'u hakkı iki kez veremez."""
+    """Aynı dönemin tekrarlanan webhook'u hakkı iki kez veremez.
+
+    "Kısmen harcanmış" değer 40; eskiden 100 yazılıyordu ve K1'den sonra
+    (hak 300 → 100) o sayı TAVANIN KENDİSİ oldu: test tazeleme gerçekten
+    koşsa da 100 görür ve YEŞİL kalırdı. Değer tavandan farklı OLMAK
+    ZORUNDA, yoksa bu test hiçbir şey ölçmez.
+    """
     wallet.reset_allowance("u1", _DONEM)
-    _cuzdan_yaz(depo, **{**_cuzdan(depo), "allowance": 100})  # kısmen harcandı
+    assert _cuzdan(depo)["allowance"] == wallet.MONTHLY_TOKEN_ALLOWANCE
+    _cuzdan_yaz(depo, **{**_cuzdan(depo), "allowance": 40})  # kısmen harcandı
     wallet.reset_allowance("u1", _DONEM)  # AYNI dönem tekrar
 
-    assert _cuzdan(depo)["allowance"] == 100  # tazelenmedi
+    assert _cuzdan(depo)["allowance"] == 40  # tazelenmedi
 
 
 # ---------------------------------------------------------------------------
@@ -381,8 +597,8 @@ def test_deneme_kota_bitince_jeton_devreye_girer(depo, monkeypatch):
 
 
 def test_gercek_abone_kotaya_ugramaz(depo, monkeypatch):
-    """Mağaza abonesi eskisi gibi doğrudan cüzdandan harcar — aylık
-    300'lük hak bunun için var; günlük kota hiç sorgulanmaz."""
+    """Mağaza abonesi eskisi gibi doğrudan cüzdandan harcar — aylık hak
+    (MONTHLY_TOKEN_ALLOWANCE) bunun için var; günlük kota hiç sorgulanmaz."""
     _abone_yap(monkeypatch, _DONEM)
     monkeypatch.setattr(
         "core.entitlements.consume_quota",

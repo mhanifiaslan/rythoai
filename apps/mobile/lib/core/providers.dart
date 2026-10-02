@@ -243,14 +243,107 @@ final dailyReadingProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   return veri;
 });
 
-/// Abone değilken ücretli uca istek atılmamalı.
+/// Rytho+ kapısının ÜÇ hâli.
+///
+/// Soruyu ikiye indirmek ("abone mi, değil mi") bu depoda üç kez zarar verdi
+/// ve her seferinde aynı yönde: **bilmemek, olumsuz cevap sanıldı.**
+/// [SubscriptionStatus.okunabildi], `WalletStatus.bilinmiyor` ve
+/// `paywallKarariVerilebilir` aynı dersin ürünü. Üçüncü hâl AYRI çizilir —
+/// ne kilit (ödemiş kullanıcıya yalan) ne açık içerik (ödemeyene yalan).
+enum PlusHali {
+  /// Sunucu "abone" dedi.
+  abone,
+
+  /// Sunucu "abone değil" dedi — BİLİNEN olumsuz cevap.
+  aboneDegil,
+
+  /// Cevap henüz YOK ya da okunamadı. "Abone değil" ile aynı şey DEĞİL.
+  bilinmiyor,
+}
+
+/// Kapı kararı — SAF işlev.
+///
+/// Sağlayıcıdan ayrı tutuluyor, çünkü bekçisi sahte bir Firebase `User`ı
+/// olmadan yazılamazdı ([abonelikDurumunuOku] ile aynı gerekçe). Parametre
+/// tipleri bu yüzden `AsyncValue<Object?>`: karar için gereken tek şey
+/// "cevap geldi mi, geldiyse boş mu".
+///
+/// [profil] yalnız doğum verisi İSTEYEN kapılara verilir (raporlar); İ Ching
+/// ve Atlas kehanet karoları profil beklemez.
+PlusHali plusHaliniOku({
+  required AsyncValue<Object?> oturum,
+  required AsyncValue<SubscriptionStatus> abonelik,
+  AsyncValue<Object?>? profil,
+}) {
+  // Oturum henüz CEVAPLAMADI. Bu pencere aboneliğin `isLoading`'iyle BİLE
+  // ayırt edilemiyor: oturum yokken `subscriptionProvider`
+  // `SubscriptionStatus.none` ile BAŞARIYLA tamamlanıyor ve `none.okunabildi`
+  // true. Tek ayırt edici işaret auth akışının kendisi.
+  if (oturum.isLoading || !oturum.hasValue) return PlusHali.bilinmiyor;
+
+  // Oturum YOK: bilinen olumsuz cevap (`SubscriptionStatus.none` ile aynı
+  // duruş). Ücretli yüzeyler giriş kabuğunun arkasında zaten görünmez.
+  if (oturum.value == null) return PlusHali.aboneDegil;
+
+  // Oturum geldiği an abonelik sağlayıcısı yeniden kuruluyor ve Riverpod
+  // ÖNCEKİ değeri — oturumsuz `none` — taşımaya devam ediyor; `hasValue` bu
+  // yüzden tek başına yetmez, yükleniyorluk da sorulur (KT3 ile aynı kapı).
+  if (abonelik.isLoading || !abonelik.hasValue) return PlusHali.bilinmiyor;
+  final durum = abonelik.value!;
+
+  // Sunucuya ulaşılamadı (ilkacilis-2): "abone değil" demek yalan olurdu.
+  if (!durum.okunabildi) return PlusHali.bilinmiyor;
+  if (!durum.active) return PlusHali.aboneDegil;
+
+  // Abone — ama ücretli uç doğum verisini gövdede gönderiyor ve profil
+  // yüklenirken `profile == null` okumak aynı çöküşün ikinci katıydı: kilit
+  // kartı "abone değilsin" der, oysa eksik olan yalnız profil yayını.
+  if (profil != null && (profil.isLoading || !profil.hasValue)) {
+    return PlusHali.bilinmiyor;
+  }
+  return PlusHali.abone;
+}
+
+/// Yalnız ABONELİK sorusu — doğum verisi beklemeyen yüzeyler için
+/// (İ Ching sekmesi, Atlas kehanet karoları, takvim şeridi).
+final aboneHaliProvider = Provider<PlusHali>((ref) => plusHaliniOku(
+      oturum: ref.watch(authStateProvider),
+      abonelik: ref.watch(subscriptionProvider),
+    ));
+
+/// Ücretli RAPOR kapısı: abonelik + doğum verisinin gelmiş olması.
+///
+/// Ekranlar bunu okur, ücretli sağlayıcılar da ([_hasPlus]) buna bakar: "istek
+/// atılır mı" ile "ne çizilir" tek kaynaktan karar alır. İki kopya olduğu an
+/// ayrışırlardı — şikâyetin kökü tam olarak o ayrışmaydı.
+///
+/// Satın alma sonrası `subscriptionProvider` sunucu yetkiyi görene kadar
+/// birkaç kez geçersizleştiriliyor (`_waitForServerEntitlement`); o pencerede
+/// bu kapı `bilinmiyor` döner ve ekranlar iskelet çizer. BİLEREK böyle:
+/// eskiden aynı pencerede ekranlar, ödeme biteli saniyeler olmasına rağmen
+/// KİLİT çiziyordu.
+final raporKapisiProvider = Provider<PlusHali>((ref) => plusHaliniOku(
+      oturum: ref.watch(authStateProvider),
+      abonelik: ref.watch(subscriptionProvider),
+      profil: ref.watch(profileProvider),
+    ));
+
+/// Ücretli uca istek ancak kapı KESİN açıkken atılır.
 ///
 /// Atılırsa sunucu 402 döner ve paywall ekran açılır açılmaz kullanıcının
 /// yüzüne fırlar. Kilitli içerik kullanıcının dokunmasıyla açılmalı; bu yüzden
-/// ücretli sağlayıcılar abonelik yoksa `null` döner ve ekranlar kilitli
-/// durumu gösterir.
-bool _hasPlus(Ref ref) =>
-    ref.watch(subscriptionProvider).value?.active ?? false;
+/// kapı açık değilken ücretli sağlayıcılar `null` döner.
+///
+/// `null` artık YALNIZ "kapı abone için açık değil" demek; "abone değil" ile
+/// "henüz bilmiyorum" ayrımını ekranlar [raporKapisiProvider]'dan okur.
+/// Eski hâl tek satırdı — `subscriptionProvider.value?.active ?? false` — ve
+/// yükleniyorken `.value` null olduğu için "abone değil" diyordu. Sağlayıcılar
+/// o anda AsyncLoading'de KALMIYOR, `AsyncData(null)` ile tamamlanıyordu: yani
+/// ekranların `loading:` dalı hiç koşmuyor, `data:` dalı `null` görüp kilit
+/// kartını çiziyordu. Abonelik cevabı gelince kapı açılıyor, sağlayıcılar
+/// yeniden kuruluyor ve kilit kayboluyordu — sahibin "ekran açılınca kilitli,
+/// bekleyince açılıyor" dediği belirti birebir buydu.
+bool _hasPlus(Ref ref) => ref.watch(raporKapisiProvider) == PlusHali.abone;
 
 /// Natal harita + derin rapor — Rytho+ .
 final natalReportProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
@@ -379,9 +472,31 @@ final transitCalendarProvider =
     FutureProvider<Map<String, dynamic>?>((ref) async {
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
-  // Yalnız AKTİFLİK izlenir: çıplak `watch` yükleniyor→veri geçişinde de
-  // yeniden kuruyordu, yani takvim her açılışta iki kez çekiliyordu.
-  ref.watch(subscriptionProvider.select((s) => s.value?.active ?? false));
+  // Cevap BEKLENİR — çift istek burada kesiliyor. Eski kalıp
+  // (`select((s) => s.value?.active ?? false)`) yalnız abone OLMAYAN için
+  // tek isteğe iniyordu: yükleniyorken `false` okuyup takvimi KİLİTLİ
+  // çekiyor, gerçek cevap `true` gelince ikinci kez çekiyordu. Üç durumlu
+  // kapıda kilit kararı kesinleşene kadar hiç istek atılmaz; sonra tek istek
+  // atılır ve doğru kilit durumuyla döner.
+  //
+  // Kapı burada KAPI DEĞİL, yalnız bir bekleme koşulu: cevap gelince şerit
+  // abone olmayana da açılır (yukarıdaki gerekçe). `null` dönmek şeridi bir
+  // an gizler — `CalendarStrip` veri yokken kendini gizliyor — ve kilitli bir
+  // şerit göstermekten iyidir: ölçülmeyen söylenmez.
+  //
+  // ⚠️ Beklenen şey "CEVAP YOLDA", "cevap OKUNAMADI" DEĞİL. `PlusHali`
+  // ikisini tek değere indiriyor (`bilinmiyor`) ve o hâli sormak bir tur
+  // boyunca ŞU KUSURU üretti: `/billing/status` tek bir zaman aşımına
+  // düşünce `bilinmiyor` TERMİNAL oluyor (geniş yakalama `AsyncData`
+  // üretiyor, Riverpod yenilemiyor) ve ÜCRETSİZ olan 30 günlük şerit ana
+  // ekrandan oturum boyunca KAYBOLUYOR. Üstelik buradaki eski gerekçe
+  // "cevap gelince açılır" diyordu — okunamayan cevap hiç gelmez, yani
+  // gerekçe yanlıştı.
+  //
+  // Doğru soru doğrudan kaynağa sorulur: yalnız GERÇEKTEN yükleniyorsa
+  // bekle. Durum okunamadıysa istek atılır ve kilit kararını zaten sunucu
+  // veriyor — şerit (gerekirse kilitli) GÖRÜNÜR, ki yokluğundan iyidir.
+  if (ref.watch(subscriptionProvider).isLoading) return null;
   final dio = ref.watch(apiProvider);
   final response = await dio.get('/api/v1/astrology/transit-calendar');
   return Map<String, dynamic>.from(response.data['data']);

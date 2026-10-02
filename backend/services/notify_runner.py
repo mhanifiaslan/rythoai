@@ -17,6 +17,14 @@ Sözleşme (`run_batch`):
   ve sohbet tohumu YAZILMAZ — test gönderimi panel sayılarını şişirmez.
 
 **Sessiz saat ve kullanıcı tercihi hiçbir bayrakla atlanmaz.**
+
+TAM DÜŞÜŞ (SZ-turu): koşu her şeyi kaybettiğinde `status` artık "ok"
+kalmıyor, gerekçe adını alıyor (`_DUSUS_DURUMLARI`) ve uç onu 503'e
+çeviriyor. Gerekçe ölçüldü: Gemini 403'ü BİR AY boyunca hiçbir yerde
+kırmızı görünmedi, çünkü üretim düşünce bildirim şablon satıra düşüp
+normal gidiyor — `sent` sağlıklı, durum kodu 200, Scheduler günlüğü
+yeşil. Servis yalnız KARAR VERİR, fırlatmaz: panelin prova/test araçları
+aynı sayıları okuyup operatöre gösterir.
 """
 from __future__ import annotations
 
@@ -26,6 +34,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core import cache
 from core import firestore as firestore_client
 from core import i18n
 from services import (
@@ -34,6 +43,7 @@ from services import (
     profile_service,
     prompts,
     push_service,
+    signal_service,
 )
 from services.sky_service import get_sky_now
 
@@ -48,6 +58,42 @@ RUN_TYPES = ("daily", "midday", "checkin", "streak")
 
 #: Jetonsuz hesaba test isteği — uç 400'e çevirir.
 NO_TOKEN_MESSAGE = "Bu hesabın push jetonu yok — mobilde bu hesapla giriş yap."
+
+#: Bir koşuyu TAMAMEN DÜŞMÜŞ saymak için gereken en az deneme sayısı (SZ-turu).
+#:
+#: NEDEN eşik var: tek bir kullanıcının verisi bozuk olabilir (profilinde
+#: eksik alan, biçimi tutmayan bir LLM yanıtı) ve o tek kullanıcı yüzünden
+#: bütün koşuyu kırmızı yapmak YANLIŞ ALARM üretir. Yanlış alarmın bedeli
+#: teorik değil, bu kusurun KÖKÜ: Gemini 403'ü bir ay boyunca YEŞİL bir
+#: Scheduler günlüğünde saklandı — her saat kırmızı yanan bir iş de aynı
+#: sonucu verir, çünkü okunmaz hâle gelir.
+#:
+#: NEDEN 3: tek denemede "hepsi düştü" ile "o tek profil bozuk" AYNI
+#: gözlemdir — ayırt edilemeyen şeyden alarm üretilmez. Üçüncü denemeyle
+#: ayrışır: aynı dakikada üç ayrı profilin birden bozulması, PAYLAŞILAN
+#: bağımlılığın (sağlayıcı anahtarı, kota, FCM kimliği) düşmesinden daha
+#: az olasıdır.
+#:
+#: SAYI ÖLÇÜLDÜ, varsayılmadı (Cloud Run günlüğü, 2026-09-29 → 10-02,
+#: `type=daily`): zamanlayıcı saatte bir koşuyor ama günün yalnız ÜÇ
+#: koşusu bir şey borçlanıyor — 06:05 UTC'de **10**, 04:05'te **5**,
+#: 08:05'te **1** kuyruk; kalan 21 saatte kuyruk 0. 18 profil taranıyor,
+#: gerisi "saat-uygun-degil". Yani eşik 3, günün iki büyük koşusunun
+#: ikisini de kapsıyor: bir sağlayıcı kesintisi AYNI GÜN, ilk 04:05
+#: koşusunda kırmızı yanar. 4 ya da 5 seçilseydi 04:05 sınırda kalırdı;
+#: 10 seçilseydi yalnız tek koşu bekçili olurdu.
+#:
+#: BEDELİ (ölçülen, kabul edilmiş): 08:05 koşusunun kuyruğu 1'dir, yani o
+#: koşu bu bekçiyle KORUNMAZ. Kayıp değil gecikme — aynı kesinti ertesi
+#: 04:05'te yanar ve sayılar her koşuda yanıtta + `notifyRuns`ta durur.
+#: ⚠️ Dağılım kullanıcı sayısına bağlı: kuyruklar bu aralığın altına
+#: inerse eşik yeniden ÖLÇÜLÜP düşürülmeli, tahminle değiştirilmemeli.
+_KIRMIZI_ESIGI = 3
+
+#: `RunResult.status` bu değerlerden birini aldıysa koşu tamamen düşmüştür.
+#: Tek kaynak: uç 503 kararını `tamamen_dustu()` ile verir, panel aynı adı
+#: `notifyRuns.lastStatus`ta okur.
+_DUSUS_DURUMLARI = ("uretim-tamamen-dustu", "gonderim-tamamen-dustu")
 
 
 def _iter_profiles():
@@ -149,6 +195,81 @@ class RunResult(BaseModel):
     #: Kuyruğa giren mesajların dil dökümü (DM-turu): "hem İngilizce hem
     #: Türkçe" bulgusundan sonra hangi dilde kaç push gittiği görünür olmalı.
     languages: dict[str, int] = Field(default_factory=dict)
+    #: Kişisel AI üretiminin dökümü (SZ-turu): ``attempted`` / ``ok`` /
+    #: ``fallback``. Bu sayılar bugüne dek HİÇBİR YERDE yoktu ve kesintinin
+    #: bir ay görünmez kalmasının sebebi buydu: üretim düşünce koşu şablon
+    #: satıra düşüp push'u normal gönderiyor, yani `sent` sağlıklı görünüyor.
+    #:
+    #: YALNIZ ``daily`` koşusunda dolar ve bu bilinçli: üretimi tetikleyen
+    #: tek tür o. ``checkin``/``midday`` sabahın paketini salt OKUR
+    #: (`generate_if_missing=False`) ve ``streak`` şablondur — onlarda boş
+    #: bir döküm "ölçülemedi" demek, "düştü" demek DEĞİL.
+    generation: dict[str, int] = Field(default_factory=dict)
+
+
+def _paket_uretildi(iz: str, lang: str) -> bool:
+    """Bu kullanıcının kişisel AI paketi BUGÜN gerçekten üretilebildi mi?
+
+    NEDEN bu ölçüm var: `signal_push` üretim DÜŞSE DE gövde döndürür —
+    paket yoksa sinyalin şablon "teknik" satırına düşer ve push normal
+    gider (`notification_service._bundle_body`). Yani koşunun kendi dönüş
+    değeri bu kusuru GÖRMEZ. Çıkarım değil ÖLÇÜM (2026-10-02 06:05 UTC
+    koşusu, Cloud Run günlüğü): 10 Gemini 403'ü, onlara BİREBİR eşlenen 10
+    "Sinyal yorumu biçim dışı (0 satır), şablona düşüldü" satırı — yani
+    hepsi `signal_service.insight_bundle` yolundan — ve ardından
+    `kuyruk=10 gonderilen=10 basarisiz=0` + `"POST /notify/run" 200 OK`.
+
+    Ölçülebilen tek iz paketin kendi önbellek kaydıdır:
+    `signal_service.cached_insight_bundle` ya gerçek paketi ya da kısa
+    ömürlü başarısızlık sentinel'ini (``failed: True``) yazıyor. Anahtar
+    aynı parmak izinden kuruluyor (`bundle_key`) ve parmak izi bize
+    `signal_push`tan GERİ DÖNÜYOR — fazladan hesap yok, fazladan LLM
+    çağrısı yok, salt okuma.
+
+    ⚠️ ADIN SINIRI: bu "paket ÜRETİLDİ" der, "AI cümlesi GÖNDERİLDİ"
+    demez. `_bundle_body` cümleyi uzunluk ya da dil muhafızında düşürüp
+    teknik satıra inebilir; o kullanıcı burada yine ``ok`` sayılır. Ters
+    yönde yanılmaz — paket yoksa cümle de yoktur — ve bekçinin aradığı
+    şey tam olarak o yön: HİÇBİR paketin üretilememesi.
+    """
+    kayit = cache.get(signal_service.bundle_key(iz, lang))
+    return bool(kayit and not kayit.get("failed") and kayit.get("insights"))
+
+
+def _dusus_gerekcesi(sonuc: RunResult) -> str | None:
+    """Koşu TAMAMEN düştü mü — düştüyse gerekçe adı, düşmediyse None.
+
+    İki ayrı tam düşüş var ve ikisi de bugüne dek 200 dönüyordu:
+
+    1. **Üretim**: denenen her kullanıcı için kişisel AI paketi düştü
+       (ölçülen kesinti — Gemini 403). Push'lar yine gittiği için
+       `sent`/`failed` sağlıklı görünür; kusuru yalnız `generation`
+       gösterir.
+    2. **Gönderim**: kuyruğa giren hiçbir push ulaşmadı. FCM hiç
+       kullanılamıyorsa `push_service.send` tek satır bile denemeden
+       `SendResult(0, N, …)` dönüyor ve koşu buna da "ok" diyordu.
+
+    Eşik ve "kısmi başarısızlık kırmızı DEĞİLDİR" gerekçesi
+    `_KIRMIZI_ESIGI`de. Prova (`dry-run`) buraya hiç uğramaz: orada
+    gönderim tanım gereği denenmez, `sent` her zaman 0 olurdu.
+    """
+    uretim = sonuc.generation
+    if (uretim.get("attempted", 0) >= _KIRMIZI_ESIGI
+            and uretim.get("ok", 0) == 0):
+        return "uretim-tamamen-dustu"
+    if sonuc.queued >= _KIRMIZI_ESIGI and sonuc.sent == 0:
+        return "gonderim-tamamen-dustu"
+    return None
+
+
+def tamamen_dustu(sonuc: RunResult) -> str | None:
+    """Uç için tek karar noktası: koşu tamamen düştüyse gerekçe adı.
+
+    Ölçüt `_run` içinde BİR KEZ uygulanıp `status`a yazılıyor; burası
+    yalnız o adı okur. İki yerde ayrı ayrı hesaplanırsa biri değişip
+    diğeri kalır ve 503 ile `notifyRuns.lastStatus` sessizce ayrışır.
+    """
+    return sonuc.status if sonuc.status in _DUSUS_DURUMLARI else None
 
 
 def _kosu_kaydet(type_: str, gun: str, sonuc: RunResult,
@@ -179,6 +300,12 @@ def _kosu_kaydet(type_: str, gun: str, sonuc: RunResult,
             # AD7: dil dökümü de birikir — rollup `notify.{tür}.languages`.
             "languages": {k: gcf.Increment(v)
                           for k, v in sonuc.languages.items()},
+            # SZ-turu: üretim dökümü de birikir. Durum koduna bakan tek göz
+            # Scheduler günlüğü ve o günlük yalnız SON koşuyu gösterir;
+            # "bugün kaç üretim denendi, kaçı düştü" sorusu ancak burada
+            # toplanırsa cevaplanabilir.
+            "generation": {k: gcf.Increment(v)
+                           for k, v in sonuc.generation.items()},
             "lastStatus": sonuc.status,
             "lastRunAt": now_utc,
         }, merge=True)
@@ -216,6 +343,8 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
     atlanan: dict[str, int] = {}
     # DM-turu: kuyruğa giren mesajların dil sayımı (özet loga ve yanıta).
     diller: dict[str, int] = {}
+    # SZ-turu: kişisel AI üretiminin sayımı (bkz. RunResult.generation).
+    uretim: dict[str, int] = {}
     # Dil başına yerelleştirilmiş gökyüzü; her kullanıcı için yeniden
     # hesaplamaya gerek yok.
     sky_by_lang: dict[str, dict[str, Any]] = {}
@@ -275,6 +404,23 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
                 profil, lang, today=yerel.date(), onceki=onceki)
             if sinyal_push is not None:
                 baslik, govde, iz, idx, ekstra = sinyal_push
+                # SZ-turu: üretim BURADA sayılır, çünkü kişisel AI paketini
+                # tetikleyen çağrı bir satır yukarıda ve kuyruktaki her
+                # kullanıcı için BİR üretim demek (ölçüldü: 06:05 koşusunda
+                # 10 kuyruk → 10 ardışık Gemini 403).
+                #
+                # ⚠️ ÖLÇÜLMEYEN yol: `signal_push` None döndüğünde (sinyal
+                # yok) aşağıdaki `daily_push_body` de Gemini çağırıp sessizce
+                # şablona düşüyor. O düşüş BURADA SAYILMIYOR, çünkü
+                # `daily_push_body` yalnız bir dize döndürüyor ve şablona mı
+                # düştüğü ancak metni şablonla karşılaştırarak anlaşılırdı —
+                # şablon değişince sessizce "başarı" sayan kırılgan bir
+                # ölçüm olurdu. Eksikliğin bedeli sınırlı: sinyalsiz hesap
+                # bildirim nüfusunun kıyısı, ve ölçülen kesinti bu yoldan
+                # DEĞİL paket yolundan geçiyor.
+                uretim["attempted"] = uretim.get("attempted", 0) + 1
+                _anahtar = "ok" if _paket_uretildi(iz, lang) else "fallback"
+                uretim[_anahtar] = uretim.get(_anahtar, 0) + 1
                 veri = {"type": "daily", "sign": sign, "route": "signal",
                         "fp": iz, "idx": str(idx), "d": gun}
                 ekstralar[profil["uid"]] = ekstra
@@ -356,7 +502,7 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
         return RunResult(
             status="dry-run", type=type, scanned=taranan,
             queued=len(mesajlar), sent=0, failed=0, pruned=0, skipped=atlanan,
-            languages=diller,
+            languages=diller, generation=uretim,
         ), mesajlar
 
     sonuc = push_service.send(mesajlar)
@@ -376,15 +522,25 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
                                                extra=ekstralar.get(uid))
 
     logger.info("Bildirim turu=%s taranan=%d kuyruk=%d gonderilen=%d "
-                "basarisiz=%d temizlenen=%d diller=%s atlanan=%s",
+                "basarisiz=%d temizlenen=%d diller=%s uretim=%s atlanan=%s",
                 type, taranan, len(mesajlar), sonuc.sent, sonuc.failed,
-                len(sonuc.pruned), diller, atlanan)
+                len(sonuc.pruned), diller, uretim, atlanan)
 
     yanit = RunResult(
         status="ok", type=type, scanned=taranan, queued=len(mesajlar),
         sent=sonuc.sent, failed=sonuc.failed, pruned=len(sonuc.pruned),
-        skipped=atlanan, languages=diller,
+        skipped=atlanan, languages=diller, generation=uretim,
     )
+    # Tam düşüş durumu `status`a BURADA yazılır, uçta değil: `_kosu_kaydet`
+    # bir satır aşağıda ve `lastStatus` ile ucun döndüğü durum AYNI olmak
+    # zorunda — panelde "ok" yazarken Scheduler'da 503 görünmesi, kusuru
+    # aramayı bir tur daha geciktirirdi.
+    gerekce = _dusus_gerekcesi(yanit)
+    if gerekce:
+        yanit.status = gerekce
+        logger.error("Bildirim kosusu TAMAMEN dustu (%s): tur=%s kuyruk=%d "
+                     "gonderilen=%d uretim=%s",
+                     gerekce, type, yanit.queued, yanit.sent, uretim)
     if mark:
         _kosu_kaydet(type, now_utc.date().isoformat(), yanit, now_utc)
     return yanit, mesajlar

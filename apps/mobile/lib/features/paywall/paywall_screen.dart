@@ -43,13 +43,26 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   bool _busy = false;
   String? _error;
 
-  /// Bekleyiş uzarsa çıkış yolu açılır.
+  /// Bekleyiş uzarsa EKRANDAN çıkış yolu açılır — meşguliyetten değil.
   ///
   /// Mağaza çağrısı hiç dönmezse `finally` de çalışmıyor ve kullanıcı sonsuz
   /// bir dönen halkada kalıyordu — cihaz testinde bildirilen "ödeme adımını
   /// geçemiyorum" buydu. Çağrıya zaman aşımı KOYULMADI bilerek: kullanıcı o
   /// sırada mağazanın kendi ekranında şifre giriyor olabilir ve akışı yarıda
-  /// kesmek daha kötü. Bunun yerine bekleyişten **çıkış** veriliyor.
+  /// kesmek daha kötü.
+  ///
+  /// ⚠️ Bu çıkış bir dönem `_mesguliyet(false)` çağırıyordu ve ÖLÇÜLEN iki
+  /// sonucu vardı (1.17.0+45): (a) uçuştaki `Purchases.purchase` iptal
+  /// EDİLMİYOR — iptal kanalı yok — ama spinner durduğu için ekran BİTMİŞ
+  /// görünüyordu; sonra kutlama perdesi beklenmedik bir anda inip ekranı
+  /// kapatıyordu. (b) `GoldButton`un kuralı `enabled = onPressed != null &&
+  /// !busy`, yani bayrak düşünce düğme YENİDEN BASILABİLİR hale geliyor ve
+  /// kullanıcı İKİNCİ KEZ satın alıyordu.
+  ///
+  /// Bu yüzden `_busy` artık yalnız `finally` indiriyor. Onuncu saniyede
+  /// değişen şey METİN; çıkış ise ekranı POP ediyor, bayrağı değil. Ekranı
+  /// kapatmak güvenli çünkü sonucu ekran değil kalıcı toplayıcı topluyor
+  /// (bkz. core/subscription.dart `yetkiToplayiciProvider`).
   Timer? _sabirsizlik;
   bool _uzunSuruyor = false;
 
@@ -85,35 +98,70 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   }
 
   /// Faydalar dile göre üretildiği için const olamaz.
+  ///
+  /// Liste bir dönem BEŞ satırdı ve son turların eklediği her Plus özelliği
+  /// bu ekranda YOKTU: yüz okuma, Yıl Haritası, İç Takvim, Doğum Kapısı,
+  /// I Ching ve on kişilik çevre. Yanlış beyan değildi ama para istenen
+  /// ekranda anlatılmayan özellik, satılmayan özelliktir.
+  ///
+  /// Her satırın karşılığı sunucuda ÖLÇÜLDÜ, tahminle yazılmadı:
+  /// `api/face_reading.py` → `require_plus("firasa")`;
+  /// `api/reports.py` → `solar_return` / `progressions` / `birth_hexagram` /
+  /// `iching` / `synastry` hepsi `require_plus`; kontenjan
+  /// `services/people_service.py` → ücretsiz 1, Plus 10.
   List<(String, String, String)> _benefits(AppLocalizations l10n) => [
         ('🌙', l10n.benefitDailyTitle, l10n.benefitDailyBody),
         ('🗺️', l10n.benefitNatalTitle, l10n.benefitNatalBody),
         ('💞', l10n.benefitDyadTitle, l10n.benefitDyadBody),
         ('💬', l10n.benefitChatTitle, l10n.benefitChatBody),
         ('🀄', l10n.benefitBaziTitle, l10n.benefitBaziBody),
+        ('👁️', l10n.benefitFaceTitle, l10n.benefitFaceBody),
+        ('🗓️', l10n.benefitTimingTitle, l10n.benefitTimingBody),
+        ('☯️', l10n.benefitIchingTitle, l10n.benefitIchingBody),
+        ('👥', l10n.benefitPeopleTitle, l10n.benefitPeopleBody),
       ];
 
   Future<void> _buy() async {
     final package = _selected;
     if (package == null) return;
+    // Çift satın almanın YAPISAL kapısı. Düğmenin `busy` kuralına güvenmek
+    // yetmiyordu: `GoldButton` yalnız çizim anındaki bayrağa bakıyor ve
+    // onuncu saniyedeki eski çıkış o bayrağı indiriyordu. Kapı burada,
+    // arayüzden bağımsız duruyor.
+    if (_busy) return;
     setState(() => _error = null);
     _mesguliyet(true);
     // Huninin orta adimi: bu olay olmadan "paywall calismiyor" ile "magaza
     // akisi dusuyor" ayirt edilemez.
     Analytics.purchaseStarted();
     try {
-      final ok = await purchasePackage(ref, package);
-      if (ok) Analytics.purchaseCompleted();
-      if (ok && mounted) {
-        await _kutla();
-        if (mounted) Navigator.of(context).pop(true);
-      } else if (!ok && mounted) {
+      final satinAl = ref.read(paketSatinAliciProvider) ?? purchasePackage;
+      final sonuc = await satinAl(ref, package);
+      if (sonuc != SatinAlmaSonucu.yetkiYok) Analytics.purchaseCompleted();
+      if (sonuc == SatinAlmaSonucu.yetkiYok) {
         // Satın alma cihazda bitti ama beklenen yetki (entitlement)
         // müşteri kaydında görünmüyor — tipik nedeni panelde ürünün
         // yanlış/eksik entitlement'a bağlanması. Eskiden bu dal SESSİZDİ:
         // kullanıcı parayı öder, ekran tepkisiz kalırdı (M1 onarımı).
-        setState(() => _error =
-            AppLocalizations.of(context).purchaseEntitlementMissing);
+        if (mounted) {
+          setState(() => _error =
+              AppLocalizations.of(context).purchaseEntitlementMissing);
+        }
+      } else if (mounted) {
+        // Sunucu bütçe içinde yetkiyi görmediyse akış KESİLMEZ (o karar
+        // bilinçli, bkz. subscription.purchasePackage) ama kullanıcıya
+        // söylenen cümle gerçeğe uyar: "alındı, yansıması sürebilir".
+        // Ölçülmeyen söylenmez — "aboneliğin açıldı" burada ölçülmemişti.
+        final gecikti = sonuc == SatinAlmaSonucu.sunucuGecikti;
+        final mesajci = ScaffoldMessenger.of(context);
+        final bekleyenMetin =
+            AppLocalizations.of(context).purchasePendingServer;
+        await _kutla();
+        if (!mounted) return;
+        if (gecikti) {
+          mesajci.showSnackBar(SnackBar(content: Text(bekleyenMetin)));
+        }
+        Navigator.of(context).pop(true);
       }
     } on PlatformException catch (e) {
       final code = PurchasesErrorHelper.getErrorCode(e);
@@ -124,7 +172,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         // eşitlenmemiş ya da abonelik başka app-kimliğinde). Kullanıcıyı
         // çıkmaza sokma: kendiliğinden geri yükle — abonelik hangi
         // kimlikteyse bu hesaba çekilir (G-turu, iç test bulgusu).
-        if (mounted) await _restore();
+        if (mounted) await _restore(zincirli: true);
       } else if (mounted) {
         setState(() => _error =
             storeErrorText(e, AppLocalizations.of(context)));
@@ -158,7 +206,18 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     );
   }
 
-  Future<void> _restore() async {
+  /// [zincirli] = çağrı [_buy]ın "zaten satın alınmış" dalından geliyor.
+  ///
+  /// Kapı `_busy`ye bakıyor çünkü kullanıcının çift basmasının bir faydası
+  /// yok. Ama o dal tam da MEŞGULKEN çağırıyor ([_buy]ın `finally`si henüz
+  /// koşmadı) ve KOŞULSUZ bir kapı kurtarma yolunu SESSİZCE öldürürdü:
+  /// Play hesabında aboneliği zaten olan kullanıcı "Devam"a basıyor,
+  /// mağaza `productAlreadyPurchasedError` dönüyor, geri yükleme HIÇ
+  /// koşmuyor ve o dal hata metni de YAZMIYOR — ekran sessizce boşa
+  /// dönüyor, abonelik kapalı kalıyor. Çift basımı engellemek kullanıcının
+  /// düğmesi için doğru, kendi hata dalımız için yanlıştı.
+  Future<void> _restore({bool zincirli = false}) async {
+    if (_busy && !zincirli) return;
     _mesguliyet(true);
     try {
       final ok = await restorePurchases(ref);
@@ -191,12 +250,24 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     final offerings = ref.watch(offeringsProvider);
     final l10n = AppLocalizations.of(context);
 
-    return CosmicScaffold(
+    // Geri tuşu ödeme UÇARKEN geçmez.
+    //
+    // `PopScope` depoda üç yerde vardı (onboarding sihirbazı, zorunlu
+    // güncelleme, cihaz çakışması) ve ödeme ekranları o listede YOKTU —
+    // oysa kaza ile kapanmasının bedeli en yüksek ekran burası. `canPop`
+    // yalnız sistem/geri jestini ve `maybePop`u kesiyor; aşağıdaki
+    // "ekranı kapat" düğmesi DOĞRUDAN `pop` çağırdığı için o kasıtlı
+    // çıkış açık kalıyor. Ayrım bilinçli: kaza kapanıyor, karar geçiyor.
+    return PopScope(
+      canPop: !_busy,
+      child: CosmicScaffold(
       appBar: AppBar(
         title: Text(l10n.paywallTitle),
         leading: IconButton(
           icon: const Icon(Icons.close_rounded, size: 22),
-          onPressed: () => Navigator.of(context).pop(false),
+          // Meşgulken kapatma düğmesi de ölü: `_busy` kapısı burada
+          // HİÇ YOKTU ve ödeme uçarken tek dokunuşla ekran kapanıyordu.
+          onPressed: _busy ? null : () => Navigator.of(context).pop(false),
         ),
       ),
       body: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
@@ -309,13 +380,31 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             onPressed: _selected == null ? null : _buy,
           ),
         ),
-        // Bekleyiş uzarsa çıkış yolu. Sonsuz dönen bir halka, kullanıcıya
-        // uygulamanın bozuk olduğunu söyler; bir düğme ise ne yapacağını.
+        // Beklerken EKRANDA METİN.
+        //
+        // Ürünün en pahalı 15 saniyesi 22 piksellik bir halkaya emanetti
+        // (`AstrolabeSpinner`): kullanıcı ne olup bittiğini bilmiyordu ve
+        // "bitti mi, takıldı mı" sorusunu ekran cevaplamıyordu. Onuncu
+        // saniyede metin SERTLEŞİYOR ve çıkış yolu açılıyor — ama meşguliyet
+        // düşmüyor, yani düğme yeniden basılabilir hale GELMİYOR.
+        if (_busy)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
+            child: Text(
+              _uzunSuruyor ? l10n.purchaseWaitingLong : l10n.purchaseWaitingStore,
+              style: RythoText.body(12.5, color: RythoColors.parchmentDim),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        // Bekleyiş uzarsa ÇIKIŞ — ekrandan, meşguliyetten değil. Sonucu
+        // kalıcı toplayıcı yakaladığı için buradan çıkmak satın almayı
+        // kaybettirmiyor; eskiden bu düğme `_mesguliyet(false)` çağırıp
+        // ikinci satın almanın kapısını açıyordu.
         if (_uzunSuruyor)
           Center(
             child: TextButton(
-              onPressed: () => _mesguliyet(false),
-              child: Text(l10n.cancel,
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.purchaseLeaveScreen,
                   style: RythoText.label(12.5, color: RythoColors.goldBright)),
             ),
           ),
@@ -381,6 +470,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
           ),
         ])),
       ]),
+      ),
     );
   }
 

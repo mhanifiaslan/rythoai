@@ -2040,7 +2040,7 @@ def test_tiklama_govdesi_SINIRI_ASINCA_akisi_BIRAKIR():
         "akış sınırdan sonra da tüketildi: %d bayt" % okunan["bayt"])
 
 
-def test_kod_basina_tiklama_TAVANI_IP_sahtelemesini_bosa_cikarir(depo):
+def test_kod_basina_tiklama_TAVANI_IP_sahtelemesini_bosa_cikarir(depo, gun):
     """Kota anahtarı XFF'e bağlı ve XFF çağıranın denetiminde.
 
     Ölçüldü: Google'ın yük dengeleyicisi istemcinin gönderdiği

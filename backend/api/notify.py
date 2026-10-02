@@ -116,6 +116,35 @@ def _verify_scheduler(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="Gecersiz zamanlayici anahtari.")
 
 
+def _tam_dusus_kapisi(sonuc: RunResult) -> None:
+    """Tamamen düşen koşuyu 503'e çevirir (SZ-turu).
+
+    NEDEN var — ölçüldü (2026-10-02): üretim yolundaki Gemini 403'ü BİR AY
+    boyunca hiçbir yerde kırmızı görünmedi. Sebep bu uçtaydı: üretim
+    düşünce bildirim şablon "teknik" satıra düşüp normal gidiyor, `sent`
+    sağlıklı çıkıyor ve uç 200 dönüyordu. Cloud Scheduler günlüğü yalnız
+    DURUM KODUNU gösterir — yanıt gövdesini kimse açmıyor — yani her saat
+    yeşil bir satır yazılıyordu. Gövdeye sayı eklemek bu yüzden tek başına
+    yetmez; kırmızı olan ŞEY durum kodu olmak zorunda.
+
+    Eşik, "kısmi başarısızlık kırmızı DEĞİLDİR" kuralı ve prova muafiyeti
+    `services/notify_runner._KIRMIZI_ESIGI` ile `_dusus_gerekcesi`de;
+    burada tek karar `tamamen_dustu` adının okunması.
+
+    503 bir telafi DEĞİL, yalnız GÖRÜNÜRLÜK: `infra/create-scheduler.ps1`
+    işlere `--max-retry-attempts` vermiyor, yani düşen koşu yeniden
+    denenmiyor (aynı gerekçe `maintenance/horoscope-warm` ucunda da yazılı).
+    Sayılar gövdede kalır: hangi kapının yandığı `status`tan, kaç deneme /
+    kaç başarı / kaç düşüş olduğu `generation` ve `queued`/`sent`/`failed`
+    alanlarından okunur.
+    """
+    gerekce = notify_runner.tamamen_dustu(sonuc)
+    if gerekce is None:
+        return
+    logger.error("Bildirim ucu 503: %s (%s)", gerekce, sonuc.model_dump())
+    raise HTTPException(status_code=503, detail=sonuc.model_dump())
+
+
 @router.post("/run", response_model=RunResult)
 def run(type: Literal["daily", "midday", "checkin", "streak"] = "daily",
         dry_run: bool = False,
@@ -141,6 +170,9 @@ def run(type: Literal["daily", "midday", "checkin", "streak"] = "daily",
       Aynı gün ikinci bir duman testi yapabilmek için var.
 
     **Sessiz saat ve kullanıcı tercihi hiçbir bayrakla atlanmaz.**
+
+    **TAMAMEN düşen koşu 200 DÖNMEZ** (SZ-turu): 503 + gövdede sayılar.
+    Gerekçe `_tam_dusus_kapisi`de.
     """
     _verify_scheduler(authorization)
 
@@ -149,8 +181,10 @@ def run(type: Literal["daily", "midday", "checkin", "streak"] = "daily",
             status_code=400,
             detail="ignore_dedupe yalnizca force ile birlikte kullanilir.")
 
-    return notify_runner.run_batch(type, dry_run=dry_run, force=force,
-                                   ignore_dedupe=ignore_dedupe)
+    sonuc = notify_runner.run_batch(type, dry_run=dry_run, force=force,
+                                    ignore_dedupe=ignore_dedupe)
+    _tam_dusus_kapisi(sonuc)
+    return sonuc
 
 
 class ReactionPush(BaseModel):

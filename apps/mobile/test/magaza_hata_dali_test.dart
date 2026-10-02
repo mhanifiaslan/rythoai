@@ -161,8 +161,14 @@ void main() {
         ProviderScope(
           retry: (_, _) => null,
           overrides: [
-            subscriptionProvider
-                .overrideWith((_) async => SubscriptionStatus.none),
+            // SURUM 47: durum ABONE'ye çevrildi. Paketler artık yalnız
+            // aboneye gösteriliyor (karar K2), yani abone olmayan bir
+            // kapsamda mağaza hata dalına HİÇ ulaşılmıyor ve bu test
+            // ölçmek istediği şeyi değil görünürlük kapısını ölçerdi.
+            // Ölçülen sözleşme değişmedi: mağaza hatası çevrilmiş metin +
+            // yeniden deneme düğmesi üretiyor mu?
+            subscriptionProvider.overrideWith(
+                (_) async => const SubscriptionStatus(active: true)),
             walletProvider.overrideWith((_) async => WalletStatus.none),
             // Mağaza hatası PlatformException'dır; bu ekran eskiden
             // `friendlyError` kullanıyordu ve onu tanımadığı için ağ

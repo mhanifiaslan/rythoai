@@ -39,6 +39,26 @@ import '../../core/notifications.dart'
     show ensureNotificationPermissionAsked, pendingNotificationProvider;
 import '../../l10n/app_localizations.dart';
 
+/// Ana ekranın ÖN-ÇEKECEĞİ burç anahtarları (P2-2).
+///
+/// Dönen liste bilerek **tek elemanlı**: yalnız kullanıcının kendi burcu.
+/// Halkada o burç zaten en başta duruyor (aşağıdaki `signOrder`) ve
+/// kullanıcının kendi burcu, hakkında bir şey ÖLÇÜLEBİLEN tek burç —
+/// dokunma dağılımı ölçülmedi, o yüzden "çoğu dokunuş buraya" diye bir
+/// gerekçe YAZILMIYOR. Kalanlar dokunulunca çekilir.
+///
+/// ⚠️ On iki burcu birden ön-çekmek on iki PARALEL LLM tetiği demek olurdu.
+/// Yorum sunucuda dönem başına burç başına bir kez üretiliyor; soğuk
+/// önbellekte on iki eşzamanlı çağrı hem kotayı hem maliyeti bir kullanıcının
+/// tek açılışına yıkar. Kalan on bir burç dokunulduğunda çekilir.
+///
+/// Burç bilinmiyorsa (profilde `sunSign` yok, doğum verisi eksik) liste BOŞ:
+/// hesaplanmamış bir şey için istek atılmaz.
+List<String> onCekilecekBurclar(int kullaniciBurcIndeksi) =>
+    kullaniciBurcIndeksi < 0 || kullaniciBurcIndeksi >= kSignKeys.length
+        ? const []
+        : [kSignKeys[kullaniciBurcIndeksi]];
+
 /// GÖKYÜZÜ — **bugün** ekranı.
 ///
 /// ## Yeniden kurgulandı
@@ -76,6 +96,48 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
   /// Keşif halkası BU oturumda 3/3'e ulaştı (OB4) — yıldız patlaması bir
   /// kez oynar.
   bool _kesifKutlama = false;
+
+  /// Hikâyesi ön-çekilmiş burç indeksi (P2-2). Bu ekran profilin her
+  /// yayınında yeniden çiziliyor; bayrak olmasa aynı istek her karede
+  /// yeniden kurulurdu.
+  int? _onCekilenBurc;
+
+  /// Kullanıcının kendi burcunun hikâyesini ekran açılırken ister (P2-2).
+  ///
+  /// ÖLÇÜLEN kusur: halka ana ekranda istek BİLE atmıyordu. [ZodiacChip] düz
+  /// bir `StatelessWidget` ve gövdesinde tek `ref.watch` yok; istek ancak
+  /// [SignStoryScreen] inşa edilince doğuyor. Yani halkaya dokunurken
+  /// görülen bekleyiş "yavaş yükleme" değil, HİÇ BAŞLAMAMIŞ bir yüklemeydi.
+  ///
+  /// İstek `build` içinden değil kare SONUNDAN kurulur: sağlayıcıyı çizim
+  /// sırasında kurmak bir yan etki ve bu ekran sık yeniden çiziliyor.
+  /// Sağlayıcı auto-dispose DEĞİL (Riverpod varsayılanı), yani bir kez
+  /// kurulması yeter — hikâye ekranı açıldığında yanıt önbellekte hazır.
+  ///
+  /// ⚠️ Aynı sebeple önbelleğe YALNIZ BAŞARI konur: auto-dispose olmayan bir
+  /// sağlayıcıda, kimsenin görmediği bir hata oturum boyunca kalır
+  /// (CLAUDE.md §5). Ön-çekme düşerse izini siler; yoksa kullanıcı halkaya
+  /// dokunduğunda hikâye ekranı İSTEK ATMADAN hata kartı çizerdi — oysa
+  /// ön-çekme olmasaydı o dokunuş taze bir istek atardı, yani hızlandırmak
+  /// için eklenen şey tek başına bir gerileme olurdu. Döngü riski yok:
+  /// [_onCekilenBurc] ön-çekmeyi burç başına bir kez kuruyor ve dinleyicisi
+  /// olmayan bir sağlayıcı geçersizleştirildiğinde kendiliğinden koşmaz.
+  void _onCekBurcHikayesi(int burcIndeksi) {
+    if (_onCekilenBurc == burcIndeksi) return;
+    final anahtarlar = onCekilecekBurclar(burcIndeksi);
+    if (anahtarlar.isEmpty) return;
+    _onCekilenBurc = burcIndeksi;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      for (final anahtar in anahtarlar) {
+        ref.read(signHoroscopeProvider(anahtar).future).then((_) {},
+            onError: (Object _) {
+          if (!mounted) return;
+          ref.invalidate(signHoroscopeProvider(anahtar));
+        });
+      }
+    });
+  }
 
   String _greeting(AppLocalizations l10n) {
     final hour = DateTime.now().hour;
@@ -166,6 +228,9 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final daily = ref.watch(dailyReadingProvider);
+    // ÜÇ DURUMLU kapı (P2): `daily`nin `null`ı artık YALNIZ "abone değil"
+    // demek. "Henüz bilmiyorum" hâli AYRI çizilir — kilit değil iskelet.
+    final plusKapisi = ref.watch(raporKapisiProvider);
     final profile = ref.watch(profileProvider).value ?? {};
     if (profile.isNotEmpty) _touchStreak(profile);
 
@@ -183,6 +248,7 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
 
     final sunSign = profile['sunSign'] as String?;
     final userSignIndex = signIndexOf(sunSign);
+    _onCekBurcHikayesi(userSignIndex);
     final selected = _selectedSign ?? (userSignIndex >= 0 ? userSignIndex : 0);
     final streak = (profile['streakCount'] as num?)?.toInt() ?? 0;
 
@@ -316,63 +382,72 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
               //
               // Rytho+: kişiye özel okuma. Abone değilse istek atılmaz;
               // kilitli kart gösterilir ve paywall ancak dokununca açılır.
-              daily.when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(RythoSpace.xl),
-                  child: Center(child: AstrolabeSpinner()),
-                ),
-                error: (e, _) => Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
-                  child: ErrorCard(
-                    message: friendlyError(e, l10n),
-                    onRetry: () => ref.invalidate(dailyReadingProvider),
+              //
+              // Abonelik cevabı GELMEDEN kilit kartı çizmek, parasını ödemiş
+              // kullanıcıya her açılışta "abone değilsin" demekti. İskelet
+              // okumanın HACMİNİ gösterir, hükmünü vermez — ne kilit ne
+              // içerik. Tersi de yapılmadı: "yükleniyorsa abone varsay"
+              // abone olmayana bir an kilitsiz kart gösterirdi.
+              if (plusKapisi == PlusHali.bilinmiyor)
+                const SkeletonPanel(height: 132)
+              else
+                daily.when(
+                  loading: () => const Padding(
+                    padding: EdgeInsets.all(RythoSpace.xl),
+                    child: Center(child: AstrolabeSpinner()),
                   ),
+                  error: (e, _) => Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
+                    child: ErrorCard(
+                      message: friendlyError(e, l10n),
+                      onRetry: () => ref.invalidate(dailyReadingProvider),
+                    ),
+                  ),
+                  data: (data) {
+                    // Kullanıcı ilk değerini gördü (kilitli kart da değer
+                    // anlatır): tanıtım paywall'ı buradan tetiklenir —
+                    // eskiden genel burç kartındaydı, kart kalktı (R3-2).
+                    _maybeShowIntroPaywall();
+                    return data == null
+                        ? PlusLockedCard(
+                            title: l10n.personalReadingLocked,
+                            description: userSignIndex < 0
+                                ? l10n.personalReadingLockedBody
+                                : l10n.personalReadingLockedBodyWithSign(
+                                    signDisplayName(l10n, userSignIndex)),
+                          )
+                        : ReadingCard(
+                            label: () {
+                              // Sunucu burç adını Türkçe döndürüyor; ekrana
+                              // ham basmak İngilizce arayüzde "Oğlak" yazdırıyordu.
+                              final gunes =
+                                  localizedSignName(l10n, data['sun_sign'] as String?);
+                              final ay =
+                                  localizedSignName(l10n, data['moon_sign'] as String?);
+                              final yukselen =
+                                  localizedSignName(l10n, data['ascendant'] as String?);
+                              final parcalar = <String>[
+                                if (gunes.isNotEmpty) '☀️ $gunes',
+                                if (ay.isNotEmpty) '🌙 $ay',
+                                if (yukselen.isNotEmpty) '⬆️ $yukselen',
+                              ];
+                              return parcalar.join(' · ');
+                            }(),
+                            title: l10n.personalReadingTitle,
+                            body: data['reading'] ?? '',
+                            glow: true,
+                          )
+                            .animate(delay: next())
+                            .fadeIn(duration: 380.ms)
+                            .slideY(begin: 0.06, curve: Curves.easeOutCubic)
+                            .then()
+                            .shimmer(
+                                duration: 900.ms,
+                                color: RythoColors.gold
+                                    .withValues(alpha: 0.12));
+                  },
                 ),
-                data: (data) {
-                  // Kullanıcı ilk değerini gördü (kilitli kart da değer
-                  // anlatır): tanıtım paywall'ı buradan tetiklenir —
-                  // eskiden genel burç kartındaydı, kart kalktı (R3-2).
-                  _maybeShowIntroPaywall();
-                  return data == null
-                      ? PlusLockedCard(
-                          title: l10n.personalReadingLocked,
-                          description: userSignIndex < 0
-                              ? l10n.personalReadingLockedBody
-                              : l10n.personalReadingLockedBodyWithSign(
-                                  signDisplayName(l10n, userSignIndex)),
-                        )
-                      : ReadingCard(
-                          label: () {
-                            // Sunucu burç adını Türkçe döndürüyor; ekrana
-                            // ham basmak İngilizce arayüzde "Oğlak" yazdırıyordu.
-                            final gunes =
-                                localizedSignName(l10n, data['sun_sign'] as String?);
-                            final ay =
-                                localizedSignName(l10n, data['moon_sign'] as String?);
-                            final yukselen =
-                                localizedSignName(l10n, data['ascendant'] as String?);
-                            final parcalar = <String>[
-                              if (gunes.isNotEmpty) '☀️ $gunes',
-                              if (ay.isNotEmpty) '🌙 $ay',
-                              if (yukselen.isNotEmpty) '⬆️ $yukselen',
-                            ];
-                            return parcalar.join(' · ');
-                          }(),
-                          title: l10n.personalReadingTitle,
-                          body: data['reading'] ?? '',
-                          glow: true,
-                        )
-                          .animate(delay: next())
-                          .fadeIn(duration: 380.ms)
-                          .slideY(begin: 0.06, curve: Curves.easeOutCubic)
-                          .then()
-                          .shimmer(
-                              duration: 900.ms,
-                              color: RythoColors.gold
-                                  .withValues(alpha: 0.12));
-                },
-              ),
 
               // "ŞU AN" bölümü Atlas'a taşındı (R3-2): gökyüzü durumu
               // haritanın yanında yaşar; bu ekran "bugün senin için"

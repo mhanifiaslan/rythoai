@@ -8,7 +8,7 @@ import 'package:dio/dio.dart';
 import '../../core/analytics.dart';
 import '../../core/api.dart';
 import '../../core/sound.dart';
-import '../../core/subscription.dart' show subscriptionProvider;
+import '../../core/providers.dart' show PlusHali, aboneHaliProvider;
 import '../../core/wallet.dart';
 import '../paywall/plus_locked_card.dart';
 import '../../l10n/app_localizations.dart';
@@ -16,6 +16,7 @@ import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/coin_toss.dart';
+import '../../widgets/glass.dart' show SkeletonPanel;
 import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart';
 
@@ -145,9 +146,25 @@ class _IChingTabState extends ConsumerState<IChingTab> {
     final l10n = AppLocalizations.of(context);
     // V2: İ Ching Rytho+ kapısında (BaZi ile aynı desen). Abone değilken
     // ücretli uca istek atılmaz; kilit kartı paywall'a götürür.
-    final plus =
-        ref.watch(subscriptionProvider).value?.active ?? false;
-    if (!plus) {
+    //
+    // ÜÇ DURUMLU (P2): eski satır `.value?.active ?? false` idi ve abonelik
+    // cevabı gelmeden "abone değil" diyordu — ödemiş kullanıcı sekmeyi
+    // açtığında kilit kartı görüp bir süre sonra soru alanının kendiliğinden
+    // açılmasını izliyordu. Profil SORULMUYOR: çekim doğum verisi
+    // göndermiyor, soru metni yeter.
+    final kapi = ref.watch(aboneHaliProvider);
+    if (kapi == PlusHali.bilinmiyor) {
+      // Cevap gelmeden ne kilit ne soru alanı: iskelet içeriğin hacmini
+      // gösterir, hükmünü vermez.
+      return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+          children: const [
+            SkeletonPanel(height: 64, margin: EdgeInsets.only(bottom: 12)),
+            SkeletonPanel(height: 88, margin: EdgeInsets.only(bottom: 12)),
+            SkeletonPanel(height: 42, margin: EdgeInsets.only(bottom: 12)),
+          ]);
+    }
+    if (kapi == PlusHali.aboneDegil) {
       return PlusLockedCard(
         emoji: '🪙',
         title: l10n.iChingLockedTitle,

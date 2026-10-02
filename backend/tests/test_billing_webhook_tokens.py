@@ -223,8 +223,15 @@ def test_expiration_olmayan_aktivasyonda_hak_yine_verilir(monkeypatch, sahte):
     """K2: webhook `expiration_at_ms` tasimasa da aylik hak yazilir.
 
     Eski davranis: expires None -> reset_allowance hic yazmiyordu ve ilk
-    alimda bakiye 0 gorunuyordu. Artik 35 gunluk emniyet penceresiyle
-    verilir; bir sonraki RENEWAL gercek tarihi yazar."""
+    alimda bakiye 0 gorunuyordu.
+
+    Bir tur boyunca cozum "simdi + 35 gun" UYDURMAKTI ve gerekcesi "bir
+    sonraki RENEWAL gercek tarihi yazar" diye yaziliydi. Gerekce TERSINI
+    uretiyordu: uydurulan isaret gercek donem sonundan ILERIDE kaldigi icin
+    bir sonraki yenilemenin tarihi ondan GERIDE kaliyor, idempotency kapisi
+    dusmuyor ve kullanici o donemin hakkini HIC ALMIYOR.
+    Artik None oldugu gibi geciliyor; hakki `reset_allowance` isareti
+    TASIMADAN veriyor (bkz. test_K2_son_kullanma_YOKSA_isaret_UYDURULMAZ)."""
     cagrilar = []
     monkeypatch.setattr(
         "api.billing.wallet.reset_allowance",
@@ -240,4 +247,7 @@ def test_expiration_olmayan_aktivasyonda_hak_yine_verilir(monkeypatch, sahte):
     assert len(cagrilar) == 1
     uid, exp = cagrilar[0]
     assert uid == "u-k2"
-    assert exp is not None  # None gecilmez; emniyet penceresi dolu gelir
+    # Tarih UYDURULMAZ: None oldugu gibi gecer. Hakkin gercekten verildigi
+    # cuzdan katmaninda olculuyor (test_wallet.py), cunku burada
+    # reset_allowance yamali.
+    assert exp is None, "son kullanma uyduruldu: sonraki yenileme yutulur"

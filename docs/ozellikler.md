@@ -3,7 +3,7 @@
 > Bu belge **koddan çıkarıldı**, pazarlama metninden değil. Her iddianın
 > arkasında çalışan bir hesap var; olmayanlar en sonda "İddia
 > edilemeyecekler" başlığında açıkça listelendi.
-> Sürüm: 1.0.0+9 · Tarih: 2026-08-13
+> Sürüm: 1.17.0+46 · Tarih: 2026-10-02
 
 ---
 
@@ -27,7 +27,7 @@ ilişkiler için kalıcı "uyum puanı" vermez.
 | ☾ **Gökyüzü** | "Bugün ne var?" — burç yorumu + canlı gökyüzü + kişisel günlük okuma |
 | ⊙ **Atlas** | "Ben kimim?" — doğum haritan, BaZi'n, kehanet araçların |
 | ✦ **Sohbet** (ortadaki buton) | "Aklımdakini sorayım" — haritanı bilen AI |
-| ⚭ **Arkadaşlar** | "Yakınlarımla ne paylaşırım?" — seri, dürtme, günlük ikili okuma |
+| ⚭ **Arkadaşlar** / başlığı **"Çevrem"** | "Yakınlarımla ne paylaşırım?" — seri, dürtme, günlük ikili okuma, eklediğin kişiler |
 | ☺ **Profil** | Doğum kaydı, abonelik, gizlilik, dil, bildirimler |
 
 ---
@@ -35,17 +35,27 @@ ilişkiler için kalıcı "uyum puanı" vermez.
 ## 3. Gökyüzü — bugünün katmanı
 
 **Ücretsiz olanlar (her zaman açık):**
-- **Günlük burç yorumu** — 12 burç için günlük/haftalık/aylık. Hikâye
-  okuyucusunda tam ekran, otomatik ilerleme (süre metnin uzunluğundan
-  hesaplanır), yatay kaydırmayla burçlar arası geçiş.
+- **Günlük burç yorumu** — 12 burç için. Hikâye okuyucusunda tam ekran,
+  otomatik ilerleme (süre metnin uzunluğundan hesaplanır), yatay
+  kaydırmayla burçlar arası geçiş.
 - **Paylaşım kartı** — burç, tarih, yorumdan alıntı, ay evresi. Doğum
   verisi karta asla girmez.
-- **"Şu an"** — canlı zodyak çarkı, **ay evresi ve gerçek aydınlanma
-  oranı** (Swiss Ephemeris `pheno_ut`; lineer yaklaşım kullanılmıyor),
-  retro gezegenler, güncel açılar, NASA JPL Horizons'tan gezegen-Dünya
-  uzaklıkları.
 - **Günlük seri (🔥)** — her gün okumanı açınca büyür; büyüdüğü an kutlama
   (kıvılcım + ses). Sıfırlanma **kutlanmaz** — ceza mekaniği yok.
+
+> **Haftalık/aylık burç yorumu ERİŞİLEBİLİR DEĞİL** — belge bunu bir tur
+> boyunca ücretsiz katmanın parçası diye saydı, web sitesi de aynı vaadi
+> yazdı. Sunucu ucu üç `period` değeri kabul ediyor (`reports.py`
+> `daily|weekly|monthly`) ama **uygulama hiçbirini göndermiyor**:
+> `providers.dart` düz `/reports/horoscope/{burç}` çağırıyor ve `lib/`
+> genelinde `period=` **sıfır** kez geçiyor. Yani hesap var, ona açılan
+> kapı yok. Vaat metinlerden çıkarıldı; özelliği gerçekten açmak ayrı bir
+> karar (istemciye dönem seçici + önbellek anahtarı gerekir).
+
+> **"Şu an" bu ekranda DEĞİL, Atlas'ta** (R3-2, `sky_screen.dart:377`):
+> gökyüzü durumu haritanın yanında yaşıyor, bu ekran "bugün senin için"
+> anlatısına odaklandı. Belge bir tur boyunca onu burada listelemeye
+> devam etti.
 
 **Rytho+ ile:**
 - **Kişiye özel günlük okuma** — genel burç yorumu her Kova için aynıdır;
@@ -55,6 +65,18 @@ ilişkiler için kalıcı "uyum puanı" vermez.
 ---
 
 ## 4. Atlas — haritanın katmanı
+
+### "Şu an" — canlı gökyüzü (ücretsiz)
+
+R3-2'de Gökyüzü sekmesinden **buraya taşındı**: gökyüzü durumu haritanın
+yanında yaşıyor. Atlas ekranı özeti (`SkyNowSummary`) gösteriyor, dokununca
+tam ekran açılıyor (`sky_now_screen.dart`).
+
+- Canlı zodyak çarkı, retro gezegenler, güncel açılar.
+- **Ay evresi ve gerçek aydınlanma oranı** — Swiss Ephemeris `pheno_ut`;
+  lineer yaklaşım kullanılmıyor.
+- Gezegen-Dünya uzaklıkları — JPL Horizons'tan, **yalnız uzaklık
+  göstergesi** için (§12b: konum/açı hesabının tamamı Swiss Ephemeris).
 
 ### Doğum haritası
 - **Çark, yerleşimler, evler ve açılar ücretsizdir** (hesap, LLM yok).
@@ -158,9 +180,12 @@ aşılıyorsa **iki aday da bildirilir**.
   **karşılıklıdır** (ikiniz de açmışsanız görünürsünüz). Varsayılan kapalı.
   Rehber ekranı: üstte "Uygulamada" (arkadaş ekle), altta davet edilebilir
   kişiler; arama Türkçe karakter duyarlı.
-- **Hazır tepkiler / dürtme** — 8 sabit tepki (Seri 🔥, Aklımdasın, Parla,
-  Devam et, Tebrikler, Aynı frekans, İyi geceler, Bugüne bak). Gönderince
-  yıldız patlaması + karşı tarafa bildirim.
+- **Hazır tepkiler / dürtme** — **12 sabit tepki** (Seri 🔥, Aklımdasın 💭,
+  Parla ✨, Devam et 💪, Tebrikler 🎉, Aynı frekans 🛰️, İyi geceler 🌙,
+  Bugüne bak 👀, Sarıl 🤗, Şans 🍀, Kahve ☕, Özledim 🫶). Gönderince yıldız
+  patlaması + karşı tarafa bildirim. Küme ÜÇ yerde birden aynı olmak
+  zorunda: `api/notify.py` `REACTION_EMOJIS`, mobil `kReactions` ve
+  `infra/firestore.rules`. (R3-4'te 8'den 12'ye çıktı; belge 8'de kalmıştı.)
 - **Günlük ikili okuma (dyad)** — arkadaşınla aranızdaki **bugüne özgü**
   dinamik; iki taraf da aynı metni görür. **Kalıcı uyum puanı bilinçli
   olarak yoktur** — skor hesaplanabiliyor ama kasten gösterilmiyor:
@@ -180,8 +205,14 @@ aşılıyorsa **iki aday da bildirilir**.
 
 ### 6b. Eklediğin kişiler — eş, çocuk, yakın (P-turu)
 
-Sayfa artık **"Çevrem"**: iki farklı nesne barındırıyor ve ikisi bilinçli
-olarak farklı çiziliyor.
+Sayfanın **başlığı** "Çevrem" (`circleTitle`), **sekme etiketi** ise hâlâ
+"Arkadaşlar" (`tabFriends`) — ikisi de kasıtlı: sekme çubuğunda tek kelime
+sığıyor, başlıkta sayfanın iki nesneli gerçek kapsamı anlatılıyor. Bu belge
+bir tur boyunca ikisini çelişki gibi yazmıştı; çelişki değil, iki ayrı
+yüzeyin iki ayrı dizesi.
+
+Sayfa iki farklı nesne barındırıyor ve ikisi bilinçli olarak farklı
+çiziliyor.
 
 | | Rytho arkadaşı | Eklediğin kişi |
 |---|---|---|
@@ -213,11 +244,48 @@ olarak farklı çiziliyor.
 
 Doğum kaydı düzeltme · yaşanan şehir (Yıl Haritası için) · kullanıcı adı ·
 **giriş yöntemleri** (Google/Apple hesabına şifre ekleme, şifreli hesaba
-Google bağlama) · bildirimler (günlük okuma, seri hatırlatıcı, arkadaş
-tepkileri + **sessiz saatler** 22:00-08:00) · gizlilik anahtarları · **dil
+Google bağlama) · bildirimler (aşağıda) · gizlilik anahtarları · **dil
 (TR/EN)** — arayüz ve AI yorumlarının dili birlikte değişir · ses efektleri
 · abonelik ve jetonlar · avatar düzenleyici (sürükle-yakınlaştır) ·
 **hesap silme** (ne silinip ne silinmeyeceği tek tek yazılır, yazarak onay).
+
+### Bildirimler — DÖRT zamanlı tür, ÜÇ anahtar
+
+Belge bir tur boyunca üç tür sayıyordu (günlük okuma, seri, arkadaş
+tepkisi); öğle ve akşam slotları eklendikten sonra güncellenmemişti.
+Sunucunun gönderdiği zamanlı türler (`notify_runner.RUN_TYPES`, dördü de
+Cloud Scheduler'da kayıtlı — `infra/create-scheduler.ps1`):
+
+| Tür | Ne zaman / ne | Hangi anahtar kapatır |
+|---|---|---|
+| `daily` | sabah günlük okuma | `notifyDaily` |
+| `midday` | öğle — **yalnız bugün gerçekten olay varsa** gider; sabah gövdesinin kopyası asla | `notifyDaily` |
+| `checkin` | akşam — günün sinyaline bağlı kişisel soru, dokununca Sohbet açılır | `notifyStreak` |
+| `streak` | seri hatırlatıcı | `notifyStreak` |
+
+Buna EK olarak olay tetikli **arkadaş tepkisi** bildirimi var
+(`notifyFriends`) — zamanlı değil, karşı taraf bastığında gider.
+
+Yani **tür sayısı anahtar sayısına eşit değil**: `notifyDaily` iki türü
+(sabah + öğle), `notifyStreak` iki türü (akşam + seri) birlikte kapatıyor
+(`notification_service.py` tür→tercih eşlemesi). Ekranda üç anahtar
+görünür, sunucu dört zamanlı tür gönderir. **Sessiz saatler** 22:00-08:00.
+
+> ⚠️ **İlk üç türün GÖVDESİ kullanıcının kendi haritasından gelir**, burcundan
+> değil: `daily` birincil yolda `signal_push` (kendi sinyal paketindeki o güne
+> özgü AI cümlesi, burç satırı yalnız YEDEK), `midday` kendi haritasında bugün
+> kesinleşen açı, `checkin` aynı paketin `checkin_question` alanı. Yalnız
+> `streak` ve arkadaş tepkisi sabit şablon. Bu, gizlilik politikası için
+> bağlayıcı: "bildirim metinleri burcunuza göre hazırlanır, kişiye özel
+> değildir" cümlesi **yanlış beyandı** ve dört kopyadan (web TR/EN, uygulama
+> TR/EN) hepsinde düzeltildi (2026-10-02). Bir sonraki tur bildirim gövdesini
+> şablona çevirirse politika da geri alınmalı.
+>
+> ⚠️ İkinci düzeltme aynı günden: **saat dilimi ve arayüz dili bildirim izni
+> olmadan da yazılıyor** (`syncNotificationContext` her oturum açılışında
+> koşuyor, dili ayrıca `LanguageSync` yazıyor); izne bağlı olan tek alan FCM
+> jetonu. Politika bu üçünü birden "bildirimleri açtığınızda" diye koşula
+> bağlıyordu.
 
 **Onboarding — "Yıldız Yolu" sihirbazı:** 6 adım, adım başına tek soru;
 takımyıldız ilerleme çubuğu her adımda bir yıldız yakar. Doğum saati için
@@ -234,19 +302,61 @@ Sonunda "Büyük Üçlü" perdesi (Güneş/Ay/Yükselen açılışı).
 | Canlı gökyüzü ("Şu an") | Tam natal rapor (AI okuması) + 6 detay ekranı |
 | Doğum haritası çarkı, yerleşimler, açılar (hesap) | Yıl Haritası (solar return) |
 | Günlük seri | İç Takvim (progresyon + transit) |
-| Arkadaşlar katmanının **tamamı** | BaZi · İ Ching · Doğum Kapısı · Yüz Okuma |
+| Arkadaş listesi, seri, hazır tepkiler, ilişki eksenlerinin ÖLÇÜMÜ | BaZi · İ Ching · Doğum Kapısı · Yüz Okuma |
 | Profil, doğum kaydı, avatar, bildirimler, dil, sohbet (jeton) | Arkadaşla günlük ikili okuma |
 | **1 kişi ekleme** — harita, Büyük Üçlü ve ilişki ÖLÇÜMÜ açık, yorum kilitli | **10 kişi kontenjanı** + ilişki AI yorumu (jetonsuz) |
 
+> ⚠️ Sol kolon bir tur boyunca "arkadaşlar katmanının **tamamı**" diyordu ve
+> **aynı tablonun sağ kolonu** ikili okumayı Rytho+'a koyuyordu — tablo
+> kendi içinde çelişiyordu. Ölçülen hâl: `/reports/dyad`
+> `require_plus("dyad")` taşıyor; `/reports/relationship` ise ücretsiz ama
+> abone olmayana `reading_locked: true` dönüyor (eksenler, seviyeler ve
+> dayanak açılar herkese açık, **yorumu** Plus). Yani katmanın tamamı değil,
+> **ölçümü** ücretsiz.
+
 **3 günlük deneme (OT6):** yeni hesap ilk 3 gün TÜM Rytho+ yüzeylerini
 kartsız kullanır ve tek seferlik **30 karşılama jetonu** alır (kalan
-bakiye deneme bitince yanmaz). Kural sunucuda (`entitlements.in_trial`,
-profil `createdAt`); paywall geri sayımı gösterir.
+bakiye deneme bitince yanmaz). Deneme `is_subscriber`'ın İÇİNDEN geçtiği
+için `require_plus` dahil her kapı tek noktadan açılıyor
+(`entitlements.in_trial`, profil `createdAt`); paywall geri sayımı
+gösterir.
 
-**Jeton ekonomisi:** Rytho+ ayda **300 jeton** verir (devretmez); satın
-alınan paketler (100/300/1000) **hiç yanmaz**. Bedeller: sohbet 1 · İ Ching
-2 · ikili okuma 3 · derin raporlar 5. Kilitli ekranda ücretli uca **istek
-bile atılmaz** — kart gösterilir, ödeme ekranı ancak dokununca açılır.
+**Jeton ekonomisi:** Rytho+ ayda **100 jeton** verir (devretmez); satın
+alınan paketler (100/300/1000) **hiç yanmaz**.
+
+- **Hak 300'den 100'e indi** (K1, bu sürüm). Gerekçe ölçüldü: ~7 jeton/gün
+  kullanımda 300 hiç bitmiyordu, yani parayla alınmış bakiyeye **sıra hiç
+  gelmiyordu** — harcama önce aylık haktan düşüyor. Değişen şey jeton
+  bedelleri değil, **hakkın nerede bittiği**.
+- **K3: değişim yalnız BİR SONRAKİ dönemden.** Kimsenin elindeki hak geri
+  alınmaz; mevcut dönemde 300 almış hesap dönem sonuna kadar 300'üyle
+  kalır. Bekçisi var — bu sessizce bozulabilecek bir şey.
+- **K2: jeton paketleri yalnız ABONEYE satılır**; abone olmayana mağazada
+  hiç gösterilmez.
+- **Rapor başına bedeller burada TEKRARLANMIYOR.** Kanonik yer
+  `wallet.TOKEN_COSTS`. Bedeli bu belgeye kopyalamak, iki yerden birinin
+  sessizce bayatlaması demekti — nitekim §12b'deki pazarlama satırı tam bu
+  yüzden "300 kredi" diye kaldı.
+- ⚠️ **Aynı tuzak istemcide AÇIK duruyor:** `/wallet` yanıtı `costs`
+  haritasını gönderiyor ve `wallet.dart` onu ayrıştırıyor, ama arayüzde
+  **hiç kullanılmıyor** — jeton mağazasındaki bedel satırı
+  (`tokenCostsNote`) elle yazılmış bir l10n dizesi. Yani `TOKEN_COSTS`
+  değişirse ekrandaki rakam sessizce yanlışa düşer. Bugün eşleşiyor
+  (sohbet 1 · İ Ching 2 · ikili 3 · derin 5); ölçüldü 2026-10-02.
+- **Bedeli harcamadan ÖNCE gösteren tek ekran İ Ching'dir** ve o da
+  `/wallet`ten değil `/reports/iching/status` yanıtındaki `token_cost`tan
+  okuyor (`iching_tab.dart`, varsayılanı elde yazılmış `2`). Derin
+  raporlar, ikili okuma ve sohbet harcama anında bir bedel satırı
+  göstermiyor; bedel yalnız jeton mağazası ekranında, o da sabit metinle
+  duruyor. ⚠️ Bu yüzden "uygulama bir raporun kaça geldiğini harcamadan
+  önce gösterir" cümlesi **pazarlama sayfalarına yazılamaz** — bir tur
+  boyunca yazıldı ve ölçülmemişti; yerine mağazaya işaret eden ve
+  önbellekten tekrar okumanın bedava olduğunu söyleyen cümle kondu
+  (ikisi de ölçüldü: `token_store_screen.dart`, `report_service`
+  önbellek kapısı harcamadan önce dönüyor).
+
+Kilitli ekranda ücretli uca **istek bile atılmaz** — kart gösterilir, ödeme
+ekranı ancak dokununca açılır.
 
 ---
 
@@ -279,6 +389,7 @@ Ayrıca motor bir varsayım yaptığında **beyan eder**: şehir çözülemediys
 | Sohbet arşivi | 30 gün; istemci yazamaz, yalnız sunucu yazar |
 | Hesap silme | Karşı taraftaki arkadaşlık kayıtları dahil temizlenir (şikâyet kayıtları hariç — gerekçesi gizlilik metninde) |
 | Tek cihaz kilidi | Yalnız abonelerde; devralma onayla |
+| Ortak bağlantısı tıklaması | Kalıcı kayıt yalnız **gün başına sayaç** — IP, User-Agent, çerez, kimlik YOK. Bu yüzden tekil ziyaretçi **ölçülemez**; sunulan ad "tıklama", "kişi" değil. ⚠️ Kota katmanı IP'yi sayaç anahtarı olarak **bellekte** tutuyor (`ratelimit._client_key`, `sadece_ip=True`; pencere 60 sn, budama 300 sn) — bu yüzden "IP tutulmaz" MUTLAK biçimde yazılamaz, politika "kalıcı kayıtta yok" der |
 
 ---
 
@@ -341,7 +452,7 @@ olsun:
 | "NASA verisiyle hesaplıyoruz" | "Konum/açı hesabı Swiss Ephemeris; gezegen uzaklık göstergesi NASA JPL Horizons" |
 | "Uyum puanınız 82" | "İlişkinin nerede kolaylaştığını, nerede emek istediğini ölçer — puan vermez" |
 | "Geleceğinizi söyler" | "Eğilimleri ve zaman pencerelerini gösterir; kesin tarihli kehanet yapmaz" |
-| "Sınırsız AI" | "Ayda 300 AI kredisi" (ölçülü ve dürüst) |
+| "Sınırsız AI" | "Ayda 100 AI kredisi" (ölçülü ve dürüst — K1'le 300'den indi) |
 | "Yüzlerce kadim kitap" | "Seçilmiş kamu malı klasikler + özgün doktrin sentezi" |
 | "Bilimsel yüz analizi" | "Cihaz üstü geometrik ölçüm + firaset geleneği yorumu" |
 

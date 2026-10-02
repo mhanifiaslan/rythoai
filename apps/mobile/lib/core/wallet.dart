@@ -15,9 +15,11 @@
 /// Paketler consumable: RevenueCat → mağaza → webhook → sunucu cüzdana
 /// yükler. Yani satın almanın bitmesiyle bakiyenin sunucuda görünmesi
 /// arasında saniyeler olabilir — abonelikteki `_waitForServerEntitlement`
-/// yarışının aynısı. Aynı çare uygulanır: kısa aralıklarla yokla, bütçe
-/// dolarsa sessizce çık (ödeme cihazda gerçekleşti; kullanıcıyı ödeme
-/// ekranına geri göndermek yanlış olur).
+/// yarışının aynısı. Çare de aynı İŞLEV: `subscription.sunucuyuYokla`.
+/// Bütçe dolarsa akış kesilmez (ödeme cihazda gerçekleşti; kullanıcıyı ödeme
+/// ekranına geri göndermek yanlış olur) ama artık SESSİZ de değil: dönen
+/// değer "sunucu yükledi mi" bilgisini taşıyor ve ekran kullanıcıya hangi
+/// cümleyi söyleyeceğini ondan öğreniyor.
 library;
 
 import 'package:dio/dio.dart';
@@ -27,7 +29,8 @@ import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:purchases_flutter/purchases_flutter.dart';
 
 import 'api.dart';
-import 'subscription.dart' show billingConfigured, ensureBillingIdentity;
+import 'subscription.dart'
+    show billingConfigured, ensureBillingIdentity, sunucuyuYokla;
 
 /// Mağazadaki consumable ürün kimlikleri. Sunucudaki `TOKEN_PACKS` ile aynı
 /// olmak zorunda; adetler BURADA TUTULMAZ (istemciye güvenilmez).
@@ -189,9 +192,22 @@ final tokenPacksProvider = FutureProvider<List<StoreProduct>>((ref) async {
   return products;
 });
 
+/// Jeton paketi satın alma işlevi — TEST DİKİŞİ
+/// (`subscription.PaketSatinAlici` ile aynı gerekçe: ölçülen şey mağaza
+/// cevap vermezken ekranın hâli).
+typedef JetonSatinAlici = Future<bool> Function(
+    WidgetRef ref, StoreProduct urun);
+
+/// `null` = üretim yolu ([purchaseTokenPack]).
+final jetonSatinAliciProvider = Provider<JetonSatinAlici?>((_) => null);
+
 /// Paket satın alır ve sunucu bakiyeyi görene kadar bekler.
 ///
-/// `true` = ödeme tamamlandı (bakiye sunucuda henüz görünmese bile).
+/// Dönen değer **"sunucu yükledi mi"** — "ödeme tamamlandı mı" DEĞİL.
+/// Ödemenin tamamlanmadığı hâl buraya hiç ulaşmıyor: mağaza fırlatır ve
+/// çağıran `PlatformException`ı yakalar. Eski imza her durumda `true`
+/// dönüyordu ve ekran onu okumadan "Paket yüklendi" diyordu; bütçe dolmuş
+/// bir turda bu cümle YANLIŞTI — bakiye henüz yüklenmemişti.
 Future<bool> purchaseTokenPack(WidgetRef ref, StoreProduct product) async {
   final onceki = ref.read(walletProvider).value?.purchased ?? 0;
 
@@ -200,26 +216,19 @@ Future<bool> purchaseTokenPack(WidgetRef ref, StoreProduct product) async {
   await ensureBillingIdentity();
   await Purchases.purchase(PurchaseParams.storeProduct(product));
 
-  // Webhook'un cüzdana yüklemesini bekle — abonelikteki desenle aynı bütçe.
-  const gecikmeler = [
-    Duration(milliseconds: 400),
-    Duration(seconds: 1),
-    Duration(seconds: 2),
-    Duration(seconds: 3),
-    Duration(seconds: 4),
-  ];
-  for (final gecikme in gecikmeler) {
-    ref.invalidate(walletProvider);
-    try {
-      final durum = await ref
-          .read(walletProvider.future)
-          .timeout(const Duration(seconds: 6));
-      if (durum.purchased > onceki) return true;
-    } catch (_) {
-      // Yoklama düşerse beklemeyi sürdür; satın alma hatası değil.
-    }
-    await Future<void>.delayed(gecikme);
-  }
-  ref.invalidate(walletProvider);
-  return true;
+  // Webhook'un cüzdana yüklemesini bekle — abonelikle AYNI kapı.
+  //
+  // Bu satır bir dönem "abonelikteki desenle aynı bütçe" diyordu ama BÜTÇE
+  // YOKTU: yalnız gecikme merdiveni kopyalanmıştı, 15 saniyelik üst sınır
+  // değil. Ölçülen en kötü hâl ~40 saniyeydi (beş tur × 6 sn yoklama
+  // sınırı + 10,4 sn gecikme) ve kullanıcı o süreyi ödeme ekranında, tek
+  // bir dönen halkaya bakarak geçiriyordu. Artık gerçekten aynı işlev.
+  return sunucuyuYokla(
+    tazele: () => ref.invalidate(walletProvider),
+    // Ölçüt "bakiye ARTTI mı": mutlak sayı değil, çünkü aynı anda bir
+    // harcama da düşebilir ve `WalletStatus.unknown` sıfır taşır — sıfırı
+    // "yüklendi" saymak bakiyesi okunamayan kullanıcıya yanlış söz olurdu.
+    yakalandi: () async =>
+        (await ref.read(walletProvider.future)).purchased > onceki,
+  );
 }

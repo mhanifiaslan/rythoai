@@ -34,7 +34,7 @@
     <header>
       <a href="/"><img src="/assets/rytho_logo.svg" alt="RythoAI"></a>
       <h1>Rytho Gizlilik Politikası</h1>
-      <p class="tarih">Son güncelleme: 5 Ağustos 2026 · <a href="/en/legal/privacy.html">English</a></p>
+      <p class="tarih">Son güncelleme: 2 Ekim 2026 · <a href="/en/legal/privacy.html">English</a></p>
     </header>
 
     <p>Rytho ("Uygulama"), kişisel kozmik içgörü deneyimi sunan bir mobil
@@ -135,13 +135,64 @@
       sildiğinizde silinir.</li>
     </ul>
 
-    <h3>i) Teknik veriler</h3>
+    <h3>i) Abonelik ve tek cihaz</h3>
+    <ul>
+      <li><strong>Ne:</strong> Cihazınızda rastgele üretilmiş bir
+      tanımlayıcı saklanır ve isteklerinizle birlikte gönderilir.</li>
+      <li><strong>Neden:</strong> Rytho+ aboneliği aynı anda tek cihazda
+      kullanılır; bunu uygulayabilmek için gerekir. Bu tanımlayıcı
+      <strong>donanım kimliği değildir</strong>, reklam veya takip amacıyla
+      kullanılmaz; uygulamayı silip yeniden kurduğunuzda değişir.</li>
+    </ul>
+
+    <h3>j) Bildirimler</h3>
+    <ul>
+      <li><strong>Ne:</strong> <strong>Saat diliminiz</strong> ve seçtiğiniz
+      arayüz dili, bildirimi hiç açmasanız da her oturum açılışında hesabınıza
+      yazılır. Cihazınızın bildirim kimliği (FCM jetonu) ise yalnız bildirim
+      iznini verdiyseniz alınabilir ve saklanır.</li>
+      <li><strong>Neden:</strong> Saat dilimi, bildirimin sizin yerel
+      sabahınıza denk gelmesi için gerekir. <strong>Konum bilginiz
+      alınmaz</strong>; yalnızca cihazınızın bildirdiği saat dilimi adı
+      (örneğin "Europe/Istanbul") kaydedilir. Bildirim metinleri
+      sunucumuzda üretilir ve <strong>kişiye özeldir</strong>: sabah
+      okumasının, öğle bildiriminin ve akşam check-in sorusunun gövdesi
+      <strong>sizin doğum haritanızdan</strong> çıkan o güne özgü sinyalden
+      üretilir. O gün haritanızdan gönderilecek bir sinyal çıkmazsa yerine
+      burcunuza göre hazırlanan ortak metin gider; seri hatırlatıcısı ve
+      arkadaş tepkisi bildirimi ise sabit şablondur (serinin kaç gün olduğu,
+      tepkiyi gönderenin adı). Sohbet geçmişiniz bildirim üretiminde
+      kullanılmaz.
+      Bildirim türlerini ve sessiz saatleri Profil → Bildirimler bölümünden
+      kapatabilirsiniz. Uygulamayı sildiğinizde bildirim kimliği
+      geçersizleşir ve ilk başarısız gönderimde kaydımızdan silinir.</li>
+    </ul>
+
+    <h3>k) Ortak bağlantısı tıklamaları</h3>
+    <ul>
+      <li><strong>Ne:</strong> Bir ortaklık bağlantısı açıldığında o ortağın
+      kodu için <strong>gün başına bir sayaç</strong> bir artar. Sayılan şey
+      <strong>TIKLAMADIR, kişi değildir.</strong></li>
+      <li><strong>Neden:</strong> Ortağın tanıtımının işe yarayıp
+      yaramadığını görebilmesi için. Bu ölçümün <strong>kalıcı kaydına IP
+      adresi, tarayıcı bilgisi (User-Agent), çerez ve kimlik
+      yazılmaz</strong> — orada ziyaretçiye ait tek bir bayt yoktur. Geçici
+      tek istisna bu uca özel değil: kötüye kullanımı sınırlayan kota
+      katmanı, kimliksiz her istekte olduğu gibi IP adresini yalnız sunucu
+      belleğinde ve birkaç dakikalık bir pencerede sayaç anahtarı olarak
+      tutar; hiçbir kalıcı yere gitmez. Bunun sonucu olarak
+      <strong>tekil ziyaretçi sayısı ölçülemez</strong> ve ölçülmüyor:
+      tekillik ancak bir işaretle sayılabilirdi, o işaret de kişisel veri
+      olurdu. Ortağın panosunda bu sayı "tıklama" diye sunulur.</li>
+    </ul>
+
+    <h3>l) Teknik veriler</h3>
     <ul>
       <li><strong>Ne:</strong> Çökme kayıtları (Firebase Crashlytics),
-      anonim kullanım olayları (Firebase Analytics), bildirim jetonu (FCM),
-      satın alma durumu (RevenueCat).</li>
-      <li><strong>Neden:</strong> Uygulama kararlılığını iyileştirmek,
-      bildirim gönderebilmek ve aboneliğinizi tanıyabilmek için.</li>
+      anonim kullanım olayları (Firebase Analytics), satın alma durumu
+      (RevenueCat).</li>
+      <li><strong>Neden:</strong> Uygulama kararlılığını iyileştirmek ve
+      aboneliğinizi tanıyabilmek için.</li>
     </ul>
 
     <h2>2. Yapay zeka ile işleme</h2>

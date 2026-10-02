@@ -155,6 +155,65 @@ $isler = @(
     # ayni kayitlari yine bulur. Tek bedeli hakedisin bir gun gec
     # kesinlesmesi — para kaybi yok.
     @{ ad = "rytho-partner-mature"; uri = "/api/v1/partners/mature"; cron = "30 2 * * *" }
+    # Burc yorumu ON-URETIMI (P3). Genel yorum TUM kullanicilar icin ortak ve
+    # onbellek sahipsiz; eksik olan on-uretimdi. Isitma olmadan her
+    # (burc, donem, dil, kova) dortlusunun ILK isteyeni RAG embedding +
+    # Gemini (gerekirse ikinci deneme) + fact_guard turunu tam tamina
+    # bekliyordu ve gunluk yorumda bu gunde 24 kullanici ediyordu
+    # (12 burc x 2 dil) — hepsi SABAH ILK ACANLAR.
+    #
+    # SAAT: kova istegin sahibinin YEREL gunune bagli. Turkiye UTC+3, yani
+    # yerel gun 21:00 UTC'de doner; isitma ondan SONRA kosmali. 21:15 UTC =
+    # yerel 00:15. Dakika secimi cakismaya gore: notify isleri her saatin
+    # :05/:08/:10/:12'sinde kosuyor, :15/:20/:25 bos.
+    # `offset_minutes=180` olmadan sunucu kendi UTC gununu (dun) isitir ve
+    # sabah ilk acan kullanici yine bekler — isitma kosar, ise YARAMAZ.
+    #
+    # UC AYRI IS, tek is degil: her is KENDI istegidir ve isteginin kendi
+    # zaman asimi vardir. Tek iste birlestirilseydi yerel ayin 1'i ayni
+    # zamanda Pazartesi'ye denk geldigi gece 72 uretim tek kosuya sigacak ve
+    # ORTADA olecekti. Ayrica donem basina ayri gunluk ve ayri elle tetik.
+    #
+    # DIKKAT: ISTEGI KESEN DUVAR BURADAKI 900s DEGIL: Cloud Run servisi
+    # `deploy-backend.ps1` ile `--timeout 300` dagitiliyor, yani istek 300.
+    # saniyede OLDURULUR ve attempt-deadline'in kalan 600 saniyesi hic
+    # kullanilmaz. 24 uretimin gercek suresi OLCULMEDI; bu yuzden ucun kendi
+    # butcesi var (`budget_seconds`, varsayilan 240s): duvara carpmadan
+    # doner, soguk kalan kombinasyonlari ADIYLA loglar ve 503 ile Scheduler
+    # gunlugunde KIRMIZI gorunur. Ilk gercek kosudan sonra Cloud Run
+    # gunlugundeki `atlanan` sayisi okunur; sifir degilse ya Cloud Run
+    # timeout'u ya is bolumu (dil basina ayri is) buyutulur.
+    #
+    # HAFTALIK/AYLIK NEDEN GECELIK: isler UTC ile kuruluyor (asagida
+    # `--time-zone "UTC"`, tek bir ulkeyi betige gommemek icin) ve UTC cron'u
+    # "yerel ayin 1'i" diyemez — yerel gun UTC'de bir onceki ayin SON gunu
+    # (28/29/30/31) 21:00'de donuyor. `0 21 1 * *` yerel ayin 2'si olurdu ve
+    # ayin ilk gunu tamamen soguk kalirdi. (Cloud Scheduler is BASINA
+    # saat dilimi alabilir; bu isler icin `Europe/Istanbul` + `15 0 1 * *`
+    # dogru geceyi ifade EDERDI — gecelik kosu bilincli bir tercih, cron'un
+    # yetersizligi degil.) Gecelik kosunun bedeli yok: kova hala sicakken
+    # `horoscope_reading` prompt'u KURMADAN once onbellege bakiyor, yani
+    # isabetli gece yalnizca 24 onbellek okumasi. Ustelik kacirilan bir
+    # Pazartesi/ayin-1'i ertesi gece kendiliginden telafi olur.
+    #
+    # Yeniden deneme YOK (bu betik --max-retry-attempts vermiyor): isitmanin
+    # dustugu gun o kovanin ilk kullanicisi yine bekler. Kabul edildi —
+    # bedeli bir gunluk gecikme, para ya da veri kaybi degil. Tamamen bos
+    # kosan bir gece uc 503 doner, boylece Scheduler gunlugunde YESIL
+    # gorunmez.
+    #
+    # SADECE `daily` isitiliyor. Haftalik/aylik kovalar ICIN IS YOK ve bu
+    # bilincli: `api/reports.py` `period` Literal'ini kabul ediyor ama o
+    # parametreyi gonderen TEK istemci satiri yok (`grep -rn "period="
+    # apps/mobile/lib/` = 0 sonuc; providers.dart duz
+    # `/api/v1/reports/horoscope/{burc}` cagiriyor). Yani o iki kovayi
+    # isitmak her gece 2 x 12 burc x 2 dil = 48 LLM uretimi (RAG embedding +
+    # Gemini + fact_guard) demek olurdu ve uretilen onbellegi HICBIR istemci
+    # okuyamazdi: olculebilir fatura, sifir karsilik. Bir tur boyunca o iki
+    # is burada DURDU (hem de `* * *` ile her gece, "haftalik" adina ragmen).
+    # Haftalik/aylik urun yuzeyine acilirsa (ayri karar) once istemci
+    # `period` gondermeye baslar, isler ondan SONRA eklenir.
+    @{ ad = "rytho-horoscope-warm-daily"; uri = "/api/v1/maintenance/horoscope-warm?period=daily&offset_minutes=180"; cron = "15 21 * * *" }
 )
 
 foreach ($is in $isler) {

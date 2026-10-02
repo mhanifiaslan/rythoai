@@ -14,7 +14,7 @@ edilebilir (~$0,000008/çağrı; önbellek isabetinde hiç yok).
 
 | İş | Girdi (token) | Çıktı (token) | Maliyet/çağrı | Jeton bedeli | Jeton başına gelir* | Marj |
 |---|---|---|---|---|---|---|
-| Sohbet turu | ~4.000 (tavanlı en kötü ~9.000†) | ≤300 | **~$0,0020** (kötü $0,0034) | 1 | ~$0,010 | %80+ |
+| Sohbet turu | ~4.000 (tavanlı en kötü ~9.000†) | ≤300 | **~$0,0021‡** (kötü $0,0034) | 1 | ~$0,010 | ~%79 |
 | Natal / BaZi / SR / Progresyon / Firasa | ~3.500 | 700-900 | **~$0,0033** | 5 | ~$0,050 | %93 |
 | İching (+soru hükmü çağrısı) | ~3.500+800 | ~500 | **~$0,0030** | 2 | ~$0,020 | %85 |
 | Dyad (çift başına günlük) | ~2.700 | ~200 | **~$0,0018** | 3 | ~$0,030 | %94 |
@@ -25,6 +25,13 @@ edilebilir (~$0,000008/çağrı; önbellek isabetinde hiç yok).
 
 \* Jeton başına gelir: 100'lük paketin KDV+komisyon sonrası neti
 (~$1,0) / 100. †K4 tavanı sonrası (son 12 mesaj × 1.200 kr).
+‡ Korpus pasajları eklendikten sonraki değer (§6f: ~$0,0020 → ~$0,0021).
+Bu satır bir süre $0,0020 yazmaya devam ediyordu ve §2 tablosu da onunla
+hesaplanmıştı; GEÇERLİ olan $0,0021'dir, aşağıdaki bütün türetmeler onu
+kullanıyor. Bu satırın marj hücresi de aynı sebeple **%80+ → ~%79**
+düzeltildi: $0,0021 ÷ $0,010 ile marj 79'dur, 80 değil — yuvarlamayla
+"%80+" yazmak §3'ün "%79-93" satırıyla açık çelişki üretiyordu (iki sayı da
+aynı iki girdiden türüyor).
 
 Önbellek çarpanı: raporlar kişi başına 24s-90g önbellekli; harcama ve
 LLM çağrısı YALNIZ önbellek kaçırıldığında. İkinci okuma hem ücretsiz
@@ -38,31 +45,146 @@ hem maliyetsiz — yani yukarıdaki maliyetler kullanım başına ÜST sınır.
 | KDV −%20 | ₺149,99 |
 | Google Play −%15 | **net ≈ ₺127,5 ≈ $3,0/ay** |
 
-Abonenin aylık LLM maliyeti (senaryolar, jeton zorlaması AÇIK):
+Abonenin aylık LLM maliyeti (senaryolar, jeton zorlaması AÇIK). **Aylık hak
+2026-10-02'de 300'den 100'e indirildi (K1, gerekçe §2a); tablo yeniden
+türetildi.** Türetme kuralı tek satır: jetonun en pahalı harcanma biçimi
+sohbettir (1 jeton = 1 tur ≈ **$0,0021**; §1 + §6f), o yüzden "jeton ×
+$0,0021" bir ÜST sınırdır — karışık kullanımda rapor jetonu başına maliyet
+beşte birdir ($0,0033 ÷ 5 jeton).
 
-| Senaryo | Kullanım | LLM maliyeti | Brüt marj |
-|---|---|---|---|
-| Hafif | 50 jeton (karışık) + günlük | ~$0,15 | **~%95** |
-| Orta | 150 jeton + günlük | ~$0,35 | **~%88** |
-| Yoğun (tavan) | 300 jetonun TAMAMI sohbete + günlük + hafıza | **~$0,70** | **~%77** |
-| Yoğun + 100'lük ek paket | +$1,0 gelir, +$0,20 maliyet | — | ek paket marjı %80 |
+| Senaryo | Kullanım | LLM maliyeti | Türetme | Brüt marj |
+|---|---|---|---|---|
+| Hafif | 20 jeton (karışık) + günlük | ~$0,09 | 20×0,0021 + 0,045 | **~%97** |
+| Orta | 60 jeton + günlük | ~$0,17 | 60×0,0021 + 0,045 | **~%94** |
+| Yoğun (jeton tavanı) | 100 jetonun TAMAMI sohbete + günlük + hafıza | **~$0,29** | 100×0,0021 + 0,045 + 0,03 | **~%90** |
+| Yoğun + 100'lük ek paket | +$1,0 gelir, +$0,21 maliyet | — | 100×0,0021 | ek paket marjı **~%79** |
 
-**Sonuç: en kötü durumda bile %77, tipikte %88-95 brüt marj.** Jeton
+Marj = (net $3,0 − LLM) ÷ $3,0; net gelir yukarıdaki ₺127,5 satırından.
+
+### Eski 300'lük hakla karşılaştırma (aynı kurala göre)
+
+Eski 300'lük hakta "Yoğun" satırı 300×0,0021 + 0,045 + 0,03 = **~$0,70**
+(marj %77) idi — bu belgenin bir önceki hâlindeki sayı ve hâlâ doğru
+türetiliyor. 100'e inince aynı satır **~$0,29**'a düşüyor: maliyet tavanı
+kaybolmadı, **üçte birine indi**.
+
+### Tüm Plus yüzeyleri dahil GERÇEK tavan
+
+Yukarıdaki satırlar, orijinal tablonun kurulduğu tabanla (jeton + günlük
+okuma + hafıza) kıyaslanabilir kalsın diye aynı üç kalemi topluyor. Abonenin
+jetonsuz yüzeyleri bundan fazla; **tek yerde toplanan en kötü durum**:
+
+| Kalem | Aylık | Kaynak |
+|---|---|---|
+| 100 jetonun TAMAMI sohbete | $0,210 | §1 (100 × $0,0021) |
+| Kişisel günlük okuma | $0,045 | §1 |
+| Hafıza çıkarımı | $0,030 | §1 |
+| Sinyal paketi + akşam sorusu | $0,018 | §6e |
+| Takvim yorumu (en kötü, 17 olay) | $0,150 | §6d |
+| İlişki okuması (10 kişilik kontenjan dolu) | $0,018 | §6c |
+| **Toplam** | **~$0,47** | marj **~%84** |
+
+**Sonuç: en kötü durumda bile ~%84, tipikte %94-97 brüt marj.** Jeton
 zorlaması (K5) bu tavanın MATEMATİKSEL garantisidir — kapalıyken tavan
-yoktur ve "yoğun kullanıcı" maliyeti sınırsız büyüyebilirdi.
+yoktur ve "yoğun kullanıcı" maliyeti sınırsız büyüyebilirdi. Aynı tavan
+eski hakla **~$0,89 / ~%70** olurdu (0,63 + 0,261); yani 300 → 100 inişi
+en kötü durum marjını **14 puan** iyileştiriyor.
+
+⚠️ Bu tablo §6b ve §6d'de geçen "~$0,70 / ~$0,73" rakamlarının YERİNE
+geçer. O iki sayı yalnız kendi bölümlerinin eklediği kalemi önceki
+toplama bindiriyordu ve takvim yorumunu ($0,10-0,15) hiç içermiyordu —
+yani "abone başına en kötü durum" adıyla sunulan sayı hiçbir zaman tüm
+yüzeylerin toplamı değildi. En kötü durum artık **tek yerde** duruyor.
+
+## 2a. K1: aylık hak 300 → 100 (2026-10-02)
+
+Bu belgenin önceki hâli aylık hakkı **yalnızca bir maliyet tavanı** olarak
+ele alıyordu (§6c: "matematiksel bir üst sınır"). Eksik olan şey şu: aynı
+sayı **satış tavanıdır** da. Hak, kullanıcının gerçek kullanım hızının
+ÜSTÜNDEYSE paket hiç satılmaz — çünkü harcama önce `allowance`tan düşer
+(`backend/core/wallet.py` `_spend_txn`) ve `purchased` bakiyeye sıra hiç
+gelmez.
+
+### Ölçüm (sahip, 1.17.0+45, iki gün yoğun gerçek kullanım)
+
+| Ölçülen | Değer |
+|---|---|
+| Harcanan jeton | 14 (iki günde) |
+| Hız | **~7 jeton/gün ≈ 210 jeton/ay** |
+| Eski aylık hak | 300 → hız hakkın **ALTINDA** |
+| Parayla alınmış `purchased` bakiye | **1300 jeton, dokunulmadı** |
+| Sahibin cümlesi | "bu bitmez, paketler öylece kalır" |
+
+210 < 300 olduğu sürece paket satın almanın hiçbir sebebi yok: hak zaten
+bitmiyor. §6c'nin "kişi sayısı yalnız jeton hızını artırır, **ki bu gelir
+lehinedir** (paket satışı)" cümlesi tam burada kusurluydu — hız artışı
+gelire ancak **hakkı aştığı noktadan sonra** dönüşür; altında kalan her
+artış yalnız maliyet üretir, gelir üretmez. Ölçüm hızın hakkın üçte
+ikisinde kaldığını gösterdi, yani o cümlenin varsaydığı eşik hiç geçilmiyor.
+
+### Karar ve beklenen etki
+
+Hak **100**'e indirildi (`wallet.MONTHLY_TOKEN_ALLOWANCE`). Aynı ölçülen
+hızla (7 jeton/gün) hak **~14. günde** biter (100 ÷ 7) ve ayın kalan
+yarısında kullanıcı ya durur ya paket alır. Değişen şey jeton BEDELLERİ değil
+(1/2/3/5 aynı — bkz. §3 ve "yapılmayanlar"), yalnız hakkın nerede bittiği.
+
+| | Eski (300) | Yeni (100) |
+|---|---|---|
+| Hakkın bittiği gün (210/ay hızda) | **hiç** | ~14. gün |
+| En kötü durum LLM maliyeti (tüm yüzeyler) | ~$0,89 | **~$0,47** |
+| En kötü durum marjı | ~%70 | **~%84** |
+| Paket satışı doğar mı | ölçülen hızda hayır | ölçülen hızda evet |
+
+⚠️ **K3 — değişim bir sonraki dönemden.** Kimsenin elindeki hak geri
+alınmaz; mevcut dönemde 300 hak almış hesap dönem sonuna kadar 300'üyle
+kalır (bekçi: `test_wallet.py::test_K3_mevcut_donemde_eski_hak_GERI_ALINMAZ`).
+Bunun maliyet sonucu: geçiş döneminde tavan hâlâ eski tavandır, yani
+yukarıdaki ~$0,47 **bir dönem gecikmeyle** yürürlüğe girer.
+
+⚠️ **Sunucu tarafı kartsız deneme** (OT6, `entitlements.in_trial`) bu
+değişimden etkilenmez: o yolda abonelik KAYDI hiç doğmaz, `get_wallet` ve
+`_spend_txn` aylık hakkı 0'a sabitler ve 30 jetonluk karşılama bakiyesi
+`purchased` kovasına yazılır (§6i, ~$0,06 tavan). Hak düşüşünü denemeye
+orantılamak EDİNİM maliyetini düşürür ama denemenin "tüm özellikler"
+vaadini bozardı.
+
+⚠️ Bunu "deneme = hak 0" diye genellemek YANLIŞ olur ve bir kez öyle
+yazıldı: **mağaza denemesi** (RevenueCat `period_type=TRIAL`) ayrı bir
+yoldur. `TRIAL_STARTED`, `api/billing.py::_ACTIVATING_EVENTS` içindedir —
+yani aktif bir abonelik kaydı yazar VE `reset_allowance` çağırır, dolayısıyla
+mağaza denemesindeki kullanıcı tam aylık hakkı (artık 100) alır. Bugün
+Play'de kartsız deneme kullanıldığı için bu yol canlıda boş; Play'de bir
+ücretsiz deneme teklifi açılırsa deneme maliyeti 30 jetondan 100 jetonluk
+hakka sıçrar (~$0,06 → ~$0,21/yeni kullanıcı) ve §6i'deki
+"~$0,10/yeni kullanıcı" edinim sayısı geçersiz kalır.
 
 ## 3. Jeton paketleri
 
 | Paket | Tüketici (KDV dahil) | Net gelir | Gerçek maliyet aralığı | Marj |
 |---|---|---|---|---|
-| 100 jeton | ~₺59,99 | ~$1,0 | $0,07 (rapor ağırlıklı) – $0,20 (sohbet) | **%80-93** |
-| 300 jeton | ~₺155,99 | ~$2,6 | $0,20-0,60 | **%77-92** |
-| 1000 jeton | ~₺419,99 | ~$7,0 | $0,66-2,00 | **%71-91** |
+| 100 jeton | ~₺59,99 | ~$1,0 | $0,07 (rapor ağırlıklı) – $0,21 (sohbet) | **%79-93** |
+| 300 jeton | ~₺155,99 | ~$2,6 | $0,20-0,63 | **%76-92** |
+| 1000 jeton | ~₺419,99 | ~$7,0 | $0,66-2,10 | **%70-91** |
+
+Maliyet aralığının iki ucu: "rapor ağırlıklı" = jetonlar 5'lik raporlara
+gider (jeton başına $0,0033÷5 ≈ $0,00066), "sohbet" = jetonlar tek tek
+sohbete gider (jeton başına $0,0021). Sayılar §1'in birim maliyetlerinden
+yeniden türetildi; önceki hâli sohbet turunu $0,0020 ile hesaplıyordu,
+§6f'den beri $0,0021.
 
 Jeton bedelleri (1/2/3/5) maliyet oranına değil ALGILANAN değere göre
 bilinçli: derin rapor sohbet turundan yalnızca %65 pahalı ama 5 kat
 jeton — kullanıcı gözünde rapor "büyük iş"tir ve bu doğru fiyatlanmış
 hissettirir. Değiştirmeye gerek yok.
+
+⚠️ K1 turunda bedel tablosuna (`TOKEN_COSTS`) BİLİNÇLİ OLARAK
+DOKUNULMADI; planda İching 2→3 ve dyad 3→2 önerilmişti. Gerekçe ölçüm
+disiplinidir: aylık hak değişimi tek başına paket satışını doğurmaya
+yetiyor, aynı sürümde iki değişkeni birden oynatmak etkiyi
+ÖLÇÜLEMEZ kılardı (hangi değişiklik satışı doğurdu sorusu cevapsız
+kalırdı). Bedel tablosu 100'lük hakkın etkisi canlıda okunduktan sonra
+ayrıca ele alınır.
 
 ## 4. Sabit giderler ve başabaş
 
@@ -75,9 +197,24 @@ hissettirir. Değiştirmeye gerek yok.
 | NASA/GeoNames/RevenueCat (ücretsiz katman) | $0 |
 | **Toplam sabit** | **~$32-35 ≈ ₺1.400** |
 
-**Başabaş: ~11 abone.** Sonrası: her abone net ~$2,3-2,9 katkı
-(senaryoya göre). 100 abonede kaba tablo: gelir ~$300, LLM ~$15-70,
-sabit ~$35 → **aylık net ~$200-250 ≈ ₺8-10 bin**.
+**Başabaş: ~11-13 abone** (K1 sonrası yeniden türetildi). Abone başına net
+katkı = net gelir $3,0 − LLM: hafif senaryoda $3,0 − $0,09 = **$2,91**,
+yoğun senaryoda $3,0 − $0,29 = **$2,71**. Başabaş = sabit ÷ katkı: en iyi
+uç $32 ÷ $2,91 ≈ 11,0 · yoğun senaryo ucu $35 ÷ $2,71 ≈ 12,9.
+
+⚠️ Bu iki uç §2'nin SENARYO satırlarından türüyor, yani yalnız üç kalemi
+(jeton + günlük okuma + hafıza) topluyor. Belgenin kendi **en kötü durumu**
+§2'deki "tüm Plus yüzeyleri dahil GERÇEK tavan" tablosudur ($0,47): katkı
+$3,0 − $0,47 = **$2,53** ve başabaş $35 ÷ $2,53 ≈ **13,8 abone**. Yani
+"~11-13" aralığına "en kötü" demek yanlış etiketti; gerçek bant
+**~11-14 abone**. (Pratikte her abonenin aynı anda hem 100 jetonunun
+tamamını sohbete yatırması hem takvim/sinyal/ilişki yüzeylerini doyurması
+beklenmez; $0,47 bir ÜST sınırdır, tahmin değil.)
+
+100 abonede kaba tablo: gelir ~$300, LLM 100 × ($0,09…$0,29) = ~$9-29,
+sabit ~$35 → **aylık net ~$235-255 ≈ ₺10 bin**; aynı hesap $0,47'lik
+tavanla ~$218. (Eski 300'lük hakta ~$200-250 veriyordu; fark hakkın maliyet
+tavanını daraltmasından geliyor, fiyattan değil.)
 
 Ücretsiz kullanıcı maliyeti: günde ≤5 sohbet + 1 İching → tavan
 ~$0,013/gün, tipik ~$0,10-0,15/AY/aktif ücretsiz kullanıcı. 1.000
@@ -102,7 +239,7 @@ Fiyat merdiveni (ileri adımlar, şimdi uygulanmaz):
 
 | Risk | Durum |
 |---|---|
-| "Sınırsız sohbet" vaadi vs jetonlu sohbet | ✅ K3: paywall metni "Ayda 300 jeton" oldu — vaat edilen = verilen |
+| "Sınırsız sohbet" vaadi vs jetonlu sohbet | ✅ K3: paywall metni jeton sayısını YAZIYOR — vaat edilen = verilen. K1'de sayı 100'e indi (§2a) ve metin de indi: `benefitChatTitle` = "Ayda 100 AI kredisi" / "100 AI credits a month" (ölçüldü 2026-10-02, `app_tr.arb`:306 + `app_en.arb`:306). ⚠️ İki yer sabite BAĞLI DEĞİL, elle yazılı: `MONTHLY_TOKEN_ALLOWANCE` bir daha değişirse metin sessizce yalana döner |
 | İlk alımda bakiye 0 görünmesi | ✅ K2: mobil cüzdan tazeleme + sunucu 35 günlük hak yedeği |
 | Jeton düşmeden hizmet (gelir kaçağı) / tavansız maliyet | ✅ K5: RYTHO_TOKENS_ENFORCE=1 kalıcı |
 | Sohbet girdisinin sınırsız büyümesi | ✅ K4: prompt geçmişi 12 mesaj × 1.200 kr tavanı |
@@ -119,8 +256,12 @@ Fiyat merdiveni (ileri adımlar, şimdi uygulanmaz):
 | İlişki eksenleri (sinastri) | **$0** | efemeris hesabı, 30 gün önbellek |
 | Ücretsiz temel harita (R2-F1) | **$0** | çark/yerleşim/açı hesabı zaten LLM'siz uçta |
 
-**Sonuç: marj matematiği değişmedi.** Abone başına aylık LLM maliyeti en
-kötü senaryoda ~$0,70'ten ~$0,73'e çıkıyor (%77 → %76 marj). Ücretsiz
+**Sonuç: marj matematiği değişmedi.** Bu turun eklediği tek kalem abone
+başına ~$0,018-0,027/ay (sinyal yorumu) ve artık §2'nin "tüm Plus yüzeyleri
+dahil GERÇEK tavan" tablosunda bir SATIR olarak duruyor. Bu paragrafın eski
+hâli "en kötü senaryoda ~$0,70'ten ~$0,73'e (%77 → %76)" diyordu; o sayılar
+hem 300'lük hakka hem de takvim yorumunu içermeyen bir toplama dayanıyordu,
+o yüzden tek kaynak §2 oldu (bkz. oradaki uyarı). Ücretsiz
 katmana açılan harita, LLM maliyeti olmadığı için ücretsiz kullanıcı
 maliyetini artırmaz; karşılığında ilk-değer ve dönüşüm beklentisi yükselir
 (analiz: "kullanıcı önce 'bu uygulama bana bir şey söylüyor' demeli").
@@ -133,11 +274,18 @@ aralarındaki bağı takip edebiliyor. Tarifeyi belirleyen tek soru şu oldu:
 
 ### Jetonlu yüzeylerin tavanı ZATEN var
 
-Aylık 300 jeton hakkı (K5 zorlaması açık) matematiksel bir üst sınır.
-Kişi sayısı bu tavanı BÜYÜTEMEZ — yalnız jeton hızını artırır, ki bu
-gelir lehinedir (paket satışı). Kişinin natal raporu / BaZi / yıl
-haritası mevcut **5 jeton**, günlük ikili okuma **3 jeton**, kişi
-bağlamlı sohbet **1 jeton** — hiçbir yeni bedel eklenmedi.
+Aylık jeton hakkı (K5 zorlaması açık) matematiksel bir üst sınır. Kişi
+sayısı bu tavanı BÜYÜTEMEZ — yalnız jeton hızını artırır. Kişinin natal
+raporu / BaZi / yıl haritası mevcut **5 jeton**, günlük ikili okuma
+**3 jeton**, kişi bağlamlı sohbet **1 jeton** — hiçbir yeni bedel
+eklenmedi.
+
+⚠️ Bu paragrafın eski hâli hız artışını kayıtsız şartsız "gelir lehine
+(paket satışı)" sayıyordu ve bu gerekçe yanlıştı: hız artışı gelire ancak
+**hakkı aştığı noktadan sonra** dönüşür, altında kalan artış yalnız maliyet
+üretir. Hak 300 iken ölçülen gerçek hız 210/ay'da kaldı, yani eşik hiç
+geçilmedi ve paket satışı doğmadı — K1'in (§2a) kök nedeni budur. Hak 100
+olduğundan beri cümle doğrudur; tarihi 2026-10-02'dir, 2026-08-18 değil.
 
 ### Tavansız olan tek yüzey: ilişki AI okuması
 
@@ -162,7 +310,10 @@ Sabit `people_service.FREE_PERSON_SLOTS` / `PLUS_PERSON_SLOTS`; aşımda
 | İlişki ölçümü (4 eksen + dayanak açılar) | **$0** | 30 gün önbellek, doğum özetli anahtar |
 | İlişki türüne göre eksen adı | **$0** | sabit tablo (`RELATION_AXIS_NAMES`) |
 
-**Sonuç: en kötü durum marjı %77 → ~%76.** Özellik bir maliyet sorunu
+**Sonuç: bu özelliğin en kötü durum marjına etkisi ~1 puan** (kontenjan
+dolu Plus'ta ~$0,018/ay; §2'deki tavan tablosunda kendi satırı var). Eski
+hâli "%77 → ~%76" yazıyordu; o iki yüzde 300'lük hakka aitti ve K1'den
+sonra geçersiz — mutlak marj artık yalnız §2'de duruyor. Özellik bir maliyet sorunu
 değil; kontenjan durduğu sürece bedavaya yakın. Asıl beklenen etki gelir
 tarafında: ücretsiz kullanıcının eklediği TEK kişi (çoğunlukla eşi) dört
 ekseni ölçülmüş görüp yorumu kilitli bulur — ürünün üretebileceği en
@@ -188,9 +339,15 @@ demek.
 
 Büyüklük mertebesi: sinyal yorumunun (3 öğe, ~$0,0009/gün/abone) 3-17
 öğeye büyütülmüş hâli — en kötü durumda (17 olay) günlük maliyet kabaca
-3-6 katına çıkar (~$0,003-0,005/gün), aylık **~$0,10-0,15/abone**. Bu,
-§6b'deki abone başına aylık LLM tavanını (~$0,73) ölçülebilir ama küçük
-bir miktar (~%1-2) artırır; marj matematiğini bozmaz.
+3-6 katına çıkar (~$0,003-0,005/gün), aylık **~$0,10-0,15/abone**.
+
+⚠️ Bu paragrafın eski hâli bunu "§6b'deki tavanı (~$0,73) ~%1-2 artırır"
+diyordu ve **oran hiçbir okumayla türetilemiyordu**: $0,10-0,15, $0,73'ün
+%14-20'sidir. K1'den (hak 100) sonra kalem daha da ağırlaştı — takvim
+yorumu artık abonenin **jetonsuz yüzeylerinin EN BÜYÜĞÜ** ve §2'deki ~$0,47
+tavanın ~%21-32'si. Marj etkisi: kalem olmasa tavan ~$0,32 (marj ~%89),
+kalemle ~$0,47 (~%84), yani **~5 puan**. Marj matematiğini bozmuyor ama
+"küçük" değil; en çok izlenmesi gereken LLM kalemi budur (§7).
 
 ## 6e. KA-turu: sinyal yorumu herkese + akşam check-in sorusu — 2026-08-23
 
@@ -228,7 +385,8 @@ korpusa girdi; getirme kullanıcının haritasıyla kişiselleşti.
 | İmaj | +~29MB artefakt | bilinçli: vektörler imaja gömülü, çalışma anında sıfır gömme çağrısı |
 | Getirme boost'u | **$0** | metadata karşılaştırması CPU; LLM/embedding çağrısı değişmedi |
 
-Marj matematiği değişmedi: sohbet turu ~$0,0020 → ~$0,0021.
+Marj matematiği değişmedi: sohbet turu ~$0,0020 → ~$0,0021. (§1 tablosu
+artık bu değeri yazıyor — ‡ notu; iki farklı sohbet maliyeti dolaşmasın.)
 
 ## 6g. GT-turu: çift-transit ölçümü + sohbette @-bahsetme — 2026-08-28
 
@@ -309,14 +467,16 @@ maliyet.
 ### Abone başına etki (bu belgedeki sayılarla)
 
 §2'ye göre abonenin ilk ay neti **₺127,5 ≈ $3,0**, §4'e göre aylık net
-katkısı **~$2,3-2,9** (senaryoya göre; LLM maliyeti düşülmüş).
+katkısı **~$2,7-2,9** (senaryoya göre; LLM maliyeti düşülmüş). Bu aralık
+K1'de (aylık hak 300 → 100, §2a) ~$2,3-2,9'dan yukarı taşındı: ortak ödülü
+değişmedi, abonenin maliyet tavanı daraldı.
 
 | | Ortaksız | Ortaklı (₺30) |
 |---|---|---|
-| İlk ay net katkı | ~$2,3-2,9 | **~$1,6-2,2** |
-| Sonraki her ay | ~$2,3-2,9 | ~$2,3-2,9 (**değişmez**) |
+| İlk ay net katkı | ~$2,7-2,9 | **~$2,0-2,2** |
+| Sonraki her ay | ~$2,7-2,9 | ~$2,7-2,9 (**değişmez**) |
 | Ödülün ilk ay netine oranı | — | ~%24 (₺30 / ₺127,5) |
-| Ödülün ilk ay KATKISINA oranı | — | ~%25-31 |
+| Ödülün ilk ay KATKISINA oranı | — | ~%24-26 ($0,71 / $2,7-2,9) |
 
 **Ödül TEK SEFERLİK olduğu için marj matematiği bozulmuyor: ilk ay
 içinde kendini geri ödüyor.** İkinci aydan itibaren atıflı abonenin
@@ -325,8 +485,10 @@ olarak ₺30 geride kalıyor (bir kez ödendi, geri gelmiyor). Kıyas: §6i'deki
 deneme edinim maliyeti ~$0,10/yeni kullanıcı — ortak ödülü onun ~7 katı
 ama yalnız **paraya dönmüş** kullanıcıda doğuyor, her kayıtta değil.
 
-Tavandaki (₺500) bir ödül ~4-5 ayın net katkısını yerdi; tavan bir plan
-değil yazım hatası kapısıdır (30 yerine 3000 yazılması).
+Tavandaki (₺500 ≈ $11,9) bir ödül **~4 ayın** net katkısını yerdi
+($11,9 ÷ ~$2,8); tavan bir plan değil yazım hatası kapısıdır (30 yerine
+3000 yazılması). Eski hâli "~4-5 ay" diyordu ve o aralık ~$2,3-2,9
+katkıya aitti.
 
 ### Kur: tek bir yerde adlandırılmış
 
@@ -437,6 +599,17 @@ yapısal olarak doğru.
   notu) ve `TOKENS kuru-çalışma` logunun SIFIRLANDIĞI (enforce kanıtı).
 - Abone başına aylık jeton tüketimi dağılımı (~~adminStats'a
   eklenebilir~~ AP-turu: `tokens.spentToday` özellik kırılımıyla eklendi).
+- **K1'in (§2a) tek doğrulama metriği: hakkın bittiği gün + paket satış
+  oranı.** Hak 100'e indirildi çünkü ölçülen hız (210 jeton/ay) 300'ün
+  altında kalıyordu ve `purchased` bakiyeye sıra gelmiyordu. Karar ancak
+  şu iki sayı birlikte okunursa doğrulanır: (a) abonelerin kaçının
+  `allowance`ı dönem bitmeden 0'a indiği, (b) o abonelerin kaçının jeton
+  paketi aldığı. (a) yükselip (b) yükselmiyorsa sorun hak değil fiyat ya
+  da mağaza akışıdır; `TOKEN_COSTS`a dokunmak ancak bu ölçümden sonra
+  gündeme gelir (gerekçe §3 sonundaki uyarıda).
+- **Takvim yorumu (§6d) kalemi.** Abonenin en büyük jetonsuz LLM
+  kalemi (~$0,10-0,15/ay, tavanın ~%21-32'si); `usageEvents` kırılımında
+  ayrıca izlenmeli.
 - Ücretsiz→abone dönüşüm oranı (%3 eşiği ücretsiz katman maliyetinin
   dengesi).
 - Kur 45+₺/$ kalıcılaşırsa: fiyat merdiveni adım 2 öne çekilir.

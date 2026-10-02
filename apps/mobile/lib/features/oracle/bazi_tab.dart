@@ -6,6 +6,7 @@ import '../../core/providers.dart';
 import '../../theme/rytho_theme.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/frame_sequence.dart';
+import '../../widgets/glass.dart' show SkeletonPanel;
 import '../../widgets/motion.dart';
 import '../paywall/plus_locked_card.dart';
 import '../../core/api.dart' show RaporUretilemedi, friendlyError;
@@ -19,6 +20,12 @@ class BaziTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    // ÜÇ DURUMLU kapı (P2): sağlayıcının `null`ı artık YALNIZ "abone
+    // değil" demek. Cevap gelmeden kilit çizmek, ödemiş kullanıcıya her
+    // girişte "abone değilsin" demekti — ve `loading:` dalı o pencerede
+    // hiç koşmuyordu, çünkü sağlayıcı `AsyncData(null)` ile TAMAMLANIYOR.
+    final kapi = ref.watch(raporKapisiProvider);
+    if (kapi == PlusHali.bilinmiyor) return const _Iskelet();
     final bazi = ref.watch(baziReportProvider);
 
     return bazi.when(
@@ -545,4 +552,24 @@ class _StrengthPlaque extends StatelessWidget {
       ]),
     );
   }
+}
+
+/// Kapı BİLİNMİYORken çizilen iskelet (P2).
+///
+/// Ne kilit ne harita: ikisi de bir hüküm ve o hüküm henüz yok. Bekleyiş
+/// sahnesi (`StagedWaiting` + luopan) de KULLANILMIYOR — o sahne "şu an
+/// senin için hesaplanıyor" diyor ve hiçbir istek atılmamışken yalan
+/// olurdu. Bloklar dört sütun tablosunun gerçek hacmini taklit ediyor.
+class _Iskelet extends StatelessWidget {
+  const _Iskelet();
+
+  @override
+  Widget build(BuildContext context) => ListView(
+        padding: const EdgeInsets.only(top: 8, bottom: 110),
+        children: const [
+          SkeletonPanel(height: 72),
+          SkeletonPanel(height: 160),
+          SkeletonPanel(height: 110),
+        ],
+      );
 }

@@ -14,8 +14,15 @@ library;
 /// (başlık | null, gövde) çiftleri — başlıksız girdiler düz paragraftır.
 typedef LegalSections = List<(String?, String)>;
 
-const String kLegalLastUpdatedTr = '2 Ağustos 2026';
-const String kLegalLastUpdatedEn = '2 August 2026';
+/// Gizlilik politikasının tarihi. İki kopya (uygulama içi + `web/legal/`)
+/// aynı günü göstermek ZORUNDA: 2026-10-02'ye kadar uygulama "2 Ağustos",
+/// web "5 Ağustos" diyordu ve metinleri de ayrışmıştı — webde "Abonelik ve
+/// tek cihaz" ile "Bildirimler" bölümleri hiç yoktu. Kullanıcı hangi kopyayı
+/// okuduğuna göre farklı bir beyan görüyordu; iki tarih bunu görünür kılmak
+/// yerine gizliyordu. Metin bu turda değiştiği için tarih de ileri alındı:
+/// değişmiş bir politikayı eski tarihle sunmak yanlış beyandır.
+const String kLegalLastUpdatedTr = '2 Ekim 2026';
+const String kLegalLastUpdatedEn = '2 October 2026';
 
 /// Kullanım şartlarının tarihi gizlilik politikasından AYRI tutulur: ortaklık
 /// programı maddesi yalnız şartlara eklendi, politika metni değişmedi. Tek
@@ -153,6 +160,21 @@ const LegalSections kPrivacyPolicyTr = [
         'cevabın METNİ yoktur. Hesabını sildiğinde bu kayıtlar da silinir.'
   ),
   (
+    'Ortak bağlantısı tıklamaları',
+    'Rytho\'ya bir ortaklık bağlantısıyla geldiysen, o bağlantının '
+        'açılması ortağın kodu için GÜN BAŞINA bir sayacı bir artırdı. '
+        'Sayılan şey TIKLAMADIR, kişi değildir: bu ölçümün KALICI kaydına '
+        'IP adresi, tarayıcı bilgisi, çerez ve kimlik yazılmaz — orada sana '
+        'ait tek bir bayt yoktur. Geçici tek istisna bu uca özel değil: '
+        'kötüye kullanımı sınırlayan kota katmanı, kimliksiz her istekte '
+        'olduğu gibi IP adresini yalnız sunucu belleğinde ve birkaç '
+        'dakikalık bir pencerede sayaç anahtarı olarak tutar; hiçbir kalıcı '
+        'yere gitmez. Bunun sonucu olarak tekil ziyaretçi sayısı ÖLÇÜLEMEZ ve '
+        'ölçülmüyor; tekillik ancak bir işaretle sayılabilirdi ve o işaret '
+        'kişisel veri olurdu. Ortağın panosunda bu sayı "tıklama" diye '
+        'görünür.'
+  ),
+  (
     'Yüz okuma',
     'Yüz okuma iki yolla çalışır: canlı kamera ya da galerinden seçtiğin '
         'bir fotoğraf. İki yolda da GÖRÜNTÜ TELEFONUNDAN ÇIKMAZ: yüz '
@@ -196,13 +218,19 @@ const LegalSections kPrivacyPolicyTr = [
   ),
   (
     'Bildirimler',
-    'Bildirimleri açtığında cihazının bildirim kimliği (FCM token), saat '
-        'dilimin ve seçtiğin arayüz dili hesabına bağlı olarak saklanır. Saat '
-        'dilimi, bildirimin senin yerel sabahına denk gelmesi için gerekir; '
-        'konum bilgin alınmaz, yalnızca cihazının bildirdiği saat dilimi adı '
-        '(örneğin "Europe/Istanbul") kaydedilir. Bildirim metinleri '
-        'sunucumuzda üretilir ve burcuna göre hazırlanır; bu metinler kişiye '
-        'özel değildir ve sohbet geçmişin bildirim üretiminde kullanılmaz. '
+    'Saat dilimin ve seçtiğin arayüz dili, bildirimi hiç açmasan da her '
+        'oturum açılışında hesabına yazılır; cihazının bildirim kimliği '
+        '(FCM token) ise yalnız bildirim iznini verdiysen alınabilir ve '
+        'saklanır. Saat dilimi, bildirimin senin yerel sabahına denk gelmesi '
+        'için gerekir; konum bilgin alınmaz, yalnızca cihazının bildirdiği '
+        'saat dilimi adı (örneğin "Europe/Istanbul") kaydedilir. Bildirim '
+        'metinleri sunucumuzda üretilir ve KİŞİYE ÖZELDİR: sabah okuması, '
+        'öğle bildirimi ve akşam check-in sorusunun gövdesi senin doğum '
+        'haritandan çıkan o güne özgü sinyalden üretilir. O gün haritandan '
+        'gönderilecek bir sinyal çıkmazsa yerine burcuna göre hazırlanan '
+        'ortak metin gider; seri hatırlatıcısı ve arkadaş tepkisi bildirimi '
+        'ise sabit şablondur (serinin kaç gün olduğu, tepkiyi gönderenin '
+        'adı). Sohbet geçmişin bildirim üretiminde kullanılmaz. '
         'Bildirim türlerini ve sessiz saatleri Profil > Bildirimler '
         'bölümünden kapatabilir, cihaz ayarlarından tümüyle kaldırabilirsin. '
         'Uygulamayı sildiğinde bildirim kimliği geçersizleşir ve ilk '
@@ -503,6 +531,22 @@ const LegalSections kPrivacyPolicyEn = [
         'question or the answer. Deleting your account deletes these too.'
   ),
   (
+    'Affiliate link clicks',
+    'If you came to Rytho through an affiliate link, opening that link '
+        'incremented a PER-DAY counter on that partner\'s code by one. What '
+        'is counted is the CLICK, not the person: the PERSISTENT record of '
+        'this measurement holds no IP address, no browser information, no '
+        'cookie and no identifier — not a single byte about you is in it. '
+        'The one transient exception is not specific to this endpoint: the '
+        'rate-limiting layer that keeps the endpoint from being abused holds '
+        'the IP address as a counter key, as it does for every '
+        'unauthenticated request, in server memory only and for a window of '
+        'a few minutes; it reaches no durable store. As a direct consequence '
+        'unique visitors CANNOT be measured, and are not: uniqueness would '
+        'require a marker, and that marker would be personal data. The '
+        'partner\'s dashboard shows this number as "clicks".'
+  ),
+  (
     'Face reading',
     'Face reading works in two ways: the live camera, or a photo you pick '
         'from your gallery. In BOTH cases the IMAGE NEVER LEAVES YOUR '
@@ -530,17 +574,24 @@ const LegalSections kPrivacyPolicyEn = [
   ),
   (
     'Notifications',
-    'If you turn notifications on, we store your device\'s notification token '
-        '(FCM), your time zone and your chosen interface language against your '
-        'account. The time zone is what lets a notification land in your own '
+    'Your time zone and your chosen interface language are written against '
+        'your account on every sign-in, even if you never turn notifications '
+        'on; your device\'s notification token (FCM) can only be obtained, '
+        'and is only stored, once you have granted notification permission. '
+        'The time zone is what lets a notification land in your own '
         'morning; we do not collect your location, only the time zone name '
         'your device reports (for example "Europe/Istanbul"). Notification '
-        'text is generated on our servers per sun sign — it is not '
-        'individually personalised, and your chat history is never used to '
-        'produce it. You can switch types off and set quiet hours under '
-        'Profile > Notifications, or turn them off entirely in your device '
-        'settings. If you delete the app the token stops working and we drop '
-        'it on the first failed delivery.'
+        'text is generated on our servers and IS individual: the body of the '
+        'morning reading, the midday notification and the evening check-in '
+        'question is produced from the day\'s signal in your own birth '
+        'chart. On a day when your chart yields no signal to send, the '
+        'shared per-sign text goes out instead; the streak reminder and the '
+        'friend-reaction notification are fixed templates (how many days '
+        'your streak is, who sent the reaction). Your chat history is never '
+        'used to produce any of them. You can switch types off and set quiet '
+        'hours under Profile > Notifications, or turn them off entirely in '
+        'your device settings. If you delete the app the token stops working '
+        'and we drop it on the first failed delivery.'
   ),
   (
     'Subscriptions',

@@ -295,28 +295,51 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
         <div class="bolum-etiket acil">Rytho+</div>
         <h2 class="bolum-baslik acil" style="--i:1">Ücretsiz kalan çok şey var</h2>
         <p class="bolum-alt acil" style="--i:2">Günlük burç yorumun, gerçek gökyüzü ekranı, doğum haritası çarkın
-        ve arkadaş katmanı süresiz ücretsiz. Rytho+ ise yorumları senin
+        ve arkadaş listen süresiz ücretsiz. Rytho+ ise yorumları senin
         haritandan üretir.</p>
       </div>
       <div class="kanit">
         <div class="panel acil" style="--i:1">
           <div class="etiket">Ücretsiz</div>
-          <p>Günlük · haftalık · aylık burç yorumu<br>
+          <p>Günlük burç yorumu<br>
           Canlı gökyüzü ve gezegen konumları<br>
           Günde 5 sohbet mesajı<br>
           Doğum haritası çarkın ve yerleşimlerin<br>
-          Arkadaş listesi, seri ve tepkiler</p>
+          Arkadaş listesi, seri ve tepkiler<br>
+          Çevrende 1 kişi — haritası ve ilişki ÖLÇÜMÜ</p>
+          <p style="margin-top:12px;font-size:12.5px">Yeni hesaplar ilk 3 gün
+          tüm Rytho+ yüzeylerini kart bilgisi vermeden kullanır ve tek
+          seferlik 30 karşılama jetonu alır.</p>
         </div>
         <div class="panel acil" style="--i:2; border-color:rgba(183,156,255,.3)">
           <div class="etiket altin">Rytho+ · aylık</div>
           <p>Kişiye özel günlük okuma<br>
-          Aylık 300 jeton hakkı<br>
+          Aylık 100 jeton hakkı<br>
           Derin doğum haritası, BaZi ve sinastri raporları<br>
-          I Ching, ikili dinamik ve yüz okuma<br>
-          İkili dinamik ve Doğum Kapısı</p>
+          I Ching, ikili dinamik, Doğum Kapısı ve yüz okuma<br>
+          Çevrende 10 kişi, her birine AI ilişki yorumu</p>
+          <!-- Bedel cümlesi İKİ kez daraltıldı, ikisi de ölçümle:
+               (1) Bedeli HARCAMADAN ÖNCE gösteren tek ekran İ Ching
+               (iching_tab.dart rozeti); derin raporlar, ikili okuma ve
+               sohbet göstermiyor — yani "uygulama bedeli önceden
+               gösterir" sınıfı bir cümle buraya yazılamaz. Yazılabilen
+               tek şey mağaza ekranındaki bedel satırıdır
+               (token_store_screen.dart → tokenCostsNote, abone kapısının
+               DIŞINDA, herkese görünür).
+               (2) "Güncel" sıfatı düştü: o satır elle yazılmış bir l10n
+               dizesi, /wallet'in costs haritasından türemiyor.
+               (3) Tekrar okuma SÜRESİZ bedava DEĞİL: harcama yalnız
+               önbellek kaçırıldığında işliyor (report_service
+               ._cached_generate) ve önbellek ömürlü (yüz okuma 7, derin
+               raporlar 30, yıl haritası 90 gün). Ömür dolunca yeniden
+               ÜRETİM olur ve bedel düşer — bu yüzden cümle süre değil
+               "yeni üretim" üzerine kuruldu.
+               Bekçi: backend/tests/test_honesty.py::TestJetonIddialari. -->
           <p style="margin-top:12px;font-size:12.5px">Jetonlar rapor başına
-          harcanır (sohbet 1 · I Ching 2 · natal/BaZi 5). Dileyen ayrıca
-          süresiz geçerli jeton paketi alır.</p>
+          harcanır ve bedeller uygulamanın jeton mağazasında yazılıdır.
+          Jeton yalnız yeni bir rapor üretilirken düşer; hazır duran rapora
+          yeniden bakmak hiç düşürmez. Aboneler ayrıca süresiz geçerli
+          jeton paketi alabilir.</p>
         </div>
       </div>
     </section>
@@ -362,11 +385,11 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
       </details>
       <details class="acil" style="--i:3">
         <summary>Ücretsiz sürümde ne var?</summary>
-        <p>Günlük, haftalık ve aylık burç yorumu; canlı gökyüzü ekranı;
-        doğum haritası çarkın ve yerleşimlerin; günde 5 sohbet mesajı; bir
-        kişi ekleme hakkı; arkadaş listesi ve seri takibi. Süresiz ve
-        reklamsız. Yeni hesaplar ayrıca ilk 3 gün Rytho+ yüzeylerini kart
-        bilgisi vermeden dener.</p>
+        <p>Günlük burç yorumu; canlı gökyüzü ekranı; doğum haritası çarkın
+        ve yerleşimlerin; günde 5 sohbet mesajı; bir kişi ekleme hakkı;
+        arkadaş listesi ve seri takibi. Süresiz ve reklamsız. Yeni hesaplar
+        ayrıca ilk 3 gün Rytho+ yüzeylerini kart bilgisi vermeden dener ve
+        tek seferlik 30 karşılama jetonu alır.</p>
       </details>
       <details class="acil" style="--i:4">
         <summary>Verilerim ne oluyor?</summary>

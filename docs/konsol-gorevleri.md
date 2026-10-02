@@ -345,10 +345,18 @@ birebir şu olmalı:
 
 1. play.google.com/console → uygulama → **Para kazanma → Ürünler →
    Uygulama içi ürünler → Ürün oluştur**.
-2. Ürün kimliği: `rytho_tokens_small` · ad: "100 Token" ·
+2. Ürün kimliği: `rytho_tokens_small` · ad: **"100 AI Kredisi"** ·
    fiyat önerisi: $1.99 karşılığı.
-3. Aynısını `rytho_tokens_medium` ("300 Token", ~$4.99) ve
-   `rytho_tokens_large` ("1000 Token", ~$12.99) için tekrarla.
+3. Aynısını `rytho_tokens_medium` ("300 AI Kredisi", ~$4.99) ve
+   `rytho_tokens_large` ("1000 AI Kredisi", ~$12.99) için tekrarla.
+   ⚠️ **"Token"/"Jeton" YAZILMAZ** — kullanıcıya gösterilen sözlükten
+   R2-F2 kararıyla çıkarıldı, uygulama "AI kredisi" diyor. Ad alanı
+   makbuza basılıyor ve satın alma kaydında kalan tek metin odur;
+   ayrıca paket kimliği tanınmazsa `product.title` uygulamanın İÇİNDE
+   görünüyor. Bu belge bir tur boyunca "100 Token" yazdırıyordu,
+   `docs/store-launch.md` ise aynı alana "100 AI Kredisi" — iki belge
+   aynı Console alanına iki ayrı metin yazdırıyordu. Dört ürünün TAM
+   adı (TR+EN) kanonik olarak `docs/store-launch.md`'deki tabloda.
 4. Üçünü de **Etkinleştir**.
 
 ### 2b. App Store Connect

@@ -34,7 +34,7 @@
     <header>
       <a href="/en/"><img src="/assets/rytho_logo.svg" alt="RythoAI"></a>
       <h1>Rytho Privacy Policy</h1>
-      <p class="tarih">Last updated: August 5, 2026 · <a href="/legal/gizlilik.html">Türkçe</a></p>
+      <p class="tarih">Last updated: October 2, 2026 · <a href="/legal/gizlilik.html">Türkçe</a></p>
     </header>
 
     <p>Rytho ("the App") is a mobile application offering a personal cosmic
@@ -138,13 +138,66 @@
       account.</li>
     </ul>
 
-    <h3>i) Technical data</h3>
+    <h3>i) Subscription and single device</h3>
+    <ul>
+      <li><strong>What:</strong> A randomly generated identifier is stored on
+      your device and sent with your requests.</li>
+      <li><strong>Why:</strong> A Rytho+ subscription is used on one device at
+      a time, and this is what makes that enforceable. The identifier is
+      <strong>not a hardware ID</strong>, is never used for advertising or
+      tracking, and changes if you delete and reinstall the app.</li>
+    </ul>
+
+    <h3>j) Notifications</h3>
+    <ul>
+      <li><strong>What:</strong> Your <strong>time zone</strong> and your
+      chosen interface language are written against your account on every
+      sign-in, even if you never turn notifications on. Your device's push
+      token (FCM) can only be obtained, and is only stored, once you have
+      granted notification permission.</li>
+      <li><strong>Why:</strong> The time zone is needed so a notification
+      lands in your local morning. <strong>We do not collect your
+      location</strong>; only the time zone name your device reports (for
+      example "Europe/Istanbul") is recorded. Notification texts are produced
+      on our servers and <strong>are individual</strong>: the body of the
+      morning reading, the midday notification and the evening check-in
+      question is produced from the day's signal in <strong>your own birth
+      chart</strong>. On a day when your chart yields no signal to send, the
+      shared per-sign text goes out instead; the streak reminder and the
+      friend-reaction notification are fixed templates (how many days your
+      streak is, who sent the reaction). Your chat
+      history is never used to produce any of them. You can turn notification
+      types and quiet hours off under Profile → Notifications. If you delete
+      the app the push token becomes invalid and is dropped from our records
+      on the first failed send.</li>
+    </ul>
+
+    <h3>k) Affiliate link clicks</h3>
+    <ul>
+      <li><strong>What:</strong> When an affiliate link is opened, a
+      <strong>per-day counter</strong> for that partner's code is incremented
+      by one. What is counted is the <strong>CLICK, not the person.</strong></li>
+      <li><strong>Why:</strong> So the partner can see whether their promotion
+      is working. The <strong>persistent record</strong> of this measurement
+      holds <strong>no IP address, no User-Agent, no cookie and no
+      identifier</strong> — not a single byte about the visitor is in it. The
+      one transient exception is not specific to this endpoint: the
+      rate-limiting layer that keeps it from being abused holds the IP
+      address as a counter key, as it does for every unauthenticated
+      request, in server memory only and for a window of a few minutes; it
+      reaches no durable store. As a direct consequence <strong>unique visitors
+      cannot be measured</strong>, and are not: uniqueness would require a
+      marker, and that marker would be personal data. The partner's dashboard
+      presents this number as "clicks".</li>
+    </ul>
+
+    <h3>l) Technical data</h3>
     <ul>
       <li><strong>What:</strong> Crash reports (Firebase Crashlytics),
-      anonymous usage events (Firebase Analytics), a push token (FCM), and
-      purchase status (RevenueCat).</li>
-      <li><strong>Why:</strong> To improve stability, send notifications and
-      recognise your subscription.</li>
+      anonymous usage events (Firebase Analytics), and purchase status
+      (RevenueCat).</li>
+      <li><strong>Why:</strong> To improve stability and recognise your
+      subscription.</li>
     </ul>
 
     <h2>2. AI processing</h2>

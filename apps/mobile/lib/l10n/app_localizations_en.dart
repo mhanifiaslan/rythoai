@@ -111,6 +111,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Payment went through but the subscription couldn\'t be confirmed. Try \"Restore purchases\"; if it persists, contact us — your payment is safe.';
 
   @override
+  String get purchaseWaitingStore =>
+      'Talking to the store… Please don\'t close this screen.';
+
+  @override
+  String get purchaseWaitingLong =>
+      'The store is still working on it. You can close this screen without losing the purchase: the result reaches your account on its own.';
+
+  @override
+  String get purchaseLeaveScreen => 'Close this screen';
+
+  @override
+  String get purchasePendingServer =>
+      'Your purchase was taken. It can take a few seconds to show up in your account.';
+
+  @override
   String get avatarEditTitle => 'Position your photo';
 
   @override
@@ -644,7 +659,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'A shared reading that renews each day. No fixed compatibility score.';
 
   @override
-  String get benefitChatTitle => '300 AI credits a month';
+  String get benefitChatTitle => '100 AI credits a month';
 
   @override
   String get benefitChatBody =>
@@ -656,6 +671,34 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get benefitBaziBody =>
       'Four Pillars analysis and chart-to-chart comparison.';
+
+  @override
+  String get benefitFaceTitle => 'Face Reading';
+
+  @override
+  String get benefitFaceBody =>
+      'A temperament reading from your features, in the firasa tradition. The image is processed on your device; only the measured ratios reach the server.';
+
+  @override
+  String get benefitTimingTitle => 'Year Chart, Inner Calendar and Birth Gate';
+
+  @override
+  String get benefitTimingBody =>
+      'The chart cast at the Sun\'s return to its birth longitude, your progressed inner calendar, and your gate on the wheel of 64.';
+
+  @override
+  String get benefitIchingTitle => 'I Ching castings';
+
+  @override
+  String get benefitIchingBody =>
+      'Cast on true probabilities, with Rytho\'s reading of the moving lines.';
+
+  @override
+  String get benefitPeopleTitle => 'Ten people in your circle';
+
+  @override
+  String get benefitPeopleBody =>
+      'The free tier holds one person; with Rytho+ you add up to ten and read synastry with each of them.';
 
   @override
   String get profileTitle => 'Profile';
@@ -1897,6 +1940,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t reach the store. Please try again shortly.';
 
   @override
+  String get tokenPacksPlusOnlyTitle => 'Packs are for Rytho+ subscribers';
+
+  @override
+  String get tokenPacksPlusOnlyBody =>
+      'Everything credits unlock comes with Rytho+. Buying a pack without a subscription would leave you a balance we can\'t yet honour, so we don\'t show the packs here.';
+
+  @override
+  String get tokenPacksSeePlus => 'See Rytho+';
+
+  @override
   String get tokenFreeTierWarnTitle =>
       'On the free tier, credits are spent only in chat';
 
@@ -1906,7 +1959,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tokenCostsNote =>
-      'Chat message 1 · I Ching 2 · daily dyad 3 · deep reports and face reading 5 credits. Revisiting a report you\'ve already generated is free.';
+      'Chat message 1 · I Ching 2 · daily dyad 3 · deep reports and face reading 5 credits. A credit is only spent when a report is newly generated; opening one that is already there spends nothing.';
 
   @override
   String tokenBalanceChip(int count) {

@@ -111,6 +111,21 @@ class AppLocalizationsTr extends AppLocalizations {
       'Ödeme tamamlandı ama abonelik doğrulanamadı. \"Satın alımları geri yükle\"yi dene; sürerse bize yaz — ödemen güvende.';
 
   @override
+  String get purchaseWaitingStore =>
+      'Mağaza ile konuşuluyor… Bu ekranı kapatma.';
+
+  @override
+  String get purchaseWaitingLong =>
+      'Mağaza işlemi hâlâ sürüyor. Bu ekranı kapatsan da satın alman kaybolmaz: sonuç hesabına kendiliğinden işlenir.';
+
+  @override
+  String get purchaseLeaveScreen => 'Bu ekranı kapat';
+
+  @override
+  String get purchasePendingServer =>
+      'Satın alman alındı. Hesabına yansıması birkaç saniye sürebilir.';
+
+  @override
   String get avatarEditTitle => 'Fotoğrafı yerleştir';
 
   @override
@@ -644,7 +659,7 @@ class AppLocalizationsTr extends AppLocalizations {
       'Her gün yenilenen ortak okuma. Kalıcı uyum puanı yok.';
 
   @override
-  String get benefitChatTitle => 'Ayda 300 AI kredisi';
+  String get benefitChatTitle => 'Ayda 100 AI kredisi';
 
   @override
   String get benefitChatBody =>
@@ -656,6 +671,34 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get benefitBaziBody =>
       'Dört Sütun analizi ve ikili harita karşılaştırması.';
+
+  @override
+  String get benefitFaceTitle => 'Yüz Okuma';
+
+  @override
+  String get benefitFaceBody =>
+      'Yüz hatlarından firaset geleneğine göre mizaç okuması. Görüntü cihazında işlenir; sunucuya yalnız ölçülen oranlar gider.';
+
+  @override
+  String get benefitTimingTitle => 'Yıl Haritası, İç Takvim ve Doğum Kapısı';
+
+  @override
+  String get benefitTimingBody =>
+      'Güneş\'in doğum boylamına döndüğü ana kurulan yıl haritan, ilerletilmiş iç takvimin ve 64 kapı çarkındaki doğum kapın.';
+
+  @override
+  String get benefitIchingTitle => 'I Ching çekimi';
+
+  @override
+  String get benefitIchingBody =>
+      'Gerçek olasılıklarla atılan çekim ve hareketli çizgilerin Rytho yorumu.';
+
+  @override
+  String get benefitPeopleTitle => '10 kişilik çevre';
+
+  @override
+  String get benefitPeopleBody =>
+      'Ücretsiz katmanda tek kişi eklenir; Rytho+ ile on kişiye kadar ekler, her biriyle sinastri okursun.';
 
   @override
   String get profileTitle => 'Sicil';
@@ -1894,6 +1937,16 @@ class AppLocalizationsTr extends AppLocalizations {
       'Mağaza bağlantısı kurulamadı. Biraz sonra tekrar dene.';
 
   @override
+  String get tokenPacksPlusOnlyTitle => 'Paketler Rytho+ abonelerine özel';
+
+  @override
+  String get tokenPacksPlusOnlyBody =>
+      'Kredinin açtığı okumaların tamamı Rytho+ ile geliyor. Abonelik olmadan paket almak, sana karşılığını henüz veremeyeceğimiz bir bakiye bırakırdı; bu yüzden paketleri burada göstermiyoruz.';
+
+  @override
+  String get tokenPacksSeePlus => 'Rytho+\'a bak';
+
+  @override
   String get tokenFreeTierWarnTitle =>
       'Ücretsiz katmanda kredi yalnızca sohbette harcanır';
 
@@ -1903,7 +1956,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get tokenCostsNote =>
-      'Sohbet mesajı 1 · I Ching 2 · ikili dinamik 3 · derin raporlar ve yüz okuma 5 kredi. Daha önce ürettiğin bir rapora yeniden bakmak ücretsizdir.';
+      'Sohbet mesajı 1 · I Ching 2 · ikili dinamik 3 · derin raporlar ve yüz okuma 5 kredi. Kredi yalnız yeni bir rapor üretilirken düşer; hazır duran rapora yeniden bakmak hiç düşürmez.';
 
   @override
   String tokenBalanceChip(int count) {

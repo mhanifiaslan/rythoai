@@ -254,9 +254,14 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                     ),
                   ]),
                   const SizedBox(height: RythoSpace.sm),
-                  // KT3: "0/300" yalnız GERÇEK mağaza abonesinde anlamlı;
-                  // denemede/ücretsizde yanıltıcı bir eksiklik gibi
+                  // KT3: "0 / tavan" satırı yalnız GERÇEK mağaza abonesinde
+                  // anlamlı; denemede/ücretsizde yanıltıcı bir eksiklik gibi
                   // görünüyordu (aylık hak abonelikle gelir).
+                  //
+                  // Tavan SAYISI buraya yazılmaz: `cuzdan.monthlyAllowance`
+                  // sunucudan gelir ve 300'den 100'e indi. Yoruma gömülen
+                  // sayı bir sonraki değişiklikte sessizce yanlış olur —
+                  // bu yorum tam o yüzden bir tur boyunca "0/300" diyordu.
                   if (magazaAbonesi) ...[
                     LabelValueRow(
                         label: l10n.subMonthlyAllowanceRow,

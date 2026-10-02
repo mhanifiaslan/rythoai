@@ -26,7 +26,6 @@ import 'inner_calendar_screen.dart';
 import 'solar_return_screen.dart';
 import '../sky/sky_now_screen.dart' show SkyNowSummary;
 import '../../widgets/motion.dart';
-import '../../core/subscription.dart' show subscriptionProvider;
 import '../../core/api.dart' show friendlyError;
 import '../../l10n/app_localizations.dart';
 
@@ -356,15 +355,23 @@ class _AtlasScreenState extends ConsumerState<AtlasScreen> {
 ///
 /// R5-0 (hata): eskiden `rapor.value` doğrudan okunuyordu ve `AsyncValue`
 /// YÜKLENİRKEN de null olduğu için ABONE, rapor üretilirken (LLM çağrısı
-/// saniyeler sürer) 🔒 görüyor ve dokununca paywall'a düşüyordu. Artık üç
-/// durum ayrı: yükleniyor → satır bekliyor der ve dokunuş yutulur;
-/// hata → tekrar denenebilir; yalnız gerçekten `null` veri kilittir.
+/// saniyeler sürer) 🔒 görüyor ve dokununca paywall'a düşüyordu. Bu yüzden
+/// yükleniyor → satır bekliyor der ve dokunuş yutulur; hata → tekrar
+/// denenebilir.
+///
+/// ⚠️ O turda yazılan "yalnız gerçekten `null` veri kilittir" cümlesi
+/// EKSİKTİ ve P2'de ölçüldü: `null`ın ÜÇÜNCÜ bir kaynağı var. Abonelik ya da
+/// profil cevabı gelmemişken sağlayıcı istek atmadan `null` dönüyor ve satır
+/// yine kilitli çiziliyordu — "ekran açılınca kilitli, bekleyince açılıyor"
+/// şikâyetinin Atlas'taki yüzü buydu. Kapı artık [raporKapisiProvider]'dan
+/// sorulur.
 class _FullReportRow extends ConsumerWidget {
   const _FullReportRow();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final kapi = ref.watch(raporKapisiProvider);
     final rapor = ref.watch(natalReportProvider);
     final harita = ref.watch(natalChartProvider).value;
 
@@ -439,12 +446,26 @@ class _FullReportRow extends ConsumerWidget {
       ),
       data: (veri) {
         final metin = veri?['report'] as String?;
+        // Kapı BİLİNMİYORken `null` "abone değil" DEMİYOR: cevap gelmemiş ve
+        // ücretli uca henüz istek atılmamış. Kilit rozeti basmak ödemiş
+        // kullanıcıya yalan, dokunuşu paywall'a göndermek ikinci yalan —
+        // "hazırlanıyor" demek de üçüncüsü olurdu (hiçbir şey hazırlanmıyor).
+        // Satır rozetsiz durur ve dokunuş yutulur, yükleniyor dalıyla aynı
+        // duruş; kapı açılır açılmaz gerçek hâl çizilir.
+        final bilinmiyor = kapi == PlusHali.bilinmiyor;
         return _AtlasRow(
           emoji: '📜',
           title: l10n.atlasFullReport,
           subtitle: l10n.atlasFullReportSubtitle,
-          locked: metin == null,
-          onTap: () => metin == null ? paywall() : ac(metin),
+          locked: metin == null && !bilinmiyor,
+          onTap: () {
+            if (bilinmiyor) return;
+            if (metin == null) {
+              paywall();
+            } else {
+              ac(metin);
+            }
+          },
         );
       },
     );
@@ -711,9 +732,30 @@ class _DivinationRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final abonelik = ref.watch(subscriptionProvider);
-    // Dört karo da Rytho+ (V2: İching ve BaZi de kilitlendi) — tek bayrak.
-    final plus = abonelik.value?.active ?? false;
+    // Dört karo da Rytho+ (V2: İching ve BaZi de kilitlendi) — tek kapı.
+    //
+    // Eski hâl `abonelik.value?.active ?? false` idi ve abonelik cevabı
+    // gelmeden DÖRT KARO BİRDEN kilitli çiziliyordu: ödemiş kullanıcı Atlas'ı
+    // açtığında dört kilit rozeti görüp birkaç yüz ms sonra hepsinin
+    // kaybolmasını izliyordu. Üçüncü hâl artık ayrı çiziliyor.
+    final kapi = ref.watch(aboneHaliProvider);
+    final plus = kapi == PlusHali.abone;
+
+    // Cevap yokken ne kilit rozeti ne de açık karo: ikisi de bir hüküm.
+    // Dokunma da YOK — paywall açmak "abone değilsin" demek, sayfayı açmak
+    // ise ücretli uca 402'ye koşmak olurdu.
+    if (kapi == PlusHali.bilinmiyor) {
+      return SizedBox(
+        height: 100,
+        child: Row(children: [
+          for (var i = 0; i < 4; i++) ...[
+            if (i > 0) const SizedBox(width: 10),
+            const Expanded(
+                child: SkeletonPanel(height: 100, margin: EdgeInsets.zero)),
+          ],
+        ]),
+      );
+    }
 
     void paywall() => Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => const PaywallScreen(),

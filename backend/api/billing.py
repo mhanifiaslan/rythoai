@@ -142,6 +142,15 @@ def wallet_status(user: AuthUser = Depends(get_current_user)):
     # tamamlar (defterle idempotent — çift yükleme imkânsız).
     wallet.ensure_trial_tokens(user.uid)
     cuzdan = wallet.get_wallet(user.uid)
+    # Okunamayan cüzdan 200 DÖNMEZ. Sebep ölçüldü: depo geçici hata verince
+    # `get_wallet` istisnayı yutup {allowance: 0, purchased: 0} döndürüyordu ve
+    # HTTP 200 olduğu için istemcinin `WalletStatus.bilinmiyor` mekanizması
+    # (yalnız taşıma hatasında tetikleniyor) devre dışı kalıyordu — dolu
+    # cüzdan ekranda "0" görünüyordu. 503 o mekanizmayı yolundan geçiriyor:
+    # ekranlar "—" çizer, "jetonun bitti" demez. "Ölçülmeyen söylenmez"
+    # ilkesinin sunucu tarafındaki karşılığı bu satır.
+    if not cuzdan.get("okundu", True):
+        raise HTTPException(status_code=503, detail="wallet_unavailable")
     resets_at = cuzdan.get("allowance_resets_at")
     return WalletStatus(
         allowance=cuzdan["allowance"],
@@ -601,14 +610,19 @@ async def revenuecat_webhook(
     #
     # K2 yedegi: webhook `expiration_at_ms` tasimadan gelirse eskiden
     # reset_allowance HIC yazmiyordu ve ilk alimda bakiye 0 gorunuyordu
-    # (ic test bulgusu). Aktive eden olayda son kullanma yoksa 35 gunluk
-    # emniyet penceresi kullanilir — bir sonraki RENEWAL gercek tarihi
-    # yazar; hak hicbir durumda verilmemis kalmaz.
+    # (ic test bulgusu). Hak yine verilir — ama o is artik `reset_allowance`
+    # icinde, cunku BURADA bir tarih UYDURMAK zararliydi.
+    #
+    # Eski hal "simdi + 35 gun" yaziyordu ve o tarih aylik bir donemin
+    # gercek sonundan ILERIDE kaliyordu. Sonuc: bir sonraki GERCEK yenileme
+    # (orn. 3 gun sonra, son kullanma = 1 ay sonrasi) uydurulan isaretin
+    # GERISINDE kalinca `reset_allowance`in idempotency kapisi dusmuyor ve
+    # kullanici o donemin hakkini HIC ALMIYOR. Yani yorumun kendi gerekcesi
+    # ("bir sonraki RENEWAL gercek tarihi yazar") tam tersini uretiyordu.
+    #
+    # Artik None oldugu gibi geciliyor: hak verilir, isaret TASINMAZ.
     if event_type in _ACTIVATING_EVENTS:
-        wallet.reset_allowance(
-            uid,
-            expires_at
-            or dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=35))
+        wallet.reset_allowance(uid, expires_at)
 
     logger.info("Abonelik guncellendi: uid=%s olay=%s aktif=%s", uid, event_type, active)
     return {"status": "ok", "event": event_type, "active": active}

@@ -8,6 +8,7 @@ import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/cosmic_scaffold.dart';
+import '../../widgets/glass.dart' show SkeletonPanel;
 import '../paywall/plus_locked_card.dart';
 
 /// Doğum Heksagramı ekranı (Revize İ5): doğum anındaki Güneş'in 64 kapı
@@ -19,6 +20,16 @@ class BirthHexagramScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    // ÜÇ DURUMLU kapı (P2): sağlayıcının `null`ı artık YALNIZ "abone değil"
+    // demek. Cevap gelmeden kilit çizmek, ödemiş kullanıcıya her girişte
+    // "abone değilsin" demekti.
+    final kapi = ref.watch(raporKapisiProvider);
+    if (kapi == PlusHali.bilinmiyor) {
+      return CosmicScaffold(
+        appBar: AppBar(title: Text(l10n.birthHexagramTitle)),
+        body: const _Iskelet(),
+      );
+    }
     final veri = ref.watch(birthHexagramProvider);
 
     return CosmicScaffold(
@@ -148,4 +159,24 @@ class BirthHexagramScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Kapı BİLİNMİYORken çizilen iskelet (P2).
+///
+/// Ne kilit ne içerik: ikisi de bir hüküm ve o hüküm henüz yok. Bloklar
+/// sayfanın gerçek bölüm hacimlerini taklit ediyor, böylece cevap gelince
+/// düzen zıplamıyor. Shimmer `SkeletonPanel`in içinde ve reduce-motion'da
+/// kendiliğinden kapanıyor.
+class _Iskelet extends StatelessWidget {
+  const _Iskelet();
+
+  @override
+  Widget build(BuildContext context) => ListView(
+        padding: const EdgeInsets.only(top: 8, bottom: 120),
+        children: const [
+          SkeletonPanel(height: 150),
+          SkeletonPanel(height: 110),
+          SkeletonPanel(height: 90),
+        ],
+      );
 }

@@ -312,6 +312,11 @@ void main() {
     testWidgets('yedek metinde harita çizilir, paragraf GÖRÜNMEZ',
         (tester) async {
       await tester.pumpWidget(_sar(const BaziTab(), overrides: [
+        // P2: sekme artık ÜÇ DURUMLU kapıdan geçiyor ve kapı açık
+        // olmadan ücretli sağlayıcı hiç okunmuyor. Bu grubun iddiası
+        // "abone ve cevap geldi" hâlinde ne çizildiği — kapı o yüzden
+        // açık kurulur (üç hâlin ayrımı plus_kapisi_test.dart'ta).
+        raporKapisiProvider.overrideWithValue(PlusHali.abone),
         baziReportProvider.overrideWith((ref) async => _baziYanit(yedek: true)),
       ]));
       await _bekle(tester);
@@ -340,6 +345,11 @@ void main() {
       // açmaya zorluyordu. Yedek metin artık `data` dalına gittiği için bu
       // dal yalnız gerçek hataları (ağ, 500) karşılıyor — çıkışsızlık aynı.
       await tester.pumpWidget(_sar(const BaziTab(), overrides: [
+        // P2: sekme artık ÜÇ DURUMLU kapıdan geçiyor ve kapı açık
+        // olmadan ücretli sağlayıcı hiç okunmuyor. Bu grubun iddiası
+        // "abone ve cevap geldi" hâlinde ne çizildiği — kapı o yüzden
+        // açık kurulur (üç hâlin ayrımı plus_kapisi_test.dart'ta).
+        raporKapisiProvider.overrideWithValue(PlusHali.abone),
         baziReportProvider.overrideWith((ref) async => throw StateError('x')),
       ]));
       await _bekle(tester);
@@ -351,6 +361,11 @@ void main() {
     testWidgets('normal raporda yorum kalemi AYNEN durur', (tester) async {
       // Ters yön: yama iyi durumu da susturmuş olmasın.
       await tester.pumpWidget(_sar(const BaziTab(), overrides: [
+        // P2: sekme artık ÜÇ DURUMLU kapıdan geçiyor ve kapı açık
+        // olmadan ücretli sağlayıcı hiç okunmuyor. Bu grubun iddiası
+        // "abone ve cevap geldi" hâlinde ne çizildiği — kapı o yüzden
+        // açık kurulur (üç hâlin ayrımı plus_kapisi_test.dart'ta).
+        raporKapisiProvider.overrideWithValue(PlusHali.abone),
         baziReportProvider
             .overrideWith((ref) async => _baziYanit(yedek: false)),
       ]));

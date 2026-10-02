@@ -7,6 +7,7 @@ hesaplamıyor. Bu testler o sınıf tutarsızlığın geri gelmesini engeller �
 """
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 
@@ -320,3 +321,220 @@ class TestKullanimSartlariKopyalari:
             "Pasif ortağın bekleyen hakedişini düşüren yol yok: kullanım "
             "şartlarının DÖRT kopyasındaki 'kesinleşmemiş hakedişler düşer' "
             "maddesi dayanaksız kalır")
+
+
+class TestJetonIddialari:
+    """Pazarlama sayfalarının JETON cümleleri koddaki gerçeğe bağlanır.
+
+    Bu sınıf tek bir cümlenin üç ayrı hâlinden doğdu; üçü de aynı sınıf
+    kusurdu — sayfa, ürünün PARA tarafı hakkında ölçülmemiş bir şey
+    söylüyordu:
+
+    1. Sayfa bedelleri kendi içinde sayıyordu ("sohbet 1 · I Ching 2 ·
+       natal/BaZi 5"). Liste EKSİKTİ (ikili okuma 3 ve yüz okuma 5 yoktu)
+       ve `TOKEN_COSTS` değişince sessizce bayatlardı.
+    2. Yerine "uygulama bir raporun kaça geldiğini harcamadan önce
+       gösterir" kondu. Ölçüm bunu yalanladı: bedeli harcamadan ÖNCE
+       gösteren TEK ekran İ Ching (`iching_tab.dart`, rozet
+       `/reports/iching/status` yanıtındaki `token_cost`tan okunuyor).
+       Derin raporlar, ikili okuma, yüz okuma ve sohbet göstermiyor.
+    3. Onun yerine gelen cümle de tekrar okumayı KOŞULSUZ bedava saydı.
+       Oysa harcamayı atlatan şey önbellek (`report_service
+       ._cached_generate`) ve önbellek ÖMÜRLÜ — ömür dolunca yeniden
+       üretim olur ve bedel düşer.
+
+    Bekçi bilerek İKİ TARAFLI: sayfadaki cümle kod değiştiğinde de düşer,
+    çünkü asıl risk sayfanın yalan söylemesi değil, altındaki kodun
+    sessizce kaymasıdır.
+    """
+
+    _SAYFALAR = ("web/index.html", "web/en/index.html")
+
+    #: "Bedeli harcamadan ÖNCE görürsün" sınıfı iddianın işaretleri:
+    #: (zaman kalıbı, AYNI cümlede aranan bedel kelimeleri). İkisi birlikte
+    #: aranır çünkü "harcamadan önce" tek başına masum bir cümle de kurar
+    #: (örn. "niyetsiz soru çekim hakkını harcamadan geri çevrilir").
+    _ONCEDEN_GOSTERIR = (
+        (r"harcamadan\s+önce", ("bedel", "kaça", "kaç jeton", "kaç kredi",
+                                "fiyat")),
+        (r"before\s+(?:you\s+)?spend", ("cost", "price", "how much")),
+        (r"before\s+spending", ("cost", "price", "how much")),
+    )
+
+    @classmethod
+    def _govde(cls, yol: str) -> str:
+        """Sayfanın yorumsuz, tek boşluklu, Türkçe-küçültülmüş gövdesi.
+
+        Yorumlar ATILIR: aşağıdaki bekçilerin yarısı bir cümlenin
+        YOKLUĞUNU arıyor ve o yokluğun GEREKÇESİ aynı dosyada, HTML yorumu
+        içinde duruyor (yasak cümlenin adını anan yorum). Bu depoda tam bu
+        yüzden iki kez bekçi patladı. Boşluk tekleştirme de şart: cümleler
+        satır sonlarıyla bölünmüş durumda, ham metinde "Aboneler ayrıca
+        süresiz geçerli\\n          jeton paketi" yazıyor.
+        """
+        metin = _yorumsuz_html((_KOK / yol).read_text(encoding="utf-8"))
+        return _turkce_kucult(re.sub(r"\s+", " ", metin))
+
+    @staticmethod
+    def _token_bedelleri() -> dict[str, int]:
+        """`wallet.TOKEN_COSTS` tablosunu KAYNAKTAN okur.
+
+        İçe alma yerine metin okuma: bu bekçinin derdi çalışma zamanı
+        davranışı değil, iki yerde yazılı iki sayının aynı olup olmadığı.
+        """
+        kaynak = (_KOK / "backend" / "core" / "wallet.py").read_text(
+            encoding="utf-8")
+        tablo = re.search(r"TOKEN_COSTS: dict\[str, int\] = \{(.*?)\n\}",
+                          kaynak, flags=re.S)
+        assert tablo, "TOKEN_COSTS tablosu bulunamadı: bekçi kör kalırdı"
+        return {ad: int(deger)
+                for ad, deger in re.findall(r'"(\w+)":\s*(\d+)',
+                                            tablo.group(1))}
+
+    def test_sitede_bedeli_harcamadan_once_gosterir_iddiasi_yok(self):
+        """Ölçüm: bedeli önceden gösteren tek ekran İ Ching.
+
+        Bir tur boyunca iki sayfada da bu iddia yazılıydı ve kimse ölçmedi.
+        """
+        for yol in self._SAYFALAR:
+            govde = self._govde(yol)
+            for kalip, kelimeler in self._ONCEDEN_GOSTERIR:
+                for eslesme in re.finditer(kalip, govde):
+                    pencere = govde[max(0, eslesme.start() - 160):
+                                    eslesme.end() + 160]
+                    for kelime in kelimeler:
+                        assert kelime not in pencere, (
+                            f"{yol}: '{eslesme.group(0)}' ile '{kelime}' aynı "
+                            f"cümlede — bedeli harcamadan önce gösteren tek "
+                            f"ekran İ Ching (iching_tab.dart). Uygulamanın "
+                            f"geneli için bu iddia yazılamaz; mağaza "
+                            f"ekranındaki bedel satırına işaret et")
+
+    def test_sitedeki_iki_iddianin_dayanagi_kodda_duruyor(self):
+        """Sayfa "bedeller jeton mağazasında yazılıdır" diyor — gerçekten?
+
+        İkinci iddia: "jeton yalnız yeni bir rapor üretilirken düşer".
+        Dayanağı `_cached_generate`in SIRASI — önbellek dolu dönüşü
+        `spend()` çağrısından ÖNCE olmak zorunda. Sıra ters çevrilse
+        testler yine geçerdi (harcama yine bir kez işler), yalnız sayfadaki
+        ve mağaza ekranındaki cümle yalan olurdu.
+        """
+        ekran = (_KOK / "apps" / "mobile" / "lib" / "features" / "paywall"
+                 / "token_store_screen.dart").read_text(encoding="utf-8")
+        assert "l10n.tokenCostsNote" in ekran, (
+            "Jeton mağazası ekranı bedel satırını artık çizmiyor: iki "
+            "pazarlama sayfasındaki 'bedeller jeton mağazasında yazılıdır' "
+            "cümlesi dayanaksız kaldı")
+
+        kaynak = (_KOK / "backend" / "services"
+                  / "report_service.py").read_text(encoding="utf-8")
+        govde = kaynak[kaynak.index("def _cached_generate("):]
+        govde = govde[:govde.index("\ndef ", 1)]
+        onbellek = govde.index('return {"text": cached, "cached": True}')
+        harcama = govde.index("spend()")
+        assert onbellek < harcama, (
+            "_cached_generate artık önbellek dolu olsa da harcıyor: "
+            "'hazır duran rapora yeniden bakmak hiç düşürmez' cümlesi "
+            "(iki web sayfası + l10n tokenCostsNote) yalan oldu")
+
+    def test_magazadaki_bedel_satiri_koddaki_bedellerle_ayni(self):
+        """Mağazadaki bedel satırı ELLE yazılmış bir l10n dizesi.
+
+        `/wallet` yanıtı `costs` haritasını gönderiyor ve `wallet.dart` onu
+        ayrıştırıyor, ama arayüz onu HİÇ kullanmıyor. Yani `TOKEN_COSTS`
+        değiştiği an ekrandaki rakam sessizce yanlışa düşer — ve sayfadaki
+        "bedeller jeton mağazasında yazılıdır" cümlesi yanlış bir tabloya
+        işaret etmiş olur. Sayfanın kendisi artık rakam saymadığı için
+        bayatlama riskinin tamamı bu tek dizede toplandı; bekçi oraya
+        kondu.
+        """
+        bedeller = self._token_bedelleri()
+        #: Satır derin raporları TEK sayıyla özetliyor; özet ancak hepsi
+        #: aynı bedeldeyken doğru.
+        derin = ("natal", "bazi", "synastry", "face", "birth_hexagram",
+                 "solar_return", "progressions")
+        ayri = {ad: bedeller[ad] for ad in derin if ad in bedeller}
+        assert len(set(ayri.values())) == 1, (
+            f"Derin raporların bedeli artık tek sayı değil ({ayri}): mağaza "
+            f"satırındaki 'derin raporlar ve yüz okuma N kredi' özeti "
+            f"yanlış oldu, l10n dizesi ayrıştırılmalı")
+        derin_bedel = next(iter(set(ayri.values())))
+
+        capalar = {
+            "app_tr.arb": (f"Sohbet mesajı {bedeller['chat']}",
+                           f"I Ching {bedeller['iching']}",
+                           f"ikili dinamik {bedeller['dyad']}",
+                           f"derin raporlar ve yüz okuma {derin_bedel}"),
+            "app_en.arb": (f"Chat message {bedeller['chat']}",
+                           f"I Ching {bedeller['iching']}",
+                           f"daily dyad {bedeller['dyad']}",
+                           f"deep reports and face reading {derin_bedel}"),
+        }
+        for dosya, beklenen in capalar.items():
+            yol = _KOK / "apps" / "mobile" / "lib" / "l10n" / dosya
+            satir = json.loads(yol.read_text(encoding="utf-8"))[
+                "tokenCostsNote"]
+            for capa in beklenen:
+                assert capa in satir, (
+                    f"{dosya}: tokenCostsNote '{capa}' demiyor — "
+                    f"wallet.TOKEN_COSTS ile ayrıştı. Mağaza ekranı yanlış "
+                    f"bedel gösteriyor, iki web sayfası da oraya işaret "
+                    f"ediyor")
+
+    def test_sitedeki_aylik_hak_koddaki_sayiyla_ayni(self):
+        """K1: hak 300'den 100'e indi. Sayfadaki sayı kodu izlemek zorunda.
+
+        Eski hâl iki sayfada da 300 yazıyordu; sayı tek bir yerde
+        (`MONTHLY_TOKEN_ALLOWANCE`) tanımlı olduğu için ayrışma sessizdi.
+        """
+        kaynak = (_KOK / "backend" / "core" / "wallet.py").read_text(
+            encoding="utf-8")
+        eslesme = re.search(r"^MONTHLY_TOKEN_ALLOWANCE = (\d+)\b", kaynak,
+                            flags=re.M)
+        assert eslesme, "MONTHLY_TOKEN_ALLOWANCE bulunamadı: bekçi kör kalırdı"
+        hak = int(eslesme.group(1))
+
+        kaliplar = {"web/index.html": r"aylık (\d+) jeton",
+                    "web/en/index.html": r"(\d+) tokens every month"}
+        for yol, kalip in kaliplar.items():
+            govde = self._govde(yol)
+            bulunan = re.findall(kalip, govde)
+            assert bulunan, (
+                f"{yol}: aylık jeton hakkı cümlesi kayboldu — kalıp "
+                f"değiştiyse bekçi de düzeltilmeli, yoksa sayı sessizce "
+                f"bayatlar")
+            for sayi in bulunan:
+                assert int(sayi) == hak, (
+                    f"{yol}: sayfa aylık {sayi} jeton diyor, kod {hak} "
+                    f"veriyor (wallet.MONTHLY_TOKEN_ALLOWANCE)")
+
+    def test_sitede_paketler_yalniz_aboneye_vadediliyor(self):
+        """K2: paketler abone olmayana mağazada HİÇ gösterilmiyor.
+
+        Eski cümle "dileyen ayrıca süresiz geçerli jeton paketi alır"
+        diyordu — ekran onu abone kapısının arkasına aldıktan sonra bu
+        cümle satın alınamayan bir ürün vadediyordu.
+        """
+        beklenen = {"web/index.html": ("jeton paketi", "abone"),
+                    "web/en/index.html": ("token packs", "subscriber")}
+        for yol, (urun, ozne) in beklenen.items():
+            govde = self._govde(yol)
+            cumleler = [c for c in govde.split(".") if urun in c]
+            assert cumleler, f"{yol}: '{urun}' cümlesi kayboldu"
+            for cumle in cumleler:
+                assert ozne in cumle, (
+                    f"{yol}: paket cümlesi '{ozne}' demiyor —"
+                    f" paketler yalnız aboneye satılıyor"
+                    f" (token_store_screen.dart `_PaketlerPlusaOzel`)")
+
+        # Kapının ADI değil KULLANIM YERİ aranır. İlk hâl yalnız
+        # "_PaketlerPlusaOzel" dizesini arıyordu ve mutasyonda YEŞİL kaldı:
+        # pencere ağacından sökülse bile sınıf TANIMI dosyada duruyor, yani
+        # ad her hâlükârda bulunuyordu. Aranan şey `!abone` dalının
+        # gerçekten o pencereyi seçmesi.
+        ekran = (_KOK / "apps" / "mobile" / "lib" / "features" / "paywall"
+                 / "token_store_screen.dart").read_text(encoding="utf-8")
+        assert re.search(r"!abone\)\s*const _PaketlerPlusaOzel\(\)", ekran), (
+            "Mağazadaki abone kapısı kalkmış: iki web sayfasındaki "
+            "'aboneler ayrıca paket alabilir' daraltması gereksiz kaldı, "
+            "cümleler gözden geçirilmeli")

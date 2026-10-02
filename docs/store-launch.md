@@ -188,13 +188,13 @@ NELER VAR
 • Diğer gelenekler: BaZi (Çin dört sütun), I Ching ve firaset.
 
 ÜCRETSİZ KULLANIM
-Burç yorumları, canlı gökyüzü, doğum haritası çarkın ve yerleşimlerin,
-arkadaş katmanı, günde 5 sohbet mesajı ve bir kişi ekleme hakkı — hesap
-açman yeterli.
+Günlük burç yorumları, canlı gökyüzü, doğum haritası çarkın ve
+yerleşimlerin, arkadaş listesi, seri ve hazır tepkiler, günde 5 sohbet
+mesajı ve bir kişi ekleme hakkı — hesap açman yeterli.
 
 RYTHO+ (aylık)
 Kişiye özel günlük okuma, tam natal rapor, yıl haritası, iç takvim, BaZi,
-I Ching, yüz okuma, 10 kişilik çevre kontenjanı ve ayda 300 AI kredisi.
+I Ching, yüz okuma, 10 kişilik çevre kontenjanı ve ayda 100 AI kredisi.
 Yeni hesaplar ilk 3 gün tüm Rytho+ özelliklerini kart bilgisi vermeden
 dener; deneme bitince otomatik ücretlendirme olmaz.
 
@@ -246,13 +246,13 @@ WHAT'S INSIDE
 • Other traditions: BaZi (Chinese four pillars), I Ching and face reading.
 
 FREE
-Horoscopes, the live sky, your birth chart wheel and placements, the
-friends layer, 5 chat messages a day and one person in your circle — an
-account is all it takes.
+Daily horoscopes, the live sky, your birth chart wheel and placements,
+your friends list, streaks and quick reactions, 5 chat messages a day and
+one person in your circle — an account is all it takes.
 
 RYTHO+ (monthly)
 Your personal daily reading, the full natal report, solar return, inner
-calendar, BaZi, I Ching, face reading, a 10-person circle and 300 AI
+calendar, BaZi, I Ching, face reading, a 10-person circle and 100 AI
 credits a month. New accounts get all Rytho+ features for the first 3
 days without entering card details; when the trial ends nothing is
 charged automatically.
@@ -366,11 +366,28 @@ sunucu tarafı yetkilendirme + token cüzdanı (`backend/core/wallet.py`).
 
 | Katman | İçerik |
 |---|---|
-| **Ücretsiz** | Burç yorumu (günlük/haftalık/aylık), gerçek gökyüzü, günde 5 sohbet mesajı, doğum haritası çarkı ve yerleşimleri, arkadaş listesi, seri ve hazır tepkiler, **1 kişi ekleme** (harita + ilişki ÖLÇÜMÜ; yorum kilitli). **Yeni hesap ilk 3 gün tüm Rytho+ özelliklerini kartsız dener** (+30 karşılama token'ı, tek sefer — OT6). |
-| **Rytho+** (yalnızca aylık) | Kişiye özel günlük okuma + **10 kişi kontenjanı** (eş, çocuk, yakın) + **aylık 300 token** hakkı. Token'la: sohbet (1), I Ching (2), ikili dinamik (3), natal/BaZi/sinastri/yüz okuma (5). Aylık hak dönem sonunda yenilenir, DEVRETMEZ. |
+| **Ücretsiz** | Burç yorumu (**yalnız günlük** — haftalık/aylık ucu istemciden erişilemiyor, bkz. not), gerçek gökyüzü, günde 5 sohbet mesajı, doğum haritası çarkı ve yerleşimleri, arkadaş listesi, seri ve hazır tepkiler, **1 kişi ekleme** (harita + ilişki ÖLÇÜMÜ; yorum kilitli). **Yeni hesap ilk 3 gün tüm Rytho+ özelliklerini kartsız dener** (+30 karşılama token'ı, tek sefer — OT6). |
+| **Rytho+** (yalnızca aylık) | Kişiye özel günlük okuma + **10 kişi kontenjanı** (eş, çocuk, yakın) + **aylık 100 token** hakkı. Token'la: sohbet (1), I Ching (2), ikili dinamik (3), natal/BaZi/sinastri/yüz okuma (5). Aylık hak dönem sonunda yenilenir, DEVRETMEZ. |
 > **Not (1.7.0):** ücretsiz katmandan "günde 1 I Ching çekimi" SİLİNDİ — kod `require_plus("iching")` diyor, yani İ Ching Rytho+ içinde. Mağaza metninin koda uymayan tek satırı buydu.
 
-| **Token paketleri** (consumable) | `rytho_tokens_small` 100 · `rytho_tokens_medium` 300 · `rytho_tokens_large` 1000. Tekrar tekrar alınabilir, bakiye aya DEVREDER, abonelik şartı yok (ücretsiz kullanıcı sohbet/I Ching taşması için kullanabilir). |
+| **Token paketleri** (consumable) | `rytho_tokens_small` 100 · `rytho_tokens_medium` 300 · `rytho_tokens_large` 1000. Tekrar tekrar alınabilir, bakiye aya DEVREDER. ⚠️ **Yalnız aboneye satılır** (K2) — abone olmayana jeton mağazasında hiç gösterilmez (ölçüldü: `token_store_screen.dart` aboneliği ÜÇ hâlli okuyor ve `!abone` dalında paket listesi yerine `_PaketlerPlusaOzel` çiziliyor). Gerekçe: `charge_metered` tüm depoda tek yerden çağrılıyor (`api/chat.py`), yani abone olmayanın aldığı kredinin TEK kullanım yolu "günün 6. sohbet mesajı"; ekranın kendi bedel listesinde sayılan İ Ching, ikili dinamik ve derin raporlar `require_plus` arkasında. Mağaza, parasını alıp karşılığını büyük ölçüde vermediği bir ürün gösteriyordu. ⚠️ Denemedeki kullanıcı ABONE SAYILIR ve paket onun için ayrıca anlamlıdır: `get_wallet` denemeye `allowance: 0` veriyor, yani yalnız `purchased` bakiyesinden harcıyor. |
+
+> ⚠️ **Yukarıdaki üç tablo satırı da koddan ölçüldü (2026-10-02), elle
+> yazılmadı.** Aylık hak sayısı ÜÇ yük taşıyan yerde birbirinden bağımsız
+> duruyor: sunucu sabiti `backend/core/wallet.py`
+> `MONTHLY_TOKEN_ALLOWANCE` (**100**), uygulamanın paywall'da gösterdiği
+> dize `app_tr.arb`/`app_en.arb` `benefitChatTitle`, ve Play Console'a
+> ELLE kopyalanan bu belgedeki mağaza metni. İlk ikisi 100'e inerken bu
+> belge **300** yazmaya devam etti ve hiçbir test düşmedi; mağaza metnini
+> tutan yer burası olduğu için fark edilmemesi yanlış sayının mağaza
+> listesine girmesi demekti. Üçünü birbirine bağlayan bekçi:
+> `backend/tests/test_belge_tarifesi.py` (mutasyonla sınandı).
+>
+> ⚠️ **Haftalık/aylık burç yorumu VAAT EDİLEMEZ.** Sunucu ucu üç `period`
+> değeri kabul ediyor (`api/reports.py` `daily|weekly|monthly`) ama
+> uygulama hiçbirini göndermiyor — `lib/` genelinde `period=` sıfır kez
+> geçiyor, `providers.dart` düz `/reports/horoscope/{burç}` çağırıyor.
+> Hesap var, ona açılan kapı yok; ayrıntı `docs/ozellikler.md` §3.
 
 Kurallar:
 - Token yalnızca **yeni üretimde** düşer; önbellekten tekrar okuma ücretsiz.

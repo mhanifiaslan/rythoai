@@ -80,9 +80,51 @@ TOKEN_COSTS: dict[str, int] = {
     "progressions": 5,
 }
 
-#: Abonelikle gelen aylık hak. En kötü durum maliyeti sınırlar: 300 token
-#: tamamı sohbete gitse ~$0,45 LLM gideri — abonelik bedelinin küçük kesri.
-MONTHLY_TOKEN_ALLOWANCE = 300
+#: Abonelikle gelen aylık hak. **300'den 100'e indirildi** (K1, 2026-10-02).
+#:
+#: Eski gerekçe hakkı yalnız bir MALİYET tavanı sayıyordu ("300 token tamamı
+#: sohbete gitse ~$0,45 LLM gideri") ve iki yönden kusurluydu. Birincisi o
+#: sayı hiçbir güncel birim maliyetten türetilemiyor: 300 sohbet turu
+#: ~$0,63'tür (300 × ~$0,0021, bkz. docs/maliyet-calismasi.md §1+§6f).
+#: İkincisi ve önemlisi: 300 aynı zamanda bir **SATIŞ** tavanıydı ve bu hiç
+#: ele alınmamıştı.
+#:
+#: Ölçüm (sahip, 1.17.0+45, iki gün yoğun gerçek kullanım): ~7 jeton/gün ≈
+#: 210 jeton/ay — yani hakkın ALTINDA. Harcama önce `allowance`tan düştüğü
+#: için (bkz. `_spend_txn`) parayla alınmış 1300 jetonluk `purchased`
+#: bakiyeye SIRA HİÇ GELMEDİ; sahibin cümlesi "bu bitmez, paketler öylece
+#: kalır" oldu. 100 ile aynı kullanım hızı hakkı ~14. günde bitirir
+#: (100 ÷ 7), yani paket satın almak ANLAMLI hale gelir — değişen şey jeton
+#: bedelleri değil, hakkın nerede bittiği.
+#:
+#: Maliyet tavanı kaybolmadı, DARALDI: 100 jetonun tamamı sohbete gitse
+#: ~$0,21 (100 × ~$0,0021) — eski ~$0,63'ün üçte biri.
+#:
+#: ⚠️ K3 — değişim YALNIZ BİR SONRAKİ DÖNEMDEN geçerli; kimsenin elindeki
+#: hak geri alınmaz. HARCAMA YOLUNDA bu kendiliğinden böyle: hem `get_wallet`
+#: hem `_spend_txn` tazelemesi yalnız dönem işareti İLERİ gittiğinde yazar,
+#: aynı dönemde ikinci kez tetiklenemez. Yani mevcut dönemde 300 almış hesap
+#: dönem sonuna kadar 300'üyle kalır. Bu kapalı testteki gerçek alım yapmış
+#: hesapları (sahibinki dahil) "jetonlarım gitti" şikâyetinden koruyan tek
+#: şey ve sessizce bozulabileceği için bekçili:
+#: test_wallet.py::test_K3_mevcut_donemde_eski_hak_GERI_ALINMAZ.
+#:
+#: ⚠️ AMA K3 GARANTİSİ TAM DEĞİL — bu cümle "hiçbir yol hakkı düşürmez"
+#: diye okunmamalı. `reset_allowance` (webhook birincil yolu) dönem
+#: işaretini DÖNEM ORTASINDA ileri taşıyan iki girdiyle çağrılabilir ve o
+#: an elindeki hak tavana (artık 100) yazılır:
+#:   1. `SUBSCRIPTION_EXTENDED` — `api/billing.py::_ACTIVATING_EVENTS`
+#:      içinde ve işi tam olarak dönemi ortasında uzatmaktır.
+#:   2. `expiration_at_ms` TAŞIMAYAN herhangi bir aktive eden olay
+#:      (ör. `UNCANCELLATION`) — çağıran, bulunamayan tarih yerine
+#:      "şimdi + 35 gün" koyuyor (K2 yedeği, aynı dosyada gerekçeli) ve o
+#:      tarih aylık bir dönemin işaretinden HER ZAMAN ileridir.
+#: 300 hakkı 287'ye düşmüş bir hesapta ikisi de 187 jetonu yer. 300 → 100
+#: öncesi bu yol görünmezdi (tazeleme 300'ü yine 300 yapıyordu, hediye);
+#: geçiş dönemi boyunca KAYIP üretir. Buradan kapatılamaz: `reset_allowance`
+#: olay tipini görmüyor, yani onarım çağıranı da değiştirmek demek —
+#: P4 paketinin dışında, bu yüzden ölçülüp YAZILDI, susulmadı.
+MONTHLY_TOKEN_ALLOWANCE = 100
 
 #: RevenueCat consumable ürün kimliği -> token adedi. Webhook yalnızca bu
 #: listedeki ürünleri paket sayar; liste dışı ürün kimliği abonelik borusuna
@@ -136,12 +178,22 @@ def get_wallet(uid: str) -> dict[str, Any]:
     """
     ref = _wallet_ref(uid)
     data: dict[str, Any] = {}
+    # Okuma GERÇEKTEN düştü mü? "Depo yok" (ref None, yerel/test) ile "depo
+    # cevap vermedi" aynı şey DEĞİL ve ayrımı burada kaybetmek para turunda
+    # bir yalan üretiyordu: istisna yutuluyor, `data` boş kalıyor ve uç
+    # {allowance: 0, purchased: 0} + HTTP 200 dönüyordu. İstemci bunu BAŞARILI
+    # yanıt sayıp "0" çiziyor, yani 1300 jetonu olan kullanıcı bakiyesinin
+    # bittiğini sanıp mağazaya gidiyordu. İstemcideki `WalletStatus.bilinmiyor`
+    # tam bu yalanı önlemek için eklenmişti ama yalnız TAŞIMA hatasında
+    # tetikleniyor; geçerli bir 200 onu devre dışı bırakıyor.
+    okundu = True
     if ref is not None:
         try:
             snapshot = ref.get()
             data = (snapshot.to_dict() or {}) if snapshot.exists else {}
         except Exception as exc:
             logger.warning("Cüzdan okunamadı (%s): %s", uid, exc)
+            okundu = False
 
     allowance = int(data.get("allowance", 0))
     marker = data.get("allowanceExpiresAt")
@@ -151,15 +203,36 @@ def get_wallet(uid: str) -> dict[str, Any]:
     if sub.get("active") and _ts(sub_expires) > _ts(marker):
         # Yeni dönem başlamış, webhook resetini kaçırmışız: görünümde tam
         # hakkı göster. Kalıcı yazım ilk harcamada yapılır.
-        allowance = MONTHLY_TOKEN_ALLOWANCE
+        #
+        # ⚠️ `max` ŞART, düz atama DEĞİL. "İşaret ileri gitti" ile "yeni dönem
+        # başladı" aynı şey değil: SUBSCRIPTION_EXTENDED ya da son kullanma
+        # taşımayan bir UNCANCELLATION dönemin ORTASINDA işareti ileri atıyor
+        # (billing.py: tarih yoksa "şimdi + 35 gün" konur ve bu aylık bir
+        # dönemin işaretinden HER ZAMAN ileridir). Düz atama o anda elde kalan
+        # hakkı tavana indirirdi: 287 → 100. 300 → 100 geçişinden ÖNCE bu yol
+        # görünmezdi (300'ü yine 300 yapıyordu, hediye); tavan düştüğü an
+        # KAYIP üretir ve bu, K3 kararının önlemek için var olduğu tek
+        # şikâyetin ta kendisidir. Tazeleme hakkı yalnız YUKARI çeker.
+        allowance = max(allowance, MONTHLY_TOKEN_ALLOWANCE)
         marker = sub_expires
 
     return {
         "allowance": allowance if sub.get("active") else 0,
         "purchased": int(data.get("purchased", 0)),
+        # ⚠️ K3 geçiş dönemi: `allowance` bu alandan BÜYÜK olabilir (önceki
+        # dönemde 300 yazılmış hak, yeni tavan 100). Hak geri alınmadığı için
+        # bu doğru veridir ve bir dönem sürer. Sayıyı burada tavana kırpmak
+        # kullanıcının GERÇEKTEN sahip olduğu hakkı eksik göstermek olurdu;
+        # "X / Y" biçiminde çizen yüzeyler o dönem boyunca "287 / 100" gösterir.
         "monthly_allowance": MONTHLY_TOKEN_ALLOWANCE,
         "allowance_resets_at": marker,
         "costs": dict(TOKEN_COSTS),
+        # Yanıt katmanı bunu okur ve okunamadıysa 200 DÖNMEZ (bkz. yukarıdaki
+        # gerekçe). Harcama yolundaki `charge_metered` fail-open davranışı
+        # bilinçli olarak DEĞİŞMİYOR: o yolda bir okuma hatası kullanıcıyı
+        # hizmetten mahrum etmesin diye geçirgen; yalan yalnız KULLANICIYA
+        # SAYI GÖSTEREN uçta zararlı.
+        "okundu": okundu,
     }
 
 
@@ -191,7 +264,10 @@ def _spend_txn(transaction, ref, uid: str, feature: str, cost: int) -> bool:
     sub = entitlements.get_subscription(uid)
     if sub.get("active"):
         if _ts(sub.get("expiresAt")) > _ts(marker):
-            allowance = MONTHLY_TOKEN_ALLOWANCE
+            # `max`: işaretin ileri gitmesi dönemin bittiğini kanıtlamaz —
+            # gerekçe get_wallet'taki ikiziyle aynı. Burası YAZAN yol olduğu
+            # için düz atama kaybı kalıcı hâle getirirdi.
+            allowance = max(allowance, MONTHLY_TOKEN_ALLOWANCE)
             marker = sub.get("expiresAt")
     else:
         # Abonelik yoksa dönem de yok: sönmüş dönemden kalan hak HARCANAMAZ.
@@ -338,7 +414,8 @@ def charge_metered(user, feature: str, free_limit: int,
     from core.entitlements import consume_quota  # döngüsel import kırıcı
 
     # KT2: yalnız GERÇEK mağaza abonesi (ya da FORCE_PLUS test kipi)
-    # doğrudan cüzdandan harcar — aylık 300'lük hak bunun için var.
+    # doğrudan cüzdandan harcar — aylık hak (MONTHLY_TOKEN_ALLOWANCE) bunun
+    # için var.
     # Sunucu denemesindeki (in_trial) kullanıcı ESKİDEN buraya düşüyordu
     # ve günlük ücretsiz hakkını KAYBEDİYORDU: 30 karşılama jetonu bir
     # rapor turunda bitince, denemenin kalan günlerinde ücretsiz
@@ -602,20 +679,62 @@ def reset_allowance(uid: str, expires_at: dt.datetime | None) -> None:
 
     İşaret karşılaştırması idempotent kılar: aynı dönemin tekrarlanan
     webhook'u hakkı İKİ KEZ vermez.
+
+    ``expires_at`` None gelebilir: her aktive eden olay son kullanma taşımıyor
+    (ölçüldü: UNCANCELLATION ve bazı INITIAL_PURCHASE olayları). O hâlde hak
+    YİNE VERİLİR ama dönem İŞARETİ TAŞINMAZ — gerekçesi aşağıda.
     """
-    if expires_at is None:
-        return
     ref = _wallet_ref(uid)
     if ref is None:
         return
     try:
         snapshot = ref.get()
         data = (snapshot.to_dict() or {}) if snapshot.exists else {}
+        if expires_at is None:
+            # K2 yedeği: son kullanma yoksa bakiye 0 görünmesin diye hak
+            # yazılır (iç test bulgusu). AMA İŞARET UYDURULMAZ.
+            #
+            # Eskiden çağıran taraf "şimdi + 35 gün" uyduruyordu ve bu, gerçek
+            # dönem sonundan İLERİ bir işaret bırakıyordu. Sonucu ölçülmedi
+            # ama yolu kesin: bir sonraki GERÇEK yenileme (örn. 3 gün sonra,
+            # son kullanma = 1 ay sonrası) uydurulan işaretten GERİDE kalırsa
+            # aşağıdaki kapı düşmez ve kullanıcı o dönemin hakkını HİÇ ALMAZ.
+            # Yani "bir sonraki RENEWAL gerçek tarihi yazar" gerekçesi tam
+            # tersini yapıyordu — uydurma işaret o yenilemeyi YUTUYORDU.
+            #
+            # İdempotency AYRI BİR BAYRAKLA kurulur, tarihle DEĞİL.
+            #
+            # "Hak tavanın altındaysa doldur" kuralı yetmez: dönemin ortasında
+            # 40 jetona inmiş bir kullanıcıya ikinci bir UNCANCELLATION
+            # geldiğinde hakkı 100'e geri doldururdu — bedava hak musluğu.
+            # İşaret de taşımadığımız için "bu dönemde verdim mi" sorusunu
+            # tarihten okuyamıyoruz; o yüzden soruyu doğrudan yazıyoruz.
+            # Bayrak, gerçek son kullanma geldiğinde aşağıdaki dalda silinir.
+            if data.get("allowanceGrantedWithoutExpiry"):
+                return
+            ref.set({**data,
+                     "allowance": max(int(data.get("allowance", 0) or 0),
+                                      MONTHLY_TOKEN_ALLOWANCE),
+                     "allowanceGrantedWithoutExpiry": True,
+                     "updatedAt": _now()})
+            logger.info("Aylık hak son kullanma OLMADAN verildi: uid=%s", uid)
+            return
         if _ts(expires_at) <= _ts(data.get("allowanceExpiresAt")):
             return
+        # `max`: webhook'un BİRİNCİL yolu burası ve `_ACTIVATING_EVENTS`
+        # yalnız dönem başlarında gelmiyor — SUBSCRIPTION_EXTENDED,
+        # UNCANCELLATION ve PRODUCT_CHANGE dönem ORTASINDA düşebiliyor.
+        # Düz atama o an elinde 287 hakkı olan kullanıcıyı 100'e indiriyordu
+        # (ölçüldü; 300 → 100 geçişi bu yolu görünür yaptı). Hak geri
+        # alınmaz: tazeleme yalnız YUKARI çeker (K3).
         ref.set({**data,
-                 "allowance": MONTHLY_TOKEN_ALLOWANCE,
+                 "allowance": max(int(data.get("allowance", 0) or 0),
+                                  MONTHLY_TOKEN_ALLOWANCE),
                  "allowanceExpiresAt": expires_at,
+                 # Gerçek son kullanma geldi: "son kullanmasız verdim" bayrağı
+                 # artık anlamsız ve DURMASI zararlı olurdu — kalsaydı bir
+                 # sonraki son kullanmasız olay sessizce yutulurdu.
+                 "allowanceGrantedWithoutExpiry": False,
                  "updatedAt": _now()})
         logger.info("Aylık token hakkı tazelendi: uid=%s", uid)
     except Exception as exc:

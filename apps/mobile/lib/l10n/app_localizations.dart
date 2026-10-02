@@ -278,6 +278,30 @@ abstract class AppLocalizations {
   /// **'Ödeme tamamlandı ama abonelik doğrulanamadı. \"Satın alımları geri yükle\"yi dene; sürerse bize yaz — ödemen güvende.'**
   String get purchaseEntitlementMissing;
 
+  /// No description provided for @purchaseWaitingStore.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mağaza ile konuşuluyor… Bu ekranı kapatma.'**
+  String get purchaseWaitingStore;
+
+  /// No description provided for @purchaseWaitingLong.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mağaza işlemi hâlâ sürüyor. Bu ekranı kapatsan da satın alman kaybolmaz: sonuç hesabına kendiliğinden işlenir.'**
+  String get purchaseWaitingLong;
+
+  /// No description provided for @purchaseLeaveScreen.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu ekranı kapat'**
+  String get purchaseLeaveScreen;
+
+  /// No description provided for @purchasePendingServer.
+  ///
+  /// In tr, this message translates to:
+  /// **'Satın alman alındı. Hesabına yansıması birkaç saniye sürebilir.'**
+  String get purchasePendingServer;
+
   /// No description provided for @avatarEditTitle.
   ///
   /// In tr, this message translates to:
@@ -1235,7 +1259,7 @@ abstract class AppLocalizations {
   /// No description provided for @benefitChatTitle.
   ///
   /// In tr, this message translates to:
-  /// **'Ayda 300 AI kredisi'**
+  /// **'Ayda 100 AI kredisi'**
   String get benefitChatTitle;
 
   /// No description provided for @benefitChatBody.
@@ -1255,6 +1279,54 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Dört Sütun analizi ve ikili harita karşılaştırması.'**
   String get benefitBaziBody;
+
+  /// No description provided for @benefitFaceTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yüz Okuma'**
+  String get benefitFaceTitle;
+
+  /// No description provided for @benefitFaceBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yüz hatlarından firaset geleneğine göre mizaç okuması. Görüntü cihazında işlenir; sunucuya yalnız ölçülen oranlar gider.'**
+  String get benefitFaceBody;
+
+  /// No description provided for @benefitTimingTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yıl Haritası, İç Takvim ve Doğum Kapısı'**
+  String get benefitTimingTitle;
+
+  /// No description provided for @benefitTimingBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güneş\'in doğum boylamına döndüğü ana kurulan yıl haritan, ilerletilmiş iç takvimin ve 64 kapı çarkındaki doğum kapın.'**
+  String get benefitTimingBody;
+
+  /// No description provided for @benefitIchingTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'I Ching çekimi'**
+  String get benefitIchingTitle;
+
+  /// No description provided for @benefitIchingBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gerçek olasılıklarla atılan çekim ve hareketli çizgilerin Rytho yorumu.'**
+  String get benefitIchingBody;
+
+  /// No description provided for @benefitPeopleTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'10 kişilik çevre'**
+  String get benefitPeopleTitle;
+
+  /// No description provided for @benefitPeopleBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ücretsiz katmanda tek kişi eklenir; Rytho+ ile on kişiye kadar ekler, her biriyle sinastri okursun.'**
+  String get benefitPeopleBody;
 
   /// No description provided for @profileTitle.
   ///
@@ -3446,6 +3518,24 @@ abstract class AppLocalizations {
   /// **'Mağaza bağlantısı kurulamadı. Biraz sonra tekrar dene.'**
   String get tokenPacksUnavailableBody;
 
+  /// No description provided for @tokenPacksPlusOnlyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Paketler Rytho+ abonelerine özel'**
+  String get tokenPacksPlusOnlyTitle;
+
+  /// No description provided for @tokenPacksPlusOnlyBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kredinin açtığı okumaların tamamı Rytho+ ile geliyor. Abonelik olmadan paket almak, sana karşılığını henüz veremeyeceğimiz bir bakiye bırakırdı; bu yüzden paketleri burada göstermiyoruz.'**
+  String get tokenPacksPlusOnlyBody;
+
+  /// No description provided for @tokenPacksSeePlus.
+  ///
+  /// In tr, this message translates to:
+  /// **'Rytho+\'a bak'**
+  String get tokenPacksSeePlus;
+
   /// No description provided for @tokenFreeTierWarnTitle.
   ///
   /// In tr, this message translates to:
@@ -3461,7 +3551,7 @@ abstract class AppLocalizations {
   /// No description provided for @tokenCostsNote.
   ///
   /// In tr, this message translates to:
-  /// **'Sohbet mesajı 1 · I Ching 2 · ikili dinamik 3 · derin raporlar ve yüz okuma 5 kredi. Daha önce ürettiğin bir rapora yeniden bakmak ücretsizdir.'**
+  /// **'Sohbet mesajı 1 · I Ching 2 · ikili dinamik 3 · derin raporlar ve yüz okuma 5 kredi. Kredi yalnız yeni bir rapor üretilirken düşer; hazır duran rapora yeniden bakmak hiç düşürmez.'**
   String get tokenCostsNote;
 
   /// No description provided for @tokenBalanceChip.

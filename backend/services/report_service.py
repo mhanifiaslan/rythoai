@@ -64,9 +64,17 @@ def _cached_generate(cache_key: str, prompt: str, fallback: str,
     durursa kullanıcıya "neden yine ücret?" sorusu hiç doğmaz. Üretim
     fallback'e düşerse ``refund`` çağrılır — kullanıcı almadığı şeye ödemez.
     ``spend`` 402 fırlatabilir; o durumda LLM çağrısı hiç yapılmaz.
+
+    Üretim yolunda yanıta ``persisted`` girer: metnin PAYLAŞIMLI
+    (kalıcı) önbellek katmanına gerçekten yazılıp yazılmadığı. Gerekçe
+    ``cache.set``in gövdesinde ölçüldü.
     """
     cached = cache.get(cache_key)
     if cached is not None:
+        # ``persisted`` burada BİLEREK yok: ``cache.get`` önce belleğe
+        # bakıyor, yani isabetin hangi katmandan geldiği ÖLÇÜLMEDİ.
+        # Ölçülmeyen söylenmez — var olmayan anahtar, yanlış anahtardan
+        # iyidir.
         return {"text": cached, "cached": True}
 
     if spend is not None:
@@ -96,9 +104,14 @@ def _cached_generate(cache_key: str, prompt: str, fallback: str,
         # zaten YENİDEN ÜRETİM: hata varsa modele iade edilip düzeltiliyor.
         # `ungrounded` yanıtta ve logda kalır (gözlem için), ücretlendirmeyi
         # etkilemez.
-        cache.set(cache_key, text, ttl_seconds=ttl_seconds,
-                  owner_uid=owner_uid)
+        # Yazım hatası isteği DÜŞÜRMEZ (fail-open, bkz. ``cache.set``)
+        # ama artık SESSİZ de değil: paylaşımlı katmana yazılamayan bir
+        # üretim, ısıtma yolunda "ısındı" SAYILMAMALI.
+        kalici_yazildi = cache.set(cache_key, text,
+                                   ttl_seconds=ttl_seconds,
+                                   owner_uid=owner_uid)
         return {"text": text, "cached": False,
+                "persisted": bool(kalici_yazildi),
                 **({} if grounded else {"ungrounded": True})}
     # `refunded` ISTEMCININ durust cumlesini kurmasi icin (gz-2): jeton
     # harcamayan uclarda (gunluk okuma) "jetonun iade edildi" demek YALAN
@@ -110,8 +123,11 @@ def _cached_generate(cache_key: str, prompt: str, fallback: str,
     # yaziyordu: odemis kullaniciya yalan bir soz, ustelik bakiyesi eksik.
     # `refund_spend` artik bakiye artisini GERCEKTEN yazdiysa True donuyor.
     iade_edildi = bool(refund()) if refund is not None else False
+    # Yedek metin önbelleğe HİÇ yazılmaz; ``persisted`` burada bir hata
+    # bildirimi değil, ölçülen hâlin kendisi — ve ısıtma yolu zaten
+    # ``fallback``ı başarı saymıyor.
     return {"text": fallback, "cached": False, "fallback": True,
-            "refunded": iade_edildi}
+            "persisted": False, "refunded": iade_edildi}
 
 
 def daily_reading(user_id: str, natal: dict[str, Any], sky: dict[str, Any],

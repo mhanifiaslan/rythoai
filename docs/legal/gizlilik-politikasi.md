@@ -1,115 +1,43 @@
-# Rytho Gizlilik Politikası
+# Rytho Gizlilik Politikası — KANONİK KOPYA BURADA DEĞİL
 
-Son güncelleme: 5 Ağustos 2026
+Bu dosya artık politika METNİNİ tutmuyor. Yalnızca nerede tuttuğunu söylüyor.
 
-Rytho ("Uygulama"), kişisel kozmik içgörü deneyimi sunan bir mobil uygulamadır.
-Bu politika, 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) ve Avrupa
-Birliği Genel Veri Koruma Tüzüğü (GDPR) çerçevesinde hangi verileri neden
-işlediğimizi, ne kadar sakladığımızı ve haklarınızı açıklar.
+## Kanonik kopyalar
 
-## 1. İşlenen veriler ve amaçları
+| Yüzey | Yol |
+|---|---|
+| Web (TR) | `web/legal/gizlilik.html` |
+| Web (EN) | `web/en/legal/privacy.html` |
+| Uygulama içi (TR + EN gövdeleri) | `apps/mobile/lib/features/profile/legal_texts.dart` |
 
-### a) Hesap bilgileri
-- **Ne:** Ad, e-posta adresi ve varsa profil fotoğrafı (e-posta, Google veya
-  Apple ile giriş üzerinden).
-- **Neden:** Hesabınızı oluşturmak, oturumunuzu doğrulamak ve profilinizi
-  göstermek için.
+Üçü de `backend/tests/test_gizlilik_kopyalari.py` ile çivili: aynı tarihi
+taşımak ve aynı bölümleri içermek zorundalar.
 
-### b) Doğum verisi
-- **Ne:** Doğum tarihi, saati (biliniyorsa), şehri ve tercihe bağlı cinsiyet
-  bilgisi.
-- **Neden:** Astroloji (natal harita), BaZi, I Ching bağlamı ve günlük okuma
-  hesaplamaları yalnızca bu verilerle yapılabilir. Doğum verisi, yorum üretimi
-  amacıyla sunucularımızda işlenir ve profilinizde saklanır. Bu veriler reklam
-  veya profilleme amacıyla üçüncü taraflarla paylaşılmaz.
+## Metin niçin buradan kaldırıldı
 
-### c) Yüz okuma (firaset) ölçümleri
-- **Ne:** Yüz okuma özelliğini açıkça onaylayıp kullandığınızda, yüzünüzün
-  CİHAZINIZDA ölçülen sayısal oranları.
-- **ÖNEMLİ:** Yüz fotoğrafınız veya kamera görüntünüz **cihazınızdan hiç
-  çıkmaz; sunucuya yüklenmez, hiçbir yerde saklanmaz.** Ölçüm tamamen
-  telefonunuzda yapılır; sunucuya yalnızca isimsiz sayısal oran ölçümleri
-  gönderilir ve yorum üretiminde kullanılır. Özellik, ayrı bir biyometrik
-  rıza onayı olmadan çalışmaz; onayı istediğiniz zaman geri çekebilirsiniz.
+Bu dosya politikanın **beşinci** kopyasıydı ve ölçüldüğünde (2026-10-02) en
+bayatıydı: tarihi hâlâ *5 Ağustos 2026*, ve dört bölüm hiç yoktu — eklenen
+kişilerin doğum verisi ("Çevrem"), abonelik ve tek cihaz, bildirimler, ortak
+bağlantısı tıklamaları. Canlı kopyalar o gün *2 Ekim 2026* diyordu.
 
-### d) Sosyal veriler
-- **Ne:** Kullanıcı adınız, arkadaşlık ilişkileriniz, kapalı bir kümeden
-  seçilen hazır tepkiler ve (açarsanız) günlük seri görünürlüğünüz.
-- **Neden:** Arkadaş listesi, günlük ikili okuma ve tepki özelliklerinin
-  çalışması için. Uygulamada serbest metinli gönderi, yorum veya birebir
-  mesajlaşma **yoktur**; diğer kullanıcılara yalnızca yukarıdaki sınırlı
-  bilgiler görünür.
+Dahası: hiçbir kod, HTML, betik ya da belge bu dosyaya **referans
+vermiyordu** (ölçüldü). Yani kimseye gösterilmeyen ama `docs/legal/` altında
+durduğu için okuyanı "politika bu" diye yanıltan bir metindi.
 
-### e) Telefon numarası ve rehber eşleşmesi (isteğe bağlı)
-- **Ne:** Telefonunuzu doğrularsanız numaranızın geri döndürülemez özeti
-  (SHA-256); rehber eşleşmesini AÇARSANIZ rehberinizdeki numaraların aynı
-  yöntemle özetleri.
-- **Neden:** Arkadaşlarınızı bulabilmeniz için. **Ham telefon numaraları
-  sunucuda saklanmaz**; rehber özetleri yalnızca eşleşme anında geçici olarak
-  işlenir, kaydedilmez. Ad-soyad bilgisi rehberden okunmaz.
+Kök neden bir yazım hatası değil **kopya sayısı**: bir hukuk metninin beş
+kopyası varsa dördü bir gün ayrışır. Aynı sınıf iki ay boyunca sessizce
+yaşadı (uygulama 2 Ağustos, web 5 Ağustos; webde iki bölüm hiç yoktu). Üç
+kopya bir bekçiyle zorunlu — mobil, web TR, web EN farklı teknolojiler ve
+birleştirilemiyor. Dördüncüsü için gerekçe yoktu.
 
-### f) Sohbet ve hafıza
-- **Ne:** Rytho ile konuşmalarınız ve bu konuşmalardan damıtılmış kısa
-  içgörüler.
-- **Neden:** Kaldığınız yerden devam edebilmeniz ve yorumların sizi tanıması
-  için. 30 gün boyunca açılmayan konuşmalar otomatik silinir.
+⚠️ Buraya politika metni **geri yazılmamalı**. Metin değişikliği üç kanonik
+kopyada birlikte yapılır; bekçi üçünü de aynı tarihte ve aynı bölümlerle
+görmek ister.
 
-### g) Teknik veriler
-- **Ne:** Çökme kayıtları (Firebase Crashlytics), anonim kullanım olayları
-  (Firebase Analytics), bildirim jetonu (FCM), satın alma durumu (RevenueCat).
-- **Neden:** Uygulama kararlılığını iyileştirmek, bildirim gönderebilmek ve
-  aboneliğinizi tanıyabilmek için.
+## Kullanım şartları
 
-## 2. Yapay zeka ile işleme
-
-Okumalar ve sohbet yanıtları, Google Gemini modeli ile üretilir. Bu amaçla
-doğum haritası özetiniz ve sorularınız Google Cloud altyapısında işlenir.
-Konuşmalarınızın ham dökümleri kalıcı hafızaya alınmaz; yalnızca damıtılmış
-kısa içgörüler saklanır. Üretilen yorumlar **eğlence ve kişisel içgörü
-amaçlıdır; tıbbi, hukuki, finansal veya psikolojik tavsiye niteliği taşımaz.**
-
-## 3. Alt işleyiciler
-
-Verileriniz aşağıdaki hizmet sağlayıcıların altyapısında barındırılır ve
-işlenir:
-
-- **Google Firebase** (kimlik doğrulama, veritabanı, bildirim, analitik,
-  çökme raporları) — Google LLC
-- **Google Cloud Platform / Cloud Run** (hesaplama ve yapay zeka servisi,
-  us-central1 bölgesi) — Google LLC
-- **RevenueCat** (abonelik ve satın alma durumunun yönetimi; ödeme kartı
-  bilgileriniz bize veya RevenueCat'e değil, Google Play / App Store'a
-  verilir) — RevenueCat, Inc.
-
-Google'ın veri işleme koşulları: https://cloud.google.com/terms/data-processing-addendum
-
-## 4. Saklama süreleri
-
-- Hesap ve doğum verisi: hesabınız silinene kadar.
-- Yüz görüntüsü: **hiç toplanmaz** (ölçüm cihazda; sunucuda yalnız sayısal
-  oranlar ve metin yorum).
-- Konuşmalar: son açılıştan 30 gün sonra otomatik silinir; hesap silmede
-  tamamı silinir.
-- Sosyal veriler: siz kaldırana veya hesabınız silinene kadar.
-- Çökme/analitik kayıtları: Firebase'in standart saklama süreleri (en fazla
-  90 gün ham veri).
-
-## 5. Haklarınız ve veri silme
-
-KVKK m.11 ve GDPR kapsamında verilerinize erişme, düzeltme, silme, işlemeye
-itiraz etme ve taşınabilirlik haklarına sahipsiniz.
-
-**Veri silme:** Hesabınızı uygulama içinden (Profil → Hesap → Hesabı sil)
-anında silebilirsiniz; tüm verileriniz bu işlemle kalıcı olarak kaldırılır.
-Dilerseniz **aslan.mh@gmail.com** adresine kayıtlı e-posta adresinizden
-yazabilirsiniz; talebiniz en geç 30 gün içinde sonuçlandırılır.
-
-## 6. Çocukların gizliliği
-
-Rytho 13 yaş altı kullanıcılara yönelik değildir. 13 yaşından küçük olduğunu
-öğrendiğimiz kullanıcıların hesapları silinir.
-
-## 7. Değişiklikler
-
-Bu politika güncellendiğinde uygulama içinden duyurulur. Sorularınız için:
-**aslan.mh@gmail.com**
+`docs/legal/kullanim-sartlari.md` **kalıyor** ve bayat değil (2026-09-27).
+Sebep: o metin `backend/tests/test_honesty.py` içindeki `_KOPYALAR` ile
+çivili — dört dosya, beş gövde (Dart dosyası TR ve EN gövdelerini birlikte
+taşıyor) — ve bu belge o dörtten biri. Yani referanssız bir kopya değil,
+bekçiyle bağlı bir kopya. Aradaki tek fark bu.

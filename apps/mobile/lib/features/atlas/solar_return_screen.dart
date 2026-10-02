@@ -24,6 +24,16 @@ class SolarReturnScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    // ÜÇ DURUMLU kapı (P2): sağlayıcının `null`ı artık YALNIZ "abone değil"
+    // demek. Cevap gelmeden kilit çizmek, ödemiş kullanıcıya her girişte
+    // "abone değilsin" demekti.
+    final kapi = ref.watch(raporKapisiProvider);
+    if (kapi == PlusHali.bilinmiyor) {
+      return CosmicScaffold(
+        appBar: AppBar(title: Text(l10n.solarReturnTitle)),
+        body: const _Iskelet(),
+      );
+    }
     final veri = ref.watch(solarReturnProvider);
 
     return CosmicScaffold(
@@ -254,4 +264,24 @@ class _Rozet extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Kapı BİLİNMİYORken çizilen iskelet (P2).
+///
+/// Ne kilit ne içerik: ikisi de bir hüküm ve o hüküm henüz yok. Bloklar
+/// sayfanın gerçek bölüm hacimlerini taklit ediyor, böylece cevap gelince
+/// düzen zıplamıyor. Shimmer `SkeletonPanel`in içinde ve reduce-motion'da
+/// kendiliğinden kapanıyor.
+class _Iskelet extends StatelessWidget {
+  const _Iskelet();
+
+  @override
+  Widget build(BuildContext context) => ListView(
+        padding: const EdgeInsets.only(top: 8, bottom: 120),
+        children: const [
+          SkeletonPanel(height: 150),
+          SkeletonPanel(height: 110),
+          SkeletonPanel(height: 90),
+        ],
+      );
 }

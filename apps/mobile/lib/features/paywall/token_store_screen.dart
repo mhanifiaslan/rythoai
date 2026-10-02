@@ -11,6 +11,24 @@
 /// bilir ama YALNIZCA göstermek için — bakiyeye ne yükleneceğine webhook
 /// karar verir. Fiyat metni mağazadan gelir (para birimi/vergi yerelleşmesi
 /// mağazanın işi).
+///
+/// ## Paketler YALNIZ aboneye gösterilir
+///
+/// Sahibin kararı (K2) ve gerekçesi sunucuda ölçüldü: `charge_metered` TÜM
+/// depoda tek yerden çağrılıyor (`api/chat.py`), beş jetonluk raporların
+/// hepsi `require_plus` arkasında. Yani abone olmayan birinin satın aldığı
+/// kredinin tek kullanım senaryosu "günün 6. sohbet mesajı" — ekranın alt
+/// satırındaki bedel listesi ise I Ching, ikili dinamik ve derin raporları
+/// sayıyor. Mağaza parasını alıp karşılığını vermediği bir ürün
+/// gösteriyordu; artık göstermiyor.
+///
+/// Deneme (trial) kullanıcısı ABONE SAYILIR ve bu doğru: `/billing/status`
+/// gövdesindeki `active`, sunucudaki `is_subscriber` ile birebir aynı
+/// (`core/entitlements.py` — deneme tüm Plus kapılarını açıyor). Paket onun
+/// için ayrıca ANLAMLI, çünkü `get_wallet` denemedeki kullanıcıya
+/// `allowance: 0` veriyor (`core/wallet.py`) ve raporlar `wallet.spender`
+/// ile doğrudan cüzdandan harcıyor — yani denemedeki kullanıcı YALNIZ
+/// `purchased` bakiyesinden harcar.
 library;
 
 import 'package:flutter/material.dart';
@@ -29,6 +47,7 @@ import '../../widgets/atlas_widgets.dart';
 import '../../widgets/common.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
+import 'paywall_screen.dart';
 
 /// Gösterim adetleri — sunucudaki `TOKEN_PACKS` ile aynı tutulmalı.
 /// Yanlışsa kullanıcı yanlış vaat görür ama yanlış bakiye ALMAZ
@@ -54,14 +73,24 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
   String? _busyProductId;
 
   Future<void> _buy(StoreProduct product) async {
+    // Çift satın almanın YAPISAL kapısı — `enabled` bayrağına ek olarak.
+    // Düğme kuralı yalnız çizim anındaki bayrağa bakıyor; kapı burada,
+    // arayüzden bağımsız duruyor (paywall'daki `_buy` ile aynı gerekçe).
+    if (_busyProductId != null) return;
     final l10n = AppLocalizations.of(context);
     final mesajci = ScaffoldMessenger.of(context);
     setState(() => _busyProductId = product.identifier);
     try {
-      await purchaseTokenPack(ref, product);
+      final satinAl = ref.read(jetonSatinAliciProvider) ?? purchaseTokenPack;
+      final yuklendi = await satinAl(ref, product);
       if (!mounted) return;
-      mesajci.showSnackBar(
-          SnackBar(content: Text(l10n.tokenPurchaseDone)));
+      // "Paket yüklendi" cümlesi eskiden dönen değere BAKMADAN söyleniyordu
+      // ve bütçe dolmuş bir turda yanlıştı: bakiye henüz yüklenmemişti.
+      // Ölçülen söylenir — ölçülmeyen değil.
+      mesajci.showSnackBar(SnackBar(
+          content: Text(yuklendi
+              ? l10n.tokenPurchaseDone
+              : l10n.purchasePendingServer)));
     } on PlatformException catch (e) {
       // Kullanıcının vazgeçmesi hata değil; sessiz geçilir. Diğer mağaza
       // hataları l10n'a çevrilir (ham İngilizce metin ekrana çıkmaz).
@@ -84,9 +113,39 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
     final l10n = AppLocalizations.of(context);
     final cuzdan = ref.watch(walletProvider).value ?? WalletStatus.none;
     final paketler = ref.watch(tokenPacksProvider);
+    final mesgul = _busyProductId != null;
 
-    return CosmicScaffold(
-      appBar: AppBar(title: Text(l10n.tokenStoreTitle)),
+    // Abonelik ÜÇ HALLİ okunuyor: biliniyor-abone / biliniyor-değil /
+    // BİLİNMİYOR. `paywallKarariVerilebilir` tam bunun için var (yükleniyor
+    // ya da okuma düştü → karar bir sonraki tura kalır). Bilinmiyorken
+    // paketleri gizlemek de göstermek de yanlış olurdu: biri aboneye
+    // satılacak ürünü saklar, öteki abone olmayana karşılığı olmayan bir
+    // bakiye satar.
+    final abonelikDurumu = ref.watch(subscriptionProvider);
+    final kararVerilebilir = paywallKarariVerilebilir(abonelikDurumu);
+    final abone = abonelikDurumu.value?.active ?? false;
+
+    // Geri tuşu ödeme UÇARKEN geçmez (paywall ile aynı gerekçe); bu ekranın
+    // AppBar'ı bir dönem hiç özelleştirilmemişti, yani varsayılan geri
+    // düğmesi meşguliyeti hiç bilmiyordu.
+    return PopScope(
+      canPop: !mesgul,
+      child: CosmicScaffold(
+      appBar: AppBar(
+        title: Text(l10n.tokenStoreTitle),
+        // Simge rotaya göre: bu ekran hem tam-ekran diyalog olarak (402
+        // köprüsü, `core/api.dart`) hem normal sayfa olarak (Sohbet,
+        // Abonelik) açılıyor. Sabit bir simge, girişlerin yarısında yanlış
+        // şekli gösterirdi.
+        leading: IconButton(
+          icon: Icon(
+              _tamEkranDiyalog(context)
+                  ? Icons.close_rounded
+                  : Icons.arrow_back_rounded,
+              size: 22),
+          onPressed: mesgul ? null : () => Navigator.maybePop(context),
+        ),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
@@ -154,94 +213,127 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
             ),
 
             SectionHeader(l10n.tokenPacksHeader),
-            // Ücretsiz katman uyarısı — satın alma düğmelerinin ÜSTÜNDE.
-            //
-            // Kapalı test denetiminde (2026-09-14) bulundu: bu ekran
-            // aboneliği hiç izlemiyordu ve alt satırdaki bedel listesi
-            // ("I Ching 2 · ikili dinamik 3 · derin raporlar 5") abonelik
-            // şartından tek kelime etmiyordu. Oysa o uçların HEPSİ
-            // `require_plus` arkasında; ücretsiz kullanıcının krediyi
-            // gerçekten harcayabildiği tek yer sohbet (`chat.py` →
-            // `charge_metered`). Yani ₺419,99'luk 1000 kredilik paketi
-            // alan ücretsiz kullanıcı, listede yazan her şeyde 402
-            // görürdü. Kredi yanmıyor (sonradan abone olunca kullanılır)
-            // ama satış anındaki vaat yanlıştı.
-            const _UcretsizKatmanUyarisi(),
-            paketler.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.all(RythoSpace.xl),
-                child: Center(child: AstrolabeSpinner()),
+
+            // Üç yol, üç hâl için. Sıra önemli: "bilinmiyor" ÖNCE sorulur,
+            // yoksa `active` varsayılanı (`false`) bilinmeyen durumu
+            // "abone değil" diye okur — bu tam olarak ilkacilis-2'de
+            // yanan ayrım.
+            if (!kararVerilebilir)
+              _AbonelikKarariBekliyor(yukleniyor: abonelikDurumu.isLoading)
+            else if (!abone)
+              const _PaketlerPlusaOzel()
+            else
+              paketler.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(RythoSpace.xl),
+                  child: Center(child: AstrolabeSpinner()),
+                ),
+                // Mağaza hatası artık BURAYA da düşüyor (sağlayıcı yutmuyor)
+                // ve çeviri paywall'la AYNI kapıdan geçiyor: `friendlyError`
+                // PlatformException'ı tanımadığı için ağ hatasında
+                // "beklenmeyen sorun" diyordu, paywall doğru metni
+                // gösterirken.
+                error: (e, _) => ErrorCard(
+                  message: magazaVeyaAgHatasi(e, l10n),
+                  onRetry: () => ref.invalidate(tokenPacksProvider),
+                ),
+                data: (urunler) => urunler.isEmpty
+                    ? EmptyState(
+                        emoji: '🛰️',
+                        title: l10n.tokenPacksUnavailable,
+                        description: l10n.tokenPacksUnavailableBody,
+                      )
+                    : Column(children: [
+                        for (final urun in urunler)
+                          _PackTile(
+                            product: urun,
+                            amount: kPackDisplayAmounts[urun.identifier],
+                            busy: _busyProductId == urun.identifier,
+                            enabled: !mesgul,
+                            onBuy: () => _buy(urun),
+                          ),
+                      ]),
               ),
-              // Mağaza hatası artık BURAYA da düşüyor (sağlayıcı yutmuyor)
-              // ve çeviri paywall'la AYNI kapıdan geçiyor: `friendlyError`
-              // PlatformException'ı tanımadığı için ağ hatasında "beklenmeyen
-              // sorun" diyordu, paywall doğru metni gösterirken.
-              error: (e, _) => ErrorCard(
-                message: magazaVeyaAgHatasi(e, l10n),
-                onRetry: () => ref.invalidate(tokenPacksProvider),
-              ),
-              data: (urunler) => urunler.isEmpty
-                  ? EmptyState(
-                      emoji: '🛰️',
-                      title: l10n.tokenPacksUnavailable,
-                      description: l10n.tokenPacksUnavailableBody,
-                    )
-                  : Column(children: [
-                      for (final urun in urunler)
-                        _PackTile(
-                          product: urun,
-                          amount: kPackDisplayAmounts[urun.identifier],
-                          busy: _busyProductId == urun.identifier,
-                          enabled: _busyProductId == null,
-                          onBuy: () => _buy(urun),
-                        ),
-                    ]),
-            ),
 
             const SizedBox(height: RythoSpace.md),
             Text(l10n.tokenCostsNote, style: RythoType.caption),
           ],
         ),
       ),
+      ),
     );
   }
 }
 
-/// Ücretsiz katmanda kredinin ne İŞE YARADIĞINI satın almadan ÖNCE söyler.
+/// Ekran tam-ekran diyalog olarak mı açıldı?
 ///
-/// Abonede hiç çizilmez: onun için liste zaten doğru. Abonelik durumu
-/// henüz yüklenmemişse de çizilmez — yanlış anda "abone değilsin" demek,
-/// hiçbir şey dememekten kötü.
-class _UcretsizKatmanUyarisi extends ConsumerWidget {
-  const _UcretsizKatmanUyarisi();
+/// `core/api.dart` 402 köprüsü `fullscreenDialog: true` ile açıyor, Sohbet
+/// ve Abonelik ekranları ise düz `MaterialPageRoute` ile. Flutter'ın kendi
+/// mantığı AppBar'ın OTOMATİK düğmesinde yaşıyor; düğmeyi meşguliyete
+/// bağlamak için elle koyduğumuz an o mantığı da elle taşımak gerekti.
+bool _tamEkranDiyalog(BuildContext context) {
+  final rota = ModalRoute.of(context);
+  return rota is PageRoute && rota.fullscreenDialog;
+}
+
+/// Abonelik durumu henüz BİLİNMİYOR.
+///
+/// Yükleniyorsa iskelet: paketlerin HACMİ görünür, karar görünmez. Okuma
+/// DÜŞTÜYSE iskelet yetmez — sonsuza kadar yüklenen bir ekran, kullanıcıya
+/// uygulamanın bozuk olduğunu söyler. O hâlde elle tazeleme sunuluyor,
+/// çünkü `subscriptionProvider` auto-dispose DEĞİL: ekranı kapatıp açmak
+/// bayat sonucu kurtarmaz.
+class _AbonelikKarariBekliyor extends ConsumerWidget {
+  const _AbonelikKarariBekliyor({required this.yukleniyor});
+
+  final bool yukleniyor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final abonelik = ref.watch(subscriptionProvider).value;
-    if (abonelik == null || abonelik.active) return const SizedBox.shrink();
+    if (yukleniyor) {
+      return const Column(children: [
+        SkeletonPanel(height: 84, margin: EdgeInsets.only(bottom: RythoSpace.md)),
+        SkeletonPanel(height: 84, margin: EdgeInsets.only(bottom: RythoSpace.md)),
+        SkeletonPanel(height: 84, margin: EdgeInsets.only(bottom: RythoSpace.md)),
+      ]);
+    }
+    return ErrorCard(
+      message: AppLocalizations.of(context).errorGeneric,
+      onRetry: () => ref.invalidate(subscriptionProvider),
+    );
+  }
+}
 
-    return Container(
+/// Abone OLMAYANA paket yerine gösterilen panel (karar K2).
+///
+/// İki şeyi birlikte söylüyor, çünkü kullanıcının iki sorusu var: "neden
+/// paket yok" ve "elimdeki kredi ne işe yarıyor". İkincisi eskiden ayrı bir
+/// uyarı kutusuydu (`_UcretsizKatmanUyarisi`) ve satın alma düğmelerinin
+/// üstünde dururdu; düğmeler kalkınca uyarının "almadan önce oku" işi de
+/// bitti ama METNİ hâlâ doğru — bakiyesi olan ücretsiz kullanıcı onu
+/// okumak zorunda. Bu yüzden iki panel teke indi.
+class _PaketlerPlusaOzel extends StatelessWidget {
+  const _PaketlerPlusaOzel();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return GlassPanel(
       margin: const EdgeInsets.only(bottom: RythoSpace.md),
-      padding: const EdgeInsets.all(RythoSpace.md),
-      decoration: BoxDecoration(
-        color: RythoColors.gold.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(RythoRadius.md),
-        border: Border.all(color: RythoColors.gold.withValues(alpha: 0.35)),
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Icon(Icons.info_outline, size: 18, color: RythoColors.gold),
-        const SizedBox(width: RythoSpace.sm),
-        Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.tokenFreeTierWarnTitle, style: RythoText.body(13.5)),
-                const SizedBox(height: 2),
-                Text(l10n.tokenFreeTierWarnBody,
-                    style: RythoText.body(11.5,
-                        color: RythoColors.parchmentDim)),
-              ]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(l10n.tokenPacksPlusOnlyTitle, style: RythoType.cardTitle),
+        const SizedBox(height: RythoSpace.xs),
+        Text(l10n.tokenPacksPlusOnlyBody, style: RythoType.bodyDim),
+        const SizedBox(height: RythoSpace.md),
+        Text(l10n.tokenFreeTierWarnTitle, style: RythoText.body(13.5)),
+        const SizedBox(height: 2),
+        Text(l10n.tokenFreeTierWarnBody,
+            style: RythoText.body(11.5, color: RythoColors.parchmentDim)),
+        const SizedBox(height: RythoSpace.md),
+        GoldButton(
+          text: l10n.tokenPacksSeePlus,
+          onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const PaywallScreen())),
         ),
       ]),
     );

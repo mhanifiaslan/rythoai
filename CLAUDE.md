@@ -121,6 +121,38 @@ kullan (dizeyi olduğu gibi geçirir) ya da Python'da `chr(92)` ile kur. Yol
 satırlık düzeltme 1000+ satırlık hayalet diff'e döner. Yazarken dosyanın
 kendi satır sonunu koru.
 
+**"İŞARET İLERİ GİTTİ" ≠ "YENİ DÖNEM BAŞLADI".** Aylık hak tazelemesi üç
+yerde (`wallet.py` `reset_allowance` + iki tembel tazeleme) dönem işaretinin
+ilerlemesini yeni dönem sanıp hakkı **üzerine yazıyordu**. `_ACTIVATING_EVENTS`
+yalnız dönem başlarında gelmiyor: `SUBSCRIPTION_EXTENDED`, `UNCANCELLATION`,
+`PRODUCT_CHANGE` dönem **ortasında** düşüyor. Elinde 287 hak olan kullanıcı
+100'e iniyordu. 300 → 100 inişinden ÖNCE görünmezdi (300'ü yine 300 yapıyordu,
+hediye) — **tavan düştüğü an kayıp üretti.** Kural: tazeleme hakkı yalnız
+YUKARI çeker (`max`), asla azaltmaz.
+
+**TARİH UYDURMA.** Son kullanma taşımayan olayda `billing.py` "şimdi + 35 gün"
+yazıyordu ve gerekçesi *"bir sonraki RENEWAL gerçek tarihi yazar"* diye
+çivilenmişti. Tam tersini yapıyordu: uydurulan işaret gerçek dönem sonundan
+ileride kaldığı için bir sonraki yenilemenin tarihi ondan **geride** kalıyor,
+idempotency kapısı düşmüyor ve kullanıcı o dönemin hakkını **hiç almıyordu**.
+Çözüm: tarih uydurma, hakkı ver ve işareti **taşıma**; idempotency'yi ayrı bir
+bayrakla kur (`allowanceGrantedWithoutExpiry`) — yoksa tekrarlanan olay
+harcanmış hakkı geri doldurur (bedava hak musluğu).
+
+**OKUYUCUSU OLMAYAN ŞEYİ ISITMA.** Burç ön-üretimi haftalık/aylık kovalar için
+de kurulmuştu (hem de adlarına rağmen `* * *` ile her gece): 48 LLM üretimi,
+**okuyucusu sıfır** — `period` gönderen tek istemci satırı yok. Bekçi
+"üç dönem de ısıtılsın" diye yazılırsa bu kusuru **korur**; doğru değişmez
+**"ısıtılan her dönem istemciden istenebilir olmalı"** ve iki yöne de çalışır
+(yüzey açıldığı gün işi eklemeyi hatırlatır).
+
+**BİR HUKUK METNİNİN BEŞ KOPYASI VARSA DÖRDÜ AYRIŞIR.** Gizlilik politikası
+beş yerde yaşıyordu; `docs/legal/gizlilik-politikasi.md` hiçbir yerden
+referans edilmiyordu ve iki ay bayat kaldı (dört bölüm eksik). Metni
+kaldırıldı, yönlendirmeye çevrildi, `test_besinci_kopya_geri_dogmaz` ile
+çivilendi. Üç kopya zorunlu (mobil / web TR / web EN birleştirilemiyor),
+dördüncüsünün gerekçesi yok.
+
 **Riverpod:** `FutureProvider` varsayılan `isAutoDispose = false` — yutulan
 bir hata **oturum boyunca** önbellekte kalır. Ayrıca `apiProvider`'ın
 interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
@@ -128,11 +160,86 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ---
 
-## 6. Bugünkü durum (2026-09-28)
+## 6. Bugünkü durum (2026-10-02)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.17.0+46**. Backend rev **00104**.
-⚠️ 46 **Play'e henüz yüklenmedi** — sürüm kodu hâlâ serbest, yeniden
-derlerken artırma.
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.17.1+47**. Backend rev **00104**.
+46 hiç yüklenmedi ve 47'ye geçildi — sürüm kodu ucuz, kullanılmış olabilecek
+bir kodu geri kullanmak değil.
+
+### ⚠️ CANLI KESİNTİ: Gemini 403 "Lightning dunning decision is deny"
+
+Bu bölüm bir kez gün kaybettirdi ve **ölçme yöntemi** asıl değerli kısım.
+
+Belirti: Cloud Run'da `403 PERMISSION_DENIED`, mesaj
+*"Lightning dunning decision is deny for project: projects/770582338651"*
+(= `rhytoai`). Kaynak `gemini_service.py` `generate_content` VE
+`rag_service.py` `embed_content` — **iki yüzey**, biri atlanırsa teşhis eksik
+kalır.
+
+**EPİZODİK, kalıcı değil** (ölçüldü 2026-10-02): epizot 1
+`09-02T12:23Z → 09-03T04:17Z` (~16 saat, **kendi kendine geçti**), sonra
+**27 gün sıfır red**, sonra epizot 2 `10-01T21:59:59Z →` sürüyor. İkisi de
+**ay başına** denk geliyor — aylık otomatik çekimin düşüp sonra tutması
+desenine uyuyor. Yani "kalıcı bir risk bayrağı" değil, fatura döngüsü.
+
+**Red PROJE düzeyinde, anahtar kısıtı DEĞİL.** Kanıt: fatura da kota da
+gerektirmeyen `models.list` bile 403 veriyor. Anahtarın tek kısıtı
+`apiTargets = generativelanguage.googleapis.com`, istemci kısıtı yok ve
+`updateTime` **2026-07-23** — yani 09-26 kısıtlama turunda ona dokunulmamış.
+Anahtar kısıtı olsaydı mesaj *"Requests from … are blocked"* olurdu.
+
+⚠️ **Ölçülmüş ve açıklanamamış çelişki:** aynı anahtar (SHA-256 özetiyle
+doğrulandı: `.env` ile Secret Manager **AYNI**) bu makineden `models.list`'e
+**10/10 başarılı**, Cloud Run ise aynı dakikada 403. Yani sırrı döndürmek
+**işe yaramaz** (aynı anahtar) ve "proje düzeyinde sabit red" de tam doğru
+değil. Olasılıklar ölçülmedi: red o dakikalarda kalkmış olabilir (Cloud Run
+11:54'ten sonra hiç deneme yapmadı — kuyruk boştu), ya da karar çağıran
+ortama/IP'ye duyarlı. **Kesin cevap için üretimden tek bir Gemini çağrısı
+tetiklenmeli.**
+
+**BAŞARI SAYISI LOGDAN ÖLÇÜLEMEZ** — `generate()` başarı yolunda hiçbir satır
+basmıyor. Doğru ölçü Firestore `usageEvents`: her DÖNEN çağrı bir doküman,
+`day` alanı UTC gün anahtarı. Ölçülen: 09-30 → 81, 10-01 → 59,
+**10-02 → 0**. "Logda hata yok" ≠ "çalışıyor".
+
+Sahibin yapması gereken sırayla: (1) fatura hesabı
+`01156B-3E95EE-A8BB8F` → İşlemler/Belgeler/Ödeme yöntemi, başarısız çekim ya
+da süresi geçmiş kart; (2) `pay.google.com` ödeme profili; (3) ödeme sorunu
+yoksa `discuss.ai.google.dev` Gemini API kategorisinde **manuel inceleme
+talebi** — Google'ın kendi forumunda aynı mesajla onlarca vaka var ve
+birkaçında **ödeme yapmak tek başına yetmemiş**. YAPMA: anahtar üretmek,
+kısıt gevşetmek, API'yi kapatıp açmak, faturayı söküp bağlamak — hiçbiri
+işe yaramıyor (ölçüldü + forum kaydı).
+
+### ⚠️ Zamanlanmış işler bir AY boyunca YEŞİL yalan söyledi
+
+Asıl kusur 403 değil; 403 olabilir. Asıl kusur **30 gün hiçbir yerde kırmızı
+görünmemesi**. Zincir ölçüldü: 10 Gemini 403 → 10 *"Sinyal yorumu biçim dışı
+(0 satır), şablona düşüldü"* → paket şablon satırına düşüyor → push **normal
+gidiyor** → `gonderilen=10 basarisiz=0` → `POST /notify/run 200 OK`.
+Yani `sent` sağlıklı, Scheduler günlüğü temiz, ürünün çekirdek vaadi
+(kişiye özgü AI cümlesi) ölü ve kullanıcı her sabah şablon alıyor.
+
+Onarıldı: `RunResult.generation` (`attempted/ok/fallback`), tam düşüşte uç
+**503** dönüyor ve aynı ad `notifyRuns.lastStatus`'a yazılıyor. Eşik 3 ve
+değeri ölçülmüş (günün yalnız üç koşusu bir şey borçlanıyor).
+
+⚠️ **Yanıltıcı log sınıfı:** `generate()`'in `None`'ı bir yerde `""`e
+cebirleniyor ve 403 **biçim hatası** olarak loglanıyor. O satırı okuyan
+yanlış gerekçeye varır (`signal_service`, `calendar_insights`).
+
+⚠️ **RAG sessizce bozuluyor:** embedding reddinde `search()` anlamsal aramadan
+**kelime örtüşmesine** geriliyor (`rag_service.py:655-672`), hata yüzeye
+çıkmıyor. Red kalktıktan sonra da bu yolun bozuk kalması fark edilmez.
+
+⚠️ **Kullanıcı farkı anlamayan yedekler** (en kötü sınıf): uç `fallback`
+bayrağı dönüyor ama istemci OKUMUYOR → **burç yorumu** (`providers.dart`,
+ücretsiz katmanın omurgası) ve **ikili dinamik** şablon metni gerçek rapor
+gibi gösteriyor. Altı uç bayrağı hiç döndürmüyor (iching, solar-return,
+progressions, birth-hexagram, relationship, synastry). Jeton **iade
+ediliyor**, yani para kaybı yok — ama bakiye açıklamasız yükselirken ekranda
+"rapor" duruyor. Bildirim yedeği **36 saat** önbellekli, yani iyileşmeden
+sonra kendini onarmıyor.
 
 **Kapalı test yürüyor** (Alpha kanalı). 45 hem dahili hem kapalı testte.
 
