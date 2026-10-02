@@ -191,11 +191,30 @@ def _now() -> dt.datetime:
 # tanıtımının işe yarayıp yaramadığını bilemez — dönüşüm oranı da tıklama
 # olmadan hesaplanamaz (bölen yok).
 #
-# ⚠️ GİZLİLİK ÇİZGİSİ (pazarlık yok): burada IP, User-Agent, kimlik ve
-# çerez YOK. Saklanan tek şey bir SAYAÇ. Ziyaretçi henüz oturum açmamış bir
-# yabancıdır; ona ait tek bir bayt bile yazılmaz. Bu yüzden "tekil ziyaretçi"
-# de ölçülemez — tekillik ancak bir işaretle ölçülür ve o işaret kişisel
-# veridir. Pano bu sayıyı TIKLAMA diye sunar, ziyaretçi diye SUNMAZ.
+# ⚠️ GİZLİLİK ÇİZGİSİ (pazarlık yok): bu modülün YAZDIĞI kayıtta IP,
+# User-Agent, kimlik ve çerez YOK — Firestore'a inen tek şey bir SAYAÇ.
+#
+# Çizgi bir tur boyunca MUTLAK yazılıydı ("ziyaretçiye ait tek bir bayt bile
+# yazılmaz") ve o gerekçe yanlıştı. Ölçülen hâl: aynı istek kota katmanından
+# geçiyor ve `core/ratelimit.py` tıklama ucunda kova anahtarını ziyaretçinin
+# IP'sinden kuruyor (`_client_key(..., sadece_ip=True)`; uç kimliksiz olduğu
+# için `Authorization` BİLEREK dinlenmiyor, yoksa istemci her istekte yeni
+# kova açıp tavanı yok ederdi). O anahtar middleware'in BELLEĞİNDEKİ kayan
+# pencere sözlüğünde duruyor (`RateLimitMiddleware._hits`): süreç ömürlü,
+# hiçbir kalıcı yere inmez. Ne kadar kalabildiği ölçüldü (yeniden
+# ölçüldü 2026-10-02, `ratelimit.py`): kova penceresi 60 sn ama budama
+# YALNIZ yeni bir istek geldiğinde ve en çok beş dakikada bir koşuyor,
+# yani anahtar ~6 dakika yaşayabilir — ve o süreçte hiç istek gelmezse
+# HİÇ silinmez (sözlük süreç ölene kadar durur). Bir tur boyunca buraya
+# "beş dakika" yazılıydı; sınır beş dakika DEĞİL, ölçülen hâl bu.
+# Ayrıca bu uca ÖZEL değil: kimliksiz her istek böyle sayılıyor.
+# Aynı ayrım `api/partners.py::click` gövdesinde de yazılı; ikisi
+# birlikte okunur.
+#
+# Çizginin ölçülmüş hâli: KALICI kayıt sayaçtan ibarettir. Bu yüzden
+# "tekil ziyaretçi" de ölçülemez — tekillik ancak SAKLANAN bir işaretle
+# ölçülür ve o işaret kişisel veridir. Pano bu sayıyı TIKLAMA diye sunar,
+# ziyaretçi diye SUNMAZ.
 #
 # Veri: `partnerCodes/{KOD}/clicks/{YYYY-MM-DD}` → {count}
 #   Gün başına ayrı doküman, tek dokümanda büyüyen bir harita DEĞİL: harita

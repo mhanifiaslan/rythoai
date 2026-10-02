@@ -4,7 +4,7 @@ Bu modül **gönderim yapmaz**; yalnızca karar verir. Gönderim api/notify.py
 içindedir. Ayrım bilinçli: buradaki kurallar (yerel saat, sessiz saat, tekrar
 koruması) FCM'e hiç dokunmadan test edilebilmeli.
 
-Üç kural birlikte çalışır ve üçü de kullanıcıyı korumak içindir:
+Dört kural birlikte çalışır ve dördü de kullanıcıyı korumak içindir:
 
 1. **Yerel saat.** Bildirim kullanıcının sabahına denk gelmeli. Sunucu UTC'de
    çalışır; kullanıcının saat dilimi profilinde IANA adı olarak tutulur.
@@ -14,6 +14,10 @@ koruması) FCM'e hiç dokunmadan test edilebilmeli.
 3. **Tekrar koruması.** Zamanlayıcı saatte bir çalışır ve yeniden deneme
    yapabilir; aynı bildirim iki kez gitmemeli. Gönderim kaydı sunucuya kapalı
    bir dokümanda tutulur.
+4. **Günlük toplam tavan.** Tür başına tekrar koruması tek başına yetmez:
+   her tür kendi hakkını kullanınca TOPLAM büyür ve kullanıcı bombardımana
+   uğrar. Tavan `GUNLUK_PUSH_TAVANI`de ve zamanlanmış yolu da olay yolunu
+   da kapsar — telefon push'un hangi alt sistemden geldiğini bilmiyor.
 """
 from __future__ import annotations
 
@@ -41,6 +45,8 @@ DEFAULT_QUIET_TO = 8
 TARGET_HOURS = {
     "daily": 9,     # sabah: günün okuması hazır
     "midday": 13,   # öğle: yalnız BUGÜN gerçekten kesinleşen olay varsa (OB3)
+    "circle": 18,   # ikindi: çevresindeki biriyle bugün ölçülen şey (CV)
+    "winback": 19,  # akşamüstü: sessizliğin kademeli geri çağrısı (K7)
     "checkin": 20,  # akşam: günün önemli sinyaline bağlı kişisel soru (KA4)
     "streak": 20,   # akşam: seri kırılmadan önce son hatırlatma (soru yoksa)
 }
@@ -48,8 +54,71 @@ TARGET_HOURS = {
 #: Zamanlayıcıdan tetiklenebilecek türler.
 SCHEDULED_TYPES = tuple(TARGET_HOURS)
 
+#: AKŞAM AİLESİ: bu türlerden bir yerel günde EN FAZLA BİRİ gider.
+#:
+#: Kural yeni DEĞİL, genişletildi: `checkin` ⊕ `streak` dışlaması KA4'ten
+#: beri vardı ("akşam en fazla bir bildirim") ama iki tür için elle, iki
+#: ayrı `if` ile yazılmıştı. `circle` (18) ve `winback` (19) aynı pencereye
+#: girdiği için kural bir KÜMEYE çevrildi; ikili yazım kalsaydı her yeni
+#: tür için dört yeni `if` gerekirdi ve biri unutulduğu an kullanıcı akşam
+#: üç bildirim alırdı.
+#:
+#: Sırayı önce yerel saat belirler (18 < 19 < 20): önce koşan işaretler,
+#: sonrakiler susar. Bu yüzden "circle, winback'e yol versin" kuralı bu
+#: kümeyle SAĞLANAMAZ — circle her zaman önce koşar. O kapı `should_send`
+#: içinde ayrıca duruyor.
+#:
+#: ⚠️ AMA saat TEK BAŞINA belirlemez ve bu düzeltilmiş bir gerekçedir
+#: (eskiden burada "sırayı KOD DEĞİL yerel saat belirler" yazıyordu —
+#: ölçüldü, yanlış): `checkin` ile `streak` AYNI saatte (20) ve aralarında
+#: kararı `infra/create-scheduler.ps1`in DAKİKASI veriyor (:08 < :10).
+#: Yani saatler çakıştığı an sırayı betik belirler. Ölçülen bedeli
+#: (mutasyon N03): `circle` 18'den 20'ye alınırsa `checkin` :08'de
+#: işaretler, `circle` :14'te bu kümeye takılır ve slot HİÇ geçmez —
+#: paketin onardığı "pratikte ölü Çevrem" kusuru geri gelir. Bu yüzden
+#: `circle`ın saatinin öteki üyelerden STRICT küçük olması
+#: `tests/test_notify_slot_kapsamasi.py` ile çivilendi.
+EVENING_FAMILY = ("circle", "winback", "checkin", "streak")
+
+#: Bir kullanıcıya bir YEREL günde gidebilecek EN FAZLA push sayısı.
+#:
+#: ÖLÇÜLDÜ (2026-10-02, bu depo, gerçek `should_send` ile): bu turdan ÖNCE
+#: zamanlanmış yolun tavanı **3**. Ölçüm, Scheduler işlerinin gerçek
+#: dakika sırasıyla (:05 daily, :08 checkin, :10 streak, :12 midday) 24
+#: yerel saat boyunca koşturularak alındı; geçenler `daily@9`,
+#: `midday@13`, `checkin@20` — `streak` akşam dışlamasına takılıyor.
+#: OLAY yolunda ise tavan **SONSUZ**du: `can_send_event` yalnız
+#: jeton/tercih/sessiz saate bakıyor ve `/notify/reaction` hiçbir tekrar
+#: korumasına tabi değildi (tek arkadaş sınırsız push attırabiliyordu).
+#:
+#: NEDEN 4 = 3 + 1. **3** ölçülen mevcut tavandır ve bu turda yapıya
+#: çivilendi (akşam ailesi + daily + midday): yeni slotlar tavanı
+#: YÜKSELTMİYOR, birbirinin YERİNE geçiyor. **+1** insan yolu için
+#: ayrılmış en küçük paydır — tavan 3 olsaydı en dolu günde bir arkadaşın
+#: dürtmesi sessizce düşerdi ve bu, kimsenin istemediği bir davranış
+#: değişikliği olurdu.
+#:
+#: BEDELİ (kabul edilmiş): üç ayrı arkadaş aynı gün dürterse 2. ve 3.
+#: dürtmenin PUSH'u düşer. Tepki Firestore'a yine yazılır ve uygulama
+#: içindeki kutuda görünür — kaybolan şey bildirim, veri değil.
+#:
+#: ⚠️ Zamanlanmış tavanın 3 olduğu `test_notify_tavan.py` içinde
+#: ENUMERE EDİLEREK sınanır. Yeni bir slot o sayıyı 4'e çıkarırsa test
+#: kırmızı yanar ve bu sabit yeniden ÖLÇÜLMEK zorunda kalır; tahminle
+#: büyütülmesin.
+GUNLUK_PUSH_TAVANI = 4
+
+#: Geri kazanım basamakları: kaç TAM gün sessizlikten sonra çalar.
+#: Kullanıcı kararı K7 — kademeli 3 → 10 → 30, sonra SUSAR.
+WINBACK_TIERS = (3, 10, 30)
+
 #: Serinin hatırlatmaya değer sayılması için gereken en az gün. Tek günlük
 #: seri için bildirim göndermek rahatsız edici olur; kaybedilecek bir şey yok.
+#:
+#: ⚠️ Bu eşik, geri kazanımın NEDEN ayrı bir tür olmak zorunda olduğunun da
+#: sebebi: üç gündür girmeyenin serisi 0'dır, yani bu kapıya hiç gelemez.
+#: En çok çağrılması gereken kullanıcı, `streak` yolunun yapısal olarak
+#: sessiz kaldığı kullanıcıydı.
 MIN_STREAK_FOR_REMINDER = 2
 
 
@@ -123,6 +192,182 @@ def in_quiet_hours(profile: dict[str, Any], yerel: dt.datetime) -> bool:
 # ---------------------------------------------------------------------------
 # Tekrar koruması
 # ---------------------------------------------------------------------------
+
+#: `mark_sent`in yazdığı "bu tür bugün gitti" alanlarının son eki.
+#: `gunluk_push_sayisi` sayımı buna bağlıyor.
+_SENT_SUFFIX = "LastSent"
+
+
+def gunluk_push_sayisi(uid: str, gun: str) -> int:
+    """Bu kullanıcıya bu YEREL günde kaç push gitti?
+
+    TÜRETİLMİŞ ölçüm, ayrı bir sayaç DEĞİL: `mark_sent` her başarılı
+    gönderimde `{tür}LastSent = gün` yazıyor ve her tür günde en fazla bir
+    kez gidiyor (kendi tekrar koruması). Yani değeri bugüne eşit olan
+    `*LastSent` alanlarının sayısı, bugün gerçekten gönderilen push
+    sayısıdır. Ayrı bir sayaç alanı tutmak bir okuma-değiştir-yaz turu ve
+    iki kaynağın sessizce ayrışması riski demekti; türetilmiş sayı tanım
+    gereği ayrışamaz.
+
+    Olay yolu da sayıya girer: davet/kabul `invite-{uid}`/`accept-{uid}`,
+    tepki `reaction-{uid}` adıyla AYNI dokümana yazıyor.
+
+    ⚠️ BEDELİ ÖLÇÜLDÜ ve burada yazılı duruyor, çünkü "türetilmiş sayı
+    bedavadır" denmesin: bu çağrı AYNI dokümanı bir kez daha çekiyor ve
+    `should_send` içinde ÖNBELLEKLENMİYOR. Hedef saatine denk gelen bir
+    kullanıcı için ölçülen `private/notifications` okuma sayısı (sayım
+    çağrı yerine göre ayrıştırılarak YENİDEN alındı, 2026-10-03):
+    `daily`/`midday` 1 → **2**, `checkin`/`streak` 2 → **5** (3'ü akşam
+    ailesi döngüsünden), `circle` **5**, `winback` **6**.
+    ⚠️ `winback` için eskiden burada "5 + koşunun basamağı yeniden
+    okuması = 6" yazıyordu ve ikisi de bir eksikti: akşam ailesinin 3
+    okumasına ek olarak `winback_state` de aynı dokümanı çekiyor
+    (4 × `already_sent` + 1 × `winback_state` + 1 × tavan = 6), koşu
+    basamağı bir kez daha okuduğu için gerçek toplam **7**.
+    Aynı dokümanın beşinci kez çekilmesi mantığı değiştirmiyor
+    (tek koşu, tek an), yalnız okuma sayısını büyütüyor. 18 profilde
+    önemsiz; hedef saatine denk gelen kullanıcı sayısı binlere çıkarsa
+    tek bir anlık görüntüyü `should_send` boyunca taşımak gerekir.
+    Tahminle değil ÖLÇÜLEREK karar verilsin.
+
+    OKUMA DÜŞERSE 0 DÖNER — yani tavan AÇIK kalır. Ters seçim (okunamazsa
+    kapat) daha güvenli GÖRÜNÜR ama hiçbir şey korumaz: aynı kesintide
+    `already_sent` True dönüp gönderimi zaten engelliyor. Tavanı da
+    kapatmak aynı kararı iki kez vermek olurdu; karşılığında bütün
+    bildirimleri tek bir Firestore kesintisine bağlardı.
+
+    ⚠️ Güvence SIRAYA DAYANMIYOR ve bu düzeltilmiş bir gerekçe (eskiden
+    "bu kapıdan ÖNCE tekrar koruması geçiliyor, ancak bu sırayla güvenli"
+    yazıyordu — ölçüldü, yanlış): `should_send` tekrar korumasını tavandan
+    önce çağırıyor ama olay yolu TERSİNİ yapıyor (`can_send_event` tavanı
+    bakar, `already_sent` çağıranda SONRA gelir — `api/notify.py` `/reaction`
+    ve `_event_push`). İkisi de güvenli, çünkü gönderimden önce İKİ kapı da
+    değerlendiriliyor ve kesintide kapanan kapı her iki yolda da tekrar
+    korumasıdır. Sıra yalnız gerekçe adını (`zaten-gonderildi` ↔
+    `gunluk-tavan`) ve okuma sayısını değiştirir.
+    """
+    doc = _notification_doc(uid)
+    if doc is None:
+        return 0
+    try:
+        anlik = doc.get()
+    except Exception as exc:
+        logger.warning("Gunluk push sayisi okunamadi (%s): %s", uid, exc)
+        return 0
+    if not anlik.exists:
+        return 0
+    return sum(1 for ad, deger in (anlik.to_dict() or {}).items()
+               if ad.endswith(_SENT_SUFFIX) and deger == gun)
+
+
+def son_gorulme_farki(profile: dict[str, Any],
+                      yerel: dt.datetime) -> int | None:
+    """Kullanıcı kaç TAM yerel gündür günlük okumayı açmadı; bilinmiyorsa None.
+
+    `lastSeenDaily` istemcinin CİHAZ yerel gününü yazıyor
+    (apps/mobile/lib/core/motivation.dart) — bu yüzden kıyas sunucunun UTC
+    gününe değil kullanıcının yerel gününe karşı yapılır. UTC ile
+    kıyaslamak UTC+3'te her gece bir günlük hayali sessizlik üretirdi.
+
+    Alan YOKSA None döner ve geri kazanım bildirimi GÖNDERİLMEZ: "hiç
+    okumadın" ile "üç gündür okumadın" aynı şey değil, elimizde yalnız
+    ikincisini ölçecek veri var ve ölçülmeyen söylenmez.
+
+    Negatif fark 0'a kırpılır — saat dilimi değiştiren ya da saati ileri
+    alınmış bir cihaz geleceğe damga yazabilir.
+    """
+    ham = profile.get("lastSeenDaily")
+    if not isinstance(ham, str) or not ham:
+        return None
+    try:
+        gorulen = dt.date.fromisoformat(ham)
+    except ValueError:
+        return None
+    return max(0, (yerel.date() - gorulen).days)
+
+
+def winback_state(uid: str, profile: dict[str, Any]) -> int:
+    """Bu SESSİZLİK EPİZODUNDA en son gönderilen basamak; yoksa 0.
+
+    Basamak sayacı kullanıcı döndüğü an sıfırlanır ve bunu yapan ayrı bir
+    YAZIM YOKTUR — çünkü dönüşü sunucuda gören hiçbir koşu yok: kullanıcı
+    uygulamayı açar, istemci `lastSeenDaily`yi yazar, sunucu haberdar
+    olmaz. Bu yüzden basamak, gönderildiği andaki `lastSeenDaily`
+    DEĞERİNE çivileniyor (`winbackAnchor`). Değer değişmişse kullanıcı
+    arada girmiştir; kayıt BAŞKA bir epizoda aittir ve 0 sayılır.
+
+    Çapasız kayıt da 0 sayılır (bu sürümden önce yazılmış bir şey): hangi
+    epizoda ait olduğu bilinmeyen bir basamak, 10. gün bildirimini 3.
+    günü hiç görmemiş birine gönderebilirdi.
+
+    ⚠️ `not capa` terimi EMNİYET PAYI, yük taşıyan şey değil — ölçüldü
+    (mutasyon M07): terim düşürüldüğünde eşitsizlik zaten 0 döndürüyor,
+    çünkü çapa yoksa `None != lastSeenDaily`. Terimin fark ettiği tek
+    durum ikisinin de boş olması ve orada `winback_tier` çağrısı
+    "son-giris-bilinmiyor" ile hiç basamak üretmiyor. Yani bu terimi
+    yakalayan bir bekçi YAZILAMAZ; çıkarılabilir de — davranışı
+    sınayan test (`test_capasiz_eski_kayit_sifir_sayilir`) ikisinde de
+    yeşil kalır ve bu bir eksiklik değil, eşdeğerliğin sonucudur.
+    """
+    doc = _notification_doc(uid)
+    if doc is None:
+        return 0
+    try:
+        anlik = doc.get()
+    except Exception as exc:
+        logger.warning("Geri kazanim durumu okunamadi (%s): %s", uid, exc)
+        return 0
+    if not anlik.exists:
+        return 0
+    veri = anlik.to_dict() or {}
+    capa = veri.get("winbackAnchor")
+    if not capa or capa != profile.get("lastSeenDaily"):
+        return 0
+    try:
+        return int(veri.get("winbackTier") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def winback_tier(profile: dict[str, Any], yerel: dt.datetime,
+                 gonderilen: int) -> tuple[int | None, str]:
+    """Şimdi hangi basamak çalmalı — `(basamak, gerekçe)`.
+
+    Kural: eşiği geçilmiş EN YÜKSEK basamak, henüz gönderilmemişse çalar.
+
+    - 3. gün → 3. 4-9. günler SUSAR (basamak zaten gitti); aksi halde
+      sessizlik boyunca her gün aynı bildirim giderdi.
+    - 3. gün bir sebeple kaçırıldıysa (günlük tavan dolmuş, sessiz saat,
+      jeton yok) 9. güne kadar hâlâ 3 çalar: tek yoğun gün geri çağrıyı
+      sessizce öldürmemeli.
+    - 10. günde 3 hiç gitmemişse 3 DEĞİL 10 çalar. Metin sessizliğin
+      gerçek uzunluğuna uymak zorunda; "hişt, bugün şu var" demek on gün
+      sonra yanlış ad olurdu.
+    - 30'dan sonra HİÇBİR ŞEY: aday en yüksek basamaktan büyük olamaz.
+      Sessizliğe saygı — kovulma değil.
+    """
+    fark = son_gorulme_farki(profile, yerel)
+    if fark is None:
+        return None, "son-giris-bilinmiyor"
+    aday = max((t for t in WINBACK_TIERS if t <= fark), default=None)
+    if aday is None:
+        return None, "sessizlik-kisa"
+    if aday <= gonderilen:
+        return None, ("basamaklar-bitti" if gonderilen >= WINBACK_TIERS[-1]
+                      else "basamak-gitti")
+    return aday, "gonderilecek"
+
+
+def winback_sent_fields(basamak: int,
+                        profile: dict[str, Any]) -> dict[str, Any]:
+    """Geri kazanım gönderiminin `mark_sent(extra=...)` alanları.
+
+    Çapa, basamağın HANGİ sessizlik epizoduna ait olduğunu söyler; gerekçe
+    `winback_state`te.
+    """
+    return {"winbackTier": int(basamak),
+            "winbackAnchor": profile.get("lastSeenDaily") or ""}
+
 
 def already_sent(uid: str, tur: str, gun: str) -> bool:
     """Bu tür bildirim bu yerel gün için gönderildi mi?"""
@@ -244,6 +489,17 @@ PREF_FIELDS = {
     # OB3: öğle slotu "günün okuması" ailesinden — sabahı kapatan kullanıcı
     # öğleni de istemiyordur; ayrı bir anahtar ayar ekranını büyütürdü.
     "midday": "notifyDaily",
+    # CV: Çevrem slotu çevredeki insanlarla ilgili — arkadaş bildirimlerini
+    # kapatan kullanıcı bunu da istemiyordur. (Bu slot daha önce öğlenin
+    # yedek dalıydı ve `notifyDaily`ye bağlıydı; ⚠️ yani arkadaş
+    # bildirimlerini kapatıp günlüğü açık bırakan kullanıcı çift ânı
+    # bildirimini ESKİDEN ALIYORDU, artık almaz. Doğru taraf bu.)
+    "circle": "notifyFriends",
+    # K7: geri kazanımın varsayılan sesi gökyüzünden bir ayrıntı — yani
+    # sabah bildiriminin ta kendisi. Sabahı kapatan kullanıcı "beni gökyüzü
+    # için çağırma" demiştir; ömründe en fazla ÜÇ kez görülecek bir
+    # bildirim için ayar ekranına dördüncü anahtar konmaz.
+    "winback": "notifyDaily",
     "checkin": "notifyStreak",
     "streak": "notifyStreak",
     "friend": "notifyFriends",
@@ -291,28 +547,68 @@ def should_send(profile: dict[str, Any], tur: str,
         # kazanır; bildirim atlanır.
         return False, "sessiz-saat"
 
+    gun = yerel.date().isoformat()
+
+    # KA4 → CV/K7: akşam penceresinde (yerel 18-20) EN FAZLA BİR bildirim.
+    # Eskiden bu kural checkin ⊕ streak için iki elle yazılmış `if`ti;
+    # `EVENING_FAMILY` aynı kuralın kümeye çevrilmiş hâli ve gerekçesi
+    # orada. Sıra ters de olsa korunur (streak bir şekilde önce gittiyse
+    # aynı akşam bir de soru göndermeyiz) — kural simetrik.
+    if tur in EVENING_FAMILY:
+        for diger in EVENING_FAMILY:
+            if diger != tur and already_sent(profile["uid"], diger, gun):
+                return False, f"aksam-{diger}-gitti"
+
     if tur == "streak":
         seri = int(profile.get("streakCount") or 0)
         if seri < MIN_STREAK_FOR_REMINDER:
             return False, "seri-kisa"
-        if profile.get("lastSeenDaily") == yerel.date().isoformat():
+        if profile.get("lastSeenDaily") == gun:
             return False, "bugun-zaten-okudu"
-        # KA4: akşam EN FAZLA bir bildirim — check-in gittiyse seri
-        # hatırlatması susar. (checkin işi :08'de, streak :10'da koşar;
-        # bu koruma sırayı da yeniden denemeyi de dert etmez.)
-        if already_sent(profile["uid"], "checkin",
-                        yerel.date().isoformat()):
-            return False, "aksam-checkin-gitti"
 
-    if tur == "checkin" and already_sent(profile["uid"], "streak",
-                                         yerel.date().isoformat()):
-        # Ters sıra da korunur: streak bir şekilde önce gittiyse aynı
-        # akşam bir de soru göndermeyiz.
-        return False, "aksam-streak-gitti"
+    if tur == "winback":
+        basamak, gerekce = winback_tier(
+            profile, yerel, winback_state(profile["uid"], profile))
+        if basamak is None:
+            return False, gerekce
 
-    if not ignore_dedupe and already_sent(profile["uid"], tur,
-                                          yerel.date().isoformat()):
+    if tur == "circle":
+        # Çevrem slotu GERİ KAZANIMA YOL VERİR. İki sebep:
+        #
+        # 1. 10. basamak AYNI ölçümden besleniyor (`_cevre_govdesi`); ikisi
+        #    birden gitse kullanıcı aynı şeyi iki kez okur ve hesap iki kez
+        #    yapılır.
+        # 2. Üç gündür girmeyen birine içeriğin ÜÇÜNCÜ çeşidi değil geri
+        #    çağrı gerekiyor. Sessizlik boyunca Çevrem her gün çalsaydı
+        #    (kendi tekrar koruması günde bire izin verir) kademeli
+        #    susma kararı (K7) pratikte hiç yaşanmazdı.
+        #
+        # Akşam ailesi bunu SAĞLAMAZ: circle yerel 18'de, winback 19'da
+        # koşuyor; aile kuralı "önce koşan kazanır" demektir ve circle her
+        # zaman önce koşar. Bu yüzden kapı burada, SAATTEN bağımsız.
+        #
+        # Pencere basamak gitmiş olsa da kapalı kalır: fark eşiğin
+        # üstündeyse kullanıcı hâlâ "dönmemiş" sayılır.
+        fark = son_gorulme_farki(profile, yerel)
+        if fark is not None and fark >= WINBACK_TIERS[0]:
+            return False, "geri-kazanim-penceresi"
+
+    if not ignore_dedupe and already_sent(profile["uid"], tur, gun):
         return False, "zaten-gonderildi"
+
+    # GÜNLÜK TOPLAM TAVAN — en son kapı. Tekrar korumasından SONRA
+    # duruyor ki en anlamlı gerekçe dönsün (`zaten-gonderildi`, tavan
+    # dolu olsa bile). Güvenlik sıradan GELMİYOR: okuma kesintisinde
+    # kapanan kapı tekrar korumasıdır ve olay yolu tam TERS sırayla aynı
+    # güvenceyi veriyor (gerekçe `gunluk_push_sayisi`de, ölçülerek
+    # düzeltildi).
+    #
+    # Duman testi bayrakları bu kapıyı AÇMAZ: `ignore_dedupe` yalnız tür
+    # başına korumayı atlar. Tavan dolu bir hesaba panelden test
+    # gönderilirse koşu onu atlar ve `test_send` sabit test metnine düşer —
+    # operatör yine bir push görür, gerekçesi `skippedReason`da yazılı.
+    if gunluk_push_sayisi(profile["uid"], gun) >= GUNLUK_PUSH_TAVANI:
+        return False, "gunluk-tavan"
 
     return True, "gonderilecek"
 
@@ -613,20 +909,26 @@ def midday_push(profile: dict[str, Any], lang: str,
     "sabahla-ayni" — öğle bildirimi bir HAK değil, ölçülmüş bir olayın
     haberi ve SABAH GÖNDERİLENİN KOPYASI ASLA DEĞİL (canlıda yakalanan
     açık: bugün kesinleşen sinyal çoğunlukla sabahın odağıydı ve 13:00
-    gövdesi 09:00'unkiyle bayt-aynı çıkıyordu). Çözüm sırası:
+    gövdesi 09:00'unkiyle bayt-aynı çıkıyordu).
 
-    a) **Kendi haritasında BUGÜN kesinleşen açı** (``days_to_exact == 0``,
-       sabahki paylaşımlı sinyal önbelleği): gövde sabah paketindeki
-       indeks-hizalı AI cümlesi (yalnız okunur — öğle LLM yakmaz), yoksa
-       dürüst teknik satır. SABAH GÖVDESİYLE AYNI ÇIKARSA aynı paketten
-       farklı bir sinyal denenir; o da yoksa (b)'ye düşülür.
-    b) **Çift ânı, YALNIZ ÖNBELLEK** (`pair_transits_cached` — asla
-       hesaplamaz). Yük `type=friend` → Çevrem sekmesi.
-    c) Hiçbiri → (None, gerekçe).
+    TEK KAYNAK: kullanıcının **kendi haritasında BUGÜN kesinleşen açı**
+    (``days_to_exact == 0``, sabahki paylaşımlı sinyal önbelleği). Gövde
+    sabah paketindeki indeks-hizalı AI cümlesi (yalnız okunur — öğle LLM
+    yakmaz), yoksa dürüst teknik satır. Sabah gövdesiyle aynı çıkarsa
+    aynı paketten farklı bir sinyal denenir; hiçbiri olmazsa
+    (None, gerekçe).
+
+    CV-turu: buranın ikinci bir dalı vardı — çift ânı — ve pratikte ÖLÜYDÜ.
+    İki sebeple: (1) YEDEK daldı, yani kullanıcının kendi haritasında
+    bugün kesinleşen bir açı varsa hiç koşmuyordu; (2) `pair_transits_cached`
+    asla hesaplamıyor, yani kullanıcı o gün ilişki ekranını KENDİ
+    açmadıysa önbellek boştu. Kısır döngü: bildirimle geri getirmek
+    istediğin kullanıcı, bildirimin ön şartını yerine getirmemiş olandır.
+    Artık kendi slotu var (`circle_push`, yerel 18:00) ve gerekirse günde
+    bir hesap yapıyor.
     """
     try:
-        from services import (circle_context, people_service, profile_service,
-                              signal_service, synastry_service)
+        from services import profile_service, signal_service
 
         today = today or dt.date.today()
         gun = today.isoformat()
@@ -674,53 +976,332 @@ def midday_push(profile: dict[str, Any], lang: str,
                 if sign:
                     veri["sign"] = sign
                 return (baslik, govde, veri), "gonderilecek"
-        # --- b) çift ânı, yalnız önbellekten ---
-        # Aday = (karşı taraf, hedef kimliği). Kimlik yükte taşınır (BY):
-        # dokununca O ilişkinin ekranı açılır — kimliksiz yük istemciyi
-        # yalnız Çevrem sekmesine bırakıyordu ("sadece uygulama açılıyor").
-        adaylar: list[tuple[Any, dict[str, str]]] = []
-        for friend_uid in circle_context.list_accepted_friend_uids(uid):
-            cp = synastry_service.friend_counterpart(uid, friend_uid)
-            if cp is not None:
-                adaylar.append((cp, {"fromUid": friend_uid}))
-        for kayit in people_service.list_people(uid):
-            cp = synastry_service.person_counterpart(
-                uid, kayit["id"], lang=lang)
-            if cp is not None:
-                adaylar.append((cp, {"pid": kayit["id"]}))
-
-        from services import chart_context
-        en_iyi: tuple[tuple[int, float], Any, dict[str, str],
-                      dict[str, Any]] | None = None
-        for cp, kimlik in adaylar:
-            veri_cp = synastry_service.pair_transits_cached(uid, cp,
-                                                            today=today)
-            vuruslar = (veri_cp or {}).get("hits") or []
-            if not vuruslar:
-                continue
-            v = vuruslar[0]  # zaten yavaş-önce + dar-orb sıralı
-            sira = (0 if chart_context.is_slow_mover(v.get("transit")) else 1,
-                    float(v.get("orb") or 99.0))
-            if en_iyi is None or sira < en_iyi[0]:
-                en_iyi = (sira, cp, kimlik, v)
-
-        if en_iyi is not None:
-            _, cp, kimlik, v = en_iyi
-            satirlar = synastry_service.pair_transit_lines([v], cp.label,
-                                                           lang)
-            if satirlar and 0 < len(satirlar[0]) <= MAX_PUSH_BODY:
-                p = prompts.get(lang)
-                baslik = p.PUSH_MIDDAY_PAIR_TITLE.format(name=cp.label)
-                return ((baslik, satirlar[0],
-                         {"type": "friend", "src": "midday", "d": gun,
-                          **kimlik}),
-                        "gonderilecek")
 
         return None, ("sabahla-ayni" if sabahla_ayni else "olay-yok")
     except Exception as exc:
         logger.warning("Ogle bildirimi uretilemedi (%s): %s",
                        profile.get("uid"), exc)
         return None, "olay-yok"
+
+
+# ---------------------------------------------------------------------------
+# Çevrem slotu (CV) ve geri kazanım gövdesi — PAYLAŞILAN çift ölçümü
+# ---------------------------------------------------------------------------
+
+def _cift_adaylari(uid: str, lang: str) -> list[tuple[Any, dict[str, str]]]:
+    """(karşı taraf, FCM yükündeki hedef kimliği) çiftleri.
+
+    Kimlik yükte TAŞINMAK ZORUNDA (BY-turu): dokununca O ilişkinin ekranı
+    açılsın diye. Kimliksiz yük istemciyi yalnız Çevrem sekmesine
+    bırakıyordu ("sadece uygulama açılıyor" cihaz bulgusu).
+    """
+    from services import circle_context, people_service, synastry_service
+
+    adaylar: list[tuple[Any, dict[str, str]]] = []
+    for friend_uid in circle_context.list_accepted_friend_uids(uid):
+        cp = synastry_service.friend_counterpart(uid, friend_uid)
+        if cp is not None:
+            adaylar.append((cp, {"fromUid": friend_uid}))
+    for kayit in people_service.list_people(uid):
+        cp = synastry_service.person_counterpart(uid, kayit["id"], lang=lang)
+        if cp is not None:
+            adaylar.append((cp, {"pid": kayit["id"]}))
+    return adaylar
+
+
+def _en_iyi_vurus(uid: str, adaylar: list[tuple[Any, dict[str, str]]],
+                  today: dt.date, hesapla: bool
+                  ) -> tuple[tuple[Any, dict[str, str], dict[str, Any]] | None,
+                             bool | None]:
+    """Bugünün en anlamlı çift vuruşu.
+
+    `((cp, kimlik, vuruş) | None, ölçüldü)` döner.
+
+    İKİ AŞAMA ve sıra bilinçli:
+
+    1. **Bedava tarama.** Her aday `pair_transits_cached` ile okunur (asla
+       hesaplamaz). Burada bir kayıt bulunursa o çift, kullanıcının o gün
+       ilişki ekranını KENDİ açtığı çifttir: hem sıfır maliyetli hem de
+       ilgisi kanıtlı. Eski davranış yalnız bu aşamaydı.
+    2. **Günde TEK hesap.** Hiçbir adayın kaydı yoksa bir aday hesaplanır.
+       Aday GÜNDEN türetilir (`gün ordinali % aday sayısı`), yani her gün
+       başkası yüzeye çıkar — bugün eşin, yarın kardeşin. Sabit indeks
+       seçilseydi aynı kişi haftalarca tekrarlanırdı.
+
+    ``ölçüldü`` üç değerli: True = ölçüm elde edilebildi (vuruş çıkmasa
+    da — sakin bir gün kusur değildir), False = elde edilemedi (profil
+    okunamadı / doğum verisi yok / istisna), None = aday yok, yani
+    ölçülecek bir şey yoktu. Bu ayrım `RunResult.generation` dökümünü
+    besliyor: "olay yok" ile "ölçemedim" aynı kovaya girerse sakin bir gün
+    sahte alarm üretirdi.
+
+    ⚠️ MALİYET (ölçüldü 2026-10-02, bu makine, ısınmış süreç):
+    `astro_service.get_transits` ≈ **2 ms** (çift başına iki taraf = 2
+    çağrı) ve ilk kez için `get_synastry` ≈ **3 ms** (eksenler 30 gün
+    önbellekli). Yani kullanıcı başına GÜNDE ~7 ms CPU + ~2 Firestore
+    okuması; LLM çağrısı YOK, para maliyeti sıfır. Soğuk süreçte ilk
+    efemeris çağrısı 528 ms'dir ve koşuda BİR KEZ ödenir.
+    ⚠️ ÖLÇEK SINIRI: hesap O(kullanıcı). 18 profilde ~0,13 s; 10 000
+    profilde ~70 s CPU eder ve Cloud Run isteği `deploy-backend.ps1`
+    tarafından `--timeout 300` ile öldürülüyor. O mertebeye yaklaşıldığında
+    bu koşu bölünmek zorunda (örn. uid aralığına göre birden çok iş).
+    Eşik geldiğinde yeniden ÖLÇÜLÜP karar verilsin; tahminle büyütülmesin.
+    """
+    from services import chart_context, synastry_service
+
+    def _sira(v: dict[str, Any]) -> tuple[int, float]:
+        return (0 if chart_context.is_slow_mover(v.get("transit")) else 1,
+                float(v.get("orb") or 99.0))
+
+    if not adaylar:
+        return None, None
+
+    en_iyi: tuple[Any, dict[str, str], dict[str, Any]] | None = None
+    olctu = False
+    for cp, kimlik in adaylar:
+        kayit = synastry_service.pair_transits_cached(uid, cp, today=today)
+        if kayit is None:
+            continue
+        olctu = True
+        vuruslar = kayit.get("hits") or []
+        if not vuruslar:
+            continue
+        v = vuruslar[0]  # zaten yavaş-önce + dar-orb sıralı
+        if en_iyi is None or _sira(v) < _sira(en_iyi[2]):
+            en_iyi = (cp, kimlik, v)
+
+    if en_iyi is not None or not hesapla:
+        return en_iyi, olctu
+
+    cp, kimlik = adaylar[today.toordinal() % len(adaylar)]
+    kayit = synastry_service.pair_transits(uid, cp, today=today)
+    if kayit is None:
+        return None, olctu
+    vuruslar = kayit.get("hits") or []
+    return ((cp, kimlik, vuruslar[0]) if vuruslar else None), True
+
+
+def circle_push(profile: dict[str, Any], lang: str,
+                today: dt.date | None = None
+                ) -> tuple[tuple[str, str, dict[str, str]] | None, str,
+                           bool | None]:
+    """Çevrem slotu (CV) — eklenen kişi/aile ya da arkadaşla bugünün ölçümü.
+
+    `(yük, gerekçe, ölçüldü)` döner. Gövde ve yük öğlenin eski yedek
+    dalıyla BİREBİR aynı: ölçüm LLM'siz teknik satır, hedef o ilişkinin
+    ekranı. Değişen tek şey slotun kendi saatine çıkması ve önbellek
+    şartının gevşemesi (`_en_iyi_vurus`).
+
+    `src` yükte **"midday" KALIR** ve bu bilinçli: `src` istemcinin ROTA
+    anahtarı (apps/mobile/lib/core/notifications.dart — `case 'midday'`
+    ilişki ekranını açar, bilinmeyen değer `default`a düşüp yalnız Çevrem
+    sekmesini açar). "circle" yazsaydık bugün KURULU olan istemcilerde
+    BY-turunda kapatılan "sadece uygulama açılıyor" kusuru geri gelirdi.
+    İstemci yeni adı öğrenmeden önce burası değişemez.
+
+    ⚠️ Kaybın hangi YÜKTE olduğu ölçüldü (notifications.dart
+    `resolveNotificationRoute`): istemci `pid` taşıyan yükü `src`e HİÇ
+    bakmadan `personRelation`a yönlendiriyor, yani kayıp YALNIZ arkadaş
+    yüklerinde (`fromUid`) gerçekleşir. Yine de iki yarım kural
+    yazılmıyor: adayların yarısı arkadaş ve `src`i yüke göre değiştirmek
+    aynı slotun iki farklı adla gitmesi olurdu.
+    """
+    try:
+        from services import synastry_service
+
+        today = today or dt.date.today()
+        uid = profile.get("uid") or ""
+        adaylar = _cift_adaylari(uid, lang)
+        secim, olctu = _en_iyi_vurus(uid, adaylar, today, hesapla=True)
+        if secim is None:
+            return None, ("cevre-yok" if olctu is None else "olay-yok"), olctu
+        cp, kimlik, v = secim
+        satirlar = synastry_service.pair_transit_lines([v], cp.label, lang)
+        if not satirlar or not 0 < len(satirlar[0]) <= MAX_PUSH_BODY:
+            return None, "olay-yok", olctu
+        p = prompts.get(lang)
+        return ((p.PUSH_MIDDAY_PAIR_TITLE.format(name=cp.label),
+                 satirlar[0],
+                 {"type": "friend", "src": "midday",
+                  "d": today.isoformat(), **kimlik}),
+                "gonderilecek", True)
+    except Exception as exc:
+        logger.warning("Cevre bildirimi uretilemedi (%s): %s",
+                       profile.get("uid"), exc)
+        return None, "olay-yok", False
+
+
+# ---------------------------------------------------------------------------
+# Geri kazanım (K7) — üç basamak, üç ton, hepsi SORU
+# ---------------------------------------------------------------------------
+
+#: Basamak → dil → {baslik, veri?, yalin}.
+#:
+#: NEDEN `prompts/` DEĞİL burası: bu tablo basamak kümesinin KENDİSİ.
+#: `WINBACK_TIERS` ile aynı dosyada durduğu için metinsiz bir basamak ya da
+#: basamaksız bir metin eklenemez — bekçi ikisini BİRDEN sorar. Metinlerin
+#: hiçbiri LLM'den gelmiyor: birim maliyet sıfır ve dil KESİN, yani
+#: yanlış dilde bir soru sohbete tohumlanamaz (DM-turu).
+#:
+#: ``veri`` o basamağın ölçülmüş ayrıntısını taşıyan biçim; ``yalin``
+#: ayrıntı elde edilemediğinde gidecek, HİÇBİR ŞEY İDDİA ETMEYEN soru.
+#: 30. basamakta ``veri`` yok — son çağrı veri değil zaman konuşur.
+#:
+#: Üç ton bilinçli olarak AYRI. Tek bir "özledik" cümlesi üç kez
+#: tekrarlanırsa ikincisinde inandırıcılığını yitirir; üçü de SORU
+#: biçiminde (`PushIcerik.soru=True`), yani dokunuş sohbeti o soruyla
+#: açar ve cevap hafızaya düşer.
+WINBACK_TEXTS: dict[int, dict[str, dict[str, str]]] = {
+    # 3. gün — MERAK. Alışkanlık henüz kırılmamışken o güne ÖZGÜ bir
+    # ayrıntıyla yakalar. Ayrıntı PAYLAŞILAN gökyüzünden gelir, yani
+    # kullanıcı başına hesap yok.
+    3: {
+        "tr": {
+            "baslik": "👀 Hişt, bir baksana",
+            "veri": "Bugün gökyüzünde {detay} var. Sende neye denk "
+                    "geliyor, bakalım mı?",
+            "yalin": "Bugün gökyüzünde ne var, birlikte bakalım mı?",
+        },
+        "en": {
+            "baslik": "👀 Psst, come have a look",
+            "veri": "There is {detay} in the sky today. Want to see "
+                    "where it lands for you?",
+            "yalin": "What is in the sky today? Want to take a look "
+                     "together?",
+        },
+    },
+    # 10. gün — KİŞİSEL. Gökyüzü ayrıntısı on gün sonra artık yakalamıyor;
+    # çevresindeki biri yakalar. Çevrem slotuyla AYNI ölçümden beslenir.
+    10: {
+        "tr": {
+            "baslik": "🔭 Çevrenden bir not",
+            "veri": "{label} ile aranızda bugün {transit} dolaşıyor. "
+                    "Bakalım mı?",
+            "yalin": "Çevrendekiler nasıl, sorduk mu bugün? Birlikte "
+                     "bakalım mı?",
+        },
+        "en": {
+            "baslik": "🔭 A note from your circle",
+            "veri": "{transit} is moving between you and {label} today. "
+                    "Want a look?",
+            "yalin": "How are the people around you doing? Want to take "
+                     "a look together?",
+        },
+    },
+    # 30. gün — SON ÇAĞRI. Bundan sonra SUSAR (bkz. `winback_tier`).
+    30: {
+        "tr": {
+            "baslik": "🌙 Son bir soru",
+            "yalin": "Uzun zaman oldu, gökyüzü değişti. Bir daha bakmak "
+                     "ister misin?",
+        },
+        "en": {
+            "baslik": "🌙 One last question",
+            "yalin": "It has been a long while and the sky has moved on. "
+                     "Want one more look?",
+        },
+    },
+}
+
+
+def _gokyuzu_ayrintisi(sky: dict[str, Any] | None) -> str | None:
+    """Bugünün gökyüzünden TEK yerelleştirilmiş ayrıntı; yoksa None.
+
+    Ay evresi ilk tercih — her gün var ve her gün değişir; yoksa ilk
+    retro. ``sky`` çağıran tarafından `prompts.localize_sky` ile
+    yerelleştirilmiş gelir.
+
+    None dönüşü `get_sky_now`un DÜŞTÜĞÜ hâldir (koşuda `ham_sky = {}`) ve
+    bugüne dek tamamen sessizdi: gökyüzü servisi yanarken bildirim
+    "-" ya da boş bir ayrıntıyla gidebiliyordu. Çağıran bu None'ı
+    `generation` dökümüne yazar, yani kesinti durum koduna kadar çıkar.
+    """
+    moon = ((sky or {}).get("moon_phase") or {}).get("name")
+    if moon:
+        return str(moon)
+    retro = (sky or {}).get("retrogrades") or []
+    return str(retro[0]) if retro else None
+
+
+def _cevre_govdesi(profile: dict[str, Any], lang: str,
+                   sablon: dict[str, str],
+                   today: dt.date | None) -> tuple[str, bool | None]:
+    """10. basamağın gövdesi: çevresindeki biriyle bugünün ölçümü.
+
+    Çevrem slotuyla AYNI ölçümden beslenir (`_en_iyi_vurus`) — tek hesap,
+    iki yüzey. Aynı gün ikisinin birden gitmesi mümkün değil: `should_send`
+    geri kazanım penceresinde Çevrem slotunu susturuyor.
+    """
+    uid = profile.get("uid") or ""
+    adaylar = _cift_adaylari(uid, lang)
+    secim, olctu = _en_iyi_vurus(uid, adaylar, today or dt.date.today(),
+                                 hesapla=True)
+    if secim is None:
+        return "", olctu
+    cp, _kimlik, v = secim
+    return sablon["veri"].format(
+        label=cp.label,
+        transit=prompts.planet_name(lang, v.get("transit"))), True
+
+
+def winback_push(profile: dict[str, Any], lang: str, basamak: int,
+                 sky: dict[str, Any] | None = None,
+                 today: dt.date | None = None
+                 ) -> tuple[PushIcerik, dict[str, str], bool | None]:
+    """Basamağa göre geri kazanım bildirimi — `(içerik, yük, ölçüldü)`.
+
+    **ASLA None dönmez.** Basamak çalmaya karar verildiyse bir SORU gider;
+    ayrıntı elde edilemediyse iddia küçülür (``yalin``), bildirim düşmez.
+    "Ölçülmeyen söylenmez" kuralı cümlenin İÇERİĞİ içindir, çağrının
+    kendisi için değil.
+
+    ``ölçüldü``: True = basamağın veri kaynağı gerçekten vardı; False =
+    yoktu ve veri-siz soruya düşüldü (SESSİZ BOZULMA — koşunun
+    `generation` dökümüne girer ve tamamı düşerse uç 503 döner); None =
+    ölçülecek bir şey yoktu (30. basamak veri kullanmaz; 10. basamakta
+    kullanıcının hiç çevresi olmayabilir). Üç değerli olması bilinçli:
+    boş döküm "ölçülemedi" demek, "düştü" demek DEĞİL.
+
+    Yükteki ``type=checkin`` istemcinin ROTA anahtarıdır, koşu türünün adı
+    değil: `apps/mobile/lib/core/notifications.dart` `case 'checkin'`
+    dalı soru yolunu açar (`route=chat_answer` + `cid` varsa Rytho'nun
+    mesajı olarak). Gerçek köken ``src=winback`` ile yükte duruyor — bugün
+    kurulu istemciler onu yok sayar, davranışları değişmez. Ad yükte
+    saklanıyor ki ölçülen şey yanlış adla sunulmasın.
+    """
+    sablonlar = WINBACK_TEXTS[basamak]
+    sablon = sablonlar.get(lang) or sablonlar[i18n.DEFAULT]
+    govde = ""
+    olctu: bool | None = None
+
+    if basamak == WINBACK_TIERS[0]:
+        ayrinti = _gokyuzu_ayrintisi(sky)
+        olctu = ayrinti is not None
+        if ayrinti:
+            govde = sablon["veri"].format(detay=ayrinti)
+    elif basamak == WINBACK_TIERS[1]:
+        govde, olctu = _cevre_govdesi(profile, lang, sablon, today)
+
+    if govde and (not 0 < len(govde) <= MAX_PUSH_BODY
+                  or i18n.language_conflicts(govde, lang)):
+        # Karşı tarafın ADI başka bir dilin harflerini taşıyabilir
+        # ("Şeyma" + lang=en) ve koşudaki ortak dil ağı bütün push'u
+        # düşürürdü — geri çağrı o kullanıcıya HİÇ ulaşmazdı. Veri-siz
+        # soruya düşmek iddiayı küçültür, bildirimi öldürmez. Uzunluk de
+        # aynı kapıdan: uzun bir görünen ad gövdeyi taşırabilir.
+        logger.info("Geri kazanim govdesi dusuruldu (uid=%s basamak=%s "
+                    "lang=%s uzunluk=%d) — yalın soruya düşüldü",
+                    profile.get("uid"), basamak, lang, len(govde))
+        govde = ""
+        olctu = False
+    if not govde:
+        govde = sablon["yalin"]
+
+    gun = (today or dt.date.today()).isoformat()
+    return (PushIcerik(sablon["baslik"], govde, soru=True),
+            {"type": "checkin", "route": "chat", "q": govde, "q_date": gun,
+             "src": "winback", "tier": str(basamak)},
+            olctu)
 
 
 def streak_push(profile: dict[str, Any], lang: str) -> tuple[str, str]:
@@ -756,11 +1337,22 @@ def can_send_event(profile: dict[str, Any], tur: str,
     gider. Ama sessiz saat yine de geçerlidir — bir arkadaşın tepkisi gece
     3'te telefonu titretmeye yetmez. Sessiz saatte bildirim DÜŞÜRÜLÜR,
     ertelenmez; tepki uygulama içindeki kutuda zaten görünüyor.
+
+    GÜNLÜK TOPLAM TAVAN burada da geçerli. Bu yol bugüne dek HİÇBİR sayaca
+    tabi değildi: ölçüldü (bu depo, 2026-10-02) — `/notify/reaction` tekrar
+    koruması bile taşımıyordu, yani tek bir arkadaş aynı gün sınırsız push
+    attırabiliyordu. Tavanın tek başına yetmediği de doğru: çağıran uç
+    ayrıca ÇİFT BAŞINA günlük koruma uyguluyor (`already_sent`), yoksa tek
+    kişi herkesin bütçesini bitirebilirdi.
     """
     if not profile.get("fcmToken"):
         return False, "token-yok"
     if not wants(profile, tur):
         return False, "tercih-kapali"
-    if in_quiet_hours(profile, local_now(profile, now_utc)):
+    yerel = local_now(profile, now_utc)
+    if in_quiet_hours(profile, yerel):
         return False, "sessiz-saat"
+    if gunluk_push_sayisi(profile.get("uid") or "",
+                          yerel.date().isoformat()) >= GUNLUK_PUSH_TAVANI:
+        return False, "gunluk-tavan"
     return True, "gonderilecek"

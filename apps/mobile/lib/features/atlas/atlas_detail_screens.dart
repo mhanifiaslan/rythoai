@@ -251,20 +251,56 @@ class _PlanetRow extends StatelessWidget {
   }
 }
 
-/// Gezegen detay sayfası: ölçüm + gündelik dil açıklaması.
+/// Gezegen detay sayfası: ANLAM önce, ölçüm sonra.
+///
+/// Sıra bu turda TERSİNE çevrildi. Eski hâlde sayfa derece/ev/hız
+/// satırlarıyla açılıyordu ve anlam cümleleri en altta duruyordu; sahibin
+/// tarifi "kullanıcılar çamaşır makinesi kılavuzu muamelesi yapıyor"du.
+/// Artık `basis_sheet` deseniyle aynı: önce insan cümlesi, sonra "Neye
+/// dayanıyor?" başlığı altında ölçüm.
+///
+/// ⚠️ Eski dipnot (`pointSheetFootnote`) bu sayfada YAPILMAYAN bir şeyi
+/// beyan ediyordu — ölçülen metni birebir şu: "Üstteki satırlar ölçümdür.
+/// Altındaki iki cümle, o gezegenin klasik anlamı ile bulunduğu ev
+/// alanını birleştirir…". İki cümle hiçbir zaman birleştirilmiyordu, yan
+/// yana basılıyordu; yani kusur "biliyor ama göstermiyor" değil, YANLIŞ
+/// BEYAN'dı. (Bu doktrinin ilk yazımında dipnot "bu satırlar ölçümdür,
+/// kendisi yorum değildir" diye alıntılanmıştı — o cümle depoda hiç
+/// olmadı; `git log -S` tek ekleme gösteriyor. Yanlış gerekçe kusurdur.)
+/// Dipnot artık basılmıyor, çünkü konum beyanı da geçersizleşti; yerine
+/// geçecek anahtar metni raporda önerildi, l10n paylaşımlı durum.
 ///
 /// Açıklama SABİT TABLODAN gelir (gezegenin doğası × evin alanı) — LLM
-/// yok, jeton yok. Uydurma da yok: iki cümle de ölçülen yerleşimi anlatır.
+/// yok, jeton yok. Uydurma da yok: cümle ölçülen yerleşimi anlatır.
 Future<void> showPointSheet(
     BuildContext context, Map<String, dynamic> point) {
   return showModalBottomSheet<void>(
     context: context,
+    // Gövde KAYDIRILABİLİR olmak zorunda: anlam katmanı eklenince sayfa
+    // bir satır uzadı ve kaydırmasız gövdede içerik SESSİZCE kırpılıyordu
+    // — dar ekranda alttaki ölçüm satırları hiç görünmezdi.
+    //
+    // ÖLÇÜLDÜ (doğrulama turu, 320×480, Ay · 1. ev · retro, yazı ölçeği
+    // 1.0): sarmalayıcı olmadan taşma 131 px. Bu dosyanın ilk yazımında
+    // "28 px" yazıyordu; o sayı hiçbir senaryoda ölçülmedi, düzeltildi.
+    //
+    // ⚠️ Kırpılmayı önleyen şey aşağıdaki `SingleChildScrollView`;
+    // `isScrollControlled` ayrı bir şey yapıyor: sayfanın varsayılan
+    // 9/16 tavanını kaldırıyor, yani içerik yarım sayfaya sıkışmak
+    // yerine ekranı kullanıyor. Ölçüldü: sarmalayıcı dururken bunu
+    // `false` yapmak hiçbir taşma üretmiyor (bekçi haklı olarak yeşil
+    // kalır) — yani bu satır KONFOR, kapı değil.
+    isScrollControlled: true,
     backgroundColor: RythoColors.inkLight,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       side: BorderSide(color: RythoColors.glassStroke),
     ),
-    builder: (_) => _PointSheet(point: point),
+    // Kaydırma SARMALAYICIDA, sayfanın gövdesinde değil: gövde
+    // `mainAxisSize.min` bir Column ve içerik ekrandan uzun olduğunda
+    // taşıyor. Sarmalayıcı hem içerik kadar yükseklik verir hem taşarsa
+    // kaydırır.
+    builder: (_) => SingleChildScrollView(child: _PointSheet(point: point)),
   );
 }
 
@@ -279,8 +315,9 @@ class _PointSheet extends StatelessWidget {
     final ev = point['house_no'] as int?;
     final derece = (point['position'] as num?)?.toDouble();
     final hiz = (point['speed'] as num?)?.toDouble();
-    final rol = planetRoleText(l10n, point['name'] as String?);
-    final alan = ev == null ? null : houseAreaText(l10n, ev);
+    // Saatsiz haritada `house_no` yok; `yerlesimCumlesi` o durumda yalnız
+    // gezegen cümlesini döner — uydurulmuş bir ev alanı eklenmez.
+    final anlam = yerlesimCumlesi(l10n, point['name'] as String?, ev);
 
     return SafeArea(
       child: Padding(
@@ -296,6 +333,18 @@ class _PointSheet extends StatelessWidget {
                 '${planetSignLabel(context, point)} ${_signGlyph(point)}',
                 style: RythoText.display(17, w: FontWeight.w600)),
             const SizedBox(height: RythoSpace.md),
+            // ANLAM KATMANI — başlıktan sonra ilk gelen şey burada.
+            if (anlam != null)
+              Text(anlam, style: RythoText.body(14, height: 1.5)),
+            if (point['retrograde'] == true) ...[
+              const SizedBox(height: 6),
+              Text(l10n.retrogradeMeaning,
+                  style: RythoText.body(13.5,
+                      color: RythoColors.copper, height: 1.45)),
+            ],
+            const SizedBox(height: RythoSpace.md),
+            // DAYANAK — ölçüm artık anlamın ALTINDA ve kendi başlığı var.
+            const _DayanakBasligi(),
             if (derece != null)
               _OlcumSatiri(
                   etiket: l10n.planetDegree,
@@ -310,23 +359,11 @@ class _PointSheet extends StatelessWidget {
               _OlcumSatiri(
                   etiket: l10n.planetSpeed,
                   deger: '${hiz.toStringAsFixed(3)}°/${l10n.perDay}'),
-            const SizedBox(height: RythoSpace.md),
-            if (rol != null)
-              Text(rol, style: RythoText.body(13.5, height: 1.45)),
-            if (alan != null) ...[
-              const SizedBox(height: 6),
-              Text(alan, style: RythoText.body(13.5, height: 1.45)),
-            ],
-            if (point['retrograde'] == true) ...[
-              const SizedBox(height: 6),
-              Text(l10n.retrogradeMeaning,
-                  style: RythoText.body(13.5,
-                      color: RythoColors.copper, height: 1.45)),
-            ],
-            const SizedBox(height: RythoSpace.md),
-            Text(l10n.pointSheetFootnote,
-                style: RythoText.body(11,
-                    color: RythoColors.parchmentDim, height: 1.4)),
+            // ⚠️ `pointSheetFootnote` BİLEREK basılmıyor: metni "üstteki
+            // satırlar ölçümdür, ALTINDAKİ İKİ CÜMLE …" diyor ve bu sıra
+            // artık yok (anlam üstte, tek cümle). Yanlış bir konum beyanı
+            // basmak, hiç basmamaktan kötüdür — yerine geçecek anahtar
+            // metni raporda önerildi, l10n bu turda paylaşımlı durum.
           ],
         ),
       ),
@@ -337,6 +374,32 @@ class _PointSheet extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Kişilik Özellikleri — ölçülen dağılım
 // ---------------------------------------------------------------------------
+
+/// Baskın element — ölçülen dağılımdan, KESİN üstünlükle. Yoksa null.
+///
+/// NEDEN üst düzeyde ve TEK: aynı kararı iki ekran veriyor (aşağıdaki
+/// Kişilik Özellikleri ve Harita İnceleme'nin anlam katmanı). İki kopya
+/// duruyordu ve doğrulama turunda ölçüldü: ikincisinin eşitlik kapısını
+/// kaldırmak takımı YEŞİL bırakıyordu, yani kopyanın bekçisi yoktu.
+/// `showDagilimSheet` bir tur önce aynı sebeple — "aynı sayının iki
+/// farklı gerekçesi" riski — üst düzeye çıkarılmıştı; kural da öyle.
+///
+/// NEDEN eşitlikte null: iki element tepede eşitse bu haritanın baskın
+/// elementi YOKTUR; birini seçmek ölçümün söylemediği bir şeyi söylemek
+/// olurdu. Bu kapı aynı zamanda sıralamanın kararsızlığını zararsız
+/// kılıyor — `List.sort` kararlı DEĞİL, ama tepedeki iki değer eşitken
+/// sonuç her hâlükârda null olduğu için hangisinin önce geldiği hiçbir
+/// şeyi değiştirmez. (Kapı kalkarsa sonuç sabit sıraya bağlı hâle gelir
+/// ve ekran, girdi sırası değiştiğinde farklı cümle gösterebilir.)
+String? baskinElement(Map<String, dynamic>? dagilim) {
+  if (dagilim == null || dagilim.isEmpty) return null;
+  final sirali = [
+    for (final e in const ['fire', 'earth', 'air', 'water'])
+      (e, (dagilim[e] as num?)?.toInt() ?? 0),
+  ]..sort((x, y) => y.$2.compareTo(x.$2));
+  if (sirali[0].$2 <= sirali[1].$2) return null;
+  return sirali[0].$1;
+}
 
 /// Element ve nitelik dağılımı — **sunucunun kanonik sayımı**.
 ///
@@ -401,9 +464,31 @@ class AtlasTraitsScreen extends StatelessWidget {
         if (((elementler[e] as num?)?.toInt() ?? 0) == 0) e,
     ];
 
+    // ANLAM KATMANI: ekran artık çubuklarla değil bir cümleyle açılıyor.
+    //
+    // ⚠️ Baskınlık KESİN ÜSTÜNLÜK ister ve kural `baskinElement`te tek
+    // yerde duruyor (bkz. oranın gerekçesi orada): eşitlikte cümle hiç
+    // çizilmez — "ölçülmeyen söylenmez"in bu ekrandaki hâli.
+    final baskin = baskinElement(elementler);
+
     return _DetayIskelet(
       title: l10n.atlasTraits,
       children: [
+        if (baskin != null)
+          GlassPanel(
+            label: elementName(l10n, baskin),
+            onTap: () => _acDagilim(
+              context,
+              baslik: elementName(l10n, baskin),
+              aciklama: elementLine(l10n, baskin),
+              klasik: temperamentLine(l10n, baskin),
+              uyeler:
+                  List<String>.from((elementUye[baskin] as List? ?? const [])),
+              points: points,
+            ),
+            child: Text(elementLine(l10n, baskin),
+                style: RythoText.body(14, height: 1.5)),
+          ),
         GlassPanel(
           label: l10n.traitsElements,
           child: Column(children: [
@@ -468,23 +553,51 @@ class AtlasTraitsScreen extends StatelessWidget {
     required String? klasik,
     required List<String> uyeler,
     required List<Map<String, dynamic>> points,
-  }) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: RythoColors.inkLight,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-        side: BorderSide(color: RythoColors.glassStroke),
-      ),
-      builder: (_) => _DagilimSheet(
+  }) =>
+      showDagilimSheet(context,
+          baslik: baslik,
+          aciklama: aciklama,
+          klasik: klasik,
+          uyeler: uyeler,
+          points: points);
+}
+
+/// Dağılım dayanağı alt-sayfası — "bu sayı nereden geliyor?".
+///
+/// Üst düzeye çıkarıldı çünkü Harita İnceleme ekranı da aynı dayanağı
+/// açıyor; iki yerde iki ayrı sayfa olması, aynı sayının iki farklı
+/// gerekçesi gösterilmesi riskini doğururdu.
+void showDagilimSheet(
+  BuildContext context, {
+  required String baslik,
+  required String aciklama,
+  required String? klasik,
+  required List<String> uyeler,
+  required List<Map<String, dynamic>> points,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    // Üye çipleri `Wrap` içinde ve sekiz nokta dar ekranda üç satıra
+    // çıkabiliyor; bu sayfa artık Harita İnceleme'den de açıldığı için
+    // kırpılma riski ölçülmeden bırakılmadı (bkz. `showPointSheet`).
+    // ÖLÇÜLDÜ (320×480, ateş · sekiz üye): sarmalayıcı olmadan taşma
+    // 117 px, yazı ölçeği 1,3'te 474 px.
+    isScrollControlled: true,
+    backgroundColor: RythoColors.inkLight,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      side: BorderSide(color: RythoColors.glassStroke),
+    ),
+    builder: (_) => SingleChildScrollView(
+      child: _DagilimSheet(
         baslik: baslik,
         aciklama: aciklama,
         klasik: klasik,
         uyeler: uyeler,
         points: points,
       ),
-    );
-  }
+    ),
+  );
 }
 
 /// "Bu sayı nereden geliyor?" — dağılımın üyeleri.
@@ -667,6 +780,22 @@ class AtlasAspectsScreen extends StatelessWidget {
       liste.sort((x, y) => _orb(x).compareTo(_orb(y)));
     }
 
+    // ANLAM KATMANI: ekran artık ızgarayla değil bir cümleyle açılıyor.
+    //
+    // "En dar açı" seçimi keyfî değil — ekranın kendi dipnotu
+    // (`aspectsSortNote`) orb ne kadar darsa açının o kadar güçlü
+    // olduğunu zaten BEYAN ediyor. Yani liderlik ölçülen bir sıradan
+    // geliyor, seçilmiş bir örnekten değil; ve harita başına değiştiği
+    // için iki kullanıcı aynı cümleyi görmüyor. Orbu olmayan açı lider
+    // OLAMAZ: `_orb` onlara 99 veriyor, yani gerçek ölçümlerin arkasına
+    // düşerler ve yalnız başka hiç açı yoksa öne geçerler.
+    final siraliTum = [...aspects]
+      ..sort((x, y) => _orb(x).compareTo(_orb(y)));
+    final lider = siraliTum.isEmpty ? null : siraliTum.first;
+    final liderAnlam = lider == null
+        ? null
+        : aspectMeaningText(l10n, lider['aspect'] as String?);
+
     Widget bolum(String anahtar, String baslik) {
       final liste = gruplar[anahtar]!;
       if (liste.isEmpty) return const SizedBox.shrink();
@@ -681,6 +810,12 @@ class AtlasAspectsScreen extends StatelessWidget {
     return _DetayIskelet(
       title: l10n.atlasAspects,
       children: [
+        if (lider != null && liderAnlam != null)
+          GlassPanel(
+            label: aspectPairLabel(context, lider),
+            onTap: () => showAspectSheet(context, lider),
+            child: Text(liderAnlam, style: RythoText.body(14, height: 1.5)),
+          ),
         bolum('tension', l10n.aspectsGroupTension),
         bolum('focus', l10n.aspectsGroupFocus),
         bolum('flow', l10n.aspectsGroupFlow),
@@ -742,12 +877,31 @@ Future<void> showAspectSheet(
     BuildContext context, Map<String, dynamic> aspect) {
   return showModalBottomSheet<void>(
     context: context,
+    // Bkz. `showPointSheet`. ⚠️ Bu sayfanın gerekçesi oradakiyle AYNI
+    // DEĞİL ve ilk yazımında öyle sanılmıştı: 320×480'de yazı ölçeği
+    // 1.0 iken bu sayfa HİÇ taşmıyor (beş açı türü × iki hareket,
+    // hepsi 0 px — ölçüldü). Taşma uygulamanın kendi yazı ölçeği
+    // tavanında başlıyor (`kMaxTextScale` = 1,3): ölçülen 141–247 px,
+    // türe ve harekete göre (en azı Üçgen·ayrılan, en çoğu
+    // Kavuşum·yaklaşan).
+    //
+    // ⚠️ Bu aralık bir tur "200–279 px" yazıyordu ve YENİDEN ÖLÇÜLDÜ:
+    // on senaryonun yedisi 200'ün ALTINDA ve 279 px hiç görülmedi.
+    // Ölçüm yöntemi de kusurluydu — `RenderFlex` taşmayı render nesnesi
+    // BAŞINA BİR KEZ bildiriyor ve `pumpWidget` aynı widget tiplerinde
+    // o nesneleri yeniden kullanıyor, yani tek testte döngüyle ölçmek
+    // ilk senaryodan sonra hep "0 px" veriyor. Her senaryo AYRI test
+    // olmak zorunda.
+    // Yani sarmalayıcı burada BÜYÜK YAZI için duruyor; bekçisi de o
+    // ölçekte koşmak zorunda, 1.0'da kör kalır.
+    isScrollControlled: true,
     backgroundColor: RythoColors.inkLight,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       side: BorderSide(color: RythoColors.glassStroke),
     ),
-    builder: (_) => _AspectSheet(aspect: aspect),
+    builder: (_) =>
+        SingleChildScrollView(child: _AspectSheet(aspect: aspect)),
   );
 }
 
@@ -777,6 +931,17 @@ class _AspectSheet extends StatelessWidget {
             Text(aspectPairLabel(context, aspect),
                 style: RythoText.display(17, w: FontWeight.w600)),
             const SizedBox(height: RythoSpace.md),
+            // ANLAM KATMANI — eskiden bu blok orb satırlarının ALTINDAYDI.
+            if (aciklama != null)
+              Text(aciklama, style: RythoText.body(14, height: 1.5)),
+            if (hareketAciklama != null) ...[
+              const SizedBox(height: 6),
+              Text(hareketAciklama,
+                  style: RythoText.body(13.5, height: 1.45)),
+            ],
+            const SizedBox(height: RythoSpace.md),
+            // DAYANAK
+            const _DayanakBasligi(),
             _OlcumSatiri(
                 etiket: l10n.basisAspect,
                 deger: aspectKindLabel(context, aspect)),
@@ -789,14 +954,10 @@ class _AspectSheet extends StatelessWidget {
                   etiket: l10n.basisMovement,
                   deger: aspect['movement_local'] as String),
             const SizedBox(height: RythoSpace.md),
-            if (aciklama != null)
-              Text(aciklama, style: RythoText.body(13.5, height: 1.45)),
-            if (hareketAciklama != null) ...[
-              const SizedBox(height: 6),
-              Text(hareketAciklama,
-                  style: RythoText.body(13.5, height: 1.45)),
-            ],
-            const SizedBox(height: RythoSpace.md),
+            // Bu dipnot KALDI çünkü konumdan bağımsız: "açı ve orb
+            // ölçülür; açıklama klasik yorum geleneğidir" sıra değişince
+            // de doğru kalıyor (`pointSheetFootnote` kalmadı, o konum
+            // beyanı taşıyor).
             Text(l10n.aspectSheetFootnote,
                 style: RythoText.body(11,
                     color: RythoColors.parchmentDim, height: 1.4)),
@@ -824,6 +985,24 @@ class _SheetTutamak extends StatelessWidget {
             borderRadius: BorderRadius.circular(2),
           ),
         ),
+      );
+}
+
+/// Ölçüm bloğunun başlığı — "Neye dayanıyor?".
+///
+/// NEDEN ayrı widget: aynı başlık iki alt-sayfada ve harita inceleme
+/// ekranında birden kullanılıyor; anlam ile ölçümü ayıran çizgi tek
+/// yerden gelsin. `signalWhy` anahtarı sinyal kartlarından geliyor ama
+/// metni ("Neye dayanıyor?" / "What's behind this?") sinyale ÖZEL DEĞİL —
+/// yeni bir anahtar uydurmak yerine bu kullanıldı.
+class _DayanakBasligi extends StatelessWidget {
+  const _DayanakBasligi();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 2),
+        child: Text(AppLocalizations.of(context).signalWhy.toUpperCase(),
+            style: RythoType.dataSmall),
       );
 }
 
@@ -925,6 +1104,59 @@ String? houseAreaText(AppLocalizations l10n, int house) => switch (house) {
       12 => l10n.house12,
       _ => null,
     };
+
+/// `<Etiket>: <gövde>.` kalıbını ikiye böler.
+///
+/// İki metin tablosunun da (`planetRoleText`, `houseAreaText`) sözleşmesi
+/// bu kalıp ve TR ile EN'de birebir aynı. Ayırıcı ASCII iki nokta, yani
+/// Türkçe harf tuzağı YOK: hiçbir yerde `toLowerCase` çağrılmıyor
+/// (`"İ".toLowerCase()` iki kod noktasına açılır) ve alt dize araması
+/// yapılmıyor. İki nokta bulunmazsa etiket boş döner ve dize OLDUĞU GİBİ
+/// gövde sayılır — bir çeviri kalıbı bırakırsa kırık parça basmaktansa tam
+/// cümle basılsın.
+({String etiket, String govde}) _ikiyeBol(String cumle) {
+  final i = cumle.indexOf(':');
+  final govdeHam = i < 0 ? cumle : cumle.substring(i + 1);
+  final govde = govdeHam.trim();
+  return (
+    etiket: i < 0 ? '' : cumle.substring(0, i).trim(),
+    govde: govde.endsWith('.')
+        ? govde.substring(0, govde.length - 1)
+        : govde,
+  );
+}
+
+/// Yerleşim cümlesi: gezegenin klasik anlamı × bulunduğu evin alanı, TEK
+/// cümlede.
+///
+/// NEDEN birleştirme: eski hâl iki tablo cümlesini YAN YANA basıyordu
+/// ("Mars: …" ve altına "6. ev: …"). 14 gezegen metni ile 12 ev metni
+/// ikişer ikişer seçildiği için 168 yerleşimin tamamı 26 dizeden iki
+/// tanesiyle anlatılıyordu: teknik bilgi ÇARPILMIYOR, TOPLANIYORDU. İki
+/// farklı kullanıcı aynı iki ansiklopedi maddesini yan yana görüyor ve
+/// jeneriklik hissinin kaynağı buydu. Birleştirme 168 ayrı cümle üretir ve
+/// YENİ bir sabit cümle tablosu DOĞURMAZ — tek bir dilbilgisel birleşme
+/// var, tablo yok.
+///
+/// Etiket solda bir kez durur: alt-sayfanın başlığı zaten "Mars — Başak"
+/// yazıyor, cümlenin de "Mars:" diye başlaması aynı adın üçüncü tekrarıydı.
+///
+/// ⚠️ EKSİK KALAN: "şu yetenek şu alanda İŞLER" ilişkisini kuran bir
+/// bağlaç (TR "… alanında işler", EN "… at work in …") yeni bir l10n
+/// anahtarı ister; l10n bu turda paylaşımlı durum olduğu için
+/// birleştirme noktalama düzeyinde kaldı. Anahtar önerisi raporda.
+String? yerlesimCumlesi(AppLocalizations l10n, String? name, int? house) {
+  final rol = planetRoleText(l10n, name);
+  final alan = house == null ? null : houseAreaText(l10n, house);
+  if (rol == null) return alan;
+  if (alan == null) return rol;
+  final r = _ikiyeBol(rol);
+  final a = _ikiyeBol(alan);
+  final etiket =
+      [r.etiket, a.etiket].where((e) => e.isNotEmpty).join(' · ');
+  final govde = [r.govde, a.govde].where((g) => g.isNotEmpty).join('; ');
+  return etiket.isEmpty ? '$govde.' : '$etiket — $govde.';
+}
 
 String? aspectMeaningText(AppLocalizations l10n, String? key) =>
     switch (key) {

@@ -2,11 +2,18 @@
 #
 # Kullanim: infra klasorunden ./create-scheduler.ps1
 #
-# TASARIM: iki is de SAATTE BIR calisir. Kullaniciya hangi saatte gidecegine
-# sunucu karar verir (backend/services/notification_service.py): her kullanici
-# icin YEREL saat hesaplanir ve yalnizca hedef saate denk gelenlere gonderilir.
-# Saat dilimi basina ayri is tanimlamak yerine bu yol secildi — dunyada 38
-# farkli UTC farki var ve her biri icin is tanimlamak yonetilemez olurdu.
+# TASARIM: ALTI bildirim isi de SAATTE BIR calisir. Kullaniciya hangi saatte
+# gidecegine sunucu karar verir (backend/services/notification_service.py):
+# her kullanici icin YEREL saat hesaplanir ve yalnizca hedef saate denk
+# gelenlere gonderilir. Saat dilimi basina ayri is tanimlamak yerine bu yol
+# secildi — dunyada 38 farkli UTC farki var ve her biri icin is tanimlamak
+# yonetilemez olurdu. (Temizlik ve burc isitma GUNDE BIR; onlar bu kumede
+# degil.)
+#
+# DAKIKALAR CAKISMASIZ SECILIR ve sira ONEMLI: ayni YEREL saate dusen iki
+# bildirim turunden once kosan isaretler, sonraki susar
+# (notification_service.EVENING_FAMILY). Bu yuzden dakika listesi keyfi
+# degil — degistirilmesi bir davranis degisikligidir.
 #
 # Gizli anahtar Secret Manager'da tutulur ve isin Authorization basliginda
 # tasinir. Anahtar tanimsizken uc 503 doner (backend/api/notify.py).
@@ -113,6 +120,16 @@ $isler = @(
     # OB3: ogle olculu slotu (yerel 13:00) — yalniz gercekten olay olan
     # gunlerde gider; olaysiz gun sessizdir.
     @{ ad = "rytho-notify-midday"; tur = "midday"; cron = "12 * * * *" },
+    # CV: Cevrem slotu (yerel 18:00) — eklenen kisi/aile ya da arkadasla
+    # bugun olculen sey. Eskiden oglenin YEDEK dalindaydi ve pratikte olu
+    # kaliyordu (hem yedek dal hem "asla hesaplama" onbellek sarti).
+    @{ ad = "rytho-notify-circle"; tur = "circle"; cron = "14 * * * *" },
+    # K7: kademeli geri kazanim (yerel 19:00) — 3/10/30 gun, sonra susar.
+    # Saat secimi onemli: 3+ gundur girmeyenin serisi 0'dir, yani :10'daki
+    # streak isi ona YAPISAL OLARAK hic ulasmiyor. Bu slot tam o bos
+    # pencereye dusuyor. Sessiz saat varsayilani 22:00 oldugu icin 19:00
+    # hala guvenli; 21:00 sinirda kalirdi.
+    @{ ad = "rytho-notify-winback"; tur = "winback"; cron = "16 * * * *" },
     @{ ad = "rytho-notify-streak"; tur = "streak"; cron = "10 * * * *" }
     # Sohbet arsivi temizligi (R4): 30 gundur kullanilmayan konusmalar.
     @{ ad = "rytho-cleanup"; uri = "/api/v1/maintenance/cleanup"; cron = "20 3 * * *" }
@@ -166,6 +183,9 @@ $isler = @(
     # yerel gun 21:00 UTC'de doner; isitma ondan SONRA kosmali. 21:15 UTC =
     # yerel 00:15. Dakika secimi cakismaya gore: notify isleri her saatin
     # :05/:08/:10/:12'sinde kosuyor, :15/:20/:25 bos.
+    # DAKIKA LISTESI: notify isleri her saatin :05/:08/:10/:12/:14/:16'sinda
+    # kosuyor; :15 bu isin kendisi (gunde bir), :20 cleanup (gunde bir).
+    # Yeni bir SAATLIK is icin bos dakikalar :18 ve sonrasi.
     # `offset_minutes=180` olmadan sunucu kendi UTC gununu (dun) isitir ve
     # sabah ilk acan kullanici yine bekler — isitma kosar, ise YARAMAZ.
     #

@@ -174,13 +174,33 @@ class TestSaglamYollar:
 
 class TestButce:
     def test_tavan_dusunmeye_yer_birakir(self):
-        """300'du ve dusunme 284'unu yiyordu. Gorunur metin ~150 token;
-        tavan ikisini birden tasimali."""
-        assert gs.CHAT_MAX_OUTPUT_TOKENS >= 1000
+        """Tavan dusunme + gorunur metni BIRDEN tasimali.
+
+        ## Esik 1000'den 500'e indi (48-turu) ve sebep MODEL PINI
+
+        Eski gerekce: "300'du ve dusunme 284'unu yiyordu." O gun dogruydu
+        ama BUGUN GECERSIZ, cunku o olcum `gemini-flash-latest` TAKMA ADI
+        uzerinde yapildi: orada `thinking_budget: 0` uygulanmiyordu ve 6
+        cagrinin 3'unde 190-286 token dusunmeye gidiyordu. Tavan onun icin
+        1000+ isteniyordu.
+
+        Model o turda sabitlendi ve `core/config.py`'de olculen davranis
+        bunun TERSI: `gemini-3.5-flash` 4 cagrinin 0'inda kesildi, 0 token
+        dusundu. Yani dusunme sizintisini kapatan sey tavan degil PINDI.
+
+        Yeni esik ayni mantikla, guncel olcumle: pin disina cikilirsa
+        olculen en kotu sizinti 286 token ve promptun yeni ust siniri 8
+        cumle (~195 token) → 481. 500 bunun hemen ustunde, yani iddia
+        hala "dusunmeye yer birakir" diyor; yalnizca bayat gerekceyle
+        degil olculen gerekceyle.
+        """
+        assert gs.CHAT_MAX_OUTPUT_TOKENS >= 500
 
     def test_her_varyant_tavan_tasir(self):
+        """Esik 500 (gerekce yukarida). Kurtarma varyantinin 2048'lik genis
+        butcesi ayrica `test_chat_prompt_disiplini.py`'de olculuyor."""
         for v in gs._CHAT_CONFIG_VARIANTS:
-            assert v.get("max_output_tokens", 0) >= 1000
+            assert v.get("max_output_tokens", 0) >= 500
 
     def test_desteklenmeyen_thinking_level_varyanti_YOK(self):
         """Her soguk baslangicta bir cagriyi bosa harciyordu (400)."""

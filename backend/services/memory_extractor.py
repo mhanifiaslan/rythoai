@@ -52,6 +52,17 @@ _SCHEMA = {
                     "key": {"type": "string"},
                     "value": {"type": "string"},
                     "confidence": {"type": "number"},
+                    # Konu = olgunun HAYAT ALANI, kategoriden ayrı. Çelişki
+                    # tespiti bunun üzerinden çalışıyor: "ayrıldık" ile
+                    # "sevgilisiyle sorun yaşıyor" aynı konuyu paylaşır ama
+                    # kategorileri farklı. `required` DEĞİL ve olmamalı:
+                    # model vermezse `memory_service._konu` anahtarın
+                    # parçalarından çıkarır, çıkaramazsa konu None kalır ve
+                    # o olgu kimseyi geçersiz kılmaz. Zorunlu kılmak modeli
+                    # konu UYDURMAYA zorlardı ve yanlış konu, yanlış kaydı
+                    # geçersiz kılmak demek.
+                    "topic": {"type": "string",
+                              "enum": list(memory_service.KONULAR)},
                 },
                 "required": ["category", "key", "value"],
             },
@@ -84,7 +95,15 @@ KURALLAR:
 - Her olgu en fazla bir cümle olsun.
 - `key` sabit ve yeniden kullanılabilir bir anahtar olsun (ör. "work.transition",
   "relationship.status"); böylece aynı olgu sonradan güncellenebilir.
-- `confidence`: kullanıcı açıkça söylediyse 0.9, ima ettiyse 0.5.
+- MEVCUT ANAHTARLAR aşağıda verildiyse, aynı konudaki güncel bilgiyi YENİ bir
+  anahtar uydurmak yerine o anahtara yaz. Yeni anahtar uydurmak eski kaydı
+  silmez, YANINA koyar; iki çelişen kayıt birlikte yaşar.
+- `topic`: olgunun hangi hayat alanıyla ilgili olduğu ({konular}). Emin
+  değilsen boş bırak. Kategoriden ayrıdır: "sevgilimle kavga ettim" kategori
+  olarak kaygıdır, konu olarak ilişkidir.
+- `confidence`: bilginin DOĞRULUK derecesi — kullanıcı açıkça söylediyse 0.9,
+  ima ettiyse 0.5. Önem ya da aciliyet DEĞİL: bir şeyin yüksek güvenle
+  söylenmiş olması onu kalıcı kılmaz.
 - Çıkarılacak kalıcı bir şey yoksa boş liste döndür. Uydurma.
 - `mood`: kullanıcının bu konuşmadaki baskın ruh hali, tek kelime. Belirsizse
   boş bırak.
@@ -101,6 +120,8 @@ KURALLAR:
   gibi). Bu kategori bir yasak listesidir, merak listesi değil.
 
 KATEGORİLER: {kategoriler}
+
+MEVCUT ANAHTARLAR: {anahtarlar}
 
 KONUŞMA:
 {konusma}
@@ -160,8 +181,25 @@ def extract_and_store(uid: str, history: list[dict[str, Any]],
         if not entitlements.consume_quota(uid, "memory_extract", kota):
             return None
 
+        # Mevcut anahtarlar prompt'a giriyor: model aynı konuda YENİ bir
+        # anahtar uydurduğunda `upsert_facts` birleştirme yapamıyor ve iki
+        # çelişen kayıt yan yana yaşıyordu ("üstüne yığılma"). Konu bazlı
+        # geçersizleme bunu arkadan temizliyor ama yalnız `concern` için;
+        # anahtarın yeniden kullanılması kökten çözüyor. Ek maliyet bir
+        # Firestore okuması (aynı doküman biraz sonra `upsert_facts`
+        # içinde yine okunuyor) — LLM maliyeti sıfır.
+        # Aşağıdaki ``[:40]`` tavanı ``memory_service.MAX_FACTS``i AYNALAR
+        # ve normal akışta ULAŞILAMAZ (budama dokümanı 40'ın üstüne
+        # çıkarmıyor). Elle bozulmuş ya da budamadan önce okunmuş bir
+        # dokümanın prompt'u şişirmesine karşı duruyor; bu yüzden onun
+        # bekçisi de yok — ulaşılamayan dalın testi olmaz.
+        anahtarlar = [str(f.get("key")) for f
+                      in memory_service.get_memory(uid).get("facts", [])
+                      if f.get("key") and not f.get("invalidatedAt")]
         prompt = _PROMPT.format(
             kategoriler=", ".join(memory_service.CATEGORIES),
+            konular=", ".join(memory_service.KONULAR),
+            anahtarlar=", ".join(anahtarlar[:40]) or "-",
             konusma=_conversation_text(history, last_message),
         )
         raw = gemini_service.extract_json(prompt, schema=_SCHEMA,

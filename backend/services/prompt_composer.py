@@ -41,6 +41,108 @@ from services import prompts
 MAX_PASSAGES = 2
 MAX_PASSAGE_CHARS = 1200
 
+# ---------------------------------------------------------------------------
+# Fısıltı bütçesi (48-turu)
+# ---------------------------------------------------------------------------
+#
+# Bu tavanlar neden ÇAĞIRANDA değil BURADA:
+#
+# Prompt'u kuran yer burası, dolayısıyla "prompt ne kadar büyüyebilir"
+# sorusunun tek cevap verebileceği yer de burası. Bloklar altı ayrı
+# serviste üretiliyor ve her biri kendi sınırını kendi koyuyordu —
+# `memory_context(max_chars=600)`, `synastry_service.whisper_for(
+# max_chars=900)`, `circle_context.MAX_CIRCLE_CHARS = 400` — ama
+# `chart_context.chart_whisper` hiç KARAKTER sınırı almıyordu. Ölçüldü:
+# harita bloğunun bir tavanı var ama yalnız TESTTE ve yalnız TEK bir
+# fikstür profili için (`tests/test_chart_context.py`, < 1400 karakter).
+# Toplam prompt boyutunu ölçen de HİÇBİR test yoktu — o iddia bir turda
+# bilerek kaldırılmıştı (bkz. `test_chat_style.py`, kırpma testinin
+# gerekçesi), yerine bir toplam bekçisi konmadan.
+#
+# Sınırın bedeli ölçülü: blok HER sohbet turunda, her kullanıcı için
+# gidiyor; girdi token'ı doğrudan para.
+#
+# ⚠️ PAYLAR EŞİT DEĞİL, ve ilk hâlindeki "her birine ~2 katı pay bırakıldı,
+# normal hiçbir turda kırpma olmaz" cümlesi ÖLÇÜMLE ÇÜRÜDÜ (düzeltildi).
+# Ölçülen gerçek:
+#   * `memory` 600 → 1200 ve `circle` 400 → 800: gerçekten 2 kat. Bu iki
+#     blok kaynağında KARAKTERLE sınırlı, yani tavan burada yalnız bir
+#     yedek kapı.
+#   * `relationship`: kaynak varsayılanı 900 (600 DEĞİL) ve `api/chat.py`
+#     çağrıyı max_chars vermeden yapıyor → pay 1,33 kat.
+#   * `chart`: ölçülen blok 891 karakter, BaZi dahil 1126
+#     (`tests/test_chart_context.py` fikstürü, TR) → pay 1,24 kat. Tavan
+#     bilerek o testin kendi sınırına (1400) eşit: harita bloğu KARAKTERLE
+#     sınırlı değil ama ÖĞE ile sınırlı (`chart_context`: 6 natal açı,
+#     4 transit), yani boyu bu bandın üstüne çıkmaz. 1400 bu bandın
+#     backstop'u, cömert bir pay değil — zengin bir harita kırpılabilir
+#     ve bu BİLİNÇLİ: kırpma, sessiz büyümeye yeğdir.
+#   * `sky`: en kötü hâl TR 292 / EN 305 karakter (doğrulama turunda
+#     ölçüldü: sekiz gezegen birden retroda, üç açı, en uzun menzil
+#     adı). Blok beş satır ve ÖĞE ile sınırlı — `api/chat.py` en çok
+#     3 açı yazıyor — yani pay ~2 kat ve kırpma normal turda hiç
+#     tetiklenmez; burada yalnız yedek kapı.
+#   * `seed_question`: tavanı KAYNAĞININ ALTINDA olan tek blok bu ve
+#     bu bilinçli. Kaynak sınırı `chat_history.clip_message` = 2.000
+#     karakter (arşiv sınırı), ama tohum metni Rytho'nun akşam
+#     bildirim gövdesi — bir cümle. 600 onun fazlasıyla üstünde ve
+#     2.000'lik ARŞİV sınırının prompt bütçesine taşınmasını önlüyor.
+#
+# KULLANICININ MESAJI BİLEREK KIRPILMIYOR: o metin sunucunun eklediği bir
+# şey değil, kişinin kendi cümlesi. Yarısını atmak "ölçülmeyen söylenmez"
+# ilkesinin tersi olurdu — kullanıcı sorduğunu sanır, model görmez.
+# Buradaki bütçe yalnız SUNUCUNUN EKLEDİĞİ kısmı bağlar. Mesajın kendisi
+# yine de sınırsız DEĞİL: `api/chat.py` onu composer'a vermeden önce
+# `chat_history.clip_message` ile 2.000 karaktere indiriyor (ölçüldü,
+# doğrulama turu). Yani tur başı girdinin tamamı bağlı — fısıltı ≤ 13.500
+# + mesaj ≤ 2.000 + geçmiş ≤ 12×1.200 + persona ≤ 7.600 — ve bu zincirin
+# halkaları `test_chat_prompt_disiplini.py`'de tek tek çivili.
+MAX_CHART_CHARS = 1400          # kaynağında runtime sınırı YOK; asıl boşluk bu
+MAX_RELATIONSHIP_CHARS = 1200   # synastry_service varsayılanı 900
+MAX_CIRCLE_CHARS = 800          # circle_context sınırı 400
+MAX_MEMORY_CHARS = 1200         # memory_service varsayılanı 600
+MAX_SKY_CHARS = 600
+MAX_SEED_CHARS = 600
+
+#: Sunucunun mesaja eklediği HER ŞEYİN toplam tavanı (etiketler + bloklar).
+#:
+#: Ölçüldü (bu dosya, altı bloğun hepsi taşacak kadar beslenerek): tavanlar
+#: dolduğunda ve iki pasaj sınırda geldiğinde Türkçe kurulum 12.460,
+#: İngilizce 13.029 karakter — yani İngilizce tarafta tavanın altında
+#: yalnız 471 karakter boşluk var (doğrulama turunda yeniden ölçüldü:
+#: çevre etiketi persona ile hizalanırken TR +106 / EN +157 karakter
+#: uzadı ve eski sayılar bayatladı). İngilizce daha uzun çünkü etiket
+#: seti daha
+#: uzun. Gerçek bir tur bunun çok altında kalıyor; doğrulama turunda
+#: GİRDİLERİYLE birlikte yeniden ölçüldü (sayı girdisi yazılmadan
+#: tekrar ölçülemez, o yüzden burada duruyor): hafıza 600 + harita 891
+#: + gökyüzü 292 + çevre 400 + iki pasaj 1.200 — ilişki ve tohum YOK,
+#: ikisi de istisnai — → TR 8.065 karakter. İlişki fısıltısı da
+#: gelirse 9.634.
+#:
+#: 13.500, ölçülen en kötü hâlin hemen üstünde. BİLEREK dar: yedinci bir
+#: fısıltı bloğu eklenmesi ya da bir etiketin iki katına çıkması bu sınırı
+#: AŞAR ve bekçi kırmızıya döner. Sınırı yükseltmek bir karardır — tavan
+#: her sohbet turunda, her kullanıcı için ödenen girdi token'ıdır.
+MAX_WHISPER_CHARS = 13_500
+
+
+def _kirp(metin: str, sinir: int) -> str:
+    """Bloğu sınıra indirir; kelime ortasından kesmemeye çalışır.
+
+    Kelime sınırı önemsiz bir süs değil: kesik bir sözcük modele
+    YANLIŞ BİR OLGU olarak okunabiliyor (örnek: "Satürn 7. ev" →
+    "Satürn 7" bir derece sanılır). Boşluk bulunamazsa ham kesilir —
+    sınırın aşılmaması daha önemli.
+    """
+    if len(metin) <= sinir:
+        return metin
+    kesik = metin[:sinir]
+    bosluk = kesik.rfind(" ")
+    if bosluk > sinir // 2:
+        kesik = kesik[:bosluk]
+    return kesik.rstrip() + "…"
+
 # Bilgi tabanının kapsadığı kadim sistem terimleri (kök bazlı, küçük harf).
 # Mesajda bunlardan biri geçiyorsa korpus araması değerlidir.
 #
@@ -268,7 +370,7 @@ def compose_chat_message(message: str, passages: list[dict],
     """Bilgi tabanı pasajlarını, kullanıcı hafızasını, haritasını ve bugünün
     gökyüzünü mesaja iliştirir.
 
-    İkisi de "arka plan fısıltısı" olarak verilir: model bunları blok halinde
+    Hepsi "arka plan fısıltısı" olarak verilir: model bunları blok halinde
     aktarmaz, en fazla tek bir ilgili ayrıntıyı kendi cümlesine sindirir.
     Hafızayı olduğu gibi döktürmek, kullanıcıya "hakkında tuttuğum notlar"
     okumak gibi olur ve ürkütücüdür.
@@ -281,6 +383,17 @@ def compose_chat_message(message: str, passages: list[dict],
     ``circle`` (KA6): kullanıcının Çevrem listesi + arkadaşları, kompakt.
     Model çevreyi BİLİR (kim var, ilişki türleri, burçları) ama sayıp
     dökmez; konu değince doğal biçimde işe katar. Ölçüm içermez.
+
+    SIRA BİR SÖZLEŞMEDİR (48-turu), süs değil: bloklar hafıza → ilişki →
+    harita → çevre → gökyüzü → kaynak → tohum sırasıyla dizilir ve
+    kullanıcının mesajı en sona gelir. Mesaja YAKINLIK modelde AĞIRLIK
+    demek, bu yüzden en yakın yerde HESAPLANMIŞ veri durur, en uzak yerde
+    de en eski ve en belirsiz olan (hafıza). Sırayı değiştirmek, prompt'ta
+    tek kelime değiştirmeden ürünün neyi öne çıkardığını değiştirir.
+
+    BÜTÇE: bu fonksiyonun döndürdüğü metnin "kullanıcı mesajı dışındaki"
+    kısmı ``MAX_WHISPER_CHARS``ı aşmaz; her blok kendi tavanına kırpılır.
+    Kullanıcının mesajı KIRPILMAZ (gerekçe yukarıda, tavanların yanında).
 
     Hiçbiri yoksa mesaj olduğu gibi döner; API şeması ve model arayüzü değişmez.
     """
@@ -312,12 +425,15 @@ def compose_chat_message(message: str, passages: list[dict],
         else:
             whispers.append(f"- {text}")
 
-    memory = (memory or "").strip()
-    chart = (chart or "").strip()
-    sky = (sky or "").strip()
-    relationship = (relationship or "").strip()
-    circle = (circle or "").strip()
-    seed_question = (seed_question or "").strip()
+    # Kırpma BURADA, birleştirmeden önce: aşağıdaki toplam bütçe iddiası
+    # ancak her blok kendi tavanına uyarsa kanıtlanabilir olur.
+    memory = _kirp((memory or "").strip(), MAX_MEMORY_CHARS)
+    chart = _kirp((chart or "").strip(), MAX_CHART_CHARS)
+    sky = _kirp((sky or "").strip(), MAX_SKY_CHARS)
+    relationship = _kirp((relationship or "").strip(),
+                         MAX_RELATIONSHIP_CHARS)
+    circle = _kirp((circle or "").strip(), MAX_CIRCLE_CHARS)
+    seed_question = _kirp((seed_question or "").strip(), MAX_SEED_CHARS)
     if (not whispers and not memory and not chart and not sky
             and not relationship and not circle and not seed_question):
         return message
@@ -326,8 +442,26 @@ def compose_chat_message(message: str, passages: list[dict],
     # dil karıştırmaya iter.
     labels = prompts.get(lang)
     parts = []
-    # İlişki bağlamı EN ÖNDE: soru o arkadaş hakkındaysa modelin merkezi
-    # bu ölçüm olmalı, kullanıcının kendi haritası destekleyici kalmalı.
+    # HAFIZA EN ÖNDE — yani EN ZAYIF konumda (48-turu).
+    #
+    # Eskiden hafıza sondan ikinciydi ve tohum sorusu yalnız Rytho'nun
+    # açtığı konuşmalarda var; yani NORMAL bir turda hafıza prompt'un EN
+    # SON bloğuydu, kullanıcının mesajına en yakın yer. Yakınlık modelde
+    # ağırlık demek ve sahibin şikâyeti birebir bunun tarifiydi: hafıza
+    # "haritaları, gezegenleri, kitabı bilgileri zehirleyen bir yapı".
+    #
+    # Düzeltme ters sırada: hafıza en başa, ölçülmüş astrolojik veri
+    # (ilişki → harita → çevre → gökyüzü) ve kadim kaynak ONUN ARDINA.
+    # Böylece mesaja en yakın duran şey HESAPLANMIŞ olan oluyor, en uzak
+    # duran şey de en eski ve en belirsiz olan. Hafıza hâlâ prompt'ta —
+    # kaldırmak "seni tanıyor" hissini öldürürdü — ama artık çerçeve
+    # kuruyor, gündem kurmuyor. Dil tarafı da aynı turda değişti
+    # (`prompts.WHISPER_MEMORY`: "kullan" → "yalnız doğrudan ilgiliyse").
+    if memory:
+        parts.append(labels.WHISPER_MEMORY + "\n" + memory)
+    # İlişki bağlamı ölçümlerin EN ÖNÜNDE: soru o arkadaş hakkındaysa
+    # modelin merkezi bu ölçüm olmalı, kullanıcının kendi haritası
+    # destekleyici kalmalı.
     if relationship:
         parts.append(labels.WHISPER_RELATIONSHIP + "\n" + relationship)
     if chart:
@@ -340,8 +474,6 @@ def compose_chat_message(message: str, passages: list[dict],
         parts.append(labels.WHISPER_SKY + "\n" + sky)
     if whispers:
         parts.append(labels.WHISPER_RAG + "\n" + "\n".join(whispers))
-    if memory:
-        parts.append(labels.WHISPER_MEMORY + "\n" + memory)
     # SS-turu: konuşmayı Rytho açtıysa açılış sorusu EN SONA, kullanıcı
     # mesajının hemen üstüne girer — cevabın neye cevap olduğu modele en
     # yakın yerde dursun. İddia turdan tura değişir: yalnız tohum HENÜZ

@@ -60,8 +60,20 @@ EVENT_TYPES = ("INITIAL_PURCHASE", "RENEWAL", "CANCELLATION", "EXPIRATION",
 ENVIRONMENTS = ("PRODUCTION", "SANDBOX")
 _LEGACY_ENV = "SANDBOX"
 
-#: Bildirim türleri (api/notify.run ile aynı küme).
-_NOTIFY_TYPES = ("daily", "midday", "checkin", "streak")
+#: Bildirim türleri — TEK KAYNAKTAN türetiliyor, elle sayılmıyor.
+#:
+#: Eskiden ("daily", "midday", "checkin", "streak") diye elle yazılıydı ve
+#: aynı küme depoda ALTI yerde kopyalanmıştı. 48-turunda `RUN_TYPES`a
+#: `circle` ve `winback` eklenince bu liste 4'te kaldı: yeni slotların
+#: `notify.{tür}` rollup'ı HİÇ toplanmadı, yani iki yeni bildirim türü
+#: panelde görünmez oldu. Tam da bu turun kendi dersi ("zamanlanmış işler
+#: bir ay yeşil yalan söyledi") yeni slotlar için yarım kalıyordu.
+#: İçe aktarma GECİKMELİ: `notify_runner` servis katmanının üstünde duruyor
+#: ve modül düzeyinde almak döngüsel import üretir (bu dosya 739. satırda
+#: `admin_service` için aynı kırıcıyı kullanıyor).
+def _notify_turleri() -> tuple[str, ...]:
+    from services.notify_runner import RUN_TYPES
+    return tuple(RUN_TYPES)
 
 #: Geçmiş gün merge'inde ezilen üst alanlar — kullanıcı taraması
 #: (`users`, `subs`, …) DOKUNULMAZ.
@@ -570,7 +582,7 @@ def _day_events(client, tarih: dt.date,
     # ---- Bildirim koşuları: notifyRuns {gün}-{tür} (AP-turu) ----
     bildirim: dict[str, Any] = {}
     try:
-        for tur in _NOTIFY_TYPES:
+        for tur in _notify_turleri():
             anlik = (client.collection("notifyRuns")
                      .document(f"{tarih_str}-{tur}").get())
             if getattr(anlik, "exists", False):

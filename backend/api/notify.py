@@ -8,7 +8,11 @@
   attırabilirdi.
 - ``POST /reaction`` normal kullanıcı oturumuyla çağrılır ama **yalnızca
   karşılıklı arkadaşa** ve **kapalı tepki kümesinden** gönderim yapar; ikisi
-  de sunucuda doğrulanır (istemcinin söylediğine güvenilmez).
+  de sunucuda doğrulanır (istemcinin söylediğine güvenilmez). Üstüne
+  **çift başına günlük tekrar koruması** gelir: bu uç bir tur boyunca
+  hiçbir sayaca tabi değildi ve tek bir arkadaş sınırsız push
+  attırabiliyordu (ölçüldü — `infra/firestore.rules` `nudges` kuralı da
+  oluşturma sayısını sınırlamıyor, yani tek hat buydu).
 
 Zamanlayıcı SAATTE BİR çalışır; hangi kullanıcının sırası geldiğine
 notification_service karar verir (yerel saat + sessiz saat + tekrar koruması).
@@ -146,7 +150,8 @@ def _tam_dusus_kapisi(sonuc: RunResult) -> None:
 
 
 @router.post("/run", response_model=RunResult)
-def run(type: Literal["daily", "midday", "checkin", "streak"] = "daily",
+def run(type: Literal["daily", "midday", "circle", "winback",
+                      "checkin", "streak"] = "daily",
         dry_run: bool = False,
         force: bool = False,
         ignore_dedupe: bool = False,
@@ -204,6 +209,19 @@ def reaction(req: ReactionPush,
 
     Bildirim gönderilemese bile 200 döner: tepki zaten Firestore'a yazıldı ve
     uygulama içindeki kutuda görünüyor. Push, üstüne eklenen bir şey.
+
+    **TEKRAR KORUMASI (ölçülen istismar yolu).** Bu uç bir tur boyunca
+    hiçbir tekrar korumasına tabi değildi: tepki kümesi kapalı ve
+    arkadaşlık doğrulanıyordu ama AYNI arkadaş AYNI tepkiyi istediği kadar
+    gönderip alıcının telefonunu sınırsız titretebiliyordu. Firestore
+    kuralı da yardım etmiyor — `nudges` oluşturma sayısı orada
+    sınırsızdır. Koruma davet/kabul ucuyla AYNI biçimde: alıcının kapalı
+    dokümanında ``reaction-{gönderen}LastSent`` günü, yani çift başına
+    günde EN FAZLA BİR push.
+    Günlük TOPLAM tavan ayrıca `can_send_event` içinde; ikisi birlikte
+    çalışmak zorunda — tavan tek başına olsaydı bir arkadaş alıcının bütün
+    günlük bütçesini kendi dürtmeleriyle bitirebilirdi, çift koruması tek
+    başına olsaydı yeterince arkadaş aynı günde bombardıman yapabilirdi.
     """
     if req.reaction not in REACTION_EMOJIS:
         raise HTTPException(status_code=400, detail=text("reaction.unknown", lang))
@@ -221,6 +239,15 @@ def reaction(req: ReactionPush,
     if not gonder:
         logger.info("Tepki bildirimi atlandi (%s): %s", req.friend_uid, gerekce)
         return {"status": "skipped", "reason": gerekce}
+
+    # Çift başına günlük koruma. Tür adı GÖNDERENİ taşır: başka bir
+    # arkadaşın dürtmesi bu kaydı görmez ve kendi hakkını kullanır.
+    tekrar_turu = f"reaction-{user.uid}"
+    gun = notification_service.local_now(alici).date().isoformat()
+    if notification_service.already_sent(req.friend_uid, tekrar_turu, gun):
+        logger.info("Tepki bildirimi atlandi (%s): zaten-gonderildi",
+                    req.friend_uid)
+        return {"status": "skipped", "reason": "zaten-gonderildi"}
 
     gonderen = profile_service.get_profile(user.uid) or {}
     alici_dili = notification_service.profile_language(alici)
@@ -240,6 +267,11 @@ def reaction(req: ReactionPush,
         # doğru hedefe yönlendirir (src: midday konvansiyonu).
         data={"type": "friend", "fromUid": user.uid, "src": "reaction"},
     )])
+    # Kayıt yalnız gönderim BAŞARILIYSA yazılır (davet ucuyla aynı
+    # sözleşme): FCM'in anlık hatası yüzünden arkadaşın o günkü tek
+    # dürtme hakkı yanmasın.
+    if sonuc.sent:
+        notification_service.mark_sent(req.friend_uid, tekrar_turu, gun)
     return {"status": "ok", "sent": sonuc.sent}
 
 

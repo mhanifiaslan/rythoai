@@ -53,8 +53,30 @@ logger = logging.getLogger(__name__)
 #: belleğe almak, kullanıcı sayısı büyüdüğünde instance'ı düşürürdü.
 PAGE_SIZE = 500
 
-#: Toplu koşunun türleri — api/notify.run Literal'i ve panel ile aynı küme.
-RUN_TYPES = ("daily", "midday", "checkin", "streak")
+#: Toplu koşunun türleri — api/notify.run Literal'i ile AYNI küme olmak
+#: zorunda (uç bu listeyi değil kendi Literal'ini doğruluyor).
+#:
+#: ⚠️ Aynı küme depoda BEŞ yerde daha yaşıyordu ve bu tür eklendiğinde
+#: dördü dörtte kalmıştı. Gerekçe ölçülerek GÜNCELLENDİ (2026-10-03) —
+#: eskiden burada "panel ve istatistik tarafı bu kümeyi KENDİ
+#: listelerinde tutuyor" yazıyordu ve bu artık YANLIŞ:
+#:
+#: - `services/admin_service.py` ve `services/stats_service.py` kümeyi
+#:   artık ELLE tutmuyor, `_notify_turleri()` ile buradan TÜRETİYOR.
+#: - `api/admin.py` `_NotifyType` elle yazılı kalmak ZORUNDA (`Literal`
+#:   statik olmalı — FastAPI OpenAPI enum'unu tipten üretir), ama
+#:   `tests/test_notify_turleri_tek_kaynak.py` ile bu kümeye çivili.
+#: - Elle kalan ve ÇİVİSİZ tek kopya `web/rytho-admin/gorunumler/
+#:   bildirimler.js` içindeki `TURLER` dizisi; bugün hâlâ dört tür
+#:   taşıyor. Ölçülen iki sonuç (bu dosya o paketin değil, onarım orada
+#:   yapılır): prova ve "kendine test" açılır listeleri `TURLER`den
+#:   üretildiği için iki yeni slot panelden TETİKLENEMİYOR, ve koşu
+#:   tablosundaki rozet `turAdi` sözlüğünde karşılık bulamayıp ham
+#:   anahtarı ("circle") okunur etiket yerine gösteriyor.
+#:   Koşunun kendisi etkilenmez: sayıları `notifyRuns/{gün}-{tür}`
+#:   dokümanına yazar ve tamamen düştüğünde Scheduler günlüğünde 503
+#:   ile kırmızı yanar.
+RUN_TYPES = ("daily", "midday", "circle", "winback", "checkin", "streak")
 
 #: Jetonsuz hesaba test isteği — uç 400'e çevirir.
 NO_TOKEN_MESSAGE = "Bu hesabın push jetonu yok — mobilde bu hesapla giriş yap."
@@ -195,15 +217,30 @@ class RunResult(BaseModel):
     #: Kuyruğa giren mesajların dil dökümü (DM-turu): "hem İngilizce hem
     #: Türkçe" bulgusundan sonra hangi dilde kaç push gittiği görünür olmalı.
     languages: dict[str, int] = Field(default_factory=dict)
-    #: Kişisel AI üretiminin dökümü (SZ-turu): ``attempted`` / ``ok`` /
-    #: ``fallback``. Bu sayılar bugüne dek HİÇBİR YERDE yoktu ve kesintinin
-    #: bir ay görünmez kalmasının sebebi buydu: üretim düşünce koşu şablon
-    #: satıra düşüp push'u normal gönderiyor, yani `sent` sağlıklı görünüyor.
+    #: Slotun KENDİ İÇERİK KAYNAĞININ dökümü (SZ-turu): ``attempted`` /
+    #: ``ok`` / ``fallback``. Bu sayılar bugüne dek HİÇBİR YERDE yoktu ve
+    #: kesintinin bir ay görünmez kalmasının sebebi buydu: kaynak düşünce
+    #: koşu şablon satıra düşüp push'u normal gönderiyor, yani `sent`
+    #: sağlıklı görünüyor.
     #:
-    #: YALNIZ ``daily`` koşusunda dolar ve bu bilinçli: üretimi tetikleyen
-    #: tek tür o. ``checkin``/``midday`` sabahın paketini salt OKUR
-    #: (`generate_if_missing=False`) ve ``streak`` şablondur — onlarda boş
-    #: bir döküm "ölçülemedi" demek, "düştü" demek DEĞİL.
+    #: Kaynağın NE OLDUĞU türe göre değişir, ölçülen şey aynı: "bu push'un
+    #: dayandığı veri gerçekten elde edilebildi mi".
+    #:
+    #: - ``daily`` → kişisel AI paketi (Gemini). Ölçülen kesinti buydu.
+    #: - ``winback`` → 3. basamakta paylaşılan gökyüzü ayrıntısı,
+    #:   10. basamakta çift ölçümü. ``get_sky_now`` düştüğünde koşu
+    #:   `ham_sky = {}` ile devam ediyor ve bu bugüne dek TAMAMEN sessizdi.
+    #: - ``circle`` → çift transit ölçümü (efemeris, LLM'siz).
+    #:
+    #: ``checkin``/``midday`` sabahın paketini salt OKUR
+    #: (`generate_if_missing=False`) ve ``streak`` şablondur; onlarda döküm
+    #: BOŞ kalır. Boş döküm "ölçülemedi" demek, "düştü" demek DEĞİL —
+    #: `_dusus_gerekcesi` boş dökümü kırmızı saymaz.
+    #:
+    #: "OLAY YOK" da düşüş DEĞİL: sakin bir günde çift ölçümü yapılır ama
+    #: vuruş çıkmaz; o kullanıcı ``ok`` sayılır ve bildirim görünür bir
+    #: gerekçeyle atlanır. Ayrım olmasaydı sakin bir gün sahte alarm
+    #: üretirdi (bkz. `notification_service._en_iyi_vurus`).
     generation: dict[str, int] = Field(default_factory=dict)
 
 
@@ -241,10 +278,12 @@ def _dusus_gerekcesi(sonuc: RunResult) -> str | None:
 
     İki ayrı tam düşüş var ve ikisi de bugüne dek 200 dönüyordu:
 
-    1. **Üretim**: denenen her kullanıcı için kişisel AI paketi düştü
-       (ölçülen kesinti — Gemini 403). Push'lar yine gittiği için
-       `sent`/`failed` sağlıklı görünür; kusuru yalnız `generation`
-       gösterir.
+    1. **Üretim**: denenen her kullanıcı için o slotun İÇERİK KAYNAĞI
+       düştü — `daily`de kişisel AI paketi (ölçülen kesinti, Gemini 403),
+       `winback`/`circle`de gökyüzü ya da çift ölçümü. Push'lar yine
+       gittiği için `sent`/`failed` sağlıklı görünür; kusuru yalnız
+       `generation` gösterir. Eşik ve "olay yok düşüş değildir" ayrımı
+       sayesinde sakin bir gün kırmızı yanmaz.
     2. **Gönderim**: kuyruğa giren hiçbir push ulaşmadı. FCM hiç
        kullanılamıyorsa `push_service.send` tek satır bile denemeden
        `SendResult(0, N, …)` dönüyor ve koşu buna da "ok" diyordu.
@@ -442,6 +481,54 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
                 atlanan[gerekce] = atlanan.get(gerekce, 0) + 1
                 continue
             baslik, govde, veri = ogle
+        elif type == "circle":
+            # CV: Çevrem slotu — öğlenin eski YEDEK dalı kendi saatine
+            # çıktı ve önbellek şartı gevşedi. Döküm `olctu` üzerinden
+            # bağlanıyor: ölçüm elde edilemezse bu kesinti durum koduna
+            # kadar çıkmalı, yoksa "gonderilen=N basarisiz=0" diyen bir
+            # koşu yine bir ayı yutar.
+            cevre, gerekce, olctu = notification_service.circle_push(
+                profil, lang, today=yerel.date())
+            if olctu is not None:
+                uretim["attempted"] = uretim.get("attempted", 0) + 1
+                _anahtar = "ok" if olctu else "fallback"
+                uretim[_anahtar] = uretim.get(_anahtar, 0) + 1
+            if cevre is None:
+                atlanan[gerekce] = atlanan.get(gerekce, 0) + 1
+                continue
+            baslik, govde, veri = cevre
+        elif type == "winback":
+            # K7: kademeli geri çağrı (3 → 10 → 30, sonra susar).
+            # Basamağı `should_send` zaten doğruladı; burada YENİDEN
+            # okunuyor çünkü `should_send` sözleşmesi (gönderilsin mi,
+            # gerekçe) ve metni seçen şey basamağın kendisi. Aynı veriden
+            # aynı sonuç: iki okuma, tek karar.
+            basamak, _ = notification_service.winback_tier(
+                profil, yerel,
+                notification_service.winback_state(profil["uid"], profil))
+            if basamak is None:
+                # `should_send`ten geçmiş bir profilde olmamalı; yarış
+                # (kullanıcı tam o anda uygulamayı açtı) ya da Firestore
+                # okuma hatası üretebilir. SESSİZCE atlanmaz.
+                atlanan["basamak-kayboldu"] = (
+                    atlanan.get("basamak-kayboldu", 0) + 1)
+                continue
+            if lang not in sky_by_lang:
+                sky_by_lang[lang] = prompts.localize_sky(lang, ham_sky)
+            icerik, veri, olctu = notification_service.winback_push(
+                profil, lang, basamak, sky=sky_by_lang[lang],
+                today=yerel.date())
+            if olctu is not None:
+                uretim["attempted"] = uretim.get("attempted", 0) + 1
+                _anahtar = "ok" if olctu else "fallback"
+                uretim[_anahtar] = uretim.get(_anahtar, 0) + 1
+            baslik, govde = icerik.baslik, icerik.govde
+            # Gövde SORU: aşağıdaki ortak tohum dalı sohbeti açar.
+            soru = icerik.soru
+            # Basamak ve sessizlik epizodunun çapası gönderim kaydına
+            # yazılır; sayacın dönüşte sıfırlanması buna dayanıyor.
+            ekstralar[profil["uid"]] = (
+                notification_service.winback_sent_fields(basamak, profil))
         elif type == "checkin":
             # KA4: günün önemli sinyaline bağlı kişisel soru — yalnız
             # sabah paketinde soru YAZILMIŞSA gider; LLM çağrılmaz.

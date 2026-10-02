@@ -993,7 +993,7 @@ def attention() -> list[dict[str, Any]]:
     try:
         bugun = simdi.date().isoformat()
         basarisiz = 0
-        for tur in ("daily", "midday", "checkin", "streak"):
+        for tur in _notify_turleri():
             anlik = client.collection("notifyRuns").document(f"{bugun}-{tur}").get()
             if getattr(anlik, "exists", False):
                 basarisiz += int((anlik.to_dict() or {}).get("failed") or 0)
@@ -1360,8 +1360,20 @@ def revenue_csv_rows(*, days: int = 30, env: str = "PRODUCTION"):
 #: Süreç başlangıcı — panel "bu instance ne zamandır ayakta" gösterir.
 _PROCESS_STARTED_AT = dt.datetime.now(dt.timezone.utc)
 
-#: Bildirim koşu türleri (api/notify.py `run(type=...)`).
-_NOTIFY_TYPES = ("daily", "midday", "checkin", "streak")
+#: Bildirim koşu türleri — TEK KAYNAKTAN türetiliyor, elle sayılmıyor.
+#:
+#: Eskiden ("daily", "midday", "checkin", "streak") diye elle yazılıydı ve
+#: aynı küme depoda ALTI yerde kopyalanmıştı. 48-turunda `RUN_TYPES`a
+#: `circle` ve `winback` eklenince bu liste dörtte kaldı: panelin bildirim
+#: bölümü iki yeni slotu HİÇ görmedi, yani operatör onları ne izleyebildi
+#: ne prova edebildi. Tam da bu turun kendi dersi ("zamanlanmış işler bir
+#: ay yeşil yalan söyledi") yeni slotlar için yarım kalıyordu.
+#:
+#: İçe aktarma GECİKMELİ: `notify_runner` bu modülün üstünde duruyor ve
+#: modül düzeyinde almak döngüsel import üretir.
+def _notify_turleri() -> tuple[str, ...]:
+    from services.notify_runner import RUN_TYPES
+    return tuple(RUN_TYPES)
 
 
 def _index_probes(client) -> list[dict[str, Any]]:
@@ -1481,7 +1493,7 @@ def system_info() -> dict[str, Any]:
     rollups: dict[str, Any] = {"lastStatsDate": None, "lastStatsAt": None,
                                "lastStatsMs": None, "lastEconomicsDate": None}
     notify: dict[str, Any] = {t: {"lastRunAt": None, "lastStatus": None}
-                              for t in _NOTIFY_TYPES}
+                              for t in _notify_turleri()}
     stats_run: dict[str, Any] = {"lastRunAt": None}
     indexes: list[dict[str, Any]] = []
     dokuman: dict[str, Any] = {}
@@ -1506,7 +1518,7 @@ def system_info() -> dict[str, Any]:
         # Bildirim koşuları: bugün, yoksa dün — {gün}-{tür} deterministik id.
         bugun = dt.datetime.now(dt.timezone.utc).date()
         gunler = (bugun.isoformat(), (bugun - dt.timedelta(days=1)).isoformat())
-        for tur in _NOTIFY_TYPES:
+        for tur in _notify_turleri():
             for gun in gunler:
                 try:
                     anlik = (client.collection("notifyRuns")

@@ -338,7 +338,16 @@ def notify_runs(days: int = Query(default=7, ge=1, le=30),
 # Bildirim araçları (AD8) — destek de kullanır
 # ---------------------------------------------------------------------------
 
-_NotifyType = Literal["daily", "midday", "checkin", "streak"]
+#: ⚠️ Bu liste `notify_runner.RUN_TYPES` ile AYNI kalmak zorunda ve burada
+#: ELLE yazılı olmasının tek sebebi teknik: `Literal` statik olmalı (FastAPI
+#: OpenAPI enum'unu buradan üretiyor), yani çalışma anında türetilemiyor.
+#: Bir tur boyunca dörtte kaldı ve bedeli ölçüldü: `circle`/`winback`
+#: slotları eklenince operatör onları panelden ne prova edebildi ne kendine
+#: test gönderebildi — uç 422 döndürüyordu. Kardeş listelerin üçü artık
+#: `RUN_TYPES`tan türetiliyor; bu dördüncüsü `test_notify_turleri_tek_kaynak`
+#: ile çivili, yani ayrışırsa takım kırmızı yanar.
+_NotifyType = Literal["daily", "midday", "circle", "winback",
+                      "checkin", "streak"]
 
 
 class NotifyDryRunRequest(BaseModel):

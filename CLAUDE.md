@@ -162,7 +162,7 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ## 6. Bugünkü durum (2026-10-02)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.17.1+47**. Backend rev **00104**.
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.17.1+47**. Backend rev **00105**.
 46 hiç yüklenmedi ve 47'ye geçildi — sürüm kodu ucuz, kullanılmış olabilecek
 bir kodu geri kullanmak değil.
 
@@ -178,9 +178,15 @@ kalır.
 
 **EPİZODİK, kalıcı değil** (ölçüldü 2026-10-02): epizot 1
 `09-02T12:23Z → 09-03T04:17Z` (~16 saat, **kendi kendine geçti**), sonra
-**27 gün sıfır red**, sonra epizot 2 `10-01T21:59:59Z →` sürüyor. İkisi de
-**ay başına** denk geliyor — aylık otomatik çekimin düşüp sonra tutması
-desenine uyuyor. Yani "kalıcı bir risk bayrağı" değil, fatura döngüsü.
+**27 gün sıfır red**, sonra epizot 2 `10-01T21:59:59Z → ~10-02T12:00Z`
+(~14 saat, **o da kendi kendine geçti**). İkisi de **ay başına** denk
+geliyor — aylık otomatik çekimin düşüp sonra tutması desenine uyuyor. Yani
+"kalıcı bir risk bayrağı" değil, fatura döngüsü.
+
+⚠️ **1 KASIM'DA ÜÇÜNCÜSÜ BEKLENİR.** Desen iki kez tuttu; kalıcı çözüm tek
+seferlik ödeme değil **güvenilir bir kart ya da ikinci bir yedek ödeme
+yöntemi**. Bunu yapmadan geçen her ay başı yeni bir ~15 saatlik kesinti
+riski taşıyor.
 
 **Red PROJE düzeyinde, anahtar kısıtı DEĞİL.** Kanıt: fatura da kota da
 gerektirmeyen `models.list` bile 403 veriyor. Anahtarın tek kısıtı
@@ -188,19 +194,23 @@ gerektirmeyen `models.list` bile 403 veriyor. Anahtarın tek kısıtı
 `updateTime` **2026-07-23** — yani 09-26 kısıtlama turunda ona dokunulmamış.
 Anahtar kısıtı olsaydı mesaj *"Requests from … are blocked"* olurdu.
 
-⚠️ **Ölçülmüş ve açıklanamamış çelişki:** aynı anahtar (SHA-256 özetiyle
-doğrulandı: `.env` ile Secret Manager **AYNI**) bu makineden `models.list`'e
-**10/10 başarılı**, Cloud Run ise aynı dakikada 403. Yani sırrı döndürmek
-**işe yaramaz** (aynı anahtar) ve "proje düzeyinde sabit red" de tam doğru
-değil. Olasılıklar ölçülmedi: red o dakikalarda kalkmış olabilir (Cloud Run
-11:54'ten sonra hiç deneme yapmadı — kuyruk boştu), ya da karar çağıran
-ortama/IP'ye duyarlı. **Kesin cevap için üretimden tek bir Gemini çağrısı
-tetiklenmeli.**
+⚠️ **"Aynı anahtar yerelde çalışıyor" çelişkisi ÇÖZÜLDÜ ve dersi değerli.**
+Teşhis sırasında aynı anahtar (SHA-256 ile doğrulandı: `.env` ile Secret
+Manager **AYNI**) bu makineden `models.list`'e 10/10 başarılıyken Cloud Run
+403 alıyordu. "Çağıran ortama duyarlı red" gibi görünüyordu — **değildi**:
+red o dakikalarda zaten kalkmıştı ve Cloud Run 11:54'ten sonra **hiç deneme
+yapmamıştı** (kuyruk boştu). Yani iki ortamı karşılaştırmak yanlış soruydu.
+Doğru hamle **üretimden tek bir çağrı tetiklemek** oldu
+(`gcloud scheduler jobs run rytho-horoscope-warm-daily`) ve 12:35'te
+`generateContent` + `batchEmbedContents` **200** döndü.
+**Ders: "A ortamında çalışıyor, B'de çalışmıyor" demek için ikisinde de AYNI
+ANDA deneme yapılmış olmalı. Deneme yokluğu kanıt değildir.**
 
 **BAŞARI SAYISI LOGDAN ÖLÇÜLEMEZ** — `generate()` başarı yolunda hiçbir satır
 basmıyor. Doğru ölçü Firestore `usageEvents`: her DÖNEN çağrı bir doküman,
-`day` alanı UTC gün anahtarı. Ölçülen: 09-30 → 81, 10-01 → 59,
-**10-02 → 0**. "Logda hata yok" ≠ "çalışıyor".
+`day` alanı UTC gün anahtarı. Ölçülen: 09-30 → 81, 10-01 → 59, 10-02 kesinti
+sırasında **0**, kesinti bitince aynı gün **22** (18'i burç ısıtması).
+"Logda hata yok" ≠ "çalışıyor"; "logda hata var" da ≠ "hâlâ bozuk".
 
 Sahibin yapması gereken sırayla: (1) fatura hesabı
 `01156B-3E95EE-A8BB8F` → İşlemler/Belgeler/Ödeme yöntemi, başarısız çekim ya

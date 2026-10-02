@@ -23,11 +23,13 @@ test_app_gate `test_pin_firestore_sahtelenmemisken_esik_sifir`.
 """
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from core import app_gate, config
 from core import firestore as firestore_client
-from services import account_service, partner_service
+from services import account_service, gemini_service, partner_service
 
 #: Toplama anında yakalanır: henüz hiçbir fixture koşmadı, bu gerçek
 #: istemci kurucusudur. Kıyas kimlikle (`is`) — sahte istemci kuran her
@@ -172,3 +174,35 @@ def auth_hermetik(monkeypatch):
     """
     monkeypatch.setattr(partner_service, "_auth_modulu",
                         lambda: _AuthYok)
+
+
+#: Canli LLM cagrisina ACIK izin. Anahtarin VARLIGI izin DEGILDIR.
+_CANLI_LLM_IZNI = "RYTHO_CANLI_LLM"
+
+
+@pytest.fixture(autouse=True)
+def gemini_hermetik(monkeypatch):
+    """Hicbir test istemeden GERCEK Gemini'ye gidemesin.
+
+    CLAUDE.md'nin kurali: dis dunyaya cikan HER yeni istemci icin ayri pin.
+    Dort pin vardi (kapi, depolama, Firestore, Auth) ama Gemini YOKTU ve
+    bedeli ODENDI: 48-turunda bir ajan `test_chat_style`i dort kez
+    kosturdugunu ve uretim kotasindan ~4 sohbet cagrisi harcadigini
+    bildirdi. Ayni gun uretim projesi `Lightning dunning` reddi
+    aliyordu — yani kota gercek para ve o para bir kesintinin ortasinda
+    yandi.
+
+    ⚠️ ESKI KALKAN YETERSIZDI: canli test `skipif(not GEMINI_API_KEY)`
+    tasiyordu ve bu bir kalkan DEGIL, yalnizca bir YOKLUK kontrolu.
+    Gelistirici makinesinde `backend/.env` uzerinden anahtar VARDIR
+    (olculdu), yani kosul her zaman dogru ve test her zaman kosar.
+    **Anahtarin varligi, harcama izni demek degildir.**
+
+    Izin artik ACIK: `RYTHO_CANLI_LLM=1`. Varsayilan hal HERMETIK ve
+    `_get_client` None donuyor — uretim kodu bu hali zaten biliyor
+    (anahtarsiz kurulum) ve yedek yollarina duser, yani pin yeni bir
+    davranis UYDURMUYOR, var olan bir dala sabitliyor.
+    """
+    if os.getenv(_CANLI_LLM_IZNI) == "1":
+        return
+    monkeypatch.setattr(gemini_service, "_get_client", lambda: None)

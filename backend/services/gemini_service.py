@@ -63,7 +63,34 @@ CHAT_SYSTEM_INSTRUCTION = prompts.get(i18n.DEFAULT).CHAT_SYSTEM_INSTRUCTION
 # Ölçüm: tipik 4 cümlelik Türkçe yanıt ~85 token (3,6 karakter/token), 6
 # cümlelik ~146. Yani görünür metin için 300 fazlasıyla yeterliydi; sorun
 # görünür metinde değil, ONUNLA AYNI BÜTÇEDEN yiyen düşünmedeydi.
-CHAT_MAX_OUTPUT_TOKENS = 1200
+#
+# ## 1200 → 600 (48-turu) ve tavanın NE OLMADIĞI
+#
+# Tavan bir HEDEF değil, kesilme kalkanıdır: modeli uzun yazdıran şey tavan
+# değil prompt'tur ve uzunluk kuralı bu turda prompt'ta bağlayıcı hâle
+# getirildi (`prompts/tr.py`, TEK KONU + konuya göre üst sınır). Yani 1200'ü
+# düşürmek uzunluk sorununu ÇÖZMEZ; yalnız artık gereksiz kalan payı geri
+# alır.
+#
+# 1200'ün gerekçesi, yazıldığı gün doğruydu ama BUGÜN GEÇERSİZ: o gün model
+# `gemini-flash-latest` takma adıydı ve `thinking_budget: 0` uygulanmıyordu
+# (6 çağrının 3'ünde 190-286 token düşünmeye gidiyordu), tavan da onun için
+# yükseltilmişti. Model o turda sabitlendi — `core/config.py`'deki ölçüm:
+# `gemini-3.5-flash` 4 çağrının **0'ında** kesildi ve **0 token** düşündü.
+# Düşünme sızıntısı modelin PİNİYLE kapandı; tavanla değil.
+#
+# 600 şu iki ölçümden çıkarıldı (ikisi de bu depoda yazılı):
+#   * Üst sınır artık 8 cümle (prompt). 4 cümle ~85, 6 cümle ~146 token →
+#     cümle başına ~24; 8 cümle ~195. Görünür metin için 600, en uzun
+#     yanıtın 3 katı.
+#   * `GEMINI_MODEL` ortam değişkeniyle düşünme sızdıran bir modele
+#     dönülürse: ölçülen en kötü sızıntı 286 token; 286 + 195 = 481 < 600.
+#     Yani 600, pin kaybolsa bile kesmez. Bu yüzden 400 DEĞİL: 400'de o
+#     ikinci özellik kaybolurdu ve sızıntı sessizce kesilmeye dönerdi.
+# Üçüncü savunma yerinde duruyor: tavan yine tutmazsa `finish_reason`
+# denetimi kesik metni kullanıcıya göstermez, sıradaki varyant (2048,
+# düşünme tamamen açık) devreye girer.
+CHAT_MAX_OUTPUT_TOKENS = 600
 CHAT_TEMPERATURE = 0.85
 
 # Düşünme (thinking) kapatma varyantları, tercih sırasıyla.
@@ -76,16 +103,28 @@ CHAT_TEMPERATURE = 0.85
 # cümle kelime ortasında bitiyordu ("Gökyüzünde bugün zih").
 #
 # Kök neden: `gemini-flash-latest` bir TAKMA AD ve arkasındaki model kaydı.
-# Ölçülen davranış:
+# O takma ad üzerinde ölçülen davranış:
 #   * `thinking_level: "minimal"` → 400 INVALID_ARGUMENT (desteklenmiyor).
 #     Yani bu varyant her soğuk başlangıçta bir çağrıyı boşa harcıyordu.
 #   * `thinking_budget: 0` → kabul ediliyor ama UYGULANMIYOR; 6 çağrının
 #     3'ünde ~190-286 token düşünmeye gitti.
 #
 # Bu yüzden: 400 veren varyant KALDIRILDI ve tavan, düşünme kontrolü yine
-# kayarsa bile görünür metnin sığacağı kadar yükseltildi. Savunma iki
-# katmanlı — ayar tutmazsa bütçe kurtarır, o da tutmazsa `finish_reason`
-# denetimi kesik metnin kullanıcıya ulaşmasını engeller.
+# kayarsa bile görünür metnin sığacağı kadar yükseltildi.
+#
+# ⚠️ YUKARIDAKİ İKİ MADDE ARTIK BU KURULUMUN TEŞHİSİ DEĞİL (düzeltildi,
+# 48-turu). Tarihçe olarak duruyor çünkü varyant listesinin şeklini o
+# ölçüm belirledi — ama sebebini açıkladığı model artık kullanılmıyor:
+# `core/config.py` modeli `gemini-3.5-flash`'a SABİTLEDİ ve orada ölçülen
+# davranış bunun TERSİ — 4 çağrının 0'ı kesildi, 0 token düşünme, yani
+# `thinking_budget: 0` uygulanıyor. Takma ad gerekçesini bugünün gerekçesi
+# sanmak yanlış olur: düşünme sızıntısını kapatan şey bu dosyadaki tavan
+# değil, o dosyadaki MODEL PİNİ'dir.
+#
+# Liste yine iki katmanlı duruyor, ama görevi değişti: artık "takma ad
+# kayarsa" değil, "`GEMINI_MODEL` ile pin DIŞINA çıkılırsa" savunması.
+# Üçüncü katman her hâlde yerinde: `finish_reason` denetimi kesik metnin
+# kullanıcıya ulaşmasını engeller.
 _CHAT_CONFIG_VARIANTS: tuple[dict, ...] = (
     {"thinking_config": {"thinking_budget": 0},
      "max_output_tokens": CHAT_MAX_OUTPUT_TOKENS},

@@ -20,6 +20,11 @@ inmediğini döndürür. Fail-open korunuyor — fırlatmaz, ve mevcut
 çağıranların hiçbiri dönüşü kullanmak zorunda değil. Kapanan şey
 yalnızca şu: bilmeden "yazdım" demek. Bedeli ``set``in gövdesinde
 ölçüldü.
+
+Okuma tarafı aynı kusuru TERS yönden taşıyordu: ``get`` değeri döndürüyor
+ama hangi katmandan geldiğini SÖYLEMİYORDU, dolayısıyla ona dayanan her
+"sıcak/önbellekten" raporu yalnız *bu süreçte okunabildiğini* kanıtlıyordu.
+``get_katmanli`` katmanı da döndürür; gerekçe onun gövdesinde.
 """
 from __future__ import annotations
 
@@ -181,24 +186,101 @@ def _persistent_set(key: str, value: Any, expires_at: float,
     return _file_set(key, value, expires_at)
 
 
-def get(key: str) -> Any | None:
-    """Önbellekten değeri döndürür; yoksa veya süresi dolmuşsa ``None``."""
+#: ``get_katmanli`` dönüşündeki katman adları. Düz dize, enum DEĞİL: değer
+#: sayaç adlarına ve log satırlarına giriyor; enum çağıran her yerde bir
+#: ``.value`` daha yazdırır ve karşılığında hiçbir şey kazandırmazdı.
+KATMAN_YOK = "yok"
+KATMAN_BELLEK = "bellek"
+KATMAN_KALICI = "kalici"
+
+
+def kalici_katman_paylasimli() -> bool:
+    """Kalıcı katman instance'lar ARASINDA paylaşımlı mı?
+
+    ``KATMAN_KALICI`` tek başına "paylaşımlı" DEMEK DEĞİL ve bu ayrımı
+    atlamak tam olarak kaçınılan kusuru üretirdi: ``file`` arka ucu da
+    kalıcıdır ama Cloud Run'ın yerel diski instance'a özeldir ve kap
+    ölünce gider. "Isındı" hükmü ancak katman kalıcı **ve** arka uç
+    firestore iken doğrudur; ikisini tek kelimeye indirmek ölçüleni
+    (okunabildi) yanlış adla (paylaşımlı) sunmak olurdu.
+    """
+    return config.CACHE_BACKEND == "firestore"
+
+
+def get_katmanli(key: str) -> tuple[Any | None, str]:
+    """Değeri **ve geldiği katmanı** döndürür.
+
+    NEDEN ayrı bir işlev var (ölçüldü 2026-10-02): ``get``in dönüşü
+    isabetin HANGİ katmandan geldiğini söylemiyordu, bu yüzden ona dayanan
+    her "sıcak" raporu ölçtüğünden fazlasını iddia ediyordu. İki yer:
+
+    * ``api/maintenance.py`` ısıtma sayacı ``zaten_sicak`` — gerçekte
+      yalnız "BU SÜREÇTE okunabildi" demek. Bellek katmanı instance'a
+      özeldir (max-instances 3) ve süreç ölünce gider; haftalık/aylık
+      işler her gece koştuğu için bir önceki koşunun aynı instance'ta
+      bıraktığı değeri bulmak gerçek bir olasılık. Yani "zaten sıcak"
+      sayılan bir kombinasyon paylaşımlı katmanda HİÇ olmayabilir ve
+      ısıtmanın tek amacı (sabah ilk açan beklemesin) ölçülmemiş kalır.
+    * ``services/report_service.py:_cached_generate`` yanıtındaki
+      ``cached: True`` — aynı sınıf iddia. Orada ``persisted`` anahtarı
+      bilerek YOKTU, çünkü katman ölçülmemişti; artık ölçülebiliyor.
+
+    ``set``in dönüşü (yazım tarafı) bu turun BİR ÖNCESİNDE kapandı; bu
+    onun okuma tarafı ve ikisi aynı kusurun iki yüzüydü.
+
+    İmza NEDEN ``get``ten ayrı: ``cache.get`` depoda ONLARCA yerden
+    çağrılıyor ve dönüş şeklini demet yapmak hepsini birden kırardı —
+    bu, katman ayrımının bir tur boyunca "yapılmadı" diye
+    kaydedilmesinin de gerekçesiydi.
+
+    ⚠️ Buraya sayı iki tur üst üste ÇİVİLENDİ ve ikisi de yanlış
+    çıktı: önce "31 / 44", sonra "ölçüldü: 32 ve 45". Doğrulama turunda
+    (2026-10-02) kağıt üzerinde değil kaynaktan yeniden sayıldı: 31
+    uygulama + 13 test çağrısı. "32/45" bir YANLIŞ POZİTİFTEN geliyor —
+    kaba bir ``cache.get(`` taraması ``core/device.py``deki yerel
+    ``_cache`` SÖZLÜĞÜNÜN ``.get``ini de sayar, oysa o bu modül değil.
+    Dersin asıl yeri sayı DEĞİL: bu sayı her turda değişiyor, yoruma
+    çivilenince bayatlıyor ve bir sonraki okuyucu yanlış bir
+    "ölçüldü"ye güveniyor. Gerekçeyi taşıyan şey büyüklük sırası:
+    ONLARCA okuyucu var (``report_service`` tek başına 14'ünü tutuyor),
+    yani demet dönüşü hepsini birden kırardı.
+
+    İki işlev tek kod yolunu paylaşıyor (``get`` bunu sarıyor), yani
+    ikisi sessizce ayrışamaz.
+
+    Dönen katman ``KATMAN_BELLEK`` ise bu değerin kalıcı katmanda
+    OLMADIĞINI göstermez — yalnız oraya BAKILMADIĞINI gösterir; bellek
+    isabeti kalıcı okumayı bilerek atlıyor (maliyet kapısı). Kalıcı
+    katmanda durduğunu kanıtlamak isteyen çağıran ya yazımın hükmünü
+    (``set`` dönüşü) kullanır ya da belleği boşaltıp yeniden sorar.
+    """
     value = _memory_get(key)
     if value is not None:
-        return value
+        return value, KATMAN_BELLEK
 
     try:
         entry = _persistent_get(key)
     except Exception as exc:
         logger.warning("Önbellek okunamadı (%s): %s", config.CACHE_BACKEND, exc)
-        return None
+        return None, KATMAN_YOK
 
     if entry is None:
-        return None
+        return None, KATMAN_YOK
 
     value, expires_at = entry
     _memory_set(key, value, expires_at)
-    return value
+    return value, KATMAN_KALICI
+
+
+def get(key: str) -> Any | None:
+    """Önbellekten değeri döndürür; yoksa veya süresi dolmuşsa ``None``.
+
+    Katmana ihtiyacı olmayan çağıranlar için ince sarmalayıcı. Gövde
+    ``get_katmanli``de TEK kopya duruyor: iki ayrı okuma yolu yazılsaydı
+    (biri katmanlı, biri değil) bellek terfisi ya da TTL kapısı birinde
+    değişip ötekinde kalabilirdi — ve bu fark yalnız canlıda görünürdü.
+    """
+    return get_katmanli(key)[0]
 
 
 def set(key: str, value: Any, ttl_seconds: int = 24 * 3600,

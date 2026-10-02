@@ -828,6 +828,66 @@ def progressions_report(user_id: str, prog: dict[str, Any],
                             feature="progressions")
 
 
+# ---------------------------------------------------------------------------
+# GÜN BİLGİSİ: anahtar ile prompt arasındaki zorunlu denklik
+# ---------------------------------------------------------------------------
+#
+# Bir üretim yüzeyinin günle ilişkisi ÜÇ hâlden birindedir ve yalnız ikisi
+# meşrudur:
+#
+# 1. **Günlük yüzey** — gün hem PROMPT'ta hem ANAHTAR'da. Gün dönünce metin
+#    de döner. (`daily_reading`: anahtarda yerel gün · `iching_reading`:
+#    anahtarda gün sütunu etiketi, promptta "çekim günü bağlamı".)
+# 2. **Kimlik yüzeyi** — gün HİÇBİR YERDE. Metin, kimliğin kendisi
+#    değişmedikçe aynı kalır ve bu doğrudur: doğum haritası, yüz oranları ve
+#    doğum kapısı güne göre değişmez.
+# 3. **YASAK hâl** — gün PROMPT'ta ama ANAHTAR'da DEĞİL. Üretim anındaki gün
+#    metne gömülür ve önbellek ömrü boyunca "bugün" diye servis edilir.
+#    Ölçülen bir şeyin dondurulup bugünmüş gibi sunulması; bu depoda bunun
+#    adı bayat gün iddiasıdır.
+#
+# Firasette (3) ÖLÇÜLDÜ: `api/face_reading.py` prompt'a `chart_context.
+# chart_whisper` bloğunu koyuyor ve o blok "Bugün haritasına dokunan
+# transitler" + "Önümüzdeki 7 günün kesinleşmeleri" (TARİHLİ) satırlarını
+# taşıyor; firaset anahtarı ise yalnız oranların özetiydi ve ömrü 7 gün. Yani
+# Pazartesi üretilen metin, içinde Pazartesi'nin transitleri ve tarihleri
+# varken Cuma da servis ediliyordu.
+#
+# Onarımın YÖNÜ ölçüldü (2026-10-02, 30 günlük efemeris taraması): transit
+# satırının değeri **30 günün 30'unda da farklı** (orb bir ondalıkla
+# yazılıyor, vuruş kümesi aynı kalsa bile satır değişiyor). Yani "günü
+# anahtara da koy" demek firaset için günde bir yeniden üretim, yani
+# `TOKEN_COSTS["face"]` = **5 jeton/gün** demekti — aylık hak 100 jeton
+# (K1, 2026-10-02). Üç kimlik yüzeyi birden günlüğe çevrilse 15 jeton/gün ≈
+# 450 jeton/ay: hakkın 4,5 katı. Bu yüzden firaset (2)'ye çekildi — gün
+# satırları prompt'tan AYIKLANIYOR.
+#
+# Günün ışığını bu yüzeylere taşımanın jetonsuz yolu LLM'den geçmez:
+# hesaplanmış, şablonla yazılmış bir gün satırı (BaZi'de Liu Ri + Liu Yue,
+# doğum kapısında Güneş'in bugünkü kapısı). O satır her gün değişir,
+# hiçbir çağrı yapmaz ve donmuş metnin yanında durur. Üretim yolunda
+# DEĞİL, sunum yolunda (api + istemci) yapılacak iş; buraya yazılmasının
+# sebebi bir sonraki turun bu yolu yeniden keşfetmemesi.
+def _kimlik_haritasi(chart: str, lang: str | None = None) -> str:
+    """Harita bloğundan GÜNE BAĞLI satırları ayıklar.
+
+    Eşleşme satır BAŞINA ve yerelleştirilmiş ETİKET LİTERALİNE bağlı
+    (`str.startswith`); küçük/büyük harf dönüşümü YOK. Türkçede
+    ``str.lower()`` bozuk çalışıyor ve alt dize araması yanlış pozitif
+    üretiyor — bu depoda iki kez ısırdı.
+
+    Bloğun biçimi tek yerde kuruluyor (`chart_context.render`), bu yüzden
+    etiket adları oradan alınıyor. Etiketler değişirse ayıklama sessizce
+    durur; o sessizliği `tests/test_gunluk_tazelik.py` tutuyor (blokta gün
+    satırı VARKEN prompt'ta olmadığını sınıyor).
+    """
+    p = prompts.get(lang)
+    gunluk = tuple(f"- {etiket}:" for etiket in
+                   (p.CHART_TRANSITS_LABEL, p.CHART_UPCOMING_LABEL))
+    return "\n".join(satir for satir in (chart or "").splitlines()
+                     if not satir.startswith(gunluk))
+
+
 def firasa_report(user_id: str, ratios: dict[str, Any],
                   chart: str = "", lang: str | None = None,
                   spend: Callable[[], None] | None = None,
@@ -851,12 +911,53 @@ def firasa_report(user_id: str, ratios: dict[str, Any],
     """
     p = prompts.get(lang)
 
-    # Önbellek anahtarı oranların kendisiyle: aynı yüz aynı okumayı alır,
-    # her açılışta yeni bir LLM çağrısı yapılmaz.
+    # Harita bloğunun yalnız KİMLİK kısmı prompt'a girer: gün satırları
+    # ayıklanır (bkz. `_kimlik_haritasi` üstündeki üç hâl). Firaset ölçülen
+    # ORANLAR üzerine kurulu ve o oranlar güne göre değişmiyor; metin de
+    # değişmiyor. Gün satırlarını bırakmak, değişmeyen bir metne değişen bir
+    # tarih gömmek olurdu.
+    kimlik_haritasi = _kimlik_haritasi(chart, lang)
+
+    # Önbellek anahtarı prompt'a giren KULLANICIYA ÖZGÜ her şeyi kapsar:
+    # oranlar + haritanın kimlik kısmı.
+    #
+    # ⚠️ "Prompt'un TAMAMINI kapsar" DEĞİL — bu gerekçe bir tur boyunca öyle
+    # yazılıydı ve ölçüldüğünde yanlış çıktı: `rag` pasajları ve şablon metni
+    # de prompt'a giriyor, ikisi de anahtarda yok. Kapsam dışı kalmaları
+    # kasıtlı, çünkü ikisi de kullanıcıdan gelmiyor: korpus ya da şablon
+    # değişimi herkesi birden ilgilendirir ve sürüm ekiyle (`-v2`) ya da
+    # TTL ile taşınır; anahtara konsa her korpus düzenlemesi bütün
+    # kullanıcılara 5 jetonluk bir yeniden üretim yazdırırdı.
+    #
+    # Harita ESKİDEN anahtarda yoktu ve bu iki yönden
+    # kusurluydu — bayat gün iddiası (yukarıda) ve doğum verisini düzelten
+    # kullanıcının bir hafta boyunca ESKİ haritayla üretilmiş okumayı
+    # görmesi. Anahtar GÜNLÜK DÖNMEZ ve bu ölçüldü: gün satırı 30 günün
+    # 30'unda da farklıyken (efemeris taraması, 2026-10-02) kimlik satırları
+    # hiç değişmiyor.
+    #
+    # ⚠️ Ama "bu kapsama BEDAVA" DEĞİL ve kapsamın tek tetikleyicisi doğum
+    # verisi de değil — bu gerekçe bir tur boyunca böyle yazılıydı ve
+    # ölçüldüğünde yanlış çıktı. `chart_whisper` efemeris hesabı düşerse
+    # SIĞ özete iniyor (`chart_context`: kendi log satırı var) ve sığ özet
+    # derin bloktan FARKLI bir dizedir; yani doğum verisi hiç değişmeden
+    # anahtar bir kez döner. Ölçülen bedel SINIRLI: derin → sığ → derin
+    # dizisi iki üretim yapıyor (10 jeton), üçüncü çağrı İLK metni
+    # önbellekten veriyor. Yani geçici bir düşüş iyi okumayı YOK ETMİYOR,
+    # yalnız yanına bir sığ kopya koyuyor. Döngü yok, o yüzden kabul;
+    # bekçisi `tests/test_gunluk_tazelik.py` içinde (sınır kayarsa görülür).
+    #
+    # `-v2`: prompt'un İÇERİĞİ değişti (gün satırları çıktı). Sürüm
+    # yükseltilmezse eski kayıtlar — yani içinde donmuş "bugün" cümlesi
+    # OLABİLEN metinler — servis edilmeye devam ederdi; kusur ancak 7 günde
+    # kendiliğinden geçerdi. Bedeli ölçülü: kaydı olan kullanıcı 5 jetonluk
+    # bir yeniden üretimi, TTL gereği bu hafta içinde zaten ödeyecekti.
     ozet = json.dumps(
         {k: ratios.get(k) for k in sorted(ratios)}, sort_keys=True)
-    cache_key = (f"firasa-{user_id}-{lang}-"
-                 f"{hashlib.sha256(ozet.encode()).hexdigest()[:16]}")
+    harita_ozeti = hashlib.sha256(kimlik_haritasi.encode()).hexdigest()
+    cache_key = (f"firasa-v2-{user_id}-{lang}-"
+                 f"{hashlib.sha256(ozet.encode()).hexdigest()[:16]}-"
+                 f"{harita_ozeti[:12]}")
 
     # İsabette embedding çağrısını atla (bkz. daily_reading'deki gerekçe).
     cached = cache.get(cache_key)
@@ -867,7 +968,16 @@ def firasa_report(user_id: str, ratios: dict[str, Any],
     rag = retrieve_context(
         p.FIRASA_RAG_QUERY, top_k=3, lang=lang)
 
-    prompt = p.FIRASA.format(signs=belirtiler, chart=chart or "—", rag=rag)
+    prompt = p.FIRASA.format(signs=belirtiler, chart=kimlik_haritasi or "—",
+                             rag=rag)
+    # ÖMÜR 7 gün. Anahtar artık kullanıcıya özgü girdilerin tamamını
+    # kapsadığı için TTL'in görevi "bayatlığı sınırlamak" DEĞİL: aynı
+    # girdiyle aynı metin zaten doğru kalıyor. Kalan iki görevi var ve
+    # ikincisi tam da anahtarın KAPSAMADIĞI tarafı taşıyor: eski dosyaların
+    # birikmesini önlemek, ve korpus/şablon/model iyileştirmelerinin
+    # kullanıcıya ulaşmasını bir haftayla sınırlamak. KISALTILMAMALI: her
+    # kaçırma 5 jeton (aylık hak 100), ve kısaltmanın karşılığında metne
+    # giren yeni bir OLGU yok.
     return _cached_generate(cache_key, prompt, p.FIRASA_FALLBACK,
                             ttl_seconds=7 * 24 * 3600,
                             lang=lang, owner_uid=user_id,
@@ -1005,6 +1115,32 @@ def bazi_report(user_id: str, bazi: dict[str, Any],
         dominant=bazi["dominant_element"],
         verdict=s.get("verdict_name", "-"),
     )
+    # ÖMÜR 30 gün — ve bu rapor (bilerek) GÜNLÜK DEĞİL, kimlik yüzeyi.
+    # Ölçüldü (2026-10-02, prompt'un kendisi basılıp tarih kalıbıyla
+    # tarandı): prompt'taki her şey ya doğumdan türüyor ya da anahtarda
+    # duruyor. Eksik olan şey GÜN damgası — ne takvim günü, ne gün sütunu,
+    # ne transit.
+    #
+    # ⚠️ "Prompt'ta geçen TEK tarih `luck_start`" DEĞİL; bu gerekçe bir tur
+    # boyunca öyle yazılıydı ve tarandığında yanlış çıktı. Tarih taşıyan ÜÇ
+    # satır var: Da Yun aralıkları (1992-2001 …) ve `luck_start` ("1992-08")
+    # doğumdan türüyor; "İÇİNDE BULUNULAN DÖNEM" satırı ise SAATTEN türüyor
+    # (aktif Da Yun + bu yılın sütunu, örn. "2026 丙午"). Yani prompt saate
+    # bakan bir damga TAŞIYOR — ama YIL granülasyonunda ve üçüncü hâl
+    # (prompt'ta-ama-anahtarda-değil) oluşmuyor: yıl sütunu anahtarda
+    # (`current_year_pillar`), aktif Da Yun ise yalnız bir yıl sınırında
+    # değiştiği için yıl sütununun dönüşüne biniyor. 30 günlük ömrün
+    # dondurduğu tek şey YIL, ve yıl 30 günde dönmüyor
+    # (bkz. `_kimlik_haritasi` üstündeki üç hâl).
+    #
+    # KISALTILMAMALI: her kaçırma `TOKEN_COSTS["bazi"]` = 5 jeton ve aylık
+    # hak 100 jeton (K1). Günlük yenileme 150 jeton/ay demekti.
+    # Eksik olan şey ömür değil, günlük KATMAN: BaZi geleneğinin gün
+    # katmanı Liu Ri (gün sütunu) ve Liu Yue (ay sütunu); ikisi de
+    # `bazi_service.day_pillar_for_date` / `month_pillar_for_date` ile
+    # HESAPLI duruyor ama rapor şablonunda yerleri yok. Şablona yer
+    # açılmadan anahtara gün koymak yalnız jeton yakar: aynı prompt'tan
+    # ikinci bir metin üretirdi.
     return _cached_generate(cache_key, prompt, fallback,
                             ttl_seconds=30 * 24 * 3600, lang=lang,
                             owner_uid=user_id, spend=spend, refund=refund,
@@ -1272,6 +1408,27 @@ def birth_hexagram_report(user_id: str, konum: dict[str, Any],
     fallback = p.BIRTH_HEXAGRAM_FALLBACK.format(
         gate=konum["gate"], name_tr=hexagram["name_local"],
         unicode=hexagram["unicode"], judgment=hexagram["judgment"])
+    # ÖMÜR 30 gün — kimlik yüzeyi, şablonu "bugün ne olacak" dilini açıkça
+    # YASAKLIYOR. Ölçüldü (2026-10-02, prompt basıldı ve tarandı): prompt'ta
+    # tarih biçiminde TEK satır yok, saate bakan tek bir alan da yok —
+    # boylam, kapı, çizgi ve pasaj doğum anından geliyor. Yani 30 gün
+    # hiçbir "bugün" iddiasını dondurmuyor.
+    #
+    # ⚠️ "Hepsi de anahtarda" DEĞİL; bu gerekçe bir tur boyunca öyle
+    # yazılıydı ve ölçüldüğünde yanlış çıktı. Anahtarda duran dört şey var:
+    # kapı, çizgi, alternatif kapı ve `wheel_version`. Prompt'taki `boylam`
+    # doğum anının Güneş boylamı — kapı ondan türüyor, yani anahtardaki kapı
+    # onu zaten temsil ediyor. Kapı pasajı ise `data/birth_gates.json`'dan
+    # geliyor ve ne anahtarda ne de `WHEEL_VERSION`ın kapsamında
+    # (o sürüm dizilim/başlangıç için): pasaj metni düzenlenirse eski metin
+    # TTL dolana kadar, en çok 30 gün, servis edilmeye devam eder. Bir
+    # "bugün" iddiası donmadığı için kabul — ama bilinmeden değil.
+    #
+    # Gün katmanı eklenecekse kovası TAKVİM GÜNÜ DEĞİL: aynı çarkta Güneş'in
+    # bugün bulunduğu kapı `GATE_SPAN` = 5,625° ≈ **5,7 gün** sürüyor
+    # (`birth_hexagram_service.gate_for_longitude` + `_sun_longitude` ile
+    # hesaplanıyor). Günlük anahtar, gün dönse de kapı dönmediği hâlde
+    # `TOKEN_COSTS["birth_hexagram"]` = 5 jeton yakardı.
     return _cached_generate(cache_key, prompt, fallback,
                             ttl_seconds=30 * 24 * 3600, lang=lang,
                             owner_uid=user_id, spend=spend, refund=refund,

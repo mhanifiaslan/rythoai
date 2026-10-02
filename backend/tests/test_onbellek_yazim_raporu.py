@@ -22,6 +22,28 @@ Geri-okuma NEDEN kanıt değil: `cache.get` ÖNCE belleğe bakıyor ve aynı sü
 yazılan değeri orada buluyor. Yani "yazdım mı" sorusu okumayla cevaplanamaz —
 yazımın kendisinin konuşması gerekiyordu.
 
+## Okuma tarafı (bir sonraki turun B2 maddesi)
+
+Aynı kusurun ÖTEKİ yüzü: `cache.get` değeri döndürüyor ama hangi KATMANDAN
+geldiğini söylemiyordu. Bu yüzden ona dayanan iki rapor da ölçtüğünden
+fazlasını iddia ediyordu — ısıtma ucunun `zaten_sicak` sayacı ve
+`_cached_generate` yanıtındaki `cached: True` yalnızca "BU SÜREÇTE
+okunabildi" demek. Bellek katmanı instance'a özeldir (max-instances 3) ve
+süreç ölünce gider; ısıtmanın TEK amacı paylaşımlı katmanı doldurmak
+olduğuna göre o sayaç ısıtmanın işe yaradığını kanıtlamıyordu.
+
+`cache.get_katmanli` katmanı da döndürüyor ve aşağıdaki bekçiler üç şeyi
+çiviliyor: (1) aynı süreçte yazılan değer `bellek` diye okunur — yani
+geri-okuma hâlâ kanıt değil ve bu artık GÖRÜNÜR; (2) kalıcı katmandan gelen
+isabet `kalici` diye adlandırılır; (3) `kalici` tek başına "paylaşımlı"
+DEMEK DEĞİL (`file` arka ucu da kalıcıdır, ama instance'a özeldir) —
+`kalici_katman_paylasimli()` o ayrımı ayrı tutuyor.
+
+⚠️ Tüketiciler HENÜZ geçmedi: `api/maintenance.py` (ısıtma sayacı) ve
+`services/report_service.py` (`cached` dalı) başka paketlerin dosyası, bu
+turda onlara dokunulmadı. Yani katman bilgisi ÜRETİLİYOR ama sayaç adları
+hâlâ mütevazı; raporda ayrıca yazılı.
+
 Çalıştırma:  .venv\\Scripts\\python.exe -m pytest tests/test_onbellek_yazim_raporu.py -q
 """
 from __future__ import annotations
@@ -109,6 +131,120 @@ def test_firestore_istemcisi_yokken_yazilmadi_hukmu(monkeypatch):
     assert cache.set("istemcisiz", "deger", ttl_seconds=60) is False
     assert cache.get("istemcisiz") == "deger", (
         "bellek katmanı okunuyor — yani geri-okuma yazımı kanıtlamaz")
+
+
+# ---------------------------------------------------------------------------
+# cache.get_katmanli: isabetin HANGİ katmandan geldiği
+# ---------------------------------------------------------------------------
+
+def test_ayni_surecte_yazilan_deger_BELLEK_diye_okunur(dosya_arka_ucu):
+    """Geri-okuma paylaşımlı katmanı kanıtlamaz — ve artık bunu SÖYLÜYOR.
+
+    `set` değeri iki katmana birden yazıyor; `get` ise önce belleğe bakıyor
+    ve oradan dönüyor. Yani kalıcı katman HİÇ okunmadı. Bu dal
+    ısıtma/rapor yollarının "sıcak" iddiasının kök nedeniydi: sayaç
+    okunabilirliği ölçüp paylaşımlılığı iddia ediyordu.
+    """
+    cache.set("katman-1", "deger", ttl_seconds=60)
+    deger, katman = cache.get_katmanli("katman-1")
+    assert deger == "deger"
+    assert katman == cache.KATMAN_BELLEK
+
+
+def test_bellek_bosken_isabet_KALICI_diye_okunur(dosya_arka_ucu):
+    """Kalıcı katmandan gelen isabet doğru adla sunulur.
+
+    Bellek bilerek boşaltılıyor: canlıdaki karşılığı yeni bir instance ya
+    da yeniden başlamış bir süreç — yani ısıtmanın gerçekten işe yaradığı
+    tek senaryo.
+    """
+    cache.set("katman-2", "deger", ttl_seconds=60)
+    cache._memory.clear()
+    deger, katman = cache.get_katmanli("katman-2")
+    assert deger == "deger"
+    assert katman == cache.KATMAN_KALICI
+    # Terfi korunuyor: ikinci okuma kalıcı katmanı bir daha yormaz.
+    assert cache.get_katmanli("katman-2")[1] == cache.KATMAN_BELLEK
+
+
+def test_isabet_yoksa_katman_YOK(dosya_arka_ucu):
+    deger, katman = cache.get_katmanli("hic-yazilmadi")
+    assert deger is None
+    assert katman == cache.KATMAN_YOK
+
+
+def test_kalici_okuma_patlarsa_YOK_doner_ve_FIRLATMAZ(dosya_arka_ucu,
+                                                      monkeypatch):
+    """Fail-open okuma tarafında da korunuyor.
+
+    Önbellek hiçbir koşulda isteği düşürmez; katman eklemek bu duruşu
+    değiştirmemeli — yoksa bir Firestore hıçkırığı onlarca çağrı yerini
+    kırılgan hâle getirirdi.
+    """
+    def patla(*a, **kw):
+        raise RuntimeError("Firestore okunamadi")
+
+    monkeypatch.setattr(cache, "_persistent_get", patla)
+    assert cache.get_katmanli("patlak-okuma") == (None, cache.KATMAN_YOK)
+
+
+def test_get_SARMALAYICI_kalmaya_devam_ediyor(dosya_arka_ucu):
+    """`cache.get`in şekli DEĞİŞMEDİ: onlarca çağrı yeri demet görmüyor.
+
+    Katman ayrımının bir tur boyunca "yapılmadı" diye kaydedilmesinin
+    gerekçesi tam buydu (`api/maintenance.py` yorumunda yazılı): dönüşü
+    demet yapmak depodaki tüm okuyucuları birden kırardı.
+    """
+    cache.set("katman-3", {"a": 1}, ttl_seconds=60)
+    assert cache.get("katman-3") == {"a": 1}
+    assert cache.get("hic-yok") is None
+
+
+def test_katman_ADLARI_birbirine_COKEMEZ():
+    """Üç katman adı ayrı ayrı anlam taşımak ZORUNDA.
+
+    Bu bekçi MUTASYONLA bulundu (2026-10-02, doğrulama turu): yukarıdaki
+    dalların hepsi katmanı ``cache.KATMAN_*`` SABİTİYLE karşılaştırıyor,
+    yani sabitin DEĞERİ bozulduğunda hiçbiri kırmızı olmuyordu. İki
+    mutasyon ölçüldü ve takımın tamamı (15 test) YEŞİL kaldı:
+    ``KATMAN_BELLEK = "kalici"`` — bellek isabeti ile kalıcı isabet
+    AYNI adı söylüyor; ve ``KATMAN_YOK = ""`` — isabetsizliğin adı hiç
+    kalmıyor.
+
+    Neden bu sessiz bir kusur: değer bir süs değil, ``cache.py``nin kendi
+    yorumunda yazdığı gibi sayaç adlarına ve log satırlarına giren ŞEYİN
+    KENDİSİ. Adlar çökerse B2'nin kapattığı kusur aynen geri gelir —
+    süreç-özel bellekte bulunan değer, paylaşımlı katmandan gelmiş gibi
+    raporlanır ve kimse farkı göremez. Boş ad ayrıca YANLIŞ TÜRDEN bir
+    tuzak: ``if katman:`` yazan bir tüketici isabetsizliği "ölçülemedi"
+    diye değil hiç olmamış gibi geçirir.
+
+    İddia bilerek DAR: adların ne OLDUĞU çivilenmiyor (yeniden
+    adlandırma davranışı değiştirmez), yalnız üçünün AYRIŞABİLİR ve
+    okunabilir kaldığı.
+    """
+    adlar = (cache.KATMAN_YOK, cache.KATMAN_BELLEK, cache.KATMAN_KALICI)
+    assert len(set(adlar)) == 3, (
+        f"katman adları birbirine çöktü ({adlar}): iki ayrı katman aynı"
+        " adla raporlanır ve \"sıcak\" iddiası yine ölçtüğünden fazlasını"
+        " söyler")
+    for ad in adlar:
+        assert isinstance(ad, str) and ad.strip(), (
+            f"katman adı boş ({adlar}): log satırı ve sayaç adı sessizce"
+            " anlamını yitirir")
+
+
+def test_KALICI_tek_basina_PAYLASIMLI_demek_degil(monkeypatch):
+    """"Isındı" hükmü iki koşulun İKİSİNİ birden ister.
+
+    `file` arka ucu da kalıcıdır ama Cloud Run'da yerel disk instance'a
+    özeldir ve kap ölünce gider. Katmanı "paylaşımlı" diye adlandırmak
+    ölçüleni yanlış adla sunmak olurdu; ayrım ayrı bir işlevde duruyor.
+    """
+    monkeypatch.setattr(config, "CACHE_BACKEND", "file")
+    assert cache.kalici_katman_paylasimli() is False
+    monkeypatch.setattr(config, "CACHE_BACKEND", "firestore")
+    assert cache.kalici_katman_paylasimli() is True
 
 
 # ---------------------------------------------------------------------------

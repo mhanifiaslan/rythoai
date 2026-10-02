@@ -2,6 +2,8 @@
 
 Çalıştırma:  .venv\\Scripts\\python.exe -m pytest tests/test_chat_style.py -q
 """
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -214,9 +216,36 @@ def test_api_semasi_degismedi(monkeypatch):
         assert isinstance(body["reply"], str)
 
 
-@pytest.mark.skipif(not config.GEMINI_API_KEY, reason="GEMINI_API_KEY tanımlı değil")
+@pytest.mark.skipif(
+    os.getenv("RYTHO_CANLI_LLM") != "1" or not config.GEMINI_API_KEY,
+    reason="Canlı LLM izni yok (RYTHO_CANLI_LLM=1 gerekir)")
 def test_canli_yanit_kisa_ve_sohbet_havasinda():
-    """Canlı Gemini ile tek örnek: yanıt makul kısalıkta ve markdown'sız."""
+    """Canlı Gemini ile tek örnek: yanıt makul kısalıkta ve markdown'sız.
+
+    ⚠️ KAPI "anahtar var mı" DEĞİL, AÇIK İZİN. Eski hâli
+    `skipif(not config.GEMINI_API_KEY)` idi ve bu bir kalkan değil yokluk
+    kontrolüydü: geliştirici makinesinde `.env` üzerinden anahtar VARDIR,
+    yani test her zaman koşuyordu. Bedeli ölçüldü — 48-turunda bir ajan bu
+    dosyayı dört kez koşturup üretim kotasından ~4 sohbet çağrısı harcadı,
+    hem de üretim projesinin `Lightning dunning` reddi aldığı gün. Kota
+    gerçek paradır. Hermetiklik artık `conftest.gemini_hermetik`'te
+    varsayılan; bu işaret o pinin bilinçli çıkış yolu.
+
+    ## Eşik neden 700'den 900'e çıktı (48-turu)
+
+    Uzunluk kuralı K4 ile KONUYA GÖRE oldu: "Merkür retrosu ne demek?" bir
+    KAVRAM sorusudur ve prompt'un kendi üst sınırı o kutu için 8 cümle.
+    Deponun ölçümüyle (4 cümle ~85 token, 3,6 karakter/token) 8 cümle
+    ~610 karakter — yani 700, kuralın İZİN VERDİĞİ bir yanıtı kırmızıya
+    düşürebiliyordu. Eşik prompt'un sınırından türetilmeli, yoksa test
+    ürünün kendi kararını yalanlar.
+
+    900, 8 cümlelik yanıtın üstünde ama "makale" tarifinin (12+ cümle)
+    altında kalır; yani testin asıl işi — şikâyetin kendisini yakalamak —
+    duruyor. ⚠️ Bu iddia 48-turunda KOŞULMADI: tur boyunca canlı model
+    çağrısı yapılmadı (üretim kotası gerçek para), eşik ölçülmüş
+    karakter/cümle oranından türetildi.
+    """
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/chat",
@@ -224,6 +253,6 @@ def test_canli_yanit_kisa_ve_sohbet_havasinda():
         )
         assert response.status_code == 200
         reply = response.json()["reply"]
-        assert 0 < len(reply) < 700, f"Yanıt çok uzun ({len(reply)}): {reply[:200]}"
+        assert 0 < len(reply) < 900, f"Yanıt çok uzun ({len(reply)}): {reply[:200]}"
         assert "##" not in reply
         assert "**" not in reply

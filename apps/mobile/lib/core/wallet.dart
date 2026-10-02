@@ -56,7 +56,28 @@ class WalletStatus {
   final int monthlyAllowance;
   final DateTime? allowanceResetsAt;
 
-  /// Özellik -> token bedeli ("bu okuma 5 token" göstergeleri buradan).
+  /// Özellik -> token bedeli: sunucudaki `core/wallet.py` `TOKEN_COSTS`
+  /// tablosunun aynısı, yani bedel gerçeğinin KANONİK kaynağı.
+  ///
+  /// Bu satır bir tur boyunca "'bu okuma 5 token' göstergeleri buradan"
+  /// diyordu ve o gerekçe YANLIŞTI: alan ayrıştırılıyor ama hiçbir yüzey
+  /// okumuyordu — mağazadaki bedel satırı elle yazılmış bir l10n dizesiydi.
+  /// Bugün okuyan yüzey `features/paywall/token_store_screen.dart` →
+  /// `bedelSatiri`.
+  ///
+  /// ⚠️ Düzeltmenin kendisi de bir fazlasını iddia etmişti ("sunucu
+  /// tablosu değişse SESSİZCE yanlışa düşerdi"). Ölçüldü: depoda sessiz
+  /// değil — `backend/tests/test_honesty.py` ARB cümlesindeki her sayıyı
+  /// `TOKEN_COSTS` ile çivilemiş durumda ve tablo oynatılınca kırmızı
+  /// oluyor. Test göremediği tek şey KURULU paket: sunucu ayrı
+  /// dağıtıldığı için cihazdaki derlenmiş cümle eski kalabiliyor. Bu
+  /// alanın varlık sebebi o pencere; gerekçesi `bedelSatiri`de ölçülmüş
+  /// hâliyle yazılı.
+  ///
+  /// Bedeli HARCAMADAN ÖNCE gösteren tek ekran hâlâ İ Ching ve o rozet
+  /// buradan DEĞİL `/reports/iching/status` yanıtındaki `token_cost`tan
+  /// geliyor (`iching_tab.dart`). İkisini tek cümlede saymak aynı yanlış
+  /// gerekçeyi geri getirir.
   final Map<String, int> costs;
 
   /// Bakiye OKUNAMADI — sıfır DEĞİL, BİLİNMİYOR.

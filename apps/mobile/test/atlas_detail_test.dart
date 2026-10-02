@@ -152,7 +152,11 @@ void main() {
       await _bekle(tester);
 
       expect(tester.takeException(), isNull);
-      expect(find.textContaining('Güneş'), findsOneWidget);
+      // 48-turu: ekran artik en ustte en dar acinin ANLAM cumlesini
+      // tasiyor (anlam once, teknik sonra) ve o panelin basligi da ayni
+      // cifti adlandiriyor — yani bu cift ekranda IKI kez geciyor.
+      // Testin iddiasi "cokmuyor ve cift goruluyor"; sayi degil varlik.
+      expect(find.textContaining('Güneş'), findsWidgets);
     });
 
     testWidgets('en dar orb once gelir (R5-3)', (tester) async {
@@ -168,8 +172,13 @@ void main() {
       ])));
       await _bekle(tester);
 
-      final dar = tester.getTopLeft(find.text('Ay — Venüs')).dy;
-      final genis = tester.getTopLeft(find.text('Güneş — Mars')).dy;
+      // `.last` SART: 48-turunda ekranin en ustune en dar acinin anlam
+      // cumlesi geldi ve o panelin basligi ayni cifti ("Ay — Venüs")
+      // tekrar yaziyor. Capa olmadan `getTopLeft` iki eslesme bulup
+      // dusuyordu. `.last` her iki ciftte de GRUP ICINDEKI satiri verir,
+      // yani olculen sey gercekten liste sirasi.
+      final dar = tester.getTopLeft(find.text('Ay — Venüs').last).dy;
+      final genis = tester.getTopLeft(find.text('Güneş — Mars').last).dy;
       expect(dar, lessThan(genis));
     });
   });
@@ -200,7 +209,10 @@ void main() {
       await tester.pumpWidget(_sar(AtlasTraitsScreen(chart: harita)));
       await _cubuklariBekle(tester);
 
-      expect(find.text('Ateş'), findsOneWidget);
+      // 'Ateş' IKI kez geciyor: 48-turunda eklenen anlam paneli (baskin
+      // element, bu haritada 3/8 ile kesin ustun) ve asagidaki oran
+      // satiri. 'Su' baskin DEGIL, o yuzden tek.
+      expect(find.text('Ateş'), findsWidgets);
       expect(find.text('Su'), findsOneWidget);
       // Toplam 8 (geleneksel yedili + Yukselen) — kesir, yuzde DEGIL.
       expect(find.text('3/8'), findsWidgets);

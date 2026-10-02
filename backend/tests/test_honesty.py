@@ -481,6 +481,68 @@ class TestJetonIddialari:
                     f"bedel gösteriyor, iki web sayfası da oraya işaret "
                     f"ediyor")
 
+    def test_bedel_satirinin_ETIKET_SIRASI_dart_sabitiyle_ayni(self):
+        """ARB'deki etiket SIRASI `_kBedelSirasi` ile aynı kalmak ZORUNDA.
+
+        Yukarıdaki bekçi her etiketin yanındaki sayıyı çiviliyor ama SIRAYI
+        çivilemiyordu; `token_store_screen.dart`'taki eşleştirme ise
+        KONUMA bağlı (`_kBedelSirasi`, şablondaki sayıları sırayla
+        tüketiyor). İki kaynak ayrışınca kimse görmez: çeviri yeniden
+        sıralanırsa şablon hâlâ doğru etiket-sayı çiftlerini içerir (bu
+        yüzden öteki bekçi yeşil kalır) ama Dart, sunucudan gelen `costs`
+        değerlerini YANLIŞ SLOTLARA yazar ve ekranda "I Ching 1" görünür.
+
+        Bu kusur bu turda GERÇEKTEN yaşandı — ters yönden: sabit
+        `['chat', 'dyad', 'iching']` yazılıydı, dosyanın kendi yorumu
+        doğru sırayı söylüyordu, ve ekranda İ Ching ile ikili dinamiğin
+        bedelleri yer değişmiş görünüyordu. Bekçi o takası iki yönden de
+        yakalasın diye buraya kondu.
+        """
+        etiketler = {
+            "app_tr.arb": ("Sohbet mesajı", "I Ching", "ikili dinamik",
+                           "derin raporlar ve yüz okuma"),
+            "app_en.arb": ("Chat message", "I Ching", "daily dyad",
+                           "deep reports and face reading"),
+        }
+        for dosya, sirali in etiketler.items():
+            yol = _KOK / "apps" / "mobile" / "lib" / "l10n" / dosya
+            satir = json.loads(yol.read_text(encoding="utf-8"))[
+                "tokenCostsNote"]
+            yerler = []
+            for etiket in sirali:
+                yer = satir.find(etiket)
+                assert yer >= 0, f"{dosya}: '{etiket}' etiketi kayboldu"
+                yerler.append(yer)
+            assert yerler == sorted(yerler), (
+                f"{dosya}: tokenCostsNote etiket sırası değişti ({sirali} "
+                f"konumları {yerler}). `token_store_screen.dart`'taki "
+                f"`_kBedelSirasi` KONUMA göre eşleştiriyor — sıra kayarsa "
+                f"ekranda yanlış bedel görünür")
+
+    def test_ucretsiz_katman_uyarisi_sohbet_bedelini_UYDURMUYOR(self):
+        """"1 kredi = 1 sohbet mesajı" cümlesi koddaki bedele bağlı.
+
+        Bedel gerçeğinin ÜÇÜNCÜ elle yazılmış kaynağı buydu ve aynı
+        ekranda duruyor (`_PaketlerPlusaOzel` paneli). İlk ikisi bu turda
+        koda bağlandı; bu cümle atlandı ve `TOKEN_COSTS['chat']` bir gün
+        2 olursa ekran "1 kredi = 1 sohbet mesajı" demeye DEVAM eder.
+        Cümle parametreli bir l10n dizesi olmadığı için burada
+        ÇİVİLENİYOR: bedel değiştiği an bu test düşer ve dizeyi
+        güncellemek (ya da parametreli hâle getirmek) zorunlu olur.
+        """
+        sohbet = self._token_bedelleri()["chat"]
+        beklenen = {
+            "app_tr.arb": f"{sohbet} kredi = {sohbet} sohbet mesajı",
+            "app_en.arb": f"{sohbet} credit = {sohbet} chat message",
+        }
+        for dosya, capa in beklenen.items():
+            yol = _KOK / "apps" / "mobile" / "lib" / "l10n" / dosya
+            govde = json.loads(yol.read_text(encoding="utf-8"))[
+                "tokenFreeTierWarnBody"]
+            assert capa in govde, (
+                f"{dosya}: tokenFreeTierWarnBody '{capa}' demiyor — "
+                f"wallet.TOKEN_COSTS['chat']={sohbet} ile ayrıştı")
+
     def test_sitedeki_aylik_hak_koddaki_sayiyla_ayni(self):
         """K1: hak 300'den 100'e indi. Sayfadaki sayı kodu izlemek zorunda.
 

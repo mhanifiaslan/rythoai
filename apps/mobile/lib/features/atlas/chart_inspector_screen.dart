@@ -34,7 +34,16 @@ import '../../widgets/nebula_widgets.dart' show kSignNamesTr;
 import '../chat/chat_screen.dart';
 import '../people/person_form_screen.dart' show relationLabel;
 import '../share/share_card.dart' show shareRenderedCard;
-import 'atlas_detail_screens.dart' show showAspectSheet, showPointSheet;
+import 'atlas_detail_screens.dart'
+    show
+        aspectMeaningText,
+        baskinElement,
+        elementLine,
+        elementName,
+        showAspectSheet,
+        showDagilimSheet,
+        showPointSheet,
+        temperamentLine;
 
 enum ChartInspectorMode { natal, sky, biwheel, synastry }
 
@@ -169,6 +178,27 @@ class _ChartInspectorScreenState
     }
   }
 
+  /// Natal kipin HAM yükü — anlam katmanı sunucunun kanonik element
+  /// sayımını buradan okur.
+  ///
+  /// `ChartData` yalnız çizim için normalize ediliyor (nokta, ev, açı);
+  /// dağılım sayımı orada YOK ve istemcide yeniden sayılMAZ — eski
+  /// `TraitBars` tam bunu yapıp kanondan sapan ikinci bir hesap
+  /// üretmişti.
+  ///
+  /// Kip kapısı bu metotta DEĞİL, `natalAnlamYuku`da: bu ekranın widget
+  /// testi Firebase/profil sağlayıcılarını ister, yani kapı burada
+  /// kalırsa davranış olarak çivilenemez. Doğrulama turunda ölçüldü —
+  /// kapı buradan silindiğinde takım YEŞİL kalıyordu.
+  Map<String, dynamic>? _natalYuk() => natalAnlamYuku(
+        widget.mode,
+        override: widget.natalOverride,
+        // TEMBEL: sağlayıcı yalnız kapı geçilirse okunur. Doğrudan
+        // `ref.watch(...)` yazılsa gökyüzü/sinastri kipi de natal
+        // haritaya ABONE olurdu — kullanmadığı bir isteği doğurur.
+        saglayici: () => ref.watch(natalChartProvider).value,
+      );
+
   String _personAd() {
     final l10n = AppLocalizations.of(context);
     final p = widget.person;
@@ -283,6 +313,19 @@ class _ChartInspectorScreenState
                   padding: const EdgeInsets.fromLTRB(RythoSpace.xl, 0,
                       RythoSpace.xl, RythoSpace.xxl),
                   children: [
+                    // ANLAM ÖNCE (48-turu). Bu ekran ölçülen en kötü
+                    // yüzeydi: gezegen tablosu + ev tablosu + açı
+                    // ızgarası, SIFIR anlam cümlesi. Sıra artık
+                    // `basis_sheet` deseniyle aynı — önce bir insan
+                    // cümlesi, sonra ölçüm, dayanak bir dokunuş uzakta.
+                    _AnlamKatmani(
+                      mode: widget.mode,
+                      data: veri,
+                      natalYuk: _natalYuk(),
+                      filter: _filter,
+                      maxOrb: _maxOrb,
+                      showMinors: _showMinors,
+                    ),
                     _Baslik(mode: widget.mode, data: veri,
                         personAd: _personAd()),
                     if (!veri.hourKnown &&
@@ -377,6 +420,175 @@ class _ChartInspectorScreenState
 // ---------------------------------------------------------------------------
 // Parçalar
 // ---------------------------------------------------------------------------
+
+/// Anlam katmanına verilecek natal yük — kip kapısı BURADA, tek yerde.
+///
+/// NEDEN kapı var: natal yük bütün bir haritanın element dağılımıdır ve
+/// ekranın konusu yalnız natal kipte o haritadır. Gökyüzü kipinde harita
+/// yok; çift halkalı kiplerde (bi-wheel / sinastri) ekranın konusu bütün
+/// harita değil İKİ ŞEYİN DEĞMESİ. O kiplerde kullanıcının natal baskın
+/// elementini sayfanın en üstüne yazmak, ölçüleni YANLIŞ ADLA sunmak
+/// olurdu: panel "Ateş" der ama ekran iki kişinin açılarını anlatıyordur.
+///
+/// NEDEN üst düzeyde ve saf: ekranın kendisi Firebase/profil
+/// sağlayıcılarına bağlı, yani widget testi yazılamıyor. Kapı `State`
+/// metodunda durduğu sürece KÖRDÜ — doğrulama turunda ölçüldü: kapı
+/// silindiğinde takımın tamamı YEŞİL kalıyordu.
+///
+/// [saglayici] bir fonksiyon, değer değil: kapı geçilmedikçe çağrılmaz,
+/// yoksa natal olmayan kipler `natalChartProvider`a abone olur.
+Map<String, dynamic>? natalAnlamYuku(
+  ChartInspectorMode mode, {
+  required Map<String, dynamic>? override,
+  required Map<String, dynamic>? Function() saglayici,
+}) {
+  if (mode != ChartInspectorMode.natal) return null;
+  return override ?? saglayici();
+}
+
+/// Anlam katmanının konusu olacak açı: EN DAR GÖRÜNÜR açı. Yoksa null.
+///
+/// "Görünür" şart: kullanıcı filtre/orb kaydırıcısını kendi kurcalıyor;
+/// çarkta çizilmeyen bir açıyı ekranın başında anlatmak gösterilmeyen bir
+/// şeyi beyan etmek olurdu. Kapı çarkın kendi yüklemiyle AYNI
+/// (`aspectVisible`), ikinci bir eşik tanımlanmadı.
+///
+/// Çift halkalıda çapraz açı tercih edilir: "Sen & Ayşe" ekranında tek
+/// bir kişinin kendi içindeki açı yanlış özne olur. Çapraz açı yoksa
+/// havuz bütün görünür açılara düşer — zorlama yapılmaz.
+///
+/// NEDEN üst düzeyde: `_AnlamKatmani`'nin özel metoduydu ve doğrulama
+/// turunda ölçüldü — hem "en dar" seçimi hem çapraz tercihi TERSİNE
+/// çevrildiğinde takım YEŞİL kalıyordu, yani bu ekranın tek anlam
+/// cümlesini seçen kural hiç test görmüyordu. Harita İnceleme'nin widget
+/// testi Firebase/profil sağlayıcılarını ister; kural saf bir fonksiyon
+/// olarak çıkarılınca doğrudan çivilenebiliyor.
+ChartAspect? liderGorunurAci(
+  ChartData data,
+  WheelAspectFilter filter,
+  double maxOrb, {
+  required bool showMinors,
+}) {
+  final gorunur = data.aspects
+      .where((a) => aspectVisible(a, filter, maxOrb, showMinors: showMinors))
+      .toList();
+  if (gorunur.isEmpty) return null;
+  final capraz = gorunur.where((a) => a.isCross).toList();
+  final havuz = (data.isBiWheel && capraz.isNotEmpty) ? capraz : gorunur;
+  havuz.sort((x, y) => x.orb.compareTo(y.orb));
+  return havuz.first;
+}
+
+/// Anlam katmanı — ekranda ilk görünen şey.
+///
+/// ## Neden var
+/// Sahibin tarifi: "açılar, elementler, sinastriler ÖNCE TEKNİK DETAY
+/// veriyor… kullanıcılar çamaşır makinesi kılavuzu muamelesi yapıyor."
+/// Bu ekran ölçülen en kötü yüzeydi: üç tablo, sıfır cümle.
+///
+/// ## Cümle NEREDEN geliyor — ve nereden GELMİYOR
+/// Sunucudan gelen hazır yorum metni kullanılMADI. Tek böyle metin
+/// `/api/v1/reports/natal` (natalReportProvider) ve üç nedenle buraya
+/// uymuyor: (1) Plus kapısının arkasında, bu ekran ise bilerek ÜCRETSİZ
+/// katman — `natalChartProvider`ın belgesi "bunlar hesaptır, LLM maliyeti
+/// YOKTUR" diyor; (2) her açılışta LLM maliyeti doğurur; (3) gökyüzü,
+/// bi-wheel ve sinastri kiplerinde böyle bir metin hiç yok. Yeni bir uç
+/// istemek backend işi ve bu paketin dışında (raporda önerildi).
+///
+/// Bunun yerine cümle SEÇİLİYOR: hepsi zaten var olan anlam dizelerinden
+/// biri, bu haritanın KENDİ ölçümüne göre. Yani yeni bir sabit cümle
+/// tablosu doğmuyor ve seçim harita başına değiştiği için iki kullanıcı
+/// aynı cümleyi görmüyor — jenerikliğin kaynağı tam olarak buydu.
+///
+/// ## Hiçbir şey ölçülemezse
+/// Hiç çizilmez. Boş bir yer, uydurulmuş bir cümleden iyidir.
+class _AnlamKatmani extends StatelessWidget {
+  const _AnlamKatmani({
+    required this.mode,
+    required this.data,
+    required this.natalYuk,
+    required this.filter,
+    required this.maxOrb,
+    required this.showMinors,
+  });
+
+  final ChartInspectorMode mode;
+  final ChartData data;
+  final Map<String, dynamic>? natalYuk;
+  final WheelAspectFilter filter;
+  final double maxOrb;
+  final bool showMinors;
+
+  /// Baskın element — sunucunun kanonik sayımından.
+  ///
+  /// Kural (kesin üstünlük, eşitlikte null) `baskinElement`te TEK yerde
+  /// duruyor; burada kendi kopyası vardı ve doğrulama turunda ölçüldü:
+  /// kopyanın eşitlik kapısını kaldırmak takımı yeşil bırakıyordu.
+  String? _baskinElement(Map<String, dynamic> yuk) => baskinElement(
+      Map<String, dynamic>.from(
+          yuk['element_distribution'] as Map? ?? const {}));
+
+  Widget _panel(
+      {required String etiket,
+      required String cumle,
+      required VoidCallback dayanak}) {
+    return GlassPanel(
+      label: etiket,
+      margin: const EdgeInsets.only(top: 6, bottom: RythoSpace.sm),
+      onTap: dayanak,
+      child: Text(cumle, style: RythoText.body(14, height: 1.5)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    // Natal kipte ekranın konusu haritanın BÜTÜNÜ, o yüzden önce bütünü
+    // anlatan ölçüm konuşur. Kesin baskınlık yoksa aşağıdaki açı dalına
+    // düşülür — zorlama yapılmaz.
+    final yuk = natalYuk;
+    if (yuk != null) {
+      final element = _baskinElement(yuk);
+      if (element != null) {
+        final noktalar = [
+          for (final p in (yuk['points'] as List? ?? const []))
+            Map<String, dynamic>.from(p as Map),
+        ];
+        return _panel(
+          etiket: elementName(l10n, element),
+          cumle: elementLine(l10n, element),
+          dayanak: () => showDagilimSheet(
+            context,
+            baslik: elementName(l10n, element),
+            aciklama: elementLine(l10n, element),
+            klasik: temperamentLine(l10n, element),
+            uyeler: List<String>.from(
+                (yuk['element_members'] as Map?)?[element] as List? ??
+                    const []),
+            points: noktalar,
+          ),
+        );
+      }
+    }
+
+    final aci = liderGorunurAci(data, filter, maxOrb,
+        showMinors: showMinors);
+    if (aci != null) {
+      final cumle = aspectMeaningText(l10n, aci.kind);
+      // Minör açıların anlam cümlesi YOK; olmayan cümle uydurulmaz.
+      if (cumle != null) {
+        return _panel(
+          etiket: aci.localLabel ?? '${aci.p1} — ${aci.p2}',
+          cumle: cumle,
+          dayanak: () => showAspectSheet(context, aspectSheetMap(aci)),
+        );
+      }
+    }
+
+    return const SizedBox.shrink();
+  }
+}
 
 /// Veri başlığı: kim/ne zaman + ev sistemi (astrolog önce bunu okur).
 class _Baslik extends ConsumerWidget {

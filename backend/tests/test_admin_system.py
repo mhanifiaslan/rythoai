@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 
 from core import app_gate, config
 from core import firestore as firestore_client
-from services import admin_service
+from services import admin_service, notify_runner
 from main import app
 from test_admin_audit import FailedPrecondition, SahteFirestore  # noqa: F401
 
@@ -77,7 +77,12 @@ def test_system_info_sekli(depo):
     assert bilgi["rollups"]["lastEconomicsDate"] == "2026-09-09"
 
     bildirim = bilgi["scheduler"]["notify"]
-    assert set(bildirim) == {"daily", "midday", "checkin", "streak"}
+    # Küme TEK KAYNAKTAN okunuyor, elle sayılmıyor: aynı gerçeğin altı
+    # kopyası vardı ve bu test BEŞİNCİSİYDİ. 48-turunda `RUN_TYPES`a
+    # `circle`/`winback` eklendiğinde dördü dörtte kaldı; panel iki yeni
+    # slotu hiç göstermiyordu. Kopyalar türetilmeye çevrildi — bu satırın
+    # da elle yazılı kalması, onarımın kendisini kırmızıya düşürürdü.
+    assert set(bildirim) == set(notify_runner.RUN_TYPES)
     assert bildirim["daily"] == {"lastRunAt": _SIMDI, "lastStatus": "ok",
                                  "date": _BUGUN}          # bugün, dün değil
     assert bildirim["midday"]["lastStatus"] == "failed"   # dünden düştü

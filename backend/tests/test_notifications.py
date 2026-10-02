@@ -368,47 +368,43 @@ def test_midday_olay_yoksa_none(monkeypatch):
                           today=dt.date(2026, 6, 15)) == (None, "olay-yok")
 
 
-def test_midday_cift_ani_yalniz_onbellekten(monkeypatch):
-    """(b) dali ASLA hesaplamaz: get_transits patlasa bile onbellekli
-    vurus push uretir. Yuk type=friend → Çevrem sekmesi."""
-    from services import (astro_service, circle_context, people_service,
-                          signal_service, synastry_service)
+def test_midday_cift_ani_dalini_artik_tasimaz(monkeypatch):
+    """CV-turu: cift ani OGLENIN DALI DEGIL, kendi slotu (`circle_push`).
+
+    Bekci dalin YOKLUGUNU DAVRANISTAN okuyor: cevre yollarina yapilan her
+    cagri sayiliyor ve sayac sifir kalmak zorunda. Yorum metnine BAKMIYOR
+    — yukaridaki docstring o dalin tasindigini ANLATIYOR ve metin arayan
+    bir bekci kendi aciklamasina takilirdi.
+
+    Cagrilar `raise` ile DEGIL sayacla yakalaniyor: `midday_push`un govdesi
+    `except Exception` ile sarili, yani firlatilan bir AssertionError
+    yutulup "olay-yok" donerdi ve bekci dal geri gelse bile YESIL kalirdi.
+    Ilk hali tam bu yuzden kor cikmisti.
+
+    Dalin geri gelmesi sessiz bir gerileme olurdu: eski hali hem YEDEK dal
+    hem "asla hesaplama" onbellek sarti tasidigi icin pratikte olu
+    kaliyordu, yani geri gelse de calismadigi ANLASILMAZDI.
+    """
+    from services import circle_context, people_service, signal_service
+    from services import synastry_service
 
     monkeypatch.setattr(signal_service, "cached_signals",
                         lambda p, today=None: None)
-    monkeypatch.setattr(circle_context, "list_accepted_friend_uids",
-                        lambda uid, limit=5: ["f1"])
-    monkeypatch.setattr(people_service, "list_people", lambda uid: [])
+    dokunulan: list = []
 
-    cp = synastry_service.Counterpart(
-        key="u1-f1", birth={}, label="Erkan", sun_sign="leo")
-    monkeypatch.setattr(synastry_service, "friend_counterpart",
-                        lambda uid, fuid: cp)
-    monkeypatch.setattr(
-        synastry_service, "pair_transits_cached",
-        lambda uid, other, today=None: {
-            "date": "2026-06-15",
-            "hits": [{"side": "user", "transit": "Saturn", "natal": "Venus",
-                      "aspect": "Trine", "orb": 0.8,
-                      "movement": "applying"}],
-        })
+    def sayan(*a, **k):
+        dokunulan.append(1)
+        return []
 
-    def hesap_yasak(*a, **k):
-        raise AssertionError("ogle yolu efemeris HESAPLAMAMALI")
+    monkeypatch.setattr(circle_context, "list_accepted_friend_uids", sayan)
+    monkeypatch.setattr(people_service, "list_people", sayan)
+    monkeypatch.setattr(synastry_service, "pair_transits_cached", sayan)
+    monkeypatch.setattr(synastry_service, "pair_transits", sayan)
 
-    monkeypatch.setattr(astro_service, "get_transits", hesap_yasak)
+    sonuc = ns.midday_push(profil(), "tr", today=dt.date(2026, 6, 15))
 
-    sonuc, gerekce = ns.midday_push(profil(), "tr",
-                                    today=dt.date(2026, 6, 15))
-    assert sonuc is not None and gerekce == "gonderilecek"
-    baslik, govde, veri = sonuc
-    assert "Erkan" in baslik
-    assert govde
-    assert veri["type"] == "friend" and veri["src"] == "midday"
-    # BY-turu: hedef kimliği taşınır — dokununca O ilişkinin ekranı
-    # açılır; kimliksiz yük istemciyi yalnız sekmeye bırakıyordu.
-    assert veri["fromUid"] == "f1"
-    assert all(isinstance(v, str) for v in veri.values())
+    assert sonuc == (None, "olay-yok")
+    assert dokunulan == [], "ogle slotu cevre yollarina dokundu"
 
 
 # --- OT-turu: tekrar korumasi + tema rotasyonu ---
@@ -1014,11 +1010,42 @@ class _KosuKoleksiyon:
         return _KosuDoc(self._depo, kimlik)
 
 
+class _OkumaDoc:
+    """Gonderim kaydi dokumani — "hic push gitmemis" hali.
+
+    Kosu artik bu dokumani OKUYOR (gunluk toplam tavan,
+    `gunluk_push_sayisi`). Sahte istemci okumayi tanimazsa kosu `users`
+    koleksiyonuna dusup asagidaki yazim muhafizina carpiyordu. Bu
+    testlerin derdi tavan degil KOSU KAYDI, o yuzden okuma bos doner.
+    Zincirin tamami (collection/document/collection/document/get) tek
+    nesneyle karsilanir.
+    """
+
+    exists = False
+
+    def collection(self, ad):
+        return self
+
+    def document(self, kimlik):
+        return self
+
+    def get(self):
+        return self
+
+    def to_dict(self):
+        return {}
+
+
 class _KosuClient:
     def __init__(self, depo):
         self._depo = depo
 
     def collection(self, ad):
+        # YAZIM yalniz notifyRuns'a gidebilir; assert o degismez icin
+        # duruyor (kosu baska bir koleksiyona yazarsa test kirmizi).
+        # OKUMA icin `users` ayrica gerekiyor — bkz. _OkumaDoc.
+        if ad == "users":
+            return _OkumaDoc()
         assert ad == "notifyRuns"
         return _KosuKoleksiyon(self._depo)
 
