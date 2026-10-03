@@ -162,9 +162,51 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ## 6. Bugünkü durum (2026-10-02)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.17.1+47**. Backend rev **00105**.
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.18.0+48**. Backend rev **00106**.
 46 hiç yüklenmedi ve 47'ye geçildi — sürüm kodu ucuz, kullanılmış olabilecek
 bir kodu geri kullanmak değil.
+
+### Üç yüzey artık GERÇEKTEN günlük (2026-10-03) — ve bedeli 5'te kaldı
+
+Yüz okuma, BaZi ve doğum kapısı kimlik yüzeyinden günlük yüzeye geçti.
+**Tasarımın merkezi ayrımı:** "günlük yap" ≠ "her gün baştan üret". Ölçülmüş
+sabit çekirdek (yüz oranları → belirti tablosu, doğumun dört sütunu, 64 sabit
+kapı pasajı) KALDIRILMADI; prompt kalıcı olanı ve bugüne ait olanı **ayrı
+başlıklar** altında veriyor. Günlük olan şey, çekirdeğin o günle KESİŞİMİ.
+Bu paragrafı silen bir sonraki tur, ürünün ölçülmüş çekirdeğini atar.
+
+Anahtar–prompt denkliği **yapısal**: `_gun_kovasi(gun_blogu)` anahtarın gün
+terimini prompta GİREN BLOĞUN KENDİSİNDEN türetiyor, yani "gün promptta ama
+anahtarda değil" (yasak hâl) oluşamıyor ve tersi bedava geliyor — günün
+olgusu dönmediğinde anahtar da dönmüyor, jeton yanmıyor.
+
+⚠️ **"Günlük" adını hak ettiren ölçüm:** doğum kapısı TEK BAŞINA günlük
+değil — `GATE_SPAN` 5,625° yani bir kapı ~5,71 gün, 30 günde yalnız 6 ayrı
+değer. Kapı+**çizgi** 30/30. Çizgi basılmasaydı yüzey "günlük" adıyla
+sunulurken 5,7 günlük olurdu. BaZi'de günlüklüğü taşıyan terim **Liu Ri**
+(30/30); Liu Yue 2/30, yalnız bağlam.
+
+**Bedel 5'te KALDI (sahip kararı, 2026-10-03).** Gerekçesi ölçüldü ve
+tutarlı: ağır kullanıcı 100'lük hakkı **6,67 günde** bitirir (15 jeton/gün,
+sohbet/İ Ching/ikili hiç sayılmadan — eskiden aynı üç yüzey ~31 jeton/ay
+istiyordu, 14,3 kat) AMA o duvara **yalnız Plus aboneleri** çarpıyor (üçü de
+`require_plus`) ve paketler **yalnız aboneye** satılıyor (K2). Yani duvara
+çarpan kişi, paketi alabilen kişiyle aynı — K1'in kurduğu ekonomi bu.
+Marj kısıt DEĞİLDİ: hak tavanı yüzünden ağır kullanıcı ~$0,054/ay'ı geçemiyor
+(abonelik neti $3,00). Ayrıntı ve bedel tablosu
+`docs/maliyet-calismasi.md`. ⚠️ Ölçülecek tek şey **yeni harcama hızı**;
+eski 7 jeton/gün ölçümü bu değişiklikten ÖNCEYE ait.
+
+⚠️ **Girdinin en büyük kalemi bir tur boyunca HİÇ ölçülmemişti:** RAG pasaj
+bloğu ~6.224 karakter (~1.730 token) — yüz okumanın girdisinin %55'i, doğum
+kapısının %61'i. Parçaların %85,5'i 2.000 karakter tavanını aşıyor. Yani
+"prompt şu kadar" diyen eski sayılar **alt sınırdı**; gerçek girdi ~2,5 katı.
+
+⚠️ **Bu üç yüzeyin önbelleği KİŞİYE ÖZEL** (anahtar `user_id` taşıyor), yani
+maliyet kullanıcı sayısıyla ÇARPILIYOR: 1.000 ağır kullanıcı = ~$54/ay. Burç
+yorumu bunun tersi — anahtarı kullanıcıdan bağımsız, doküman sahipsiz, filo
+toplamı ~$1,2/ay ve kullanıcı sayısından BAĞIMSIZ. İki sınıfı karıştırmak
+maliyet tahminini mertebe yanlış yapar.
 
 ### ⚠️ CANLI KESİNTİ: Gemini 403 "Lightning dunning decision is deny"
 

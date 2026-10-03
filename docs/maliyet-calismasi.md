@@ -777,7 +777,30 @@ ekler, kişiye özel bir yüzeyi günlük yapmak kullanıcı başına ÇARPAN ek
 yorumu bedava verilebiliyor çünkü 12 × 2 kova herkesi doyuruyor; firaset
 bedava verilemez çünkü her kullanıcı kendi kovasıdır.
 
-### Jeton bedeli ÖNERİ tablosu — ⚠️ SAHİP KARARI BEKLİYOR
+### Jeton bedeli — ✅ KARAR VERİLDİ (2026-10-03): **5 jeton, değişmiyor**
+
+Sahibin kararı: üç yüzeyin bedeli **5 jetonda kalıyor**, `TOKEN_COSTS`
+değişmiyor. Aşağıdaki tablo artık bir öneri değil, kararın **dayanağı**.
+
+**Karar niçin tutarlı** (ölçüldü, çıkarılmadı): 6,67 günlük duvar kulağa
+sert geliyor ama o duvara **yalnız Plus aboneleri** çarpıyor — üç yüzeyin
+üçü de `require_plus` arkasında (`api/face_reading.py:96`,
+`api/reports.py:259`, `:428`), yani ücretsiz kullanıcı bu yüzeyleri hiç
+görmüyor ve hakkı da yanmıyor. Paketler ise **yalnız aboneye** satılıyor
+(K2, `token_store_screen.dart`). Sonuç: duvara çarpan kişi, paketi
+alabilen tek kişiyle AYNI kişi. K1'in kurduğu ekonomi (hak 300 → 100,
+"harca harca bitmez" şikâyeti) tam olarak bunu hedefliyordu.
+
+⚠️ **Kayda geçen risk** (karar sahibin, ama ölçüm burada dursun): günlük
+bakması beklenen bir yüzey için haftada bir duvar, kullanıcıya cimri
+gelebilir ve günlük yapma işinin değerini yiyebilir. Ölçülecek şey
+**yeni harcama hızı** — sahibin eski ölçülen hızı 7 jeton/gündü ve bu
+değişiklikten ÖNCEYE ait. İlk kapalı test geri bildirimi bu kararın tek
+gerçek sınavı; hız ölçülünce bedel yeniden açılabilir (tablo hazır).
+
+Marj hiçbir seçenekte kısıt DEĞİLDİ: hak tavanı yüzünden ağır kullanıcı
+~$0,054/ay'ı geçemiyor (abonelik neti $3,00). Yani karar bir marj kararı
+değil, **hakkın ömrü** kararıydı.
 
 Jeton başına gelir §1'in kuralıyla ~$0,010 (100'lük paketin KDV + Play
 komisyonu sonrası neti ÷ 100). Marj = 1 − maliyet ÷ (bedel × $0,010).
