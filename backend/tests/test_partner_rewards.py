@@ -553,6 +553,50 @@ def test_negatif_duzeltme_gerekce_ister(depo):
     ps.add_payout("p-1", -10.0, "TRY", "iade duzeltmesi")
 
 
+def test_tavan_USTUNDEKI_odul_HAKEDIS_ACMAZ(depo):
+    """`MAX_REWARD_TRY` hiç ölçülmüyordu (mutasyonla bulundu 2026-10-03).
+
+    Tavanı kaldıran mutasyon (`0 < sayi <= MAX_REWARD_TRY` → `0 < sayi`)
+    üç ortak test dosyasının 136 testini de YEŞİL bırakıyordu. Alt sınır
+    (`0 <`) çiviliydi, ÜST sınır değildi — ve tavanı tek başına taşıyan
+    şey bir yorumdu ("fazladan yazılmış bir sıfır panelde göze çarpmaz").
+
+    Kapı neden HTTP şemasıyla (`api/admin.py`: `le=MAX_REWARD_TRY`)
+    ikizlenmiyor: bu gate, isteği DEĞİL `partners/{id}` dokümanında
+    DURAN değeri okuyor. Dokümana şema kapısından geçmeyen yollar da
+    yazabiliyor (`tools/set_admin.py`, Firestore konsolu, o karardan
+    önce açılmış kayıtlar). Yani panele ₺5000 girilmesi engellenmiş
+    olsa bile depoda ₺5000 duran bir ortak için ÖDENECEK tutarı
+    durduran tek şey burası.
+
+    Hakediş AÇILMAZ (`False`) ve doküman HİÇ doğmaz: geçersiz tutarla
+    `pending` bir kayıt açmak daha kötü olurdu — 15 gün sonra
+    olgunlaşır, bakiyeye girer ve sahip ekranda gördüğü tutarı öder.
+    """
+    _ortak(depo, rewardTry=ps.MAX_REWARD_TRY + 1)
+
+    _tetikle(depo)
+
+    assert "partnerQualifications/u1" not in depo, (
+        "tavanın üstündeki ödülle hakediş açıldı; 15 gün sonra ödenir")
+
+
+def test_TAVANDAKI_odul_hakedis_ACAR(depo):
+    """Ters yön: tavan "her tutarı reddet"e dönüşemez.
+
+    Yukarıdaki bekçi tek başına `raise RedeemError` sabitlemesiyle de
+    yeşil kalırdı — o hâlde ortaklık programı tümden ölür ve kimse
+    ödenmezdi (sessiz, çünkü `open_qualification` yalnız `debug` loguyla
+    geçiyor). Tam tavan GEÇMEK zorunda.
+    """
+    _ortak(depo, rewardTry=ps.MAX_REWARD_TRY)
+
+    _tetikle(depo)
+
+    assert (depo["partnerQualifications/u1"]["rewardTry"]
+            == ps.MAX_REWARD_TRY)
+
+
 def test_sifir_odeme_reddedilir(depo):
     _ortak(depo)
     with pytest.raises(ps.RedeemError) as h:

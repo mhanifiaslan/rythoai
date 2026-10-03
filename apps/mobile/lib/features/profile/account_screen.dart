@@ -28,6 +28,38 @@ import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/cosmic_scaffold.dart';
 
+/// Görünen adın üst sınırı — karakter (kod noktası) sayısı.
+///
+/// NEDEN bir sınır var: `displayName` hiçbir yerde sınırlanmıyordu —
+/// istemci yalnız boş olup olmadığına bakıyor, `infra/firestore.rules`
+/// alanı izinli listede tutuyor ama BOYUTUNU sınırlamıyor, sunucuda da
+/// yazan bir yol yok. Ad kullanıcının kendi ekranında kalmıyor: arkadaş
+/// bildirimlerinin BAŞLIĞINA giriyor (`PUSH_MIDDAY_PAIR_TITLE`,
+/// `PUSH_INVITE_TITLE`) ve gövde bütçesi sunucuda ÖLÇÜLDÜ —
+/// `notification_service.py` `MAX_PUSH_BODY = 110`. Sınır aşılınca metin
+/// kırpılmıyor, YEDEĞE düşülüyor; yani 90 harflik bir ad arkadaşının
+/// bildirimini sessizce yalınlaştırıyor ya da hiç göndermiyor.
+///
+/// NEDEN 40: üç ölçümün kesişimi. (1) Sunucu bütçesi 110 ve ada yer açan
+/// başlık kalıplarının sabit kısmı en fazla ~34 karakter, yani 40 rahatça
+/// içeride kalıyor. (2) Depodaki komşu alan kullanıcı adı ve onun alanı
+/// `maxLength: 20` (friends_screen.dart) — 40 ondan gevşek, çünkü görünen
+/// ad soyadı da taşıyor. (3) Gerçek adlar bu sınıra yaklaşmıyor; sınır
+/// kullanıcıyı değil taşmayı kesiyor.
+///
+/// NEDEN kod noktası (`runes`) ve `String.length` DEĞİL: `String.length`
+/// UTF-16 kod BİRİMİ sayar, yani emoji taşıyan bir ad iki kat uzun
+/// görünür. Sunucudaki bütçe Python `len()` ile, yani kod noktasıyla
+/// ölçülüyor; iki taraf aynı şeyi saymalı.
+const kDisplayNameMaxChars = 40;
+
+/// Ad sınırı aşıyor mu — saf işlev.
+///
+/// Ayrı tutulmasının NEDENİ: kararın bekçisi `AccountScreen`i çizmeden
+/// yazılabilsin. O ağaç Firebase oturumu + profil sağlayıcısı istiyor
+/// (depodaki `plusHaliniOku` ile aynı gerekçe).
+bool adCokUzun(String ad) => ad.runes.length > kDisplayNameMaxChars;
+
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
 
@@ -82,6 +114,15 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     final yeniAd = _ad.text.trim();
     if (yeniAd.isEmpty) {
       setState(() => _hata = l10n.displayNameEmpty);
+      return;
+    }
+    // Kapı `maxLength`e EK: alandaki sınır yalnız KLAVYEDEN gireni kesiyor.
+    // Bu alana iki yoldan daha uzun metin gelebiliyor — yapıştırma
+    // (`maxLengthEnforcement` kompozisyon sırasında geçirir) ve Firestore'da
+    // zaten duran eski kayıt (`_ilkDoldur` onu olduğu gibi yazıyor). Yazım
+    // kapısı olmadan sınır bir ÖNERİ olurdu.
+    if (adCokUzun(yeniAd)) {
+      setState(() => _hata = l10n.displayNameTooLong(kDisplayNameMaxChars));
       return;
     }
     final yeniKullaniciAdi = _kullaniciAdi.text.trim().toLowerCase();
@@ -143,6 +184,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               style: RythoType.body,
               textCapitalization: TextCapitalization.words,
               onChanged: (_) => setState(() => _hata = null),
+              // Sınır ÖNCE burada görünür: kullanıcı sayacı görüp durur,
+              // hata mesajını hiç görmez. Yazım kapısı `_kaydet`te duruyor
+              // ve asıl taşıma yollarını (yapıştırma, eski uzun kayıt) o
+              // kesiyor — bu satır tek başına yeterli DEĞİL.
+              maxLength: kDisplayNameMaxChars,
               decoration: InputDecoration(labelText: l10n.displayName),
             ),
             const SizedBox(height: RythoSpace.lg),

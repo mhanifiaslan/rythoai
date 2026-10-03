@@ -248,6 +248,23 @@ final yetkiDinleyiciKurucuProvider =
 /// olma sebebinde susardı. Temel artık yalnız ilk bildirimden kurulmuyor:
 /// satın alma/geri yükleme BAŞLARKEN [yetkiTemeliniKurulmusSay] kuruyor.
 ///
+/// ⚠️ Deliğin KAPANMAYAN dilimi — yukarıdaki "KAPALI" yalnız UYGULAMA
+/// İÇİNDEN başlayan yetki kazanımları için doğru, ve eksik bir gerekçe
+/// bu depoda kusur sayılıyor. Uygulama DIŞINDA kazanılan yetki
+/// (abonelik yenilemesi, Play Store / App Store yüzeyinden abone olma,
+/// başka bir cihazda alınan abonelik) ne `purchasePackage`tan ne
+/// `restorePurchases`tan geçer, yani temeli kuran kanca hiç çağrılmaz.
+/// O bildirim süreçteki İLK `CustomerInfoUpdated` ise hâlâ temel sayılıp
+/// yutulur: `subscriptionProvider` auto-dispose olmadığı için bayat
+/// "abone değil" oturum boyunca önbellekte kalır ve kullanıcı ödediği
+/// hâlde kilitleri görür. Uygulamayı yeniden başlatmak kurtarır.
+///
+/// Niçin kapatılmadı: bilinen tek yol yutma kuralını kaldırmaktı ve onun
+/// ÖLÇÜLEN bedeli her açılışta üç tazeleme (abonede altı istek). Bu, 429
+/// geçmişi olan bir yola her açılışta sabit yük bindirmek olurdu.
+/// ⚠️ [AbonelikKurtarmaGozcusu] bunu KAPATMAZ: o yalnız durum
+/// OKUNAMADIYSA tazeliyor; burada durum pekâlâ okunabilmiş, yalnız bayat.
+///
 /// Yetki KAZANILDIĞINDA sunucu yoklanır, KAYBEDİLDİĞİNDE tek tazeleme
 /// yeter: kaybı sunucuya webhook yazar ve "yetki gelene kadar bekle"
 /// döngüsü orada beklenecek bir şey olmadığı için bütçeyi boşa harcar.

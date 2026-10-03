@@ -294,6 +294,112 @@ def test_K3_harcama_yolunda_isaret_ileri_giderse_hak_KORUNUR(depo, monkeypatch):
     assert _cuzdan(depo)["allowanceExpiresAt"] == _ILERI
 
 
+def test_K3_GORUNUM_yolunda_isaret_ileri_giderse_hak_KORUNUR(depo, monkeypatch):
+    """ÜÇÜNCÜ tazeleme yeri: `get_wallet`in GÖRÜNÜM tazelemesi.
+
+    Bu bekçi MUTASYONLA bulundu (2026-10-03): `get_wallet` içindeki
+    `allowance = max(allowance, MONTHLY_TOKEN_ALLOWANCE)` satırı `min`e
+    çevrildiğinde bu dosyanın 50 testinin HEPSİ yeşil kaldı. Yani yukarıdaki
+    üç K3 bekçisi yazan iki yolu (`reset_allowance`, `_spend_txn`) tutuyordu
+    ama CLAUDE.md'nin saydığı ÜÇÜNCÜ yer ölçülmüyordu.
+
+    Neden görünüm yolu tek başına önemli: `get_wallet`i okuyan üç yüzey var
+    (`api/billing.py` /wallet, `api/admin.py`, `services/admin_service.py`)
+    ve üçü de kullanıcıya/operatöre SAYI gösteriyor. Düz atama burada
+    diske hiçbir şey yazmaz — ekranda yazar: 287 hakkı olan abone,
+    dönem ortasına düşen bir SUBSCRIPTION_EXTENDED'ten sonra bakiyesini
+    "100" görür. Kayıp kalıcı değil ama şikâyet aynı ("jetonlarım gitti")
+    ve bu depoda "ölçülen, yanlış adla sunulmaz" ilkesinin ihlali sayılır.
+
+    `test_K3_mevcut_donemde_eski_hak_GERI_ALINMAZ` görünümü de kontrol
+    ediyor ama orada işaret abonelikle EŞİT, yani tazeleme dalına hiç
+    girilmiyor — kapının kapalı olduğu bir ânı ölçüyor. Burada abonelik
+    işareti cüzdandan İLERİ: dal GERÇEKTEN koşuyor.
+    """
+    _abone_yap(monkeypatch, _ILERI)  # abonelik dönemi cüzdan işaretinden İLERİ
+    _cuzdan_yaz(depo, allowance=287, allowanceExpiresAt=_DONEM, purchased=1000)
+
+    gorunum = wallet.get_wallet("u1")
+
+    assert gorunum["allowance"] == 287, (
+        "görünüm tazelemesi hakkı tavana indirdi: ekranda 287 yerine 100")
+    assert gorunum["purchased"] == 1000
+    # Yazım YOK: görünüm tazelemesi yalnız yansıtır (kalıcı yazım harcamada).
+    assert _cuzdan(depo)["allowance"] == 287, "görünüm diske yazdı"
+
+
+def test_K3_gorunum_tazelemesi_tavanin_ALTINDAKI_hakki_YUKARI_ceker(
+        depo, monkeypatch):
+    """`max` korumasının bedeli "görünüm hiç tazelenmiyor" OLMAMALI.
+
+    Yukarıdaki bekçi tek başına `allowance = allowance` mutasyonuyla da
+    yeşil kalırdı — yani tazelemeyi tümden silmek görünmez olurdu. Bu
+    test o çifti kapatıyor: webhook resetini kaçıran hesap yeni dönemde
+    tam hakkını GÖRMEK zorunda (kalıcı yazım ilk harcamada).
+    """
+    _abone_yap(monkeypatch, _ILERI)
+    _cuzdan_yaz(depo, allowance=4, allowanceExpiresAt=_DONEM, purchased=0)
+
+    assert wallet.get_wallet("u1")["allowance"] == (
+        wallet.MONTHLY_TOKEN_ALLOWANCE)
+
+
+def test_sonmus_abonelikte_GORUNUMDE_de_hak_YOK(depo, monkeypatch):
+    """Harcanamayan hak EKRANDA da durmamalı.
+
+    Bu bekçi MUTASYONLA bulundu (2026-10-03): görünümdeki
+    `allowance if sub.get("active") else 0` kapısı tümden kaldırıldığında
+    cüzdanı okuyan dört test dosyasının 119 testi de YEŞİL kaldı. Yazan
+    ikizi (`_spend_txn`in `allowance = 0` dalı) ÇİVİLİ
+    (`test_sonmus_abonelikte_allowance_harcanamaz`), yani asimetri tam
+    olarak K3 `max`ında ölçülenle aynı sınıf: yazan yol ölçülüyor,
+    GÖRÜNEN yol ölçülmüyor.
+
+    Neden yalnız görünüm bile zararlı: `get_wallet`i okuyan üç yüzeyin
+    üçü de SAYI gösteriyor (`api/billing.py` /wallet, `api/admin.py`,
+    `services/admin_service.py`). Kapı düşerse aboneliği sönmüş kullanıcı
+    ekranda "87 jeton" görür, harcamaya kalkınca 402 + satış ekranı alır.
+    "Ölçülen, yanlış adla sunulmaz" ihlali ve şikâyeti doğuran yön bu:
+    kullanıcı sayıyı gördüğü için parasının yandığını sanır.
+
+    `test_K3_deneme_kullanicisi_hak_dususunden_ETKILENMEZ` görünümü de
+    kontrol ediyor ama orada dokümanda yazılı hak ZATEN 0, yani kapı
+    kaldırılsa da aynı sayı çıkar — kapının kapalı olduğu bir ânı
+    ölçüyor. Burada doküman 87 taşıyor: kapı GERÇEKTEN çalışıyor.
+    """
+    # `depo` fikstürü aboneliği kapalı veriyor; dönem işareti ileri olsa
+    # BİLE hak görünmemeli (sönmüş abonelikte dönem diye bir şey yok).
+    _cuzdan_yaz(depo, allowance=87, allowanceExpiresAt=_ILERI, purchased=12)
+
+    gorunum = wallet.get_wallet("u1")
+
+    assert gorunum["allowance"] == 0, (
+        "abonelik sönmüş ama ekranda harcanamayan hak duruyor")
+    assert gorunum["purchased"] == 12, "satın alınan bakiye devreder"
+
+
+def test_gorunum_tazelemesi_ISARETI_de_tasir(depo, monkeypatch):
+    """Hak tazelenirken `allowance_resets_at` ESKİ dönemde kalmamalı.
+
+    Bu da MUTASYONLA bulundu: görünüm tazelemesinden `marker = sub_expires`
+    satırı silindiğinde 119 test YEŞİL kaldı. Sonucu ekranda görünür:
+    `apps/mobile/lib/features/profile/subscription_screen.dart:270` bu
+    tarihi "hak yenilenme" satırı olarak çiziyor, yani kullanıcı tam
+    hakkını (100) görürken yanında GEÇMİŞ bir yenilenme tarihi okur.
+
+    Ölçülen değerin yanlış adla sunulması bu depoda kusur sayılıyor ve
+    buradaki biçimi şu: sayı yeni dönemi anlatıyor, tarih eski dönemi.
+    """
+    _abone_yap(monkeypatch, _ILERI)
+    _cuzdan_yaz(depo, allowance=4, allowanceExpiresAt=_DONEM, purchased=0)
+
+    gorunum = wallet.get_wallet("u1")
+
+    assert gorunum["allowance"] == wallet.MONTHLY_TOKEN_ALLOWANCE
+    assert gorunum["allowance_resets_at"] == _ILERI, (
+        "hak yeni döneme tazelendi ama yenilenme tarihi eski dönemde kaldı")
+
+
 def test_K2_son_kullanma_YOKSA_hak_verilir_isaret_UYDURULMAZ(depo):
     """Son kullanma taşımayan aktive eden olay: hak verilir, işaret DURUR.
 
@@ -885,3 +991,106 @@ def test_cached_generate_refunded_GERCEK_sonucu_tasir(monkeypatch):
     gericagrisiz = rs._cached_generate(
         "anahtar-3", "prompt", fallback="yedek")
     assert gericagrisiz["refunded"] is False
+
+
+# ---------------------------------------------------------------------------
+# ÜÇÜNCÜ HÂL: "cüzdan okunamadı" ile "cüzdan boş" aynı şey DEĞİL
+# ---------------------------------------------------------------------------
+#
+# Onarım koddaydı (`get_wallet` → `okundu`, `api/billing.py` → 503) ama
+# HİÇBİR BEKÇİSİ YOKTU (ölçüldü 2026-10-03: `grep -rn okundu backend/tests`
+# tek satır bile döndürmedi). Bayrağı okuyan satır `.get("okundu", True)`
+# yazıyor, yani anahtarı dönüşten SİLMEK kapıyı sessizce açar — bekçisiz
+# bir onarımın en sinsi biçimi: hiçbir test kırmızı olmaz, yalan geri gelir.
+#
+# Yalanın kendisi ölçülmüştü: Firestore geçici hata verince istisna
+# yutuluyor, `data` boş kalıyor ve uç {allowance: 0, purchased: 0} + HTTP
+# 200 dönüyordu. İstemci bunu BAŞARILI yanıt sayıp "0" çiziyor
+# (`apps/mobile/lib/core/wallet.dart`: `WalletStatus.bilinmiyor` yalnız
+# TAŞIMA hatasında tetikleniyor), yani 1300 jetonu olan hesap bakiyesinin
+# bittiğini sanıp mağazaya gidiyordu.
+
+def _patlayan_ref(monkeypatch):
+    """Cüzdan okumasını fırlatan ref — "depo cevap vermedi" hâli."""
+    class _Patlak:
+        def get(self, transaction=None):
+            raise RuntimeError("deadline exceeded")
+
+    monkeypatch.setattr(wallet, "_wallet_ref", lambda uid: _Patlak())
+
+
+def test_okunamayan_cuzdan_SIFIR_gibi_sunulmaz(depo, monkeypatch):
+    """Okuma düştüğünde sayı DEĞİL "ölçemedim" hükmü taşınır."""
+    _patlayan_ref(monkeypatch)
+
+    cuzdan = wallet.get_wallet("u1")
+
+    assert cuzdan["okundu"] is False, (
+        "okuma düştü ama cüzdan başarılı okunmuş gibi dönüyor; sıfır bakiye"
+        " 'jetonun bitti' demektir")
+
+
+def test_basarili_okumada_okundu_bayragi_YANMAZ(depo, monkeypatch):
+    """Bayrak her okumada False olsaydı uç HİÇ 200 dönmezdi.
+
+    Tek yönlü bekçi (yalnız hata dalı) `okundu = False` sabitlemesiyle de
+    yeşil kalırdı; bu test o çifti kapatıyor.
+    """
+    _abone_yap(monkeypatch, _DONEM)
+    _cuzdan_yaz(depo, allowance=42, allowanceExpiresAt=_DONEM, purchased=7)
+
+    cuzdan = wallet.get_wallet("u1")
+
+    assert cuzdan["okundu"] is True
+    assert cuzdan["allowance"] == 42 and cuzdan["purchased"] == 7
+
+
+def test_depo_YOKKEN_okundu_TRUE_kalir(monkeypatch):
+    """"Depo yok" ile "depo cevap vermedi" AYRI hâller.
+
+    `get_client` None (yerel geliştirme, testler, kimlik kurulmamış bir
+    instance) iken hiçbir şey DÜŞMEDİ — okunacak cüzdan yok. Bu dalı da
+    503'e bağlamak, Firestore'suz çalışan her ortamda cüzdan ucunu tümden
+    kapatırdı; ayrımı kaybetmek onarımın kendi doğurduğu risktir.
+    """
+    monkeypatch.setattr(wallet.firestore_client, "get_client", lambda: None)
+    monkeypatch.setattr(wallet.entitlements, "get_subscription",
+                        lambda uid: {"active": False})
+
+    assert wallet.get_wallet("u1")["okundu"] is True
+
+
+def test_okunamayan_cuzdan_UCTAN_200_DONMEZ(monkeypatch):
+    """Zincirin tüketici yarısı: `/billing/wallet` sayı yerine 503 döner.
+
+    Bekçi UCU çağırıyor çünkü yalan ORADA görünüyordu: `get_wallet`in
+    bayrağı doğru olsa bile uç onu okumazsa istemci yine "0" çizer.
+    Aynı sebeple ikinci hâl de ölçülüyor — bayrak True iken uç sayıyı
+    GERÇEKTEN döndürmek zorunda, yoksa "her zaman 503" mutasyonu bu
+    testi geçerdi.
+
+    ⚠️ `api/billing.py` BU PAKETİN DOSYASI DEĞİL; burada yalnız
+    sözleşmesi ölçülüyor, dosyaya dokunulmadı.
+    """
+    from api import billing
+
+    class _Kullanici:
+        uid = "u1"
+
+    monkeypatch.setattr(billing.wallet, "ensure_trial_tokens",
+                        lambda uid: None)
+    temel = {"allowance": 0, "purchased": 0, "monthly_allowance": 100,
+             "allowance_resets_at": None, "costs": {"chat": 1}}
+
+    monkeypatch.setattr(billing.wallet, "get_wallet",
+                        lambda uid: {**temel, "okundu": False})
+    with pytest.raises(HTTPException) as hata:
+        billing.wallet_status(user=_Kullanici())
+    assert hata.value.status_code == 503, (
+        "okunamayan cüzdan 200 ile sıfır bakiye olarak sunuluyor")
+
+    monkeypatch.setattr(billing.wallet, "get_wallet",
+                        lambda uid: {**temel, "allowance": 287,
+                                     "purchased": 1000, "okundu": True})
+    yanit = billing.wallet_status(user=_Kullanici())
+    assert (yanit.allowance, yanit.purchased, yanit.total) == (287, 1000, 1287)

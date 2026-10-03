@@ -2029,6 +2029,11 @@ class AppLocalizationsTr extends AppLocalizations {
   String get displayNameEmpty => 'Adın boş olamaz.';
 
   @override
+  String displayNameTooLong(int count) {
+    return 'Adın en çok $count karakter olabilir.';
+  }
+
+  @override
   String get usernameChangeNote =>
       'Değiştirirsen eski kullanıcı adın serbest kalır ve başkası alabilir.';
 

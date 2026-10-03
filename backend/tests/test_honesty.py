@@ -16,6 +16,51 @@ from services import prompts
 _KOK = pathlib.Path(__file__).resolve().parents[2]
 
 
+def _aylik_hak() -> int:
+    """`wallet.MONTHLY_TOKEN_ALLOWANCE` — KAYNAKTAN okunur, ICE ALINMAZ.
+
+    Dosyanin geri kalaniyla ayni yontem: bu bekci iki yerde YAZILI iki
+    sayinin ayni olup olmadigini olcuyor, calisma zamani davranisini
+    degil.
+
+    ⚠️ Modul duzeyinde ve BIR KEZ: sayi hem bir testin iddiasinda hem
+    `TestPazarlamaDili._YASAKLAR` GEREKCESINDE geciyor ve iki ayri okuyucu
+    olsaydi biri guncellenip oteki bayatlardi — nitekim dogrulama turunda
+    (2026-10-03) tam bu oldu: gerekce ELLE "300" yaziyordu, sunucu 100
+    veriyordu. Bulunamazsa modul HIC yuklenmez; sessizce kor kalmaktansa
+    yuklenmemesi istenir.
+    """
+    kaynak = (_KOK / "backend" / "core" / "wallet.py").read_text(
+        encoding="utf-8")
+    eslesme = re.search(r"^MONTHLY_TOKEN_ALLOWANCE = (\d+)\b", kaynak,
+                        flags=re.M)
+    assert eslesme, "MONTHLY_TOKEN_ALLOWANCE bulunamadi: bekci kor kalirdi"
+    return int(eslesme.group(1))
+
+
+#: Aylik hak — gerekce metinlerine ve iddialara BURADAN giriyor.
+_AYLIK_HAK = _aylik_hak()
+
+
+def _olgunlasma_gunu() -> int:
+    """`partner_service.MATURATION_DAYS` — KAYNAKTAN okunur.
+
+    `\b` ile baglanir, `$` ile DEGIL: satir sonuna yorum eklenmesi
+    (`MATURATION_DAYS = 15  # iade penceresi`) bekciyi yanlis alarma
+    dusuruyordu. `\b` yine isirir — 14 ya da 150 eslesmez.
+    """
+    kaynak = (_KOK / "backend" / "services" / "partner_service.py").read_text(
+        encoding="utf-8")
+    eslesme = re.search(r"^MATURATION_DAYS = (\d+)\b", kaynak, flags=re.M)
+    assert eslesme, "MATURATION_DAYS bulunamadi: bekci kor kalirdi"
+    return int(eslesme.group(1))
+
+
+#: Olgunlasma penceresi — hem hukuk kopyalarinin hem ORTAKLIK
+#: SAYFALARININ iddiasi buna bagli.
+_OLGUNLASMA_GUNU = _olgunlasma_gunu()
+
+
 def _turkce_kucult(metin: str) -> str:
     """Eşleştirme için küçültme — noktalı harfler ÖNCE karşılığına çevrilir.
 
@@ -134,8 +179,18 @@ class TestPazarlamaDili:
     _YASAKLAR = (
         ("nasa", "ozellikler.md §12b: 'NASA' ASLA — doğrusu 'astronomik "
                  "efemeris verisi'"),
-        ("sınırsız sohbet", "Rytho+ aylık 300 kredidir; sınırsız değil"),
-        ("unlimited chat", "Rytho+ is 300 credits a month, not unlimited"),
+        # ⚠️ Gerekçe ELLE YAZILMAZ, sabitten türetilir. Doğrulama turunda
+        # (2026-10-03) iki satır da "300 kredi" diyordu; sunucu 100
+        # veriyordu (`wallet.MONTHLY_TOKEN_ALLOWANCE`). Gerekçe, bekçi
+        # kızdığında okunan tek metindir — yanlış sayı tam o anda
+        # karar vericiye gider. Üstelik bu tur 300→100 ayrışmasını
+        # kapatmak için vardı ve ayrışmanın son kopyası BEKÇİNİN KENDİ
+        # gerekçesinde kalmıştı; `test_belge_tarifesi.py` yalnız
+        # `docs/` tarıyor, test kaynağını kimse taramıyor.
+        ("sınırsız sohbet",
+         f"Rytho+ aylık {_AYLIK_HAK} kredidir; sınırsız değil"),
+        ("unlimited chat",
+         f"Rytho+ is {_AYLIK_HAK} credits a month, not unlimited"),
         ("iyileştirir", "sağlık iddiası — mağaza politikası"),
         ("tedavi eder", "sağlık iddiası — mağaza politikası"),
         ("şifa", "sağlık iddiası — mağaza politikası"),
@@ -158,6 +213,44 @@ class TestPazarlamaDili:
             for aranan, neden in self._YASAKLAR:
                 assert aranan not in metin, (
                     f"{yol} içinde yasak ifade {aranan!r} — {neden}")
+
+    def test_yasak_gerekcesindeki_aylik_hak_SABITTEN_geliyor(self):
+        """Gerekçe metnindeki sayı `MONTHLY_TOKEN_ALLOWANCE` ile aynı.
+
+        NEDEN bu test var (ölçüldü 2026-10-03, doğrulama turu): iki gerekçe
+        satırı ELLE "300" yazıyordu, sunucu 100 veriyordu. Gerekçe yanlış
+        sayı taşıyorsa kusurdur — bekçi kızdığında okunan TEK metin odur ve
+        yanlış sayı tam o anda karar vericiye gider. Üstelik bu paket
+        300→100 ayrışmasını kapatmak için vardı: ayrışmanın son kopyası
+        bekçinin KENDİ gerekçesinde kalmıştı ve `docs/` tarayan bekçi
+        (`test_belge_tarifesi.py`) test kaynağına hiç bakmıyor.
+
+        Bugün satırlar f-string, yani sapma yapısal olarak imkânsız. Test
+        o YAPIYI çiviliyor: biri f-string'i tekrar sabit metne çevirirse
+        kırmızı olur. İki yöne de çalışıyor — sayı GEÇMEK zorunda (gerekçe
+        hakkı anmayı bırakırsa yasak kelimenin niçin yasak olduğu kaybolur)
+        ve geçen sayı sabitle AYNI olmak zorunda.
+        """
+        hak = str(_AYLIK_HAK)
+        gerekceler = [neden for aranan, neden in self._YASAKLAR
+                      if "sohbet" in aranan or "chat" in aranan]
+        assert len(gerekceler) == 2, (
+            "sohbet/chat yasağının gerekçesi kayboldu: aylık hak iddiası "
+            f"artık hiçbir gerekçede geçmiyor ({gerekceler!r})")
+        for neden in gerekceler:
+            assert hak in neden, (
+                f"gerekçe aylık hakkı {hak} demiyor: {neden!r} — "
+                f"`wallet.MONTHLY_TOKEN_ALLOWANCE` ile ayrışmış. Sayı elle "
+                f"yazılmaz, `_AYLIK_HAK` ile kurulur.")
+            # Eski sayının BULUNMAMASI da ayrıca sorulur: f-string'e
+            # dönüştürülürken eski literal cümlede kalsa (ör. "100 kredidir
+            # — eskiden 300'dü") gerekçe yine iki sayı söylerdi ve bekçi
+            # kızdığında hangisinin geçerli olduğu belirsiz kalırdı.
+            oteki = [p for p in re.findall(r"\d+", neden) if p != hak]
+            assert not oteki, (
+                f"gerekçede aylık haktan BAŞKA sayı var ({oteki!r}): "
+                f"{neden!r} — bekçi kızdığında hangi sayının geçerli "
+                f"olduğu belirsiz kalır")
 
     def test_yayindaki_her_sayfa_listede(self):
         """Listeye YAZILMAYAN yeni bir sayfa, bekçinin hiç görmediği sayfadır.
@@ -294,14 +387,18 @@ class TestKullanimSartlariKopyalari:
         değişirse bu test düşer ve dört kopyanın da gözden geçirilmesi
         gerektiği hatırlatılır.
         """
-        kaynak = (_KOK / "backend" / "services"
-                  / "partner_service.py").read_text(encoding="utf-8")
-        # `$` yerine `\b`: satır sonuna bir yorum eklenmesi (örn.
-        # `MATURATION_DAYS = 15  # iade penceresi`) bekçiyi YANLIŞ ALARMA
-        # düşürüyordu. `\b` yine ısırır — 14 ya da 150 eşleşmez.
-        assert re.search(r"^MATURATION_DAYS = 15\b", kaynak, flags=re.M), (
-            "Olgunlaşma penceresi 15 gün değil artık: kullanım şartlarının "
-            "DÖRT kopyasındaki süre de düzeltilmeli")
+        # Pencere modül düzeyindeki TEK okuyucudan gelir
+        # (`_olgunlasma_gunu`): sayı burada ELLE yazılıydı ("= 15") ve
+        # aynı sayı başka bir iddiada da geçiyor, yani iki okuyucu
+        # bayatlamaya giden yoldu.
+        assert _OLGUNLASMA_GUNU == 15, (
+            f"Olgunlaşma penceresi artık {_OLGUNLASMA_GUNU} gün: metnin "
+            f"ALTI kopyasındaki süre de düzeltilmeli — kullanım şartlarının "
+            f"dört kopyası (`_KOPYALAR`) VE iki ortaklık sayfası "
+            f"(`_ORTAKLIK_SAYFALARI`). ⚠️ Bu mesaj bir tur boyunca 'DÖRT "
+            f"kopya' diyordu ve o sayı EKSİKTİ (ölçüldü 2026-10-03): iki "
+            f"ortaklık sayfası da pencereyi yazıyor ve mesajı okuyan onları "
+            f"atlardı.")
 
     def test_metindeki_dusme_maddesi_koddaki_yola_dayaniyor(self):
         """Şartlar "çıkarılma halinde kesinleşmemiş hakedişler düşer" diyor.
@@ -321,6 +418,67 @@ class TestKullanimSartlariKopyalari:
             "Pasif ortağın bekleyen hakedişini düşüren yol yok: kullanım "
             "şartlarının DÖRT kopyasındaki 'kesinleşmemiş hakedişler düşer' "
             "maddesi dayanaksız kalır")
+
+
+class TestOrtaklikSayfalari:
+    """Herkese açık ortaklık sayfaları, PARA zamanlamasını koddan sapamaz.
+
+    NEDEN bu sınıf doğdu (ölçüldü 2026-10-03, doğrulama turu): olgunlaşma
+    penceresi "15 gün" ALTI yüzeyde yazılı ama bekçi yalnız DÖRDÜNÜ
+    tanıyordu (`TestKullanimSartlariKopyalari._KOPYALAR`). Kalan ikisi
+    `web/ortaklik.html` (üç kez) ve `web/en/partners.html` (iki kez) —
+    ve bunlar hukuk metni değil PAZARLAMA yüzeyi, yani ortağın "paramı ne
+    zaman alırım" sorusunu okuduğu yer.
+
+    Kırılma iki kademeliydi: pencere değişse `MATURATION_DAYS` bekçisi
+    kırmızı OLUR (yani sapma yakalanır), ama o bekçinin mesajı "DÖRT
+    kopyadaki süre de düzeltilmeli" diyordu. Mesajı izleyen dördü düzeltir,
+    iki ortaklık sayfası eski süreyi söylemeye devam eder ve bunu hiçbir
+    test görmez. Yani kusur sayının kendisinde değil, ONARIM TALİMATININ
+    eksikliğindeydi — CLAUDE.md'ye göre eksik gerekçe kusurdur.
+
+    ⚠️ KAPSAMIN SINIRI ölçülerek seçildi: bu iki sayfadaki GÜN sayılarının
+    TAMAMI pencereye eşit olmak zorunda. Ölçüm (2026-10-03): TR'de üç,
+    EN'de iki geçiş var ve hepsi penceredir — sayfalar başka bir süre
+    tartışmıyor. Hukuk kopyalarına aynı kural konamazdı
+    (`web/legal/kullanim.html` ayrıca "3 gün" deneme süresini anıyor), bu
+    yüzden kapsam o sayfalara GENİŞLETİLMEDİ. Sayfalara ikinci bir süre
+    eklenirse bu test kırmızı olur ve çapanın bilerek daraltılmasını
+    ister — sessizce geçmez.
+    """
+
+    #: Pencereyi yazan PAZARLAMA yüzeyleri. Hukuk kopyaları ayrı sınıfta.
+    _ORTAKLIK_SAYFALARI = ("web/ortaklik.html", "web/en/partners.html")
+
+    #: Gün sayısı kalıbı: TR ekli hâlleri ("günlük") ve EN tekil/çoğul.
+    _GUN = re.compile(r"(\d+)\s*(?:günlük|gün|days|day)\b")
+
+    def test_ortaklik_sayfalarindaki_SURE_koddaki_pencereyle_ayni(self):
+        for yol in self._ORTAKLIK_SAYFALARI:
+            dosya = _KOK / yol
+            assert dosya.exists(), (
+                f"{yol} yok — sayfa taşındıysa bu bekçi de yeniden "
+                f"nişanlanmalı, yoksa para zamanlaması bekçisiz kalır")
+            metin = re.sub(r"<[^>]+>", " ",
+                           _yorumsuz_html(dosya.read_text(encoding="utf-8")))
+            metin = re.sub(r"\s+", " ", metin)
+            bulunan = [int(s) for s in self._GUN.findall(metin)]
+            # Taban: iddia GEÇMEK zorunda. Yoksa üstteki eşitlik kontrolü
+            # "bulunan her sayı doğru" diyerek, hiç sayı kalmadığında da
+            # yeşil kalırdı — yani ortağa pencereyi söylemeyi bırakmak
+            # sessizce geçerdi.
+            assert bulunan, (
+                f"{yol}: olgunlaşma penceresini anan gün sayısı YOK. "
+                f"Cümle silindiyse geri konur; yeniden yazıldıysa "
+                f"`TestOrtaklikSayfalari._GUN` kalıbı da birlikte "
+                f"güncellenir (iddia kalıptan kaçarsa bekçi hiçbir şey "
+                f"ölçmez).")
+            sapma = [s for s in bulunan if s != _OLGUNLASMA_GUNU]
+            assert not sapma, (
+                f"{yol}: sayfa {sapma} gün diyor, kod {_OLGUNLASMA_GUNU} "
+                f"gün bekliyor (`partner_service.MATURATION_DAYS`). Bu "
+                f"sayfa ortağın 'paramı ne zaman alırım' sorusunu okuduğu "
+                f"yer; sapma doğrudan yanlış beyandır.")
 
 
 class TestJetonIddialari:
@@ -410,6 +568,27 @@ class TestJetonIddialari:
                             f"geneli için bu iddia yazılamaz; mağaza "
                             f"ekranındaki bedel satırına işaret et")
 
+    #: Mağaza ekranı: sayfanın işaret ettiği bedel satırının kaynağı.
+    _MAGAZA_EKRANI = ("apps/mobile/lib/features/paywall/"
+                      "token_store_screen.dart")
+
+    #: Bedel satırının SUNUCUDAN kurulduğunu söyleyen kablo. Çapa tek bir
+    #: ada bağlanmıyor; ÜÇ TERİM birden aranıyor: biçimlendirici çağrılıyor
+    #: (`bedelSatiri`), şablonu çeviriden alıyor (`l10n.tokenCostsNote`),
+    #: ve ikinci argüman bir `.costs` ALANI. Terimler BİLEREK bağımsız
+    #: değil — hepsi TEK bir çağrının içinde aranıyor, çünkü ölçülen şey
+    #: üç olgunun ayrı ayrı var olması değil BİRBİRİNE BAĞLI olması
+    #: (dosyada üçü ayrı ayrı dursa satır yine şablonla çizilebilir).
+    #: Üçüncüsü asıl olan — `bedelSatiri(…, const {})` yazmak kodu
+    #: derlenebilir bırakır, satır ekranda da görünür (işlev ön koşul
+    #: tutmayınca şablonu olduğu gibi döndürüyor), yani de-kablolama
+    #: SESSİZDİR. Önceki hâl yalnız `"l10n.tokenCostsNote" in ekran` diye
+    #: soruyordu ve o bir VEKİLDİ: satırın ÇİZİLDİĞİNİ ölçüyor, sayıların
+    #: nereden geldiğini ölçmüyordu.
+    _BEDEL_KABLOSU = re.compile(
+        r"bedelSatiri\(\s*l10n\.tokenCostsNote\s*,"
+        r"\s*[A-Za-z_]\w*(?:\.\w+)*\.costs\s*[,)]")
+
     def test_sitedeki_iki_iddianin_dayanagi_kodda_duruyor(self):
         """Sayfa "bedeller jeton mağazasında yazılıdır" diyor — gerçekten?
 
@@ -419,12 +598,13 @@ class TestJetonIddialari:
         testler yine geçerdi (harcama yine bir kez işler), yalnız sayfadaki
         ve mağaza ekranındaki cümle yalan olurdu.
         """
-        ekran = (_KOK / "apps" / "mobile" / "lib" / "features" / "paywall"
-                 / "token_store_screen.dart").read_text(encoding="utf-8")
-        assert "l10n.tokenCostsNote" in ekran, (
-            "Jeton mağazası ekranı bedel satırını artık çizmiyor: iki "
-            "pazarlama sayfasındaki 'bedeller jeton mağazasında yazılıdır' "
-            "cümlesi dayanaksız kaldı")
+        ekran = (_KOK / self._MAGAZA_EKRANI).read_text(encoding="utf-8")
+        assert self._BEDEL_KABLOSU.search(ekran), (
+            f"{self._MAGAZA_EKRANI}: bedel satırı artık sunucudan "
+            f"kurulmuyor (`bedelSatiri(l10n.tokenCostsNote, …costs)` "
+            f"kablosu yok). İki pazarlama sayfası 'bedeller jeton "
+            f"mağazasında yazılıdır' diyor; satır ya hiç çizilmiyor ya da "
+            f"yalnız şablonun kendi sayılarını gösteriyor")
 
         kaynak = (_KOK / "backend" / "services"
                   / "report_service.py").read_text(encoding="utf-8")
@@ -437,16 +617,72 @@ class TestJetonIddialari:
             "'hazır duran rapora yeniden bakmak hiç düşürmez' cümlesi "
             "(iki web sayfası + l10n tokenCostsNote) yalan oldu")
 
-    def test_magazadaki_bedel_satiri_koddaki_bedellerle_ayni(self):
-        """Mağazadaki bedel satırı ELLE yazılmış bir l10n dizesi.
+    def test_bedel_kablosu_capasinin_DISI_var(self):
+        """Üstteki çapa gerçekten ayırt ediyor mu — mutasyonla ölçülüyor.
 
-        `/wallet` yanıtı `costs` haritasını gönderiyor ve `wallet.dart` onu
-        ayrıştırıyor, ama arayüz onu HİÇ kullanmıyor. Yani `TOKEN_COSTS`
-        değiştiği an ekrandaki rakam sessizce yanlışa düşer — ve sayfadaki
-        "bedeller jeton mağazasında yazılıdır" cümlesi yanlış bir tabloya
-        işaret etmiş olur. Sayfanın kendisi artık rakam saymadığı için
-        bayatlama riskinin tamamı bu tek dizede toplandı; bekçi oraya
-        kondu.
+        NEDEN gerekli: `_BEDEL_KABLOSU` bir VEKİLİN yerine kondu ve çapanın
+        kendisi kör olabilir. Bu depoda üç paket "mutasyonların hepsi
+        kırmızı" dedi, minimal mutasyonla sınandığında 8 + 11 + 2 kör bekçi
+        çıktı — yani "bugün yeşil" bir çapanın bir şey ÖLÇTÜĞÜ kanıt değil.
+
+        Mutasyon BELLEKTE yapılıyor, diske DEĞİL. İki gerekçe: (1)
+        `token_store_screen.dart` bu turda başka bir paketin dosyası ve
+        yedi ajan aynı depoda çalışıyor — diske inen geçici bir mutasyon
+        başka bir ajanın yazısını ezebilirdi; (2) ölçülen metin yine
+        GERÇEK dosyanın metni, değişen tek şey bir TERİM (ikinci argüman),
+        yani bileşik mutasyonun gürültüsü yok. Emsal: aynı zincirin Dart
+        ucu da şablon tarafını sentetik girdiyle ölçüyor
+        (`apps/mobile/test/bedel_satiri_test.dart`, "denetimin DİŞİ var").
+        """
+        ekran = (_KOK / self._MAGAZA_EKRANI).read_text(encoding="utf-8")
+        eslesme = self._BEDEL_KABLOSU.search(ekran)
+        assert eslesme, (
+            "ön koşul tutmuyor: kablo bugün yok, yani bu testin ölçtüğü "
+            "şey kalmadı (üstteki bekçi zaten kırmızı olmalı)")
+
+        # Son karakter (`,` ya da `)`) korunuyor: mutasyon yalnız İKİNCİ
+        # ARGÜMANA dokunsun, çağrının kapanışına değil.
+        kuyruk = ekran[eslesme.end() - 1:]
+
+        # M1 — harita sabit boş literale indiriliyor. Gerçek bir gerileme:
+        # kod derlenir, satır ekranda GÖRÜNÜR (işlev ön koşul tutmayınca
+        # şablonu olduğu gibi döndürüyor), yani kusur sessizdir.
+        m1 = (ekran[:eslesme.start()]
+              + "bedelSatiri(l10n.tokenCostsNote, const {}" + kuyruk)
+        assert not self._BEDEL_KABLOSU.search(m1), (
+            "çapa KÖR: harita `const {}` ile değiştirildiğinde de "
+            "eşleşiyor, yani sunucu bağını hiç ölçmüyor")
+
+        # M2 — biçimlendirici tamamen atlanıp şablon doğrudan çiziliyor.
+        # Onarımdan ÖNCEKİ hâl buydu; çapa onu da ayırt etmek zorunda.
+        m2 = ekran[:eslesme.start()] + "Text(l10n.tokenCostsNote" + kuyruk
+        assert not self._BEDEL_KABLOSU.search(m2), (
+            "çapa KÖR: `bedelSatiri` hiç çağrılmasa da eşleşiyor, yani "
+            "eski 'elle yazılmış dizeyi çiz' hâli geri gelse görmez")
+
+    def test_magazadaki_bedel_satiri_koddaki_bedellerle_ayni(self):
+        """Mağaza satırının ŞABLONU `TOKEN_COSTS` ile aynı sayıları söyler.
+
+        ⚠️ Bu docstring'in eski hâli "satır ELLE yazılmış bir l10n dizesi,
+        arayüz `/wallet` `costs` haritasını HİÇ kullanmıyor" diyordu ve o
+        gerekçe artık YANLIŞ (ölçüldü 2026-10-03): ekran satırı
+        `bedelSatiri(l10n.tokenCostsNote, cuzdan.costs)` ile kuruyor, yani
+        dize bedel gerçeğinin ikinci KAYNAĞI değil ŞABLONU. Yanlış gerekçe
+        kusurdur — bekçi doğru yeri çiviliyordu ama NİÇİN'i yanlış
+        anlatıyordu ve onu okuyan "bu bekçi gereksizleşti" diye karar
+        verebilirdi.
+
+        Bekçi gereksizleşMEDİ, iki ölçülmüş sebeple:
+
+        * `bedelSatiri` ön koşulları tutmazsa şablonu OLDUĞU GİBİ döndürüyor
+          (harita boş, sayı adedi tutmuyor, derin raporlar tek bedelde
+          anlaşmıyor). O hâlde ekranda şablonun KENDİ sayıları görünür —
+          yani ARB'deki rakamlar hâlâ kullanıcıya gösterilebilen bir yüzey.
+        * Eşleştirme KONUMA bağlı: sayılar şablondaki sırayla tüketiliyor.
+          Etiket↔sayı bağı bu yüzden aşağıdaki bekçiyle ayrıca çivili.
+
+        İki web sayfası da "bedeller jeton mağazasında yazılıdır" diyerek
+        bu satıra işaret ediyor.
         """
         bedeller = self._token_bedelleri()
         #: Satır derin raporları TEK sayıyla özetliyor; özet ancak hepsi
@@ -549,12 +785,9 @@ class TestJetonIddialari:
         Eski hâl iki sayfada da 300 yazıyordu; sayı tek bir yerde
         (`MONTHLY_TOKEN_ALLOWANCE`) tanımlı olduğu için ayrışma sessizdi.
         """
-        kaynak = (_KOK / "backend" / "core" / "wallet.py").read_text(
-            encoding="utf-8")
-        eslesme = re.search(r"^MONTHLY_TOKEN_ALLOWANCE = (\d+)\b", kaynak,
-                            flags=re.M)
-        assert eslesme, "MONTHLY_TOKEN_ALLOWANCE bulunamadı: bekçi kör kalırdı"
-        hak = int(eslesme.group(1))
+        # Sayi modul duzeyindeki TEK okuyucudan gelir (bkz. `_aylik_hak`):
+        # ikinci bir okuyucu, gerekce metninin bayatlamasina giden yoldu.
+        hak = _AYLIK_HAK
 
         kaliplar = {"web/index.html": r"aylık (\d+) jeton",
                     "web/en/index.html": r"(\d+) tokens every month"}
@@ -600,3 +833,123 @@ class TestJetonIddialari:
             "Mağazadaki abone kapısı kalkmış: iki web sayfasındaki "
             "'aboneler ayrıca paket alabilir' daraltması gereksiz kaldı, "
             "cümleler gözden geçirilmeli")
+class TestPinBeyanlari:
+    """`conftest.py`'deki hermetiklik pinlerinin BEYANI ölçülür.
+
+    NEDEN bu sınıf bu dosyada: bu dosyanın doktrini "ölçülmeyen söylenmez"
+    ve onun öteki yarısı "beyan edilen ölçülür". `gemini_hermetik` pininin
+    docstring'i **"Hiçbir test istemeden GERÇEK Gemini'ye gidemesin"**
+    diyor; bu bir kapsam BEYANIDIR ve bir tur boyunca YANLIŞTI. Pinlerin
+    kendi bekçileri bugün dağınık duruyor (`kapi_hermetik`in bekçisi
+    `test_app_gate.py`'de), ama Gemini pininin hiç bekçisi yoktu.
+
+    ⚠️ ÖLÇÜLDÜ (2026-10-03, doğrulama turu): Gemini'ye İKİ kapı var ve pin
+    yalnız birini kapatıyordu.
+
+    * Kapı 1 — `gemini_service._get_client()`: pinliydi.
+    * Kapı 2 — `rag_service._KnowledgeBase._embed_texts()`: `gemini_service`
+      hiç devreye girmiyor; işlev `from google import genai` ile İÇİNDE
+      kendi `genai.Client(api_key=config.GEMINI_API_KEY)`ini kuruyor.
+      Ölçüm: `genai.Client` bir kaydediciyle değiştirildiğinde kaydediciye
+      ULAŞILDI ve geçen anahtar gerçek üretim anahtarıydı. Yani her soğuk
+      sorgu üretim kotasından PARA harcıyordu.
+
+    CLAUDE.md bu kapı çiftini adıyla yazıyor ("`gemini_service`
+    `generate_content` VE `rag_service` `embed_content` — iki yüzey, biri
+    atlanırsa teşhis eksik kalır") ve kota bu depoda GERÇEK PARA: pin,
+    bir ajanın ~4 çağrı harcamasının bedeli ödenerek doğdu.
+
+    Bekçi DAVRANIŞSAL, kaynak eşleştirme DEĞİL. Gerekçe: kaynakta
+    `monkeypatch.setattr(config, "GEMINI_API_KEY", "")` satırını aramak
+    yalnız BUGÜNKÜ yamayı çivilerdi — `rag_service` yarın anahtar ön
+    koşulunu kaldırsa satır yerinde durur, pin körleşir ve metin bekçisi
+    YEŞİL kalır. Burada ölçülen şey niyet değil ERİŞİM: dışa çıkan kapı
+    gerçekten çalınıyor mu.
+    """
+
+    @staticmethod
+    def _kapi_kaydedicisi(monkeypatch):
+        """`genai.Client` yerine kaydedici koyar; ulaşılan her çağrıyı sayar.
+
+        Para HARCANMIYOR: kaydediciye gelen çağrı ağa hiç çıkmıyor.
+        Kaydediciye ULAŞILMASI, pin olmasaydı gerçek bir çağrı yapılacağı
+        anlamına gelir — yani ölçüm "kapı açık mı" sorusunu harcamadan
+        yanıtlıyor.
+        """
+        from google import genai
+
+        ulasildi: list[str] = []
+
+        def _kaydedici(*_a, **kw):
+            ulasildi.append(str(kw.get("api_key", ""))[:4])
+            raise AssertionError("pin yok: bu çağrı ağa çıkacaktı")
+
+        monkeypatch.setattr(genai, "Client", _kaydedici)
+        return ulasildi
+
+    def test_gemini_pini_RAG_embedding_kapisini_da_kapatir(self, monkeypatch):
+        """Kapı 2: `rag_service` kendi istemcisini KURAMAZ."""
+        from services import rag_service
+
+        ulasildi = self._kapi_kaydedicisi(monkeypatch)
+        rag_service._KnowledgeBase("tr")._embed_texts(["ölçüm metni"])
+        assert not ulasildi, (
+            "conftest `gemini_hermetik` pini RAG embedding kapısını "
+            "KAPATMIYOR: `rag_service._embed_texts` kendi "
+            f"`genai.Client`ini kurdu (anahtar öneki {ulasildi!r}). "
+            "Bu kapı pinsizken her soğuk sorgu üretim kotasından para "
+            "harcar — CLAUDE.md'nin iki-yüzey kuralı.")
+
+    def test_gemini_pini_URETIM_istemcisi_kapisini_da_kapatir(self,
+                                                              monkeypatch):
+        """Kapı 1: `gemini_service` istemci kurmaz ve `None` döner.
+
+        İki şey birden sorulur. Yalnız `_get_client() is None` demek
+        yetmezdi: pin lambda'yı söküp anahtarı bıraksa istemci GERÇEKTEN
+        kurulabilirdi; yalnız kaydediciye bakmak da yetmezdi, çünkü
+        `_get_client` modül düzeyinde `_client`ı ÖNBELLEKLİYOR ve önceki
+        bir testin kurduğu istemci yeni bir `genai.Client` çağrısı
+        YAPMADAN dönebilirdi.
+        """
+        from services import gemini_service
+
+        ulasildi = self._kapi_kaydedicisi(monkeypatch)
+        assert gemini_service._get_client() is None, (
+            "conftest `gemini_hermetik` pini `gemini_service` kapısını "
+            "kapatmıyor: istemci kuruldu")
+        assert not ulasildi, (
+            f"`genai.Client` kuruldu (anahtar öneki {ulasildi!r}) — "
+            "pin yalnız dönüş değerini değil ÇAĞRIYI da engellemeli")
+
+    def test_pin_olcumunun_DISI_var(self, monkeypatch):
+        """Yukarıdaki iki ölçüm gerçekten ısırıyor mu — MİNİMAL mutasyon.
+
+        NEDEN gerekli: ölçüm "kaydediciye ulaşılmadı" diyor ve bu YOKLUK
+        iddiası iki ayrı sebeple de doğru çıkabilir — kapı kapalı olduğu
+        için, ya da ölçüm hiç o kapıya DOKUNMADIĞI için. İkincisi tam
+        olarak kör bekçidir: bu depoda üç paket "mutasyonların hepsi
+        kırmızı" dedi, minimal mutasyonla sınandığında 8, 11 ve 2 kör
+        bekçi çıktı.
+
+        Mutasyon TEK TERİM ve pinin kendi terimi: anahtar geri konuyor
+        (`monkeypatch.setattr` ile, yani bu testin dışına taşmaz). Pinin
+        öteki ayağı (`_get_client` lambda'sı) BİLEREK yerinde bırakılıyor
+        — ölçülen şey yalnız ANAHTAR ayağının yük taşıyıp taşımadığı.
+        """
+        from core import config
+        from services import rag_service
+
+        # Pin bugün anahtarı boşaltıyor; ön koşul bu.
+        assert not config.GEMINI_API_KEY, (
+            "ön koşul tutmuyor: pin anahtarı boşaltmıyor, yani aşağıdaki "
+            "mutasyonun geri koyacağı bir terim yok")
+
+        monkeypatch.setattr(config, "GEMINI_API_KEY", "AIza-olcum-anahtari")
+        ulasildi = self._kapi_kaydedicisi(monkeypatch)
+        rag_service._KnowledgeBase("tr")._embed_texts(["ölçüm metni"])
+        assert ulasildi, (
+            "ÖLÇÜM KÖR: anahtar geri konduğunda bile RAG kapısına "
+            "ulaşılmıyor. Yani üstteki bekçi pinin değil başka bir şeyin "
+            "sonucunu ölçüyor ve anahtar ayağı sökülse yeşil kalırdı "
+            "(`rag_service` kendi istemcisini kurmayı bıraktıysa çapa "
+            "yeniden nişanlanmalı).")

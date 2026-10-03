@@ -194,7 +194,17 @@ def chat(request: ChatRequest, background: BackgroundTasks,
         # Profil bir kez okunur, iki yerde kullanılır: haritayı prompt'a
         # iliştirmek ve bilgi tabanı sorgusunu kurmak.
         profile = profile_service.get_profile(user.uid)
-        facts = chart_context.chart_facts(user.uid, profile) if profile else None
+        # `today=` ŞART: `chart_facts` transit önbelleğinin KOVASINI bu
+        # tarihten kuruyor. Verilmezse kova sunucunun UTC gününden kurulur
+        # ve UTC+3 kullanıcısı yerel 00:00–03:00 arasında ÖNCEKİ günün
+        # kovasını okur (TTL 36 saat, yani kova gerçekten hayatta olur).
+        # Sohbette bunun bedeli sessiz: model o transit satırını "bugün"
+        # diye anlatır. Aynı onarım `api/face_reading.py`de yapılmıştı;
+        # burası atlanmıştı.
+        facts = (chart_context.chart_facts(
+            user.uid, profile,
+            today=entitlements.user_local_date(user.uid))
+            if profile else None)
 
         # Seçici RAG: selamlaşma/duygu/kısa onay turlarında korpus araması
         # (ve embedding çağrısı) atlanır; kadim bilgi soran mesajlarda en
@@ -210,11 +220,25 @@ def chat(request: ChatRequest, background: BackgroundTasks,
         # Bu yüzden yalnız TOHUM CEVABI turunda kapıların gördüğü metne
         # soru da katılır. Mesajın kendisi (prompt'a ve arşive giden)
         # DEĞİŞMEZ.
+        #
+        # ⚠️ HAM `request.message` DEĞİL `mesaj_metni` (kırpılmış) — ölçüldü:
+        # ham metinle 240.000 karakterlik tek bir mesaj `build_query`
+        # üzerinden embedding çağrısına 239.999 karakter olarak giriyordu,
+        # yani istek başına sınırsız girdi token = sınırsız para. Kırpılmış
+        # metni kullanmak aynı zamanda TUTARLI olan: modelin gördüğü,
+        # arşive yazılan ve korpusta aranan metin artık AYNI metin —
+        # modelin hiç görmeyeceği bir cümleyle korpus aramak, cevabı
+        # göremediği bir soruya göre getirmek olurdu.
+        #
+        # Kriz ve yasak alan kapıları (yukarıda) BİLEREK ham metne bakar:
+        # onlar bedava (saf CPU) ve 2.000. karakterden sonra yazılmış bir
+        # kriz işaretini kaçırmak kabul edilemez. Kırpma yalnız PARA
+        # ÖDENEN yollara uygulanır.
         tohum_soru = (hazir_konu.seed_question if hazir_konu else None) or ""
         tohum_bekliyor = bool(hazir_konu and hazir_konu.seed_pending
                               and tohum_soru)
-        kapi_metni = (f"{tohum_soru} {request.message}" if tohum_bekliyor
-                      else request.message)
+        kapi_metni = (f"{tohum_soru} {mesaj_metni}" if tohum_bekliyor
+                      else mesaj_metni)
 
         passages = []
         if should_use_rag(kapi_metni, lang):
@@ -230,7 +254,12 @@ def chat(request: ChatRequest, background: BackgroundTasks,
         # Kullanıcı hafızası: "seni tanıyor" hissinin kaynağı burası. Okuma
         # ucuz (tek Firestore dokümanı) ve RAG'den bağımsız olarak her turda
         # yapılır — kullanıcı hakkında bilinenler her mesajda geçerlidir.
-        memory = memory_service.memory_context(user.uid)
+        # `lang=` ŞART: fısıltının İÇ etiketleri (`(ruh hali seyri)`,
+        # `(günlük …)`, `(ton tercihi)`, `(work, 3 gün önce)`) bu
+        # parametreyle dile düşüyor. Verilmezse Türkçeye düşer ve
+        # İngilizce bir prompt, İngilizce başlığının altında Türkçe
+        # etiketli satırlar taşır.
+        memory = memory_service.memory_context(user.uid, lang=lang)
 
         # Kullanıcının haritası. Uzun süre yalnızca Güneş/Ay/Yükselen
         # geçiyordu; artık ev yerleşimleri, element dengesi, doğum açıları ve
@@ -378,9 +407,18 @@ def chat(request: ChatRequest, background: BackgroundTasks,
                 reply, message, lang=lang, regenerate=yeniden, facts=facts)
         # Olgu çıkarımı yanıttan SONRA, arka planda: kullanıcı ikinci bir LLM
         # çağrısını beklemez. Kendi içinde kotalı ve hataya dayanıklı.
+        #
+        # ⚠️ Burada da `mesaj_metni` (kırpılmış), ham `request.message`
+        # DEĞİL. Ölçüldü: ham metinle çıkarım prompt'u 240.010 karaktere
+        # çıkıyordu — `history` kalemleri `clip_for_prompt`le bağlı olduğu
+        # hâlde SON mesaj bağsızdı, yani kotanın tek koruduğu şey çağrı
+        # SAYISIydı, boyu değil. İki zarar birden: o çağrının girdi
+        # token'ı ve bağlam penceresini aşıp çıkarımın düşmesi — kota
+        # yenmiş, olgu yazılmamış olur. Ayrıca çıkarım artık ARŞİVLENEN
+        # metinle aynı metinden çalışıyor (`write_turn` da `mesaj_metni`).
         background.add_task(
             memory_extractor.extract_and_store, user.uid, history,
-            request.message, source=request.source,
+            mesaj_metni, source=request.source,
             # SS6: tohum cevabı ayrıcalığı istemci beyanından DEĞİL,
             # konu dokümanından gelir (bkz. memory_extractor docstring).
             seed_answer=tohum_bekliyor,

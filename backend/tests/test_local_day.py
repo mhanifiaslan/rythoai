@@ -105,7 +105,7 @@ class TestOkumaAnahtari:
         monkeypatch.setattr(report_service, "retrieve_context",
                             lambda *a, **k: "")
         monkeypatch.setattr(report_service.memory_service, "memory_context",
-                            lambda uid, max_chars=600: "")
+                            lambda uid, max_chars=600, **k: "")
         # Yerel gün çağrılırsa test niyetini kaçırırız: parametre kazanmalı.
         monkeypatch.setattr(
             report_service.entitlements, "user_local_date",

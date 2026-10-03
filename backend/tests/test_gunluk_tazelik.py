@@ -92,7 +92,7 @@ def _kur(monkeypatch) -> dict:
     monkeypatch.setattr(report_service, "retrieve_context",
                         lambda *a, **k: "")
     monkeypatch.setattr(report_service.memory_service, "memory_context",
-                        lambda uid, max_chars=600: "")
+                        lambda uid, max_chars=600, **k: "")
     # Olgu bekçisi gerçek bir LLM turu daha isteyebiliyor; tazelik sınavının
     # konusu o değil.
     monkeypatch.setattr(report_service.fact_guard, "enforce",
@@ -867,6 +867,97 @@ def test_dogum_kapisi_omru_BIR_GUN(monkeypatch, temiz_onbellek):
     report_service.birth_hexagram_report("u-gt-h5", _kapi_konumu(),
                                          lang="tr", today=_GUN_A)
     assert kutu["ttl"] == [24 * 3600]
+
+
+def test_dogum_kapisi_UCUNUN_docstringi_OLCULEN_omurle_CELISMEZ(
+        monkeypatch, temiz_onbellek):
+    """Uç docstring'i yüzeyin ÖLÇÜLEN sınıfıyla çelişmemeli.
+
+    Ölçülen kusur (2026-10-03): `api/reports.py` doğum kapısı ucunun
+    docstring'i yüzeyi KİMLİK katmanı sayıyor ve ömrünü BİR AY diye
+    yazıyordu. İkisi de yanlıştı — yüzeye gün katmanı eklenmiş ve ömür bir
+    güne inmişti. Bu depoda yanlış gerekçe kusurdur ve bedeli somut:
+    orayı okuyup yüzeyi kimlik sanan bir sonraki tur ya gün katmanını
+    kaldırır, ya ömrü geri alır, ya da "kalıcı" varsayımına dayanan bir
+    ön-ısıtma ekler; üçü de yüzeyi SESSİZCE kimliğe döndürür. Hiçbirinde
+    hata çıkmaz, yalnız kullanıcı günlük denen yüzeyde dünkü metni görür.
+
+    DÖRT BAĞIMSIZ İŞARET soruluyor (tek bir Türkçe kelimeye bağlanmıyor):
+
+      1. ömür ÖLÇÜLÜYOR (`cache.set`in gördüğü TTL), sayı docstring'den
+         okunmuyor;
+      2. uç docstring'i ömür için ÇELİŞEN bir gün sayısı iddia etmiyor —
+         izin verilen tek sayı ölçülenin kendisi;
+      3. uç ve servis docstring'lerinin ÖZET SATIRI (ilk satır) GÜNLÜK
+         işaretini taşıyor;
+      4. o özet satırı yüzeyi "kimlik katmanı" diye SINIFLANDIRMIYOR.
+
+    ⚠️ 3 ve 4 neden ÖZET SATIRINDA ölçülüyor (ve neden iki yönlü):
+    bu bekçinin ilk hâli yalnız 3'ü soruyordu ve çapayı docstring'in
+    TAMAMINDA arıyordu. Ölçüldü (doğrulama turu, 2026-10-03): özet
+    satırını "kalıcı kimlik katmanı"na geri çeviren MİNİMAL mutasyon
+    bekçiyi YEŞİL bıraktı — çünkü aşağıdaki gövde cümlesi ("GÜNLÜK olan
+    son bölüm") kelimeyi hâlâ taşıyordu. Yani bekçi, kapattığı iddianın
+    tam kendisine kördü. Özet satırı aynı zamanda okuyucunun (ve IDE
+    ipucunun) gördüğü tek satır, yani sınıf iddiası orada yaşıyor.
+
+    ⚠️ 4'ün çapası ARANAN ŞEYİN YOKLUĞU olduğu için kapsamı DARALTILDI:
+    docstring'in gövdesinde eski yanlış iddiayı ANLATAN bir paragraf var
+    ("yüzeyi KİMLİK katmanı sayıyor ve … yazıyordu"). Yokluğu arayan bir
+    bekçi onu ANLATAN metni görmemeli — bu depoda iki kez patlamış tuzak.
+    İlk satır sınırı o paragrafı yapısal olarak kapsam dışında bırakıyor.
+
+    ⚠️ "kimlik" çapası `[iİ]` ile yazılı ve bu ŞART: `re.IGNORECASE`
+    noktalı I'yı bilmez (`"İ".lower()` iki kod noktası verir), yani düz
+    `kimlik` deseni "KİMLİK" yazımını SESSİZCE kaçırır. Bu depoda bir
+    bekçi tam bu yüzden ASCII yazımı geçiriyordu. `g[uü]nl[uü]k` çapası
+    ise güvenli: içinde noktalı I/ı yok, yalnız ü/Ü var ve onun
+    büyük-küçük eşleşmesi Unicode'da doğru çalışıyor.
+
+    ⚠️ Kural: ömür sayısı buraya DA, uç docstring'ine DE yazılmaz. Tek
+    kaynak `report_service.birth_hexagram_report`; sayı iki yerde
+    yaşadığı an biri bayatlar.
+    """
+    import re
+
+    from api import reports
+
+    kutu = _kur(monkeypatch)
+    report_service.birth_hexagram_report("u-gt-h7", _kapi_konumu(),
+                                         lang="tr", today=_GUN_A)
+    assert kutu["ttl"], "yüzey önbelleğe hiç yazmadı: ömür ölçülemedi"
+    olculen_gun = max(kutu["ttl"]) / (24 * 3600)
+
+    uc_doc = reports.birth_hexagram.__doc__ or ""
+    servis_doc = report_service.birth_hexagram_report.__doc__ or ""
+
+    def ozet_satiri(doc: str) -> str:
+        return (doc.strip().splitlines() or [""])[0]
+
+    # 2. Uç docstring'inde ömür iddiası varsa ÖLÇÜLENE eşit olmalı.
+    iddialar = {int(n) for n in re.findall(r"(\d+)\s*g[uü]n", uc_doc)}
+    assert iddialar <= {int(olculen_gun)}, (
+        f"uç docstring'i {sorted(iddialar)} günlük bir ömür iddia ediyor; "
+        f"ölçülen {olculen_gun:g} gün. Ömür sayısı yalnız "
+        f"`report_service.birth_hexagram_report`da yaşamalı.")
+
+    gunluk = re.compile(r"g[uü]nl[uü]k", re.IGNORECASE)
+    kimlik_katmani = re.compile(r"k[iİ]ml[iİ]k\s+katman", re.IGNORECASE)
+
+    for ad, doc in (("uç", uc_doc), ("servis", servis_doc)):
+        satir = ozet_satiri(doc)
+        # 3. Özet satırı GÜNLÜK diyor.
+        assert gunluk.search(satir), (
+            f"{ad} docstring'inin ÖZET SATIRI yüzeyin GÜNLÜK olduğunu "
+            f"söylemiyor: gün katmanı prompt'ta ama özet onu kimlik "
+            f"yüzeyi gibi tanıtıyor. Satır: {satir!r}")
+        # 4. Özet satırı yüzeyi KİMLİK KATMANI diye sınıflandırmıyor.
+        assert not kimlik_katmani.search(satir), (
+            f"{ad} docstring'inin ÖZET SATIRI yüzeyi 'kimlik katmanı' "
+            f"diye sınıflandırıyor; ölçülen sınıf GÜNLÜK. Burayı okuyup "
+            f"yüzeyi kimlik sanan tur ya gün katmanını kaldırır, ya ömrü "
+            f"geri alır, ya 'kalıcı' varsayımlı bir ön-ısıtma ekler. "
+            f"Satır: {satir!r}")
 
 
 def test_dogum_kapisi_gunu_KULLANICININ_yerel_gunu(monkeypatch,

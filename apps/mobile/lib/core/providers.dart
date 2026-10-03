@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import 'analytics.dart';
 import 'api.dart';
+import 'gun_donumu.dart';
 import 'subscription.dart';
 
 /// Firebase oturum akışı.
@@ -190,6 +191,11 @@ final signalsDataProvider =
   if (profile == null || profile['onboardingCompleted'] != true) {
     return const {'signals': []};
   }
+  // "Rytho BUGÜN senin için fark etti" diyen kartlar gün dönünce dünün
+  // kartları olurdu. Ana ekranda aşağı çekme bu sağlayıcıyı tazeliyor,
+  // yani kurtarma yolu VARDI — ama kullanıcının çekmesi gerekiyordu;
+  // başlık "bugün" diyorken içerik dünden kalmış olabilir.
+  _gunuIzle(ref);
   final dio = ref.watch(apiProvider);
   final response = await dio.get('/api/v1/reports/signals');
   return Map<String, dynamic>.from(response.data['data']);
@@ -209,8 +215,27 @@ final signalsProvider =
 /// Kullanıcıdan bağımsızdır ve sunucuda paylaşımlı önbellekten servis edilir:
 /// 12 burç için dönem başına tek LLM çağrısı yapılır, kullanıcı sayısı arttıkça
 /// maliyet artmaz. Ana ekran bu yüzden hiçbir zaman boş kalmaz.
+///
+/// ⚠️ Gün anahtarı burada EN ÇOK gerekli, en son fark edildi: sunucu
+/// kovasını kullanıcının YEREL gününe bağlıyor (`report_service.py`
+/// `_horoscope_bucket`, varsayılan dönem `daily`) ve o kova bu kusurun
+/// sunucudaki eşini kapatmak için konmuştu — "sunucu UTC'de ve gece
+/// yarısından sonra kullanıcı dünkü yorumu görüyordu" (`reports.py`).
+/// İstemci aynı belirtiyi geri getiriyordu: `FutureProvider.family` de
+/// varsayılan `isAutoDispose = false`, yani yanıt OTURUM BOYUNCA
+/// önbellekte kalıyordu.
+///
+/// Bu yüzeyin kurtarma yolu HİÇ yoktu ve bu onu kardeşlerinden ayırıyor:
+/// Gökyüzü'ndeki aşağı çekme bu sağlayıcıyı tazelemiyor (`sky_screen.dart`
+/// `onRefresh` dört sağlayıcı sayıyor, bu onlardan biri değil) ve var olan
+/// iki `invalidate` çağrısı yalnız HATA dalında (`sky_screen.dart` ön
+/// çekme, `sign_story_screen.dart` tekrar dene düğmesi). Yani ücretsiz
+/// katmanın omurgası gün dönümünden sonra oturum boyunca dünün yorumunu
+/// gösteriyordu — jetonu olmayan, dolayısıyla "önbellek jeton kurtarıyor"
+/// gerekçesi de bulunmayan tek günlük yüzeyde.
 final signHoroscopeProvider =
     FutureProvider.family<Map<String, dynamic>, String>((ref, signKey) async {
+  _gunuIzle(ref);
   final dio = ref.watch(apiProvider);
   final response = await dio.get('/api/v1/reports/horoscope/$signKey');
   return Map<String, dynamic>.from(response.data['data']);
@@ -223,6 +248,7 @@ final signHoroscopeProvider =
 /// dokunmasiyla acilmali, yuzune firlatilmamali.
 final dailyReadingProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   if (!_hasPlus(ref)) return null;
+  _gunuIzle(ref);
 
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
@@ -345,6 +371,34 @@ final raporKapisiProvider = Provider<PlusHali>((ref) => plusHaliniOku(
 /// bekleyince açılıyor" dediği belirti birebir buydu.
 bool _hasPlus(Ref ref) => ref.watch(raporKapisiProvider) == PlusHali.abone;
 
+/// GÜNLÜK bir sağlayıcıyı yerel gün anahtarına bağlar.
+///
+/// NEDEN gerekli: bu dosyadaki rapor sağlayıcıları düz `FutureProvider` ve
+/// varsayılan `isAutoDispose = false` — sonuç OTURUM BOYUNCA önbellekte
+/// kalıyor. Sunucu gün dönünce yeni metin üretebilecek durumdayken ekran
+/// dünkü metni gösteriyordu: yüzey kullanıcıya göre GÜNLÜK OLMADI. Tek
+/// geçersizleştirme yolu [invalidatePlusProviders] ve o yalnız CİHAZ
+/// DEVRALMADA ateşleniyor — gün dönümünde hiçbir şey
+/// geçersizleştirmiyordu.
+///
+/// ⚠️ Yüzeyler buraya SAYIYLA yazılmaz. Bu gerekçe bir tur boyunca "üç
+/// yüzey" diyordu ve o sayı eksikti: ücretsiz katmanın omurgası olan burç
+/// yorumu ile günün sinyal kartları da aynı sınıftaydı, ikisi de
+/// listelenmemişti. Bekçi listesi `test/gun_donumu_test.dart`ta tutulur,
+/// yorumda değil — yorumdaki sayı kimseyi kırmızıya düşürmez.
+///
+/// NEDEN dönen değer yok ve `watch` yeterli: anahtar değişince sağlayıcı
+/// yeniden kurulur, aynı kaldığı sürece önbellek yaşar. Anahtarı kim
+/// ilerletir ve ön plan kancasının kapsamadığı hâl: `core/gun_donumu.dart`.
+///
+/// ⚠️ Çağrı, varsa KAPIDAN sonra ve istekten ÖNCE yapılır (jetonlu
+/// yüzeylerde `_hasPlus`, sinyallerde profil kapısı). Kapıdan önce
+/// yazılsaydı hiç istek atmayacak sağlayıcı da gün dönümünde yeniden
+/// kurulurdu — zararsız ama ölçülmemiş bir iş. Kapısı OLMAYAN yüzeyde
+/// (burç yorumu herkese açık) çağrı gövdenin ilk satırıdır; `ref.watch`
+/// ilk `await`ten ÖNCE çağrılmak zorunda, sonrasında bağlanmaz.
+void _gunuIzle(Ref ref) => ref.watch(gunAnahtariProvider);
+
 /// Natal harita + derin rapor — Rytho+ .
 final natalReportProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   if (!_hasPlus(ref)) return null;
@@ -368,6 +422,10 @@ final natalReportProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
 /// BaZi haritası + rapor — Rytho+ .
 final baziReportProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   if (!_hasPlus(ref)) return null;
+  // Günün Liu Ri'si burada: BaZi sekmesinde aşağı çekme YOK, yani gün
+  // dönümünü kaçıran kullanıcının elinde hiçbir kurtarma yolu kalmıyordu
+  // (günlük okumada en azından Gökyüzü'nde aşağı çekme var).
+  _gunuIzle(ref);
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
   final dio = ref.watch(apiProvider);
@@ -386,11 +444,17 @@ final baziReportProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   return veri;
 });
 
-/// Doğum Heksagramı — Rytho+ (Revize İ5). Kalıcı kimlik katmanı: doğum
-/// anındaki Güneş boylamının 64 kapı çarkındaki yeri + Rytho okuması.
+/// Doğum Heksagramı — Rytho+ (Revize İ5): doğum anındaki Güneş boylamının
+/// 64 kapı çarkındaki yeri + Rytho okuması.
+///
+/// ⚠️ Gerekçe DÜZELTİLDİ: burası bir dönem "kalıcı kimlik katmanı" diye
+/// anlatılıyordu ve o gerekçe artık yanlış — yük GÜN katmanını da taşıyor
+/// (bugünün kapısı). Yanlış gerekçeyi okuyan bir sonraki tur aşağıdaki
+/// gün anahtarını gereksiz sanıp söker; kalıcı olan yalnız doğum kapısı.
 final birthHexagramProvider =
     FutureProvider<Map<String, dynamic>?>((ref) async {
   if (!_hasPlus(ref)) return null;
+  _gunuIzle(ref);
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
   final dio = ref.watch(apiProvider);

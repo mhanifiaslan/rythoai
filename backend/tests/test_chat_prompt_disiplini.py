@@ -489,6 +489,47 @@ def test_mesaj_sinirinin_kaynagi_duruyor():
         f"prompt_composer'daki toplam bütçe gerekçesi güncellenmeli")
 
 
+def test_gecmis_payinin_kaynagi_duruyor():
+    """Tur basi girdi iddiasinin DORDUNCU halkasi: SOHBET GECMISI.
+
+    `prompt_composer`in butce gerekcesi tur basi girdiyi dort kalemle
+    topluyor: "fisilti <= 13.500 + mesaj <= 2.000 + gecmis <= 12x1.200 +
+    persona <= 7.600" ve "bu zincirin halkalari burada tek tek civili"
+    diyor. Olculdu: UC halkanin bekcisi vardi, GECMISIN bekcisi YOKTU —
+    yani yorumun kendi gerekcesi yanlisti ve bu depoda yanlis gerekce
+    KUSUR sayilir.
+
+    Kalem KUCUK DEGIL, en BUYUGU: 12 x 1.200 = 14.400 karakter, yani
+    bekcisi olan fisilti tavaninin (13.500) UZERINDE. `chat_history`de
+    `PROMPT_HISTORY_MESSAGES` 12 -> 30 yapilsa tur basi girdi ~21.600
+    karakter artar, fatura iki katina cikar ve HICBIR test konusmaz —
+    fisilti bekcisi yalniz `compose_chat_message` CIKTISINI olcuyor,
+    gecmis ise `api/chat.py`den dogrudan `gemini_service.chat`in
+    `history` parametresine gidiyor, composer'dan HIC gecmiyor.
+
+    Iddia BILEREK GEVSEK (tam esitlik degil, ust sinir): `chat_history`
+    baska bir pakete ait ve dusurmek serbest olmali; buyume ise bir
+    KARAR olsun. Ayni gerekce `test_mesaj_sinirinin_kaynagi_duruyor`da.
+
+    Iki carpan AYRI AYRI da civili: yalniz carpimi olcmek, 6 x 2.400
+    gibi mesaj BASINA iki kat buyuyen bir degisikligi sessiz gecirirdi
+    (toplam ayni kalir ama tek bir uzun mesaj prompt'ta iki kat yer
+    tutar ve kirpma noktasi kayar).
+    """
+    from services import chat_history
+
+    assert chat_history.PROMPT_HISTORY_MESSAGES <= 12, (
+        f"prompt gecmisi {chat_history.PROMPT_HISTORY_MESSAGES} mesaja "
+        f"cikmis — prompt_composer'daki toplam butce gerekcesi "
+        f"guncellenmeli")
+    assert chat_history.PROMPT_MESSAGE_CHARS <= 1_200, (
+        f"prompt mesaj tavani {chat_history.PROMPT_MESSAGE_CHARS} olmus "
+        f"— prompt_composer'daki toplam butce gerekcesi guncellenmeli")
+    pay = (chat_history.PROMPT_HISTORY_MESSAGES
+           * chat_history.PROMPT_MESSAGE_CHARS)
+    assert pay <= 14_400, f"gecmis payi {pay} karaktere cikmis"
+
+
 @pytest.mark.parametrize("dil", DILLER)
 def test_persona_boyutu_butcede(dil):
     """Persona HER turda gidiyor; sessiz büyümesi doğrudan para.

@@ -68,7 +68,7 @@ def sahte_motor(monkeypatch):
         "hour": 14, "minute": 30, "city": "Istanbul", "nation": "TR"})
     monkeypatch.setattr(predict_service, "transit_calendar",
                         lambda **kw: dict(SAHTE_TAKVIM))
-    monkeypatch.setattr(chart_context, "chart_facts", lambda uid, p: {})
+    monkeypatch.setattr(chart_context, "chart_facts", lambda uid, p, **kw: {})
     monkeypatch.setattr(signal_service, "enrich_events",
                         lambda olaylar, natal: olaylar)
     # Ç-turu: yorum katmani (LLM) ayrica sahtelenir — gercek gemini_service
@@ -90,7 +90,7 @@ def sahte_motor(monkeypatch):
     bellek: dict = {}
     monkeypatch.setattr(cache, "get", lambda k: bellek.get(k))
     monkeypatch.setattr(cache, "set",
-                        lambda k, v, ttl_seconds=None: bellek.update({k: v}))
+                        lambda k, v, ttl_seconds=None, **kw: bellek.update({k: v}))
     return astrology
 
 

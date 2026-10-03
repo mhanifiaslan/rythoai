@@ -313,6 +313,25 @@ WHISPER_MEMORY = (
     "TO BE DISCUSSED — not material but FORBIDDEN; do not touch it, allude "
     "to it, or show that you hold it):"
 )
+#: Inner labels of the memory whisper (built by
+#: `memory_service.memory_context`). The block HEADING
+#: (`WHISPER_MEMORY`) was already language-aware, but the CONTENT labels
+#: were hard-coded Turkish: an English prompt carried English headings
+#: with "(ruh hali seyri)", "(günlük 2026-10-01)", "(ton tercihi)" and
+#: "(work, 3 gün önce)" lines underneath them.
+#:
+#: Category names (`work`, `sensitivity`) are deliberately NOT
+#: translated: the `WHISPER_MEMORY` prohibition names the
+#: "(sensitivity)" label explicitly, so that identifier has to read the
+#: same in both languages — translating it would quietly cut the ban
+#: loose from the thing it bans.
+MEM_AGE_TODAY = "today"
+MEM_AGE_YESTERDAY = "yesterday"
+MEM_AGE_DAYS_FMT = "{days} days ago"
+MEM_MOOD_TRAIL = "mood trail"
+MEM_LAST_NEED = "what they were after last turn"
+MEM_DIARY_FMT = "diary {date}"
+MEM_TONE = "tone preference"
 WHISPER_RELATIONSHIP = (
     "MEASURED RELATIONSHIP WITH THE PERSON THE READER IS ASKING ABOUT "
     "(computed server-side from the aspects between two birth charts — stay "

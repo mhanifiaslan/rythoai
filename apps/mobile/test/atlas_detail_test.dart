@@ -155,8 +155,14 @@ void main() {
       // 48-turu: ekran artik en ustte en dar acinin ANLAM cumlesini
       // tasiyor (anlam once, teknik sonra) ve o panelin basligi da ayni
       // cifti adlandiriyor — yani bu cift ekranda IKI kez geciyor.
-      // Testin iddiasi "cokmuyor ve cift goruluyor"; sayi degil varlik.
-      expect(find.textContaining('Güneş'), findsWidgets);
+      //
+      // ⚠️ Capa bir tur boyunca `findsWidgets`ti ("en az bir") ve gerekcesi
+      // DOGRUYDU ama iddiasi EKSIKTI: ayni satirin kazara iki kez cizilmesi
+      // gibi bir regresyonu artik yakalamiyordu. Sayi OLCULDU — tam iki
+      // eslesme var (anlam paneli basligi + liste satiri) — ve yazildi.
+      // Iki yone de calisir: panel ya da satir cogalirsa 3 cikar, biri
+      // kaybolursa 1.
+      expect(find.textContaining('Güneş'), findsNWidgets(2));
     });
 
     testWidgets('en dar orb once gelir (R5-3)', (tester) async {
@@ -212,10 +218,15 @@ void main() {
       // 'Ateş' IKI kez geciyor: 48-turunda eklenen anlam paneli (baskin
       // element, bu haritada 3/8 ile kesin ustun) ve asagidaki oran
       // satiri. 'Su' baskin DEGIL, o yuzden tek.
-      expect(find.text('Ateş'), findsWidgets);
+      //
+      // Sayilar OLCULDU, varsayilmadi (ikisi de tam 2). `findsWidgets`
+      // ("en az bir") bir tur boyunca cogalmayi kacirabilir durumdaydi;
+      // `3/8` ozellikle onemli cunku bu haritada ates 3/8 VE oncul kip de
+      // 3/8 — yani sayinin kendisi iki ayri olcumu birden civiliyor.
+      expect(find.text('Ateş'), findsNWidgets(2));
       expect(find.text('Su'), findsOneWidget);
       // Toplam 8 (geleneksel yedili + Yukselen) — kesir, yuzde DEGIL.
-      expect(find.text('3/8'), findsWidgets);
+      expect(find.text('3/8'), findsNWidgets(2));
       expect(find.textContaining('%'), findsNothing);
     });
 

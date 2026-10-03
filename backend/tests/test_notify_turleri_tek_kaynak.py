@@ -23,6 +23,8 @@ kusurdur ve yakalanır.
 """
 from __future__ import annotations
 
+import re
+from pathlib import Path
 import typing
 
 from api import admin as admin_api
@@ -46,6 +48,39 @@ def test_turetilmis_kopyalar_RUN_TYPES_ile_ayni():
     beklenen = tuple(notify_runner.RUN_TYPES)
     assert admin_service._notify_turleri() == beklenen
     assert stats_service._notify_turleri() == beklenen
+
+
+def test_panel_js_listesi_RUN_TYPES_ile_ayni_kumeyi_tasir():
+    """Kümenin ALTINCI kopyası: yönetim panelinin vanilla-JS listesi.
+
+    Panel bir derleme adımı olmadan çalışıyor, yani listeyi sunucudan
+    türetmenin yolu ya bir API ucu ya da elle yazım. Elle yazım seçildi
+    çünkü etiketler (Türkçe görünen adlar) panele ait, sunucuya değil —
+    ama KÜME sunucuya ait ve burada çivileniyor.
+
+    Bedeli ölçüldü: liste bir tur boyunca dörtte kaldı ve `circle`/`winback`
+    koşuları panelde "—" diye çizildi, koşu türü seçicisinde hiç
+    görünmediler. Yani operatör yeni slotları ne izleyebildi ne prova
+    edebildi — bu turun kendi dersi ("zamanlanmış işler bir ay yeşil yalan
+    söyledi") yeni slotlar için yarım kalıyordu.
+
+    ⚠️ Çapa `deger:` alanı; etiket metnine BAKILMIYOR. Etiket panelin
+    tasarım kararı ve değişmesi bu bekçiyi kırmamalı.
+    """
+    yol = (Path(__file__).resolve().parents[2] / "web" / "rytho-admin" /
+           "gorunumler" / "bildirimler.js")
+    kaynak = yol.read_text(encoding="utf-8")
+    # Yorumlar ATILIR: bu bekçinin gerekçesi aynı dosyada ve içinde tür
+    # adları geçiyor. Bu depoda bir şeyin varlığını/yokluğunu arayan bekçi
+    # iki kez kendi yorumuna takıldı.
+    govde = re.sub(r"//[^\n]*", "", kaynak)
+    blok = re.search(r"var TURLER = \[(.*?)\];", govde, re.S)
+    assert blok, "bildirimler.js içinde TURLER dizisi bulunamadı"
+    bulunan = set(re.findall(r"deger:\s*'([a-z_]+)'", blok.group(1)))
+    assert bulunan == set(notify_runner.RUN_TYPES), (
+        f"Panel JS türleri {sorted(bulunan)} ile RUN_TYPES "
+        f"{sorted(notify_runner.RUN_TYPES)} ayrıştı — eksik tür panelde "
+        f"HİÇ görünmez ve koşuları '—' diye çizilir")
 
 
 def test_yeni_slotlar_gercekten_listede():

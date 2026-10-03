@@ -202,7 +202,108 @@ def gemini_hermetik(monkeypatch):
     `_get_client` None donuyor — uretim kodu bu hali zaten biliyor
     (anahtarsiz kurulum) ve yedek yollarina duser, yani pin yeni bir
     davranis UYDURMUYOR, var olan bir dala sabitliyor.
+
+    ⚠️ PININ ILK HALI YARIMDI ve yukaridaki basligi (`hicbir test`)
+    TUTMUYORDU — dogrulama turunda olculdu (2026-10-03): Gemini'ye iki
+    KAPI var ve pin yalnizca birini kapatiyordu. Ikincisi
+    `rag_service._KnowledgeBase._embed_texts`: `gemini_service` hic
+    devreye girmiyor, islev `from google import genai` ile ICINDE kendi
+    `genai.Client(api_key=config.GEMINI_API_KEY)`ini kuruyor ve
+    `models.embed_content` cagiriyor. Olcum: `genai.Client` bir
+    kaydediciyle degistirildiginde kaydediciye ULASILDI ve gecen anahtar
+    GERCEK uretim anahtariydi (`AIza...`, 39 karakter, `backend/.env`
+    uzerinden). Yani bes test dosyasi (`test_rag`, `test_rag_books`,
+    `test_rag_coverage`, `test_report_depth`, `test_admin_system`)
+    soguk bir bilgi tabanina dokundugu an uretim kotasindan PARA
+    harciyordu. CLAUDE.md bu kapi ciftini zaten adiyla yaziyor:
+    "`gemini_service.generate_content` VE `rag_service.embed_content` —
+    iki yuzey, biri atlanirsa teshis eksik kalir."
+
+    Ikinci kapi ANAHTARDAN kapatiliyor, ayri bir yama ile degil: her iki
+    kapi da `config.GEMINI_API_KEY`i ON KOSUL olarak okuyor
+    (`gemini_service.py:38`, `rag_service.py:521`), yani anahtari bos
+    gormek ikisini de uretimin ANAHTARSIZ dalina dusuruyor — `_get_client`
+    None, `_embed_texts` None ve arama kelime ortusmesine geriliyor. Yeni
+    bir davranis yine UYDURULMUYOR. Secim bilincli: `_embed_texts`i tek
+    tek sahtelemek yalniz BUGUNKU ikinci kapiyi kapatirdi, anahtar pini
+    ise anahtari on kosul yapan her kapiyi (bugunku ucu:
+    `scripts/build_embeddings.py`, `scripts/eval_genericness.py` da
+    ayni kosula bakiyor).
+
+    Bekcisi: `test_honesty.py::TestPinBeyanlari` — bu docstring bir BEYAN
+    ve bu depoda beyan OLCULUR.
     """
     if os.getenv(_CANLI_LLM_IZNI) == "1":
         return
     monkeypatch.setattr(gemini_service, "_get_client", lambda: None)
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "")
+#: Canli embedding OLMADAN GECERSIZ olan testlerin nodeid IMZALARI.
+#:
+#: NEDEN burada ve neden `skipif` degil: `gemini_hermetik` pini RAG
+#: embedding kapisini kapattigi an bu testler kirmizi oluyor, cunku
+#: olctukleri sey ANLAMSAL isabet ve pinli halde `search()` kelime
+#: ortusmesine geriliyor (`rag_service.search`, vektor modu kapali).
+#: Yani testler YANLIS DEGIL, yalnizca varsayilan kosunun VERMEDIGI bir
+#: izni (canli, UCRETLI embedding) ON KOSUL sayiyorlar. Emsali depoda
+#: duruyor: `test_chat_style.py` ayni izni `skipif(RYTHO_CANLI_LLM != 1)`
+#: ile kendi dosyasinda istiyor.
+#:
+#: ⚠️ DOGRU SON HAL O EMSALDIR, bu liste DEGIL: izin kosulu testin KENDI
+#: dosyasinda durmali. Liste burada cunku `test_rag_coverage.py` baska bir
+#: paketin dosyasi (yedi ajan ayni depoda) ve dogrulama turunda ona
+#: dokunulmadi. Kirmizi birakmak yerine ATLAMA secildi: atlama kosulu
+#: ADIYLA goruluyor, kirmizi ise "pin bozuk mu, test mi bozuk" sorusunu
+#: her kosuda yeniden sorduruyordu.
+#:
+#: Imza KISALTILMIS degil TAM AYIRT EDICI: `[en-` parametre onekiyle
+#: baglaniyor cunku ayni testin `tr-` parametreleri pinli halde de GECIYOR
+#: (kelime ortusmesi Turkce basliklari buluyor) ve onlari atlamak gereksiz
+#: kapsam olurdu.
+_CANLI_EMBEDDING_ISTEYENLER = (
+    "test_rag_coverage.py::TestKorpusKarsiligi::"
+    "test_tohum_ve_mesajla_dogru_bolum_gelir[en-",
+)
+
+
+def pytest_collection_modifyitems(items):
+    """Canli embedding isteyen testleri izin yoksa ATLAR.
+
+    ⚠️ IMZA: parametre adlari pytest icin SOZLESMEDIR, suslemeye acik degil.
+    Bu kanca bir tur boyunca `(config_, items)` diye yaziliydi ve pluggy
+    eklentiyi REDDEDIYORDU ("Argument(s) {'config_'} ... can not be found in
+    the hookspec") — sonucu "bir test kirmizi" degil, TUM TAKIMIN HIC
+    TOPLANAMAMASIYDI. Kanca hookspec'in ALT KUMESINI alabilir, o yuzden
+    kullanilmayan parametre eklenmez: yalniz `items` isteniyor.
+
+    Izin ACIK: `RYTHO_CANLI_LLM=1` — pinin kendi izniyle ayni degisken,
+    cunku istenen sey ayni: uretim kotasindan harcama izni. Iki ayri
+    degisken olsaydi biri verilip oteki unutulur ve "neden hala
+    atliyor" sorusu dogardi.
+
+    ⚠️ BAYAT IMZA SESSIZ KALMAZ: imzasi hicbir teste uymayan bir girdi
+    `pytest.fail` uretir. Gerekcesi olculdu — bu kanca bir seyin
+    YOKLUGUNU (izin yok) kullanarak test atliyor, ve capasi kaydigi an
+    atlama sessizce HIC olmazdi; o halde pin yine kirmizi uretir ve
+    kimse bu listeyi suclamaz. Kontrol yalniz o dosya TOPLANDIYSA
+    yapiliyor: alt kume kosusunda (`pytest tests/test_honesty.py`)
+    eslesme olmamasi normaldir.
+    """
+    if os.getenv(_CANLI_LLM_IZNI) == "1":
+        return
+
+    sebep = ("canli (UCRETLI) embedding ister; izin: RYTHO_CANLI_LLM=1. "
+             "Dogru son hal: kosulu testin kendi dosyasina skipif olarak "
+             "koymak (bkz. conftest._CANLI_EMBEDDING_ISTEYENLER).")
+    for imza in _CANLI_EMBEDDING_ISTEYENLER:
+        dosya = imza.split("::", 1)[0]
+        toplandi = any(dosya in item.nodeid for item in items)
+        eslesen = [item for item in items if imza in item.nodeid]
+        if toplandi and not eslesen:
+            pytest.fail(
+                f"conftest._CANLI_EMBEDDING_ISTEYENLER imzasi BAYAT: "
+                f"{imza!r} hicbir teste uymuyor ama {dosya} toplandi. "
+                f"Test yeniden adlandirildiysa imza da guncellenir; "
+                f"canli embedding ihtiyaci kalktiysa girdi SILINIR.",
+                pytrace=False)
+        for item in eslesen:
+            item.add_marker(pytest.mark.skip(reason=sebep))

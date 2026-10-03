@@ -40,6 +40,7 @@ import logging
 from typing import Any
 
 from core import cache
+from core import entitlements
 from services import astro_service, profile_service, prompts
 
 logger = logging.getLogger(__name__)
@@ -686,9 +687,23 @@ def render_bazi(facts: dict[str, Any], lang: str | None = None) -> str:
     return "\n".join(satirlar)
 
 
+#: ``facts`` için "HİÇ VERİLMEDİ" nöbetçisi.
+#:
+#: ``None`` iki ayrı şeyi anlatıyordu ve ikisi karıştığı için iş tekrar
+#: ediyordu: "ben hesaplamadım, sen hesapla" ile "HESAPLADIM ve olgu
+#: ÇIKMADI". İki çağıran da (`api/chat.py`, `api/face_reading.py`) olguları
+#: kendisi üretip geçiyor — yorumlarında yazdığı gerekçe de bu: "iki ayrı
+#: çağrı iki ayrı önbellek turu demek olurdu". Ama `chart_facts` düştüğünde
+#: (efemeris hatası) ``None`` dönüyor, eski kapı onu "verilmedi" sanıp
+#: AYNI isteği bir kez daha deniyordu: istek başına iki boşa hesap.
+#: `_cached` hata yolunda `cache.set` çağırmadığı için ikinci deneme de
+#: önbellekten dönmüyor — gerçekten iki kez hesaplanıyordu.
+_OLGU_VERILMEDI = object()
+
+
 def chart_whisper(uid: str, profile: dict[str, Any] | None,
                   lang: str | None = None,
-                  facts: dict[str, Any] | None = None,
+                  facts: dict[str, Any] | None | object = _OLGU_VERILMEDI,
                   include_bazi: bool = False,
                   include_transits: bool = True) -> str:
     """Sohbete iliştirilecek harita bloğu.
@@ -699,7 +714,10 @@ def chart_whisper(uid: str, profile: dict[str, Any] | None,
 
     ``facts`` verilirse yeniden hesaplanmaz. Sohbet ucu olguları bilgi tabanı
     sorgusunu kurmak için zaten üretiyor; ikinci kez istemek gereksiz bir
-    önbellek turu demek olurdu.
+    önbellek turu demek olurdu. ``facts=None`` GEÇMEK de "verildi"
+    sayılır ve "hesaplandı, olgu çıkmadı" demektir — çağıran o hâlde sığ
+    özete düşülmesini istiyor, yeniden denenmesini DEĞİL (bkz.
+    `_OLGU_VERILMEDI`).
 
     ``include_bazi`` (Revize B8) yalnızca Rytho+ sohbetinde açılır: BaZi
     ücretli üründür ve fısıltıdan sızdırılmaz — dürüst kapı, gizli tanıtım
@@ -713,8 +731,16 @@ def chart_whisper(uid: str, profile: dict[str, Any] | None,
     """
     if not profile:
         return ""
-    if facts is None:
-        facts = chart_facts(uid, profile)
+    if facts is _OLGU_VERILMEDI:
+        # ⚠️ `today=` BURADA DA geçilir. Bu, çağıranın olguları hazır
+        # vermediği YEDEK dal ve bir tur boyunca `chart_facts(uid, profile)`
+        # diye çağrılıyordu — yani kova SUNUCUNUN UTC gününden kuruluyordu.
+        # Türkiye'de (UTC+3) 00:00-03:00 arasında bu kullanıcının DÜNÜNE
+        # düşer ve model dünün transitini "bugün" diye anlatır. Asıl yolda
+        # (`api/chat.py`, `api/face_reading.py`) onarılmış olan kusur, tam
+        # da kimsenin bakmadığı yedek dalda yaşamaya devam ediyordu.
+        facts = chart_facts(uid, profile,
+                            today=entitlements.user_local_date(uid))
     if not facts:
         # SESSİZ kalmasın (KA8): bu düşüş "sadece burcumu biliyor"
         # şikâyetinin birebir mekanizmasıydı ve loglarda hiç görünmüyordu.

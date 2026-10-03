@@ -71,10 +71,37 @@ def _cached_generate(cache_key: str, prompt: str, fallback: str,
     """
     cached = cache.get(cache_key)
     if cached is not None:
-        # ``persisted`` burada BİLEREK yok: ``cache.get`` önce belleğe
-        # bakıyor, yani isabetin hangi katmandan geldiği ÖLÇÜLMEDİ.
-        # Ölçülmeyen söylenmez — var olmayan anahtar, yanlış anahtardan
-        # iyidir.
+        # ``persisted`` burada BİLEREK yok ve gerekçesi "ölçülemiyor"
+        # DEĞİL (bir tur boyunca öyle yazılıydı ve o gerekçe bayattı:
+        # ``cache.get_katmanli`` eklendi ve o işlevin kendi docstring'i
+        # BU NOKTAYI "artık ölçülebiliyor" diye adıyla anıyor — iki yorum
+        # birbiriyle çelişiyordu).
+        #
+        # Gerçek gerekçe daha dar: ÖLÇÜLEBİLEN şey KATMAN, ``persisted``
+        # ise PAYLAŞIMLILIK iddiası ve ikisi aynı şey değil.
+        # ``KATMAN_BELLEK`` dönüşü "kalıcı katmanda YOK" demiyor, yalnız
+        # "kalıcı katmana BAKILMADI" diyor (bellek isabeti kalıcı okumayı
+        # bilerek atlıyor — maliyet kapısı). Yani bir isabette
+        # ``persisted: False`` yazmak ölçüleni yanlış adla sunmak olurdu.
+        #
+        # Bu yüzden anahtar YOK, ``False`` DEĞİL. Fark ``.get`` ile okuyan
+        # için görünmez, o yüzden bugünkü zararın ÖLÇÜLEN hâli de şu
+        # (2026-10-03): ``persisted``i okuyan tek yer ısıtma döngüsü ve o
+        # döngü ``yazilamayan``a düşmeden ÖNCE ``cached``e bakıyor
+        # (``api/maintenance``, ``elif`` sırası) — yani bugün yanlış bir
+        # ``yazilamayan`` ÜRETİLMİYOR. Savunma TÜKETİCİDE: sıra değişirse
+        # ya da ``cached``i sormadan ``persisted``i okuyan ikinci bir
+        # çağıran eklenirse, her isabet "Firestore'a yazamadık" diye
+        # sayılır. Anahtarı hiç koymamak o savunmayı kaynağa taşıyor.
+        # Bekçi: `tests/test_report_depth.py`
+        # (`test_onbellek_ISABETI_persisted_IDDIA_ETMEZ`).
+        #
+        # ⚠️ Katman burada OKUNMUYOR ve okunmamalı: bu çağrı kalıcı
+        # katmandan geleni belleğe TERFİ ettiriyor, yani bundan SONRA aynı
+        # anahtara sorulan katman her zaman ``KATMAN_BELLEK`` döner.
+        # Katmanı ölçmek isteyen çağıran ÜRETİMDEN ÖNCE ölçer
+        # (`api/maintenance._katman_olc`); buradan dönen bir katman
+        # anahtarı o ölçümün yerine KONULAMAZ.
         return {"text": cached, "cached": True}
 
     if spend is not None:
@@ -206,7 +233,7 @@ def daily_reading(user_id: str, natal: dict[str, Any], sky: dict[str, Any],
     )
     # Kullanıcı hafızası: günlük okumayı gerçekten kişisel yapan şey natal
     # harita değil (o herkes için sabit), zamanla biriken bu bağlam.
-    memory = memory_service.memory_context(user_id, max_chars=400)
+    memory = memory_service.memory_context(user_id, max_chars=400, lang=lang)
 
     retros = ", ".join(sky.get("retrogrades", [])) or "-"
     # HA1: yerelleştirme kararlı anahtarların üzerine yazmıyor; prompt
@@ -530,10 +557,32 @@ def relationship_reading(uid: str, pair_key: str, me_name: str,
     # bir kötü üretimi o çift için kalıcı hale getirirdi. Kısa ömür verip
     # bir sonraki açılışta yeniden denemek daha ucuz: bu okuma jetonsuz.
     if not cozum.get("axis_lines") and not sonuc.get("fallback"):
-        cache.set(cache_key, sonuc["text"], ttl_seconds=3600,
-                  owner_uid=uid)
-        logger.warning("İlişki okuması biçimi tutmadı; kısa ömürle "
-                       "saklandı (%s)", cache_key)
+        # ÜZERİNE YAZMANIN HÜKMÜ OKUNUYOR (B3).
+        #
+        # Dönüş bir tur boyunca atılıyordu ve bedeli etiketten fazlaydı:
+        # `cache.set` fail-open (Firestore hatasını `logger.warning` ile
+        # yutar ve False döner). O hâlde `_cached_generate`in yazdığı 30
+        # GÜNLÜK kayıt yerinde kalır — yani bu dalın TAM AMACI ("biçimi
+        # tutmayan üretim bir ay kilitlenmesin") sessizce boşa gider ve
+        # kartlar o çift için bir AY boş kalır. Üstelik yanıt `persisted:
+        # True` demeye devam ediyordu, çünkü o anahtar yalnız İLK yazımı
+        # anlatıyor.
+        #
+        # `persisted` AND'lenMEZ ve bu bilinçli: metin paylaşımlı katmana
+        # GERÇEKTEN yazıldı, `persisted` onu doğru söylüyor. Düşen şey
+        # ÖMRÜN KISALTILMASI, yani ayrı bir olgu ve ayrı bir adı olmalı —
+        # "ölçülen, yanlış adla sunulmaz".
+        kisa_omur_yazildi = cache.set(cache_key, sonuc["text"],
+                                      ttl_seconds=3600, owner_uid=uid)
+        if kisa_omur_yazildi:
+            logger.warning("İlişki okuması biçimi tutmadı; kısa ömürle "
+                           "saklandı (%s)", cache_key)
+        else:
+            logger.error(
+                "İlişki okuması biçimi tutmadı VE kısa ömür yazılamadı: "
+                "30 günlük kayıt yerinde kaldı, kartlar bir ay boş kalacak "
+                "(%s)", cache_key)
+        cozum = {**cozum, "malformed_locked": not kisa_omur_yazildi}
     return {**sonuc, **cozum}
 
 
@@ -924,6 +973,98 @@ def _gun_kovasi(gun_blogu: str) -> str:
     return hashlib.sha256((gun_blogu or "").encode()).hexdigest()[:12]
 
 
+#: Firaset RAG sorgusuna eklenen ÖLÇÜLMÜŞ belirti sayısı ve karakter tavanı.
+#:
+#: Tavan var çünkü sorgunun GÖVDESİ dili çapa olan sabit dize
+#: (`prompts.FIRASA_RAG_QUERY`, TR 93 / EN 118 karakter) ve o çapanın
+#: korpusun firaset bölümüne denk gelme işi var. Belirti satırları kısa
+#: (TR 10-29 karakter) ama `descriptors` en kötü hâlde sekiz tane
+#: üretebiliyor; sekizi birden eklenirse çapa gömülür ve getirme yüz
+#: hatlarından başka yere kayabilir. Altı terim + 300 karakter ölçülerek
+#: seçildi: gerçek bir yüzde üretilen belirti sayısı 3-5 bandında
+#: (San Ting en fazla BİR baskın + BİR kısa veriyor), yani normal bir
+#: istekte tavan hiç dokunmuyor; burada yalnız yedek kapı.
+_FIRASA_RAG_MAX_TERIM = 6
+_FIRASA_RAG_MAX_EK_KRK = 300
+
+
+def _firasa_rag_sorgusu(ratios: dict[str, Any],
+                        lang: str | None = None) -> str:
+    """Firaset okumasının bilgi tabanı sorgusu — KİŞİYE ÖZGÜ.
+
+    ## Neden var
+
+    Sorgu `prompts.FIRASA_RAG_QUERY` SABİT dizesiydi: dil başına tek bir
+    metin, kullanıcıya ait hiçbir terim taşımıyor. Ölçülen sonuç — sorgu
+    sabit olduğu için `rag_service.search` deterministik — aynı dildeki
+    HER kullanıcının firaset raporu, HER gün, korpustan BİREBİR AYNI üç
+    pasajı prompt'a alıyordu. Yani model herkes için aynı üç klasik
+    alıntıdan besleniyor ve "kadim metinle gerekçelendirme" kişiye özgü
+    olmuyordu.
+
+    Bu, deponun kendi JENERİKLİK kök nedeni sınıfının ikinci biçimi:
+    birincisi "hazır cümle tablosu"ydu (`SYNASTRY_AXIS_LINES`, 1.6.0'da
+    LLM'e çevrildi), bu ise "hazır pasaj üçlüsü". Sohbet yüzeyi bu dersi
+    zaten almış durumda: `api/chat.py` sorguyu kullanıcının konusu + GERÇEK
+    harita faktörlerinden kuruyor (`chart_query.build_query`, RD3). Firaset
+    o yoldan hiç geçmemişti.
+
+    ## Çapa KORUNUYOR
+
+    Sabit dize ATILMIYOR, ÖNDE kalıyor: korpusun firaset bölümüne
+    (Marifetname) denk gelme işini o yapıyor ve "ahlat-ı erbaa / kuru-nemli
+    mizaç" terimlerini yalnız o taşıyor. Eklenen şey kullanıcının ÖLÇÜLEN
+    belirtileri — ki onlar da tam olarak korpusun o bölümünün sözlüğünde
+    yazıyor ("Çene geniş ve köşeli", "Dudaklar dolgun"). Yani ek, çapayı
+    başka bir konuya kaydırmıyor; aynı bölümün İÇİNDE o yüze denk gelen
+    yere götürüyor.
+
+    ## Bedeli ölçüldü
+
+    `rag_service._embed_query` LRU'lu: SABİT sorgu süreç başına BİR
+    embedding çağrısı demekti, kişiye özgü sorgu ÜRETİM başına bir çağrı
+    demek. İsabette RAG'a hiç gelinmiyor (çağıran `cache.get` ile erken
+    dönüyor), yani ek yük üretim başına bir embedding — aynı üretimde
+    zaten bir Gemini `generate` (olgu bekçisi devreye girerse iki) var.
+    Belirti üretmeyen ORTALAMA bir yüzde sorgu sabit dizeye düşüyor ve
+    eski davranışın aynısı olur — o hâlde eklenecek ölçüm de yok.
+
+    ⚠️ Anahtar KAPSAMI değişmiyor: sorgu yalnız `ratios`tan türüyor ve
+    `ratios` önbellek anahtarında zaten var, yani aynı oranlar aynı
+    pasajları çeker. Pasajların anahtarda OLMAMASI kasıtlı (korpus
+    değişimi herkesi ilgilendirir, sürüm ekiyle taşınır) ve bu değişiklik
+    o gerekçeye dokunmuyor.
+    """
+    p = prompts.get(lang)
+    ozet = firasa_service.summary(ratios, lang)
+
+    terimler: list[str] = list(ozet.get("lines") or [])
+    nem = ozet.get("moisture")
+    if nem in p.FIRASA_MOISTURE:
+        terimler.append(p.FIRASA_MOISTURE[nem])
+    # Sıcak–soğuk ekseni yalnız BİR TARAFA düştüyse terim olur. "Ölçülemedi"
+    # ve "arada kaldı" hâlleri sorguya GİRMEZ: ikisi de bir yüz özelliği
+    # değil, ölçümün sınırı — korpusta karşılığı olmayan bir şeyi aramak
+    # çapayı boşa harcar.
+    isi = ozet.get("heat")
+    if isi in p.FIRASA_HEAT:
+        terimler.append(p.FIRASA_HEAT[isi])
+
+    secilen: list[str] = []
+    uzunluk = 0
+    for t in terimler[:_FIRASA_RAG_MAX_TERIM]:
+        if uzunluk + len(t) > _FIRASA_RAG_MAX_EK_KRK:
+            break
+        secilen.append(t)
+        uzunluk += len(t)
+
+    if not secilen:
+        # Ortalama bir yüz: ölçülmüş belirti yok. Sabit çapa tek başına
+        # kalır — uydurma terim eklemek "ölçmediğimizi aradık" olurdu.
+        return p.FIRASA_RAG_QUERY
+    return p.FIRASA_RAG_QUERY + "; " + "; ".join(secilen)
+
+
 def firasa_report(user_id: str, ratios: dict[str, Any],
                   chart: str = "", lang: str | None = None,
                   spend: Callable[[], None] | None = None,
@@ -1009,8 +1150,10 @@ def firasa_report(user_id: str, ratios: dict[str, Any],
         return {"text": cached, "cached": True}
 
     belirtiler = firasa_service.prompt_block(ratios, lang)
+    # Sorgu KİŞİYE ÖZGÜ (bkz. `_firasa_rag_sorgusu`): sabit dize her
+    # kullanıcıya aynı üç pasajı çekiyordu.
     rag = retrieve_context(
-        p.FIRASA_RAG_QUERY, top_k=3, lang=lang)
+        _firasa_rag_sorgusu(ratios, lang), top_k=3, lang=lang)
 
     prompt = p.FIRASA.format(signs=belirtiler, chart=chart or "—",
                              today=sky or "—", rag=rag)
@@ -1385,7 +1528,7 @@ def iching_reading(user_id: str, cast: dict[str, Any],
             upper=iliskiler.get("upper", "-"))
 
     # Kullanıcı hafızası: soru genelde kişisel — bağlam okumaya değer katar.
-    memory = memory_service.memory_context(user_id, max_chars=400)
+    memory = memory_service.memory_context(user_id, max_chars=400, lang=lang)
 
     rag = retrieve_context(
         p.ICHING_RAG_QUERY.format(name=primary["name_local"]), lang=lang)

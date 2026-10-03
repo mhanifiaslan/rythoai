@@ -990,6 +990,12 @@
   "accountSection": "Hesap",
   "accountSaved": "Hesap bilgilerin güncellendi.",
   "displayNameEmpty": "Adın boş olamaz.",
+  "displayNameTooLong": "Adın en çok {count} karakter olabilir.",
+  "@displayNameTooLong": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "usernameChangeNote": "Değiştirirsen eski kullanıcı adın serbest kalır ve başkası alabilir.",
   "emailChangeNote": "E-posta adresin oturumunun anahtarı; değiştirmek için destekle iletişime geç.",
   "emailNotVerified": "E-posta adresin henüz doğrulanmadı.",

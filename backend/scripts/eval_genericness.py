@@ -53,8 +53,8 @@ Bu araç doğduğundan beri **iki** yüzey ölçüyordu: sohbet ve ilişki okuma
 Oysa ürün LLM metnini **on yedi** yerde üretiyor ve bunların **on altısı
 düz metin** (on yedincisi `iching_question_verdict`, düz metin değil
 VALID/CHAT/INVALID etiketi döndüren bir sınıflandırıcı). Sayım
-`_yuzeyler()` tablosundan okunur — tablo on yedi satır taşır, on üçü
-ölçülüyor, dördü gerekçesiyle kapsam dışı; kaynağı `report_service` +
+`_yuzeyler()` tablosundan okunur — tablo on yedi satır taşır, **on dördü
+ölçülüyor, üçü** gerekçesiyle kapsam dışı; kaynağı `report_service` +
 `api/chat` + `signal_service` + `notification_service`. Yani ölçülmeyen
 on dört düz-metin yüzeyi vardı ve bunların **dokuzu tam olarak jeton
 harcanan raporlar** (`spend:` parametresi taşıyanlar) — yani kullanıcının
@@ -66,6 +66,22 @@ Ders: bir ölçüm aracının kapsamı, aracın kendi iddiasının parçasıdır
 **ölçülen yanlış adla sunulmuş** olur. Bu yüzden kapsam artık bir tablo
 (`_yuzeyler()`) ve `--mode kapsam` ile okunabiliyor; testi
 `tests/test_eval_genericness.py` kapsamın sessizce daralmasını engelliyor.
+
+## ⚠️ YEDEK METNİ ÖLÇMEK — aracın en pahalı yanılgısı
+
+Ölçüm bir süre `report_service`'in döndürdüğü sözlükten yalnız `["text"]`
+alıyordu, yani **`fallback` bayrağını atıyordu**. Üretim düştüğünde (bugün:
+Gemini 403) her yüzey şablon metnini döndürüyor ve şablonlar **girdiye
+özel alan taşıyor** (`NATAL_FALLBACK` "Güneşin {sun_sign}…",
+`BAZI_FALLBACK` "Günün Efendin {element}…"). Sonuç ölçüldü: dört haritanın
+dört şablonu birebir FARKLI dizelerdi, yani çıktı "birebir farklı metin
+4/4" ve dönüş kodu 0 — hiç LLM metni üretilmemişken **"jenerik değil"**
+hükmü. Üstelik şablonlar hesap adlarını andığı için olgu çıkarıcıları
+onlarda olgu da buluyordu.
+
+Artık üreticiler sözlüğün tamamını döndürüyor, yedek sayısı hükümden
+ÖNCE basılıyor ve yedek varsa dönüş kodu kırmızı. Kural:
+**"metinler farklı" tek başına yeşil yapmaz.**
 
 ## "Jenerik" her yüzeyde AYNI ŞEY DEĞİL
 
@@ -103,6 +119,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import datetime as dt
 import itertools
 import logging
 import re
@@ -122,12 +139,29 @@ from services import (  # noqa: E402
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 
-# Windows konsolunun kod sayfasi cp1254 ve BaZi sutun etiketleri (庚午) ile
-# heksagram adlari (蒙) o tabloda YOK: yazdirma denemesi
-# UnicodeEncodeError ile programi DUSURUYOR (olculdu). Kritik olan sira:
-# cokme ucretli uretimlerden SONRA gelir, yani jeton/kota harcanmis olup
-# olcum kaybedilir. Kodlama DEGISTIRILMEZ (utf-8'e cevirmek Turkce'yi
-# konsolda mojibake yapardi); yalniz hata kipi gevsetilir, CJK "?" olur.
+# Windows konsolunun kod sayfasi cp1254 ve yazdirilan her karakter o
+# tabloda YOK: kodlanamayan tek bir karakter UnicodeEncodeError ile
+# programi DUSURUYOR (olculdu). Kritik olan sira: cokme ucretli
+# uretimlerden SONRA gelir, yani jeton/kota harcanmis olup olcum
+# kaybedilir.
+#
+# ⚠️ GEREKCE DUZELTILDI (dogrulama turu, 2026-10-03). Bu satirin eski
+# hâli tetikleyici olarak BaZi sutun etiketlerini (庚午) ve heksagram
+# adlarini (蒙) gosteriyordu; olculdu ve o gerekce YANLISTI: betigin
+# yazdirdigi dizelerde CJK HIC gecmiyor — olgu kimlikleri pinyin/ASCII
+# ya da yerelleştirilmiş Turkce ve Turkce cp1254'te kodlanabiliyor.
+# Yanlis gerekcenin bedeli somut: "CJK'yi artik basmiyoruz" diyen biri
+# bu kapiyi gereksiz sanip silebilirdi.
+#
+# GERCEK tetikleyici her kosuda var ve uc yerde olculdu: `_rapor_modu`
+# ile `_hafiza_modu` uyari satirlarini "⚠️" (U+26A0) ile basiyor ve
+# `--help` modul docstring'ini basiyor, o da tasiyor. Yani kapi dar bir
+# BaZi kenar durumu degil, uyari yolunun TAMAMI icin duruyor — ve uyari
+# yolu tam olarak kotu haberin okundugu yol.
+#
+# Kodlama DEGISTIRILMEZ (utf-8'e cevirmek Turkce'yi konsolda mojibake
+# yapardi, CLAUDE.md §5); yalniz hata kipi gevsetilir, kodlanamayan
+# karakter "?" olur. Bekcisi `TestKonsolAkisKipi`.
 for _akis in (sys.stdout, sys.stderr):
     try:
         _akis.reconfigure(errors="replace")
@@ -208,6 +242,14 @@ YAGCILIK_BAS = ("büyüme", "gelişim", "gelişme", "ilerleme", "dönüşüm",
 YAGCILIK_KUYRUK = ("alan", "fırsat", "yolculuk", "davet", "kapı",
                    "potansiyel")
 
+#: Turkce son ses yumusamasi tablosu: sozcuk sonundaki sert unsuz, unlu
+#: ile baslayan bir ek alinca yumusar. Tek yerde durur cunku iki ayri
+#: katman (yagcilik sinifi + ad eslestirme) ayni dil olgusuna bagli;
+#: ikisinde elle tutulsa biri genisleyip oteki kor kalirdi — bu depoda
+#: tam olarak bu oldu (bkz. `_ek_toleransli_desen` ve `_ad_gecti`).
+_SON_SES_YUMUSAMASI = {"k": "ğ", "p": "b", "t": "d", "ç": "c"}
+
+
 def _ek_toleransli_desen(kelime: str) -> str:
     """Kelimeyi EK ALMIS bicimleriyle birlikte eslesen desene cevirir.
 
@@ -225,9 +267,20 @@ def _ek_toleransli_desen(kelime: str) -> str:
     ayni kusur onarilmamis, yalniz kuyruktan basa TASINMISTI. Fonksiyon
     iki tarafta da cagriliyor ki listelere `k` ile biten yeni bir uye
     eklendiginde kendiliginden dogru calissin.
+
+    ⚠️ Kural `k`DAN DAHA GENIS ve bu da olculdu (dogrulama turu,
+    2026-10-03). Yumusama dort sert unsuzun hepsinde var
+    (`p`→`b`, `t`→`d`, `ç`→`c`, `k`→`ğ`) ve `k` ile sinirli hal yalniz
+    yagcilik listesinde yetiyordu — cunku o listede baska uye yoktu.
+    `_ad_gecti` ayni fonksiyonu kullanmaya baslayinca sinir yetmez oldu:
+    olcerin AD tablolarinda dort unsuzun ucu birden gecmektedir
+    (`Akrep`→"Akrebin", `Yengeç`→"Yengeci", `Başak`→"Başağın").
+    Haritalama tek yerde durur ki yeni bir ad/kalip eklendiginde dogru
+    calissin.
     """
-    if kelime.endswith("k"):
-        return re.escape(kelime[:-1]) + r"[kğ]"
+    son = kelime[-1:]
+    if son in _SON_SES_YUMUSAMASI:
+        return re.escape(kelime[:-1]) + f"[{son}{_SON_SES_YUMUSAMASI[son]}]"
     return re.escape(kelime)
 
 
@@ -345,10 +398,34 @@ def _ad_gecti(dusuk: str, ad: str) -> bool:
       (``Mars'ın``). ``Marsın`` kaçar — bilinçli: bir kaçırma, her
       paragrafta sahte bir Ay'dan iyidir.
     - **Uzun adlar (5+)** kelime BAŞI eşleşir: ``Güneş`` → ``Güneşin`` ✓.
+
+    ⚠️ Uzun ad dalı SON SES YUMUŞAMASINI da kabul eder
+    (`_ek_toleransli_desen`) ve bu bir doğrulama turunda ölçüldü
+    (2026-10-03): yumuşama yalnız yağcılık sınıfına uygulanmıştı, oysa
+    aynı Türkçe olgusu adların tam ortasında duruyor. Ölçülen kayıp —
+    uydurulmadı, isim isim sayıldı: **beş burç adı** (``Yengeç``→
+    "Yengeci", ``Başak``→"Başağın", ``Akrep``→"Akrebin", ``Oğlak``→
+    "Oğlağa", ``Balık``→"Balığın"), **iki açı adı** (``Altmışlık``,
+    ``Beşlik``), **BaZi'de** ``Köpek`` ve ``Ahşap``, ve **64 heksagram
+    adının 17'si** (``Birlik``→"Birliği", ``Bolluk``→"Bolluğu"…).
+    Hepsinde sonuç AYNI yöne gidiyordu: olgu bulunamıyor, yani araç
+    "rapor kendi hesabından konuşmuyor" diyor. Sapma tek yönlü olduğu
+    için gürültü gibi de görünmez — jeneriklik hükmünü sistematik
+    olarak kötüye çeker. `_ad_gecti`nin kendi tarihi bu sınıfın ters
+    yüzü (sahte eşleşme); ikisi aynı disiplinin iki yanı.
+
+    Yumuşama **kısa ad dalına uygulanmaz** ve gerekçesi dilin kendisi:
+    yumuşamış yazım ancak ÜNLÜ ile başlayan bir ek varken ortaya çıkar
+    ("Balığ-ın"), kısa ad dalı ise eki zaten reddediyor (tam kelime ya
+    da kesmeli biçim — kesmeden önce yumuşama olmaz: "Koç'un"). Yani
+    orada eklenecek seçenek ÖLÜ olurdu, üstelik zararsız da değil:
+    BaZi'nin ``At`` hayvanı kelime-sınırlı ``ad`` desenine dönüşür ve
+    "ad" sıradan bir Türkçe kelimedir.
     """
     kok = prompt_composer.normalize(ad)
     if len(kok) >= _KISA_AD_SINIRI:
-        return re.search(rf"\b{re.escape(kok)}", dusuk) is not None
+        return re.search(rf"\b{_ek_toleransli_desen(kok)}",
+                         dusuk) is not None
     return re.search(rf"\b{re.escape(kok)}(?:'\w+)?\b", dusuk) is not None
 
 
@@ -812,6 +889,97 @@ def _hafizayi_sabitle(metin: str) -> None:
 # Uretciler
 # --------------------------------------------------------------------------
 
+#: Kosunun gun sinirini TASIYAN tek deger (bkz. `_olcum_gunu`).
+_gun_onbellek: dict[str, dt.date] = {}
+
+
+def _olcum_gunu() -> dt.date:
+    """Olcumun "bugun"u: PROFIL OKUMADAN, kosu boyunca TEK deger.
+
+    ⚠️ TUKETICI LISTESI SAYILDI, tahmin edilmedi (`report_service`'te
+    `today`/`gun`/`sky` parametresi tasiyan her yuzey): BaZi, dogum
+    kapisi, kisisel gunluk okuma, ikili dinamik, gunluk bildirim
+    govdesi, **burc yorumu** ve firaset (o `sky` uzerinden). Yedi yuzey.
+    Bu sayi bir kez ELLE yazildi ve "uc yuzey" diyordu; dordu disarida
+    kalmisti ve ikisi (gunluk okuma, ikili dinamik) ayni turda, biri
+    (burc yorumu) bir sonraki turda yakalandi. Ders: tuketici listesi
+    yorumdan degil imzalardan okunur.
+
+    Bu yuzeyler gun blogunu `today`/`gun` parametresinden aliyor ve
+    parametre verilmezse ya `entitlements.user_local_date(user_id)`e ya
+    da `dt.date.today()`e dusuyor. Betik `"eval"` uid'iyle cagiriyor ve
+    o uid YOK — yani betik, sahip olmadigi bir kullanicinin gununu
+    uretimden sormaya kalkiyordu.
+
+    ⚠️ OLCULDU (bu makinede, cagri sayaciyla, Firestore'a hic gidilmeden):
+    `user_local_date("eval")` IKI uretim okumasi yapiyor —
+    `cache.get("user-tz-eval")` ve `profile_service.get_profile("eval")` —
+    sonra ikisi de bos donunce varsayilan dilime
+    (`notification_service.DEFAULT_TIMEZONE`) dusuyor. Yani dondurdugu gun
+    ZATEN burada hesaplananin aynisi: pinleme olculen gunu
+    DEGISTIRMIYOR, yalniz bir OLCUM betigini uretim durumuna bagimli
+    olmaktan cikariyor (CLAUDE.md §5: dis dunyaya cikan her yol pinlenir).
+
+    ⚠️ `dt.date.today()` DEGIL, ve fark olculebilir: sunucu UTC'de kosuyor,
+    yuzeylerin gunu varsayilan dilimde (UTC+3). Ikisi her gun 21:00-24:00
+    UTC arasinda AYRISIYOR; o saatlerde sunucu gunuyle olcmek urunun o gun
+    hic gostermedigi bir gun blogunu olcmek olurdu.
+
+    Deger onbellekli, cunku kosu DAKIKALAR suruyor: her yuzey kendi gununu
+    hesaplasa tek bir kosu gun sinirini ortadan bolebilir ve BaZi ile dogum
+    kapisi iki AYRI gunun blogunu alir — o ayrisma urunun degil olcumun
+    artifakti olurdu.
+    """
+    if "gun" not in _gun_onbellek:
+        from zoneinfo import ZoneInfo
+
+        from services.notification_service import DEFAULT_TIMEZONE
+        _gun_onbellek["gun"] = dt.datetime.now(dt.timezone.utc).astimezone(
+            ZoneInfo(DEFAULT_TIMEZONE)).date()
+    return _gun_onbellek["gun"]
+
+
+#: Firaset promptunun harita/gokyuzu cifti (bkz. `_firaset_baglami`).
+_firaset_baglam_onbellek: dict[str, tuple[str, str]] = {}
+
+
+def _firaset_baglami(lang: str) -> tuple[str, str]:
+    """Firaset promptunun (KALICI harita, BUGUNUN gokyuzu) cifti.
+
+    ⚠️ Eskiden ikisi de HIC gecilmiyordu: betik `firasa_report("eval",
+    oranlar, lang=...)` diyordu. Cagri kirilmiyor (iki parametre de
+    varsayilanli) ama olculen prompt urunun gercek promptu DEGILDI —
+    `report_service` prompt'a `today=sky or "—"` yaziyor, yani gun blogu
+    bos geciyor ve sablon o hâlde "bugun" kelimesini ACIKCA yasakliyor.
+    Sonuc: yuzey tablosu bu yuzeye "GUNLUK yuzey" derken olcum gun
+    kesisimini hic gormuyordu; gun blogu jenerik cumle uretse olcum bunu
+    yakalamazdi.
+
+    `chart` ile `sky` AYRI DEGIL BIRLIKTE veriliyor ve gerekcesi sudur:
+    `sky` bos olmasi URETIMDE tam olarak dogum verisi OLMAYAN kullaniciya
+    denk gelir, o hâlde `chart` da bostur (`chart_whisper` profilsizken ""
+    donuyor). "sky dolu + chart bos" ikilisi uretimde HIC olusmaz; onu
+    olcmek var olmayan bir hâle jeneriklik hukmu vermek olurdu.
+
+    Harita SABIT (tek dogum) ve bu bilerek: bu yuzeyin ekseni harita degil
+    YUZ OLCUMU, harita da degisirse ayrismanin sebebi olculemez.
+
+    ⚠️ Sabit blok uc metne de girdigi icin "metinler arasi benzerlik" bu
+    onarimdan SONRA yukselir. Bu bir gerileme DEGIL: olculen sey urunun
+    gercek promptuna yaklasti. Eski sayilarla ayni cumlede okunmamali.
+    """
+    if lang not in _firaset_baglam_onbellek:
+        birth = HARITALAR[0][1]
+        gezen = chart_context.transit_facts(birth)
+        facts = {**chart_context.natal_facts(birth),
+                 "transits": gezen.get("hits") or [],
+                 "upcoming": gezen.get("upcoming") or []}
+        _firaset_baglam_onbellek[lang] = (
+            chart_context.render(facts, lang=lang, include_transits=False),
+            chart_context.gunun_gokyuzu(facts, lang=lang,
+                                        today=_olcum_gunu()))
+    return _firaset_baglam_onbellek[lang]
+
 
 def _cevap_uret(birth: dict, soru: str, lang: str = "tr",
                 hafiza: str = "") -> str:
@@ -835,72 +1003,124 @@ def _cevap_uret(birth: dict, soru: str, lang: str = "tr",
     return gemini_service.chat([], mesaj, lang=lang) or ""
 
 
-def _uret_natal(girdi: dict, lang: str = "tr") -> str:
+# ⚠️ Ureticiler METNI DEGIL `report_service` SOZLUGUNU donduruyor ve bu
+# imza bilerek boyle: sozlukteki `fallback` bayragi atilirsa olcum SESSIZCE
+# sablon metnini olcer (gerekcesi `_rapor_modu`da, olculmus hâliyle).
+
+
+def _uret_natal(girdi: dict, lang: str = "tr") -> dict:
     from services import report_service
-    return report_service.natal_report("eval", _natal(girdi),
-                                       lang=lang)["text"]
+    return report_service.natal_report("eval", _natal(girdi), lang=lang)
 
 
-def _uret_gunluk(girdi: dict, lang: str = "tr") -> str:
+def _uret_gunluk(girdi: dict, lang: str = "tr") -> dict:
     from services import report_service
     return report_service.daily_reading(
-        "eval", _natal(girdi), _gokyuzu(lang), lang=lang,
-        birth=girdi)["text"]
+        "eval", _natal(girdi), _gokyuzu(lang), lang=lang, birth=girdi,
+        today=_olcum_gunu())
 
 
-def _uret_burc(girdi: str, lang: str = "tr") -> str:
+def _uret_burc(girdi: str, lang: str = "tr") -> dict:
+    """Burc yorumu — gun PARAMETREYLE geciyor.
+
+    ⚠️ `today` bir tur boyunca GECMIYORDU ve kayip olculdu (dogrulama
+    turu, 2026-10-03): `horoscope_reading` gunu dogrudan prompta yaziyor
+    (`p.HOROSCOPE.format(... today=today.isoformat() ...)`) ve parametre
+    verilmezse `dt.date.today()`e, yani SUNUCUNUN UTC gunune dusuyor.
+    Oysa tam kardes yuzey (gunluk bildirim govdesi) `_olcum_gunu()`
+    aliyor ve tablodaki `olcu` satiri ikisini acikca AYNI SINIFA koyuyor
+    ("burc yorumuyla ayni sinif, paylasimli"). Ikisi 21:00-24:00 UTC
+    arasinda iki AYRI gunun blogunu olcerdi — kiyaslanabilirlik, ikisinin
+    girdisinin (`_burclar`) paylasilmasiyla kurulmustu ve gun teriminde
+    sessizce kopuyordu.
+
+    Gunluk yuzeylerin tamami artik tek kaynaktan okuyor; gerekcesi
+    `_olcum_gunu`da.
+    """
     from services import report_service
     return report_service.horoscope_reading(
-        girdi, "daily", _gokyuzu(lang), lang=lang)["text"]
+        girdi, "daily", _gokyuzu(lang), lang=lang, today=_olcum_gunu())
 
 
-def _uret_bazi(girdi: dict, lang: str = "tr") -> str:
+def _uret_bazi(girdi: dict, lang: str = "tr") -> dict:
     from services import report_service
     return report_service.bazi_report("eval", _bazi_harita(girdi),
-                                      lang=lang)["text"]
+                                      lang=lang, today=_olcum_gunu())
 
 
-def _uret_firasa(girdi: dict, lang: str = "tr") -> str:
+def _uret_firasa(girdi: dict, lang: str = "tr") -> dict:
     from services import report_service
-    return report_service.firasa_report("eval", girdi, lang=lang)["text"]
+    harita, gokyuzu = _firaset_baglami(lang)
+    return report_service.firasa_report("eval", girdi, chart=harita,
+                                        sky=gokyuzu, lang=lang)
 
 
-def _uret_dogum_kapisi(girdi: dict, lang: str = "tr") -> str:
+def _uret_dogum_kapisi(girdi: dict, lang: str = "tr") -> dict:
     from services import report_service
     return report_service.birth_hexagram_report(
-        "eval", _dogum_kapisi(girdi), lang=lang)["text"]
+        "eval", _dogum_kapisi(girdi), lang=lang, today=_olcum_gunu())
 
 
-def _uret_iching(girdi: dict, lang: str = "tr") -> str:
+def _uret_iching(girdi: dict, lang: str = "tr") -> dict:
     from services import report_service
-    return report_service.iching_reading("eval", girdi, lang=lang)["text"]
+    return report_service.iching_reading("eval", girdi, lang=lang)
 
 
-def _uret_solar(girdi: dict, lang: str = "tr") -> str:
+def _uret_solar(girdi: dict, lang: str = "tr") -> dict:
     from services import report_service
-    return report_service.solar_return_report(
-        "eval", _solar(girdi), lang=lang)["text"]
+    return report_service.solar_return_report("eval", _solar(girdi),
+                                              lang=lang)
 
 
-def _uret_progresyon(girdi: dict, lang: str = "tr") -> str:
+def _uret_progresyon(girdi: dict, lang: str = "tr") -> dict:
     from services import report_service
     prog, hits = _progresyon(girdi)
-    return report_service.progressions_report("eval", prog, hits,
-                                              lang=lang)["text"]
+    return report_service.progressions_report("eval", prog, hits, lang=lang)
 
 
-def _uret_sinastri(girdi: tuple[dict, dict], lang: str = "tr") -> str:
+def _uret_sinastri(girdi: tuple[dict, dict], lang: str = "tr") -> dict:
     from services import report_service
-    return report_service.synastry_report(
-        "eval", _sinastri(girdi), lang=lang)["text"]
+    return report_service.synastry_report("eval", _sinastri(girdi),
+                                          lang=lang)
 
 
-def _uret_ikili(girdi: tuple[dict, dict], lang: str = "tr") -> str:
+def _uret_ikili(girdi: tuple[dict, dict], lang: str = "tr") -> dict:
     from services import report_service
     a, b = girdi
     return report_service.dyad_reading(
         "eval", f"{a['name']}-{b['name']}", a["name"], b["name"],
-        _sinastri(girdi), _gokyuzu(lang), lang=lang)["text"]
+        _sinastri(girdi), _gokyuzu(lang), lang=lang,
+        today=_olcum_gunu())
+
+
+def _uret_push(girdi: str, lang: str = "tr") -> dict:
+    """Gunluk bildirim govdesi — `notification_service.daily_push_body`.
+
+    ⚠️ Bu yuzey bir tur boyunca "kapsam disi" kayitliydi ve gerekcesi
+    *"kapsama almak bildirim zamanlama/quiet-hours kurulumunu da tasimak
+    demek"* diye civilenmisti. O gerekce YANLISTI (olculdu): fonksiyonun
+    imzasi `(sign, sky, lang, gun)` — burc anahtari, zaten elde olan
+    yerelleştirilmiş gokyuzu ve bir gun dizesi. Zamanlama, sessiz saatler,
+    cihaz jetonu, Firestore turu: hicbiri gerekmiyor. Yani kapsam disilik
+    bir MALIYET degil bir ATLAMA idi; CLAUDE.md'nin "gerekcesi yanlis olan
+    yorum kusurdur" kurali.
+
+    `fallback` bayragini fonksiyon DONDURMUYOR (donusu duz dize), bu
+    yuzden burada SABLONLA KIYASLANARAK kuruluyor. Kiyas bayatlamaz cunku
+    sablon dedektore elle KOPYALANMIYOR, `prompts`tan okunuyor: metin
+    degisirse kiyas da degisir. Bayrak olmasa yedek satir "model uretti"
+    sayilirdi ve bu yuzeyin yedegi tam olarak CLAUDE.md §6'daki canli
+    kusurun kendisi (bildirim sablona dusuyor, push normal gidiyor).
+    """
+    from services import notification_service
+    gun = _olcum_gunu().isoformat()
+    metin = notification_service.daily_push_body(girdi, _gokyuzu(lang),
+                                                 lang, gun=gun)
+    p = prompts.get(lang)
+    yedek = p.PUSH_DAILY_FALLBACK.format(
+        sign=p.SIGN_NAMES.get(girdi, girdi),
+        date=prompts.signal_date(lang, gun))
+    return {"text": metin, "fallback": metin.strip() == yedek.strip()}
 
 
 # Asagidaki uc hesap hem URETICININ hem OLGU CIKARICININ girdisi.
@@ -1047,11 +1267,25 @@ class Yuzey:
     #: yalniz tabloyu kullanmiyor).
     kendi_modu: str = ""
     girdiler: Callable[[int], list[tuple[str, Any]]] | None = None
-    uret: Callable[[Any, str], str] | None = None
+    #: Uretici METIN DEGIL `report_service` sozlugu donduruyor: olcumun
+    #: `fallback` bayragini gormesi sart (bkz. `_rapor_modu`).
+    uret: Callable[[Any, str], dict[str, Any]] | None = None
     olgular: Callable[[str, Any, str], set[str]] | None = None
     #: Hafiza bu yuzeyin promptuna GIRIYOR mu (olculdu: `memory_context`
     #: yalniz uc yere ulasiyor — sohbet, gunluk okuma, I Ching okumasi).
     hafizali: bool = False
+
+
+def _burclar(sayi: int) -> list[tuple[str, str]]:
+    """PAYLASIMLI gokyuzu yuzeylerinin girdisi: burc anahtarlari.
+
+    Iki yuzey (burc yorumu + gunluk bildirim govdesi) ayni sinifta ve ayni
+    girdiyi kullaniyor. Liste iki yerde elle tutulsaydi biri degistiginde
+    iki yuzey KIYASLANAMAZ hâle gelirdi — ayrismayi olcen bir aracta
+    girdinin ayni olmasi olcumun gecerlilik kosulu.
+    """
+    return [(b, b) for b in ("aries", "cancer", "libra", "capricorn",
+                             "gemini", "scorpio")[:max(2, sayi)]]
 
 
 def _yuzeyler() -> dict[str, Yuzey]:
@@ -1109,9 +1343,7 @@ def _yuzeyler() -> dict[str, Yuzey]:
             olcu="on iki metin takas edilebiliyorsa jenerik. OLGU ÖLÇÜSÜ "
                  "YOK: bu yüzeyde girdiye özel hesaplanmış olgu kümesi "
                  "yoktur, gökyüzü on iki burca aynı gelir",
-            girdiler=lambda n: [(b, b) for b in
-                                ("aries", "cancer", "libra", "capricorn",
-                                 "gemini", "scorpio")[:max(2, n)]],
+            girdiler=_burclar,
             uret=lambda g, l: _uret_burc(g, l),
             olgular=None,
         ),
@@ -1195,6 +1427,19 @@ def _yuzeyler() -> dict[str, Yuzey]:
             uret=lambda g, l: _uret_ikili(g, l),
             olgular=lambda c, g, l: _sinastri_olgular(c, _sinastri(g), l),
         ),
+        Yuzey(
+            ad="push-daily", kaynak="notification_service.daily_push_body",
+            baslik="GÜNLÜK BİLDİRİM GÖVDESİ",
+            eksen="farklı BURÇ, aynı gökyüzü",
+            olcu="burç yorumuyla aynı sınıf (paylaşımlı, burç başına günde "
+                 "bir) ama kırılma kipi AYRI: tek satır ve uzunluk kapısı "
+                 "var, taşan metin ŞABLONA düşüyor — ölçüm bu yüzden "
+                 "önce yedeği, sonra takas edilebilirliği soruyor. OLGU "
+                 "ÖLÇÜSÜ YOK: gökyüzü on iki burca aynı gelir",
+            girdiler=_burclar,
+            uret=lambda g, l: _uret_push(g, l),
+            olgular=None,
+        ),
         # --- Kapsam DISI: neden, tek tek ---
         Yuzey(
             ad="iching-verdict",
@@ -1208,17 +1453,6 @@ def _yuzeyler() -> dict[str, Yuzey]:
                 "mu) burada anlamsiz; kusur kipi yanlis kabul/ret ve o "
                 "siniflandirmadir. Olculmeyen soylenmez — bu yuzeye "
                 "jeneriklik skoru yazmak olculeni yanlis adla sunmak olur."),
-        ),
-        Yuzey(
-            ad="push-daily", kaynak="notification_service.daily_push_body",
-            baslik="GÜNLÜK BİLDİRİM GÖVDESİ",
-            eksen="-", olcu="-",
-            kapsam="kapsam disi",
-            neden_kapsam_disi=(
-                "Olculebilir ama HENUZ OLCULMUYOR. Burc yorumu sinifinda "
-                "paylasimli bir metin (burc basina gunde bir); kapsama "
-                "almak bildirim zamanlama/quiet-hours kurulumunu da "
-                "tasimak demek. Kalan kapsam borcu."),
         ),
         Yuzey(
             ad="signal-calendar", kaynak="signal_service.calendar_insights",
@@ -1351,9 +1585,14 @@ def _rapor_modu(yuzey: Yuzey, sayi: int, lang: str = "tr") -> int:
     olgu_kumeleri: dict[str, set[str]] = {}
     yagcilik: list[str] = []
     yasak: list[str] = []
+    #: YEDEGE dusen girdilerin etiketleri (bkz. asagidaki gerekce).
+    yedekler: list[str] = []
 
     for etiket, girdi in girdiler:
-        metin = yuzey.uret(girdi, lang)
+        sonuc = yuzey.uret(girdi, lang)
+        metin = sonuc["text"]
+        if sonuc.get("fallback"):
+            yedekler.append(etiket)
         metinler.append(metin)
         yagcilik += _yagcilik_bulgulari(metin)
         yasak += _kalip_sayisi(metin, YASAK, regex=True)
@@ -1361,13 +1600,43 @@ def _rapor_modu(yuzey: Yuzey, sayi: int, lang: str = "tr") -> int:
             olgu_kumeleri[etiket] = yuzey.olgular(metin, girdi, lang)
         print(f"  [{etiket}] {len(metin)} karakter"
               + (f", {len(olgu_kumeleri[etiket])} olgu"
-                 if etiket in olgu_kumeleri else ""))
+                 if etiket in olgu_kumeleri else "")
+              + ("   /!\\ YEDEK (sablon)" if sonuc.get("fallback") else ""))
 
     print("\n" + "=" * 72)
     print(f"{yuzey.baslik} — DEGISTIRILEBILIRLIK")
     print("=" * 72)
     print(f"  eksen : {yuzey.eksen}")
     print(f"  olcu  : {yuzey.olcu}")
+
+    # ⚠️ YEDEK SAYISI EN BASTA ve hukmu BAGLIYOR. Bu satir yoktu ve
+    # yoklugu olculdu — sonucu tam olarak CLAUDE.md §6'daki canli kusurun
+    # kendisiydi (bir ay boyunca yesil yalan):
+    #
+    #   `uret` yalniz `["text"]` donduruyordu, yani `report_service`in
+    #   `fallback` bayragi ATILIYORDU. Uretim dustugunde (bugun: Gemini
+    #   403 "Lightning dunning") her yuzey SABLON metnini donduruyor ve
+    #   sablonlar GIRDIYE OZEL alan tasiyor — olculdu:
+    #   `NATAL_FALLBACK` "Güneşin {sun_sign}, Ayın {moon_sign}",
+    #   `BAZI_FALLBACK` "Günün Efendin {element} ... {dominant}",
+    #   `BIRTH_HEXAGRAM_FALLBACK` "Doğum kapın #{gate} {name_tr}".
+    #   Yani dort haritanin dort sablonu BIREBIR FARKLI dizelerdi:
+    #   "birebir farkli metin 4/4", donus kodu 0, hukum "jenerik degil".
+    #   Daha kotusu: sablonlar hesap adlarini ANIYOR, bu yuzden olgu
+    #   cikaricilari onlarda olgu BULUYOR ve "her metin kendi hesabindan
+    #   konusuyor" basiliyordu — hic LLM metni uretilmemisken.
+    #
+    # Ters yondeki ornek de olculdu ve neden bayrak sart oldugunu
+    # gosteriyor: `FIRASA_FALLBACK` girdiye ozel alan TASIMIYOR, o yuzden
+    # firaset yuzeyi tam dususte zaten kirmizi doner. Yani korluk
+    # yuzeylere gore degisiyordu — en pahali raporlarda en derin.
+    print(f"  YEDEK (sablon) metin : {len(yedekler)}/{len(metinler)}"
+          f"   (hedef 0)" + (f"   {yedekler}" if yedekler else ""))
+    if yedekler:
+        print("  /!\\ ASAGIDAKI SAYILAR MODELI OLCMUYOR: yedege dusen "
+              "girdilerde olculen sey SABLON metnidir. Jeneriklik hukmu "
+              "verilemez; once uretim onarilir.")
+
     benzersiz = len(set(metinler))
     print(f"  birebir farkli metin : {benzersiz}/{len(metinler)}"
           "   (hedef: hepsi farkli)")
@@ -1400,7 +1669,9 @@ def _rapor_modu(yuzey: Yuzey, sayi: int, lang: str = "tr") -> int:
     print(f"  YAGCILIK: {len(yagcilik)} (hedef 0) {sorted(set(yagcilik))}")
     print(f"  YASAK   : {len(yasak)} (hedef 0) {sorted(set(yasak))}")
     print(f"  PUAN sizintisi: {_puan_sizintisi(metinler)} (hedef 0)")
-    return 0 if benzersiz == len(metinler) else 1
+    # Yedek varsa donus kodu KIRMIZI: "hepsi farkli" tek basina yesil
+    # yapmaya yetmez (bkz. yukaridaki yedek gerekcesi).
+    return 0 if benzersiz == len(metinler) and not yedekler else 1
 
 
 def _hafiza_modu(yuzey: Yuzey, lang: str = "tr") -> int:
@@ -1425,8 +1696,11 @@ def _hafiza_modu(yuzey: Yuzey, lang: str = "tr") -> int:
         _, birth = HARITALAR[0]
         soru = SORULAR[0]
 
-        def uret(h: Hafiza) -> str:
-            return _cevap_uret(birth, soru, lang, hafiza=h.metin)
+        # Sohbet yolunun `fallback` bayragi YOK: `gemini_service.chat`
+        # duz metin donduruyor, dususte bos dize. Bayrak uydurmak yerine
+        # anahtar hic konmuyor — olculmeyen soylenmez.
+        def uret(h: Hafiza) -> dict:
+            return {"text": _cevap_uret(birth, soru, lang, hafiza=h.metin)}
     else:
         girdiler = yuzey.girdiler(2) if yuzey.girdiler else []
         if not girdiler or yuzey.uret is None:
@@ -1434,18 +1708,35 @@ def _hafiza_modu(yuzey: Yuzey, lang: str = "tr") -> int:
             return 1
         _, girdi = girdiler[0]
 
-        def uret(h: Hafiza) -> str:
+        def uret(h: Hafiza) -> dict:
             _hafizayi_sabitle(h.metin)
             return yuzey.uret(girdi, lang)  # type: ignore[misc]
 
     metinler: dict[str, str] = {}
+    yedekler: list[str] = []
     for h in HAFIZALAR:
-        metinler[h.ad] = uret(h)
-        print(f"  [{h.ad}] {len(metinler[h.ad])} karakter")
+        sonuc = uret(h)
+        metinler[h.ad] = sonuc["text"]
+        if sonuc.get("fallback"):
+            yedekler.append(h.ad)
+        print(f"  [{h.ad}] {len(metinler[h.ad])} karakter"
+              + ("   /!\\ YEDEK (sablon)" if sonuc.get("fallback") else ""))
 
     print("\n" + "=" * 72)
     print(f"{yuzey.baslik} — HAFIZA KILIDI (ayni girdi, FARKLI hafiza)")
     print("=" * 72)
+
+    # ⚠️ Yedek burada AYRISMAMA gibi gorunur ve TESHISI SAPTIRIR: girdi
+    # sabit oldugu icin iki yedek metin BIREBIR AYNI olur, yani sayi
+    # "hafiza prompta giriyor ama hukme girmiyor" der. Oysa sebep hafiza
+    # degil uretimin dusmesi. Yanlis gerekceye varmasin diye yedek ONCE
+    # basiliyor (CLAUDE.md §6: 403'un bicim hatasi olarak loglanmasiyla
+    # ayni tuzak).
+    if yedekler:
+        print(f"  /!\\ YEDEK (sablon) metin: {yedekler} — bu modun hukmu "
+              "VERILEMEZ: ayrismama hafizadan degil uretimin dusmesinden "
+              "gelir.")
+
     farkli = len(set(metinler.values()))
     print(f"  birebir farkli metin: {farkli}/{len(metinler)}"
           "   (hedef: hepsi farkli)")
@@ -1480,7 +1771,8 @@ def _hafiza_modu(yuzey: Yuzey, lang: str = "tr") -> int:
     print("  NOT: 'kendi capalari YOK' tek basina kusur DEGIL — prompt "
           "hafizayi fisilti olarak veriyor, dokturmuyor. Kusur olan sey "
           "AYRISMAMA (ayni metin) ve SIZINTI.")
-    return 0 if farkli == n and oteki == 0 and dokum == 0 else 1
+    return (0 if farkli == n and oteki == 0 and dokum == 0 and not yedekler
+            else 1)
 
 
 def _iliski_modu(cift_sayisi: int) -> int:

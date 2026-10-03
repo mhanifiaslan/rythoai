@@ -374,3 +374,157 @@ def test_tiklama_bolumu_IP_iddiasini_MUTLAK_yazmaz(yol, baslik, istisna):
         f"{yol} '{baslik}': geçici istisna anlatılmamış ({istisna!r} yok). "
         f"Mutlak cümleyi yumuşatmak yetmez — ölçülen şey (IP'nin kota "
         f"katmanında bellekte tutulduğu) SÖYLENMELİ.")
+
+
+# ---------------------------------------------------------------------------
+# Aynı mutlak iddia KAYNAK YORUMLARINDA (48-turu bulgusu)
+# ---------------------------------------------------------------------------
+#
+# NEDEN burada: yukarıdaki mekanizma (_MUTLAK + _NITELEYICI) yalnız DÖRT
+# KULLANICI METNİNE bakıyordu. Oysa aynı sınıf kusur bir kez kaynak
+# yorumunda yaşandı: `partner_service.py` gizlilik çizgisini MUTLAK
+# yazıyordu ("ziyaretçiye ait tek bir bayt bile yazılmaz") ve o gerekçe
+# yanlıştı — kota katmanı ziyaretçinin IP'sini kova anahtarı olarak
+# BELLEKTE tutuyor. Düzeltildi, ama hiçbir bekçi görmedi: iddiayı geri
+# MUTLAK yazmak tüm takımı YEŞİL bırakırdı.
+#
+# ⚠️ Bu bekçi BAŞKA BİR PAKETİN kaynağını OKUYOR, yazmıyor. Ölçtüğü şey bir
+# BEYAN (yorum), davranış değil — yani kod yeniden düzenlendiğinde değil,
+# BEYAN kaydığında kızarır.
+
+#: Kaynaktaki üç tırnaklı gövdeler. İddianın bir yarısı yorumda
+#: (`partner_service.py`), öteki yarısı docstring'de (`api/partners.py`)
+#: yaşıyor; ikisi de taranmak zorunda, yoksa bekçi yarım olur.
+_DOCSTRING = re.compile(r'"""(.*?)"""', re.S)
+
+#: Satır başındaki yorum işareti (`#` ya da `#:`).
+_YORUM_ISARETI = re.compile(r"^\s*#:?\s?")
+
+#: Alıntı span'i. Alıntılar eşleşmeden ÖNCE atılır ve bu, CLAUDE.md
+#: kuralının TERS YÖNÜ: "bir şeyin YOKLUĞUNU arayan bekçi, onu ANLATAN
+#: yorumu görmemeli". `partner_service.py` eski MUTLAK cümleyi
+#: ALINTILAYARAK "o gerekçe yanlıştı" diyor; alıntı atılmazsa bu bekçi
+#: doğduğu an KIRMIZI doğar ve onu yeşile çekmenin tek yolu düzeltmenin
+#: KAYDINI silmek olurdu — yani bekçi, kendisini doğuran kusurun
+#: hatırasını yok etmeye zorlardı.
+_ALINTILI = re.compile(r'"[^"]*"')
+
+
+def _prose_bloklari(kaynak: str) -> list[str]:
+    """Kaynaktaki PROSE'u mantıksal bloklar hâlinde verir.
+
+    Kod GÖVDESİ taranmıyor: ölçülen şey bir BEYAN, çalışan davranış değil.
+
+    NEDEN satır satır DEĞİL blok blok: aranan iddia iki yorum satırına
+    bölünmüş durumda ve kapanış tırnağı öteki satırda (ölçüldü,
+    `partner_service.py`). Satır satır bakan bir denetim alıntıyı yarım
+    görür, tırnağı eşleştiremez ve ANLATIYI BEYAN sanır — yani tam da
+    kaçınılan yanlış pozitifi üretir.
+    """
+    bloklar = [re.sub(r"\s+", " ", govde)
+               for govde in _DOCSTRING.findall(kaynak)]
+    kume: list[str] = []
+    for satir in kaynak.split("\n"):
+        if re.match(r"^\s*#", satir):
+            kume.append(_YORUM_ISARETI.sub("", satir).strip())
+        elif kume:
+            bloklar.append(" ".join(kume))
+            kume = []
+    if kume:
+        bloklar.append(" ".join(kume))
+    return bloklar
+
+
+def _niteliksiz_mutlak(bloklar: list[str]) -> list[str]:
+    """Niteleyicisiz MUTLAK cümleler. Alıntı ATILMIŞ hâlde ölçülür."""
+    bulunan: list[str] = []
+    for blok in bloklar:
+        for cumle in _cumleler(_ALINTILI.sub(" ", blok)):
+            if not any(mutlak in cumle for mutlak in _MUTLAK):
+                continue
+            if not _NITELEYICI.search(cumle):
+                bulunan.append(cumle)
+    return bulunan
+
+
+#: (kaynak, ölçülmüş istisnayı anlatan çapalar). Çapa TEK bir Türkçe
+#: kelimeye bağlanmıyor; her dosyadan birkaç BAĞIMSIZ işaret birden
+#: isteniyor (modül adı · ölçülen çağrı · belleğin adı). Biri yeniden
+#: yazılırsa ötekiler durur, yani bekçi bir üslup değişikliğiyle değil
+#: BEYANIN kaymasıyla kızarır. Büyük/küçük harf ÇEVRİLMİYOR: `lower()`
+#: Türkçe bilmez (CLAUDE.md §5) ve burada gereği de yok — çapalar dize
+#: literali olarak aranıyor.
+_KAYNAK_BEYANLARI = (
+    ("backend/services/partner_service.py",
+     ("core/ratelimit.py", "sadece_ip=True", "BELLEĞİNDEKİ")),
+    ("backend/api/partners.py",
+     ("core/ratelimit.py", "BELLEKTE")),
+)
+
+
+@pytest.mark.parametrize("yol,capalar", _KAYNAK_BEYANLARI)
+def test_kaynak_yorumu_IP_iddiasini_MUTLAK_yazmaz(yol, capalar):
+    """Gizlilik çizgisini anlatan KAYNAK yorumu da niteleyici taşır.
+
+    Politika metni için geçerli olan şey kaynak yorumu için de geçerlidir:
+    kota katmanı IP'yi bellekte tutuyor, yani mutlak "tek bir bayt bile
+    yazılmaz" cümlesi YANLIŞ BEYANDIR. Fark şu ki politika metnini
+    kullanıcı okur, yorumu bir SONRAKİ geliştirici okur ve yanlış gerekçeye
+    dayanarak karar verir — CLAUDE.md bu yüzden yanlış gerekçeyi KUSUR
+    sayıyor.
+    """
+    tam = _KOK / yol
+    assert tam.exists(), (
+        f"{yol} yok: bu bekçi bir BEYANI çiviliyor ve çapasını kaybetti. "
+        f"Modül taşındıysa çapa yeniden nişanlanmalı — sessizce atlanmaz.")
+    kaynak = tam.read_text(encoding="utf-8")
+
+    niteliksiz = _niteliksiz_mutlak(_prose_bloklari(kaynak))
+    assert not niteliksiz, (
+        f"{yol}: gizlilik çizgisi MUTLAK yazılmış. Kota katmanı tıklama "
+        f"ucunda ziyaretçinin IP'sini kova anahtarı olarak BELLEKTE "
+        f"tutuyor (core/ratelimit._client_key, sadece_ip=True), yani "
+        f"niteleyicisiz cümle yanlış beyandır. Niteliksiz: {niteliksiz!r}")
+
+    eksik = [capa for capa in capalar if capa not in kaynak]
+    assert not eksik, (
+        f"{yol}: ölçülmüş istisna artık anlatılmıyor ({eksik!r} yok). "
+        f"Mutlak cümleyi yumuşatmak YETMEZ — ölçülen şey SÖYLENMELİ, "
+        f"yoksa bir sonraki okuyan 'hiçbir yere yazılmıyor' diye anlar.")
+
+
+def test_kaynak_denetiminin_DISI_var():
+    """Mekanizma gerçekten ısırıyor mu — MİNİMAL mutasyonla ölçülüyor.
+
+    NEDEN gerekli: yukarıdaki bekçi iki katmanlı (alıntı atılır, sonra
+    niteleyici istenir) ve ikisinden biri kör olsa test yine YEŞİL kalırdı.
+    Bu depoda üç paket "mutasyonların hepsi kırmızı" dedi; minimal
+    mutasyonla sınandığında 8, 11 ve 2 kör bekçi çıktı.
+
+    Mutasyon BELLEKTE ve TEK TERİM: çıkarılan şey yalnız ALINTI
+    TIRNAKLARI, yani cümle "eskiden böyle yazılmıştı" anlatısı olmaktan
+    çıkıp BEYAN oluyor. Diske yazılmıyor çünkü `partner_service.py` bu
+    turda başka bir paketin dosyası ve yedi ajan aynı depoda çalışıyor —
+    geçici bir mutasyon onların yazısını ezebilirdi. Tırnakların YERİ
+    dosyadan ölçülüyor, elle yazılmış satır düzenine bağlanmıyor.
+    """
+    kaynak = (_KOK / "backend/services/partner_service.py").read_text(
+        encoding="utf-8")
+    bloklar = _prose_bloklari(kaynak)
+
+    alintililar = [alinti for blok in bloklar
+                   for alinti in _ALINTILI.findall(blok)
+                   if any(mutlak in alinti for mutlak in _MUTLAK)]
+    assert alintililar, (
+        "ön koşul tutmuyor: kaynak eski MUTLAK iddiayı ALINTILAYARAK "
+        "anlatmıyor. O anlatı kalktıysa bu ölçüm de anlamsız — mutasyonun "
+        "değiştireceği terim yok.")
+    assert not _niteliksiz_mutlak(bloklar), (
+        "ön koşul tutmuyor: kaynak bugün zaten niteliksiz (üstteki bekçi "
+        "kırmızı olmalı)")
+
+    mutant = [blok.replace('"', "") for blok in bloklar]
+    assert _niteliksiz_mutlak(mutant), (
+        "denetim KÖR: alıntı tırnakları kalktığında bile niteleyicisiz "
+        "MUTLAK cümle görmüyor. Yani üstteki bekçi bir şey ölçmüyor ve "
+        "gerekçe geri MUTLAK yazılsa yeşil kalırdı.")

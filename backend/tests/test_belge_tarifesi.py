@@ -92,6 +92,38 @@ _ZORUNLU = {
 }
 
 
+#: Tarama DISI birakilan klasorler. Her girdi gerekcesiyle durur, cunku
+#: "docs/ altindaki her iddia" demek kapsami da beyan etmektir.
+#:
+#: `rag_corpus`: ucuncu taraf korpus metni (50 MB, 18 dosya) —
+#: bizim BEYANIMIZ degil, kitap cevirisi. Tarife kaliplari orada
+#: eslesmez ama her kosuda 50 MB okumak bedeli karsiliksiz bir
+#: yavaslamadir.
+_TARAMA_DISI = ("rag_corpus",)
+
+
+def _belgeler() -> list[Path]:
+    """`docs/` altindaki TUM markdown dosyalari — OZYINELEMELI.
+
+    ⚠️ ILK HAL KOR KAPSAMLIYDI ve gerekcesi kapsamdan GENIS yaziliydi
+    (olculdu 2026-10-03, dogrulama turu): dort bekcinin docstring'i
+    "docs/ altindaki her canli iddia" diyordu ama hepsi
+    `(_KOK / "docs").glob("*.md")` kullaniyordu — `glob` ozyinelemeli
+    DEGIL, yani `docs/legal/kullanim-sartlari.md`,
+    `docs/legal/gizlilik-politikasi.md` ve `docs/design/design-system.md`
+    hic taranmiyordu. En kotusu birincisi: abonelik SARTLARINI anlatan
+    hukuk metni, yani aylik hak ya da bedel iddiasinin dusmesi en olasi
+    yer. CLAUDE.md'ye gore kapsamdan genis yazilmis gerekce kusurdur ve
+    bu kusur SESSIZDI — bugun o uc dosyada eslesen hicbir satir yok
+    (olculdu), yani kapsami genisletmek takimi kirmizi yapmadi.
+
+    Bekcisi: `test_tarama_kapsami_OZYINELEMELI`.
+    """
+    return sorted(
+        y for y in (_KOK / "docs").rglob("*.md")
+        if not any(d in y.parts for d in _TARAMA_DISI))
+
+
 def _canli_metin(yol: Path) -> str:
     """Geriye dönük notları (blockquote) atmış belge gövdesi.
 
@@ -115,10 +147,54 @@ def _iddialar(yol: Path) -> list[tuple[str, int, str]]:
     return bulunan
 
 
+def test_tarama_kapsami_OZYINELEMELI():
+    """Kapsam `docs/` ALT KLASORLERINI de gormek zorunda.
+
+    NEDEN (olculdu 2026-10-03, dogrulama turu): dort bekci de
+    `glob("*.md")` kullaniyordu ve docstring'leri "docs/ altindaki her
+    canli iddia" diyordu. `glob` ozyinelemeli DEGIL — uc dosya hic
+    taranmiyordu ve biri `docs/legal/kullanim-sartlari.md`, yani
+    aboneligin SARTLARINI anlatan hukuk metni. Kusur SESSIZDI: o uc
+    dosyada bugun eslesen satir yok, yani kapsam dardi ama takim yesildi.
+
+    Bekci UC bagimsiz isaret soruyor, tek bir yola ya da tek bir Turkce
+    kelimeye baglanmiyor (CLAUDE.md: capayi tek kelimeye baglama):
+
+    1. Kok disinda EN AZ BIR dosya kapsamda (ozyineleme gercekten calisiyor);
+    2. Kokteki dosyalar KAYBOLMADI (ozyinelemeye gecerken filtre fazla
+       daraltilmis olabilir — `docs/store-launch.md` kapsamda kalmali,
+       cunku kanonik urun adi tablosu orada);
+    3. Korpus klasoru kapsam DISI (50 MB her kosuda okunmasin) — ve
+       kapsam disi kalan sey GERCEKTEN orada, yani filtre bos calismiyor.
+    """
+    kapsam = _belgeler()
+    yollar = {y.relative_to(_KOK).as_posix() for y in kapsam}
+
+    alt = {y for y in yollar if y.count("/") > 1}
+    assert alt, (
+        "kapsam OZYINELEMELI DEGIL: `docs/` alt klasorlerindeki hicbir "
+        "markdown gorulmuyor. `glob` yerine `rglob` kullanilmali — yoksa "
+        "`docs/legal/kullanim-sartlari.md` gibi hukuk metinlerindeki "
+        "tarife iddialari sessizce kapsam disi kalir.")
+
+    assert "docs/store-launch.md" in yollar, (
+        f"kanonik belge kapsamdan dustu (bulunan {sorted(yollar)[:5]}...): "
+        "filtre fazla daraltilmis, urun adi tablosu artik olculmuyor")
+
+    korpus = list((_KOK / "docs").rglob("rag_corpus/*.md"))
+    assert korpus, (
+        "on kosul tutmuyor: `_TARAMA_DISI`nin disladigi klasor artik yok. "
+        "Klasor tasindiysa dislama gerekcesini kaybetti — ya guncellenir "
+        "ya silinir, sessizce durmaz.")
+    assert not any("rag_corpus" in y for y in yollar), (
+        "korpus klasoru kapsama girdi: her test kosusu 50 MB ucuncu taraf "
+        "metni okuyor ve o metin bizim BEYANIMIZ degil")
+
+
 def test_belgelerdeki_aylik_hak_sunucu_sabitiyle_ayni():
     """docs/ altındaki her canlı aylık-hak iddiası sabitle aynı sayıyı söyler."""
     sapma = []
-    for yol in sorted((_KOK / "docs").glob("*.md")):
+    for yol in _belgeler():
         for ad, satir, sayi in _iddialar(yol):
             if int(sayi) != MONTHLY_TOKEN_ALLOWANCE:
                 sapma.append(
@@ -377,7 +453,7 @@ def test_kanonik_urun_adi_tablosu_YALNIZ_bir_belgede():
         f"ediyor.")
 
     kopyalar = []
-    for yol in sorted((_KOK / "docs").glob("*.md")):
+    for yol in _belgeler():
         if f"docs/{yol.name}" == _KANONIK:
             continue
         for kimlik, _tr, _en in _TABLO_SATIRI.findall(_canli_metin(yol)):
@@ -429,7 +505,7 @@ def test_ikinci_belgedeki_urun_adlari_kanonikle_CELISMEZ():
     assert kanonik, "kanonik tablo okunamadı: bekçi kör kalırdı"
 
     sapma = []
-    for yol in sorted((_KOK / "docs").glob("*.md")):
+    for yol in _belgeler():
         if f"docs/{yol.name}" == _KANONIK:
             continue
         satirlar = _canli_metin(yol).split("\n")
@@ -565,7 +641,7 @@ def _belgedeki_bedeller(yol: Path) -> list[tuple[str, int, int]]:
 def test_belgedeki_gunluk_yuzey_bedeli_TOKEN_COSTS_ile_ayni():
     """docs/ altındaki her canlı bedel satırı sunucudaki bedeli söyler."""
     sapma = []
-    for yol in sorted((_KOK / "docs").glob("*.md")):
+    for yol in _belgeler():
         for anahtar, satir, bedel in _belgedeki_bedeller(yol):
             if bedel != TOKEN_COSTS[anahtar]:
                 sapma.append(

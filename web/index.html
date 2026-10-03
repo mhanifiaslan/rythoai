@@ -326,8 +326,16 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
                tek şey mağaza ekranındaki bedel satırıdır
                (token_store_screen.dart → tokenCostsNote, abone kapısının
                DIŞINDA, herkese görünür).
-               (2) "Güncel" sıfatı düştü: o satır elle yazılmış bir l10n
-               dizesi, /wallet'in costs haritasından türemiyor.
+               (2) Bu gerekçenin eski hâli YANLIŞ KALDI ve düzeltildi
+               (ölçüldü 2026-10-03): "o satır elle yazılmış bir l10n
+               dizesi, /wallet'in costs haritasından türemiyor" yazıyordu.
+               Türüyor — token_store_screen.dart satırı
+               bedelSatiri(l10n.tokenCostsNote, cuzdan.costs) ile kuruyor,
+               l10n dizesi yalnızca ŞABLON. Cümledeki "güncel" sıfatının
+               geri YAZILMAMA gerekçesi başka ve hâlâ geçerli: sunucu ayrı
+               dağıtılıyor, yani harita okunamazsa (ya da paket eskiyse)
+               satır şablonun kendi sayılarıyla çizilir ve o sayılar bir
+               backend dağıtımından sonra bayatlayabilir.
                (3) Tekrar okuma SÜRESİZ bedava DEĞİL: harcama yalnız
                önbellek kaçırıldığında işliyor (report_service
                ._cached_generate) ve önbellek ömürlü (yüz okuma 7, derin

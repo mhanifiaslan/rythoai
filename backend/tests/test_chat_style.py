@@ -216,6 +216,224 @@ def test_api_semasi_degismedi(monkeypatch):
         assert isinstance(body["reply"], str)
 
 
+# ---------------------------------------------------------------------------
+# Maliyet kapilari: ucun ham `request.message`'i PARA ODENEN yollara
+# vermedigi civilenir.
+# ---------------------------------------------------------------------------
+
+def test_cikarima_giden_mesaj_BAGLI(monkeypatch):
+    """Olgu cikarimina giden mesaj KIRPILMIS olmali.
+
+    `ChatRequest.message` bir Pydantic `str` ve uzunluk siniri YOK; ucun
+    tek bagi `chat_history.clip_message` (2.000). Olculdu (48-turu
+    raporunun yanlis anlasilan maddesi): o bag YALNIZ composer'a ve arsive
+    uygulaniyordu, cikarima HAM metin gidiyordu ve `_conversation_text`
+    240.000 karakterlik bir mesajla 240.010 karakterlik bir LLM prompt'u
+    uretiyordu. `history` kalemleri `clip_for_prompt`le bagliydi, yani
+    bagsiz olan tek sey SON mesajdi.
+
+    Gunluk kota (DAILY_EXTRACTIONS) cagri SAYISINI sinirlar, BOYUNU
+    sinirlamaz; ustelik bagam penceresini asan prompt cikarimi dusurur ve
+    kullanicinin o gunluk hakki yenmis olur.
+
+    Bekci UZUNLUGA degil KIRPILMIS KAYNAGA bakiyor: `clip_message`
+    tavaninin kendi bekcisi `test_chat_prompt_disiplini.py`de (gevsek ust
+    sinir), burada olculen sey ucun o kapidan GECIRIP GECIRMEDIGI.
+    """
+    from services import memory_extractor
+
+    yakalanan = {}
+
+    def sahte_cikar(uid, history, last_message, **k):
+        yakalanan["mesaj"] = last_message
+        return None
+
+    monkeypatch.setattr(memory_extractor, "extract_and_store", sahte_cikar)
+    monkeypatch.setattr(gemini_service, "chat",
+                        lambda history, msg, **k: "yanit")
+
+    uzun = "Merkur retrosu hakkinda " * 10_000
+    with TestClient(app) as client:
+        r = client.post("/api/v1/chat",
+                        json={"history": [], "message": uzun})
+        assert r.status_code == 200
+
+    from services import chat_history
+    assert "mesaj" in yakalanan, "cikarim arka plan isi hic kurulmadi"
+    assert len(yakalanan["mesaj"]) <= chat_history.MAX_MESSAGE_CHARS, (
+        f"cikarima {len(yakalanan['mesaj'])} karakter gitti — ham mesaj "
+        f"LLM prompt'una bagsiz giriyor")
+
+
+@pytest.mark.parametrize("tohum", (False, True))
+def test_korpus_sorgusuna_giden_mesaj_BAGLI(monkeypatch, tohum):
+    """Korpus sorgusu da KIRPILMIS metinden kurulmali.
+
+    `chart_query.build_query` mesajin kendisini sorgunun ONUNE koyuyor ve
+    sonuc `retrieve_passages` ile EMBEDDING cagrisina gidiyor. Olculdu:
+    ham metinle 240.000 karakterlik bir mesaj sorguyu 239.999 karaktere
+    cikariyordu — ve bu yolda cikarimdaki gibi gunluk bir kota YOK, her
+    turda tetikleniyor.
+
+    Ikinci (ve asil) gerekce TUTARLILIK: modelin gordugu metin kirpilmis
+    olandir. Modelin hic gormeyecegi bir cumleyle korpus aramak, cevabi
+    goremedigi bir soruya gore getirmek olurdu.
+
+    ⚠️ IKI DAL BIRDEN olculuyor ve bu bir KOR BEKCI onarimidir (N2,
+    dogrulama turunda minimal mutasyonla olculdu): `kapi_metni` IKI
+    DALLI bir ifade (`f"{tohum_soru} {mesaj_metni}" if tohum_bekliyor
+    else mesaj_metni`) ve bekci yalniz TOHUMSUZ dali kosturuyordu —
+    tohum dalini ham `request.message`a geri alan mutasyon 107/107
+    YESIL geciyordu. Tohum dali uretimde gercek bir yol (KA9 aksam
+    sorusunun cevabi, `source == "checkin"`) ve ayni embedding
+    cagrisina gidiyor, yani bagsiz kalirsa ayni parayi odetir.
+    """
+    from services import chat_history
+
+    yakalanan = {}
+
+    def sahte_getir(sorgu, top_k=2, **k):
+        yakalanan["sorgu"] = sorgu
+        return []
+
+    monkeypatch.setattr("api.chat.retrieve_passages", sahte_getir)
+    monkeypatch.setattr(gemini_service, "chat",
+                        lambda history, msg, **k: "yanit")
+
+    if tohum:
+        # Tohum dali ancak `seed_pending` + `seed_question` birlikteyken
+        # kosuyor; ikisi KONU DOKUMANINDAN gelir, istemci beyanindan
+        # DEGIL (bkz. memory_extractor docstring), bu yuzden sahte konu
+        # `prepare` duzeyinde kuruluyor.
+        monkeypatch.setattr(
+            chat_history, "prepare",
+            lambda uid, requested_id: chat_history.PreparedConversation(
+                conversation_id="c1", create=False, title_prefix=None,
+                message_count=0, seed_question="Bugun nasil gecti?",
+                seed_pending=True))
+
+    # RAG'in tetiklenmesi icin alan terimi SART (`should_use_rag`).
+    uzun = "Merkur retrosu beni nasil etkiler " * 8_000
+    with TestClient(app) as client:
+        r = client.post("/api/v1/chat",
+                        json={"history": [], "message": uzun})
+        assert r.status_code == 200
+
+    assert "sorgu" in yakalanan, "RAG hic cagrilmadi — bekci olcmuyor"
+    # Sorgu mesajin USTUNE konu tohumu + harita faktoru ekleyebilir; bu
+    # yuzden tam esitlik degil, mesaj payinin bagli oldugu olculuyor.
+    # Tohum dalinda tohum SORUSU da onde duruyor, yani payi `MAX_SEED`
+    # kadar genis: 600 (`prompt_composer.MAX_SEED_CHARS`) ikisini de
+    # kapsiyor ve 240.000'in yaninda hala dar bir kapi.
+    assert len(yakalanan["sorgu"]) <= chat_history.MAX_MESSAGE_CHARS + 600, (
+        f"korpus sorgusu {len(yakalanan['sorgu'])} karakter (tohum="
+        f"{tohum}) — ham mesaj embedding cagrisina bagsiz giriyor")
+
+
+def test_harita_olgulari_KULLANICININ_yerel_gununden(monkeypatch):
+    """`chart_facts` cagrisi `today=` tasimali.
+
+    `chart_facts` transit onbelleginin KOVASINI bu tarihten kuruyor
+    (`chart_context`: anahtarda `{gun}`). Verilmezse kova sunucunun UTC
+    gununden kurulur ve UTC+3 kullanicisi yerel 00:00-03:00 arasinda
+    ONCEKI gunun kovasini okur — TTL 36 saat oldugu icin o kova gercekten
+    hayatta olur. Bedeli sessiz: model o transit satirini "bugun" diye
+    anlatir, hicbir hata cikmaz.
+
+    Ayni onarim `api/face_reading.py`de yapilmisti; sohbet atlanmisti.
+
+    ⚠️ Olculen sey UCUN KENDI cagrisi, yani TUR BASINA ILK cagri. Ikinci
+    bir cagri daha var ve o BASKA BIR PAKETIN dosyasinda:
+    `chart_context.chart_whisper` kendisine `facts` verilmezse
+    `chart_facts(uid, profile)` diye TARIHSIZ cagiriyor
+    (`services/chart_context.py`). Sohbette o dala normalde girilmez
+    (uc `facts`i veriyor) ve girildiginde `chart_facts` dogum verisi
+    kapisindan None donup kova da kurmuyor — yani uretim zarari yok, ama
+    cagrilarin TUMUNU olcen bir bekci bu yuzden kirmizi kalirdi ve
+    gerekcesi yanlis okunurdu. Rapora yazildi, onarilmadi (dosya
+    sahipligi disinda).
+    """
+    import datetime as dt
+
+    from core import entitlements
+    from services import chart_context, profile_service
+
+    cagrilar = []
+
+    monkeypatch.setattr(profile_service, "get_profile",
+                        lambda uid: {"birthDate": "1990-01-01"})
+    monkeypatch.setattr(entitlements, "user_local_date",
+                        lambda uid: dt.date(2026, 3, 14))
+    monkeypatch.setattr(chart_context, "chart_facts",
+                        lambda uid, profile, today=None:
+                            cagrilar.append(today) or None)
+    monkeypatch.setattr(gemini_service, "chat",
+                        lambda history, msg, **k: "yanit")
+
+    with TestClient(app) as client:
+        r = client.post("/api/v1/chat",
+                        json={"history": [], "message": "bugun nasilim?"})
+        assert r.status_code == 200
+
+    assert cagrilar, "chart_facts hic cagrilmadi — bekci olcmuyor"
+    assert cagrilar[0] == dt.date(2026, 3, 14), (
+        f"chart_facts gunu {cagrilar[0]!r} ile cagrildi — kullanicinin "
+        f"yerel gunu gecirilmiyor (sunucunun UTC gunune dusuyor)")
+
+
+@pytest.mark.parametrize("dil", ("tr", "en"))
+def test_hafiza_fisiltisi_OTURUMUN_DILINDE(monkeypatch, dil):
+    """Hafiza fisiltisinin etiketleri OTURUMUN dilinde olmali.
+
+    `memory_context` uzun sure dil parametresi ALMIYORDU: blok BASLIGI
+    (`prompts.WHISPER_MEMORY`) dile gore geliyordu ama ICERIGIN etiketleri
+    sabit Turkceydi, yani Ingilizce bir prompt Ingilizce basligin altinda
+    "(ton tercihi)" ve "(ruh hali seyri)" satirlari tasiyordu.
+
+    Bekci UCTAN UCA: `memory_context`e "lang gecti mi" diye bakmiyor,
+    modele GERCEKTEN giden prompt'u okuyor. Argument-gecti bekcisi
+    `memory_context`in o argumani KULLANMADIGI hali yesil gecirirdi.
+
+    Capa `prompts` modullerinden OKUNUYOR, tek Turkce kelimeye bagli
+    degil: etiket metni degisirse bekci yine dogru seyi olcer.
+
+    ⚠️ IKI DIL BIRDEN olculuyor ve bu bir KOR BEKCI onarimidir (N1,
+    dogrulama turunda minimal mutasyonla olculdu): bekci yalniz EN
+    yonunu olcerken `api/chat.py`de `lang=lang` yerine `lang="en"`
+    yazilmasi 107/107 YESIL geciyordu — yani onarilan kusurun AYNASI
+    (Turkce oturumun Ingilizce etiket almasi) hic olculmuyordu. Tek
+    yonlu bir dil iddiasi, dili SABITLEYEN mutasyonu gormez; yonu
+    `memory_service` duzeyinde olcen `test_memory.py` bekcisi de ucun
+    TELINI gormez (fonksiyonu dogrudan cagiriyor).
+    """
+    from services import memory_service, prompts
+
+    monkeypatch.setattr(memory_service, "get_memory", lambda uid: {
+        "facts": [], "moodTrail": [], "diary": [],
+        "toneHint": "kisa ve dogrudan yanit tercih ediyor",
+    })
+    yakalanan = {}
+    monkeypatch.setattr(gemini_service, "chat",
+                        lambda history, msg, **k:
+                            yakalanan.update(msg=msg) or "answer")
+
+    with TestClient(app) as client:
+        r = client.post("/api/v1/chat",
+                        json={"history": [], "message": "how am i today?"},
+                        headers={"Accept-Language": dil})
+        assert r.status_code == 200
+
+    msg = yakalanan["msg"]
+    bu = prompts.get(dil)
+    oteki = prompts.get("en" if dil == "tr" else "tr")
+    assert f"({bu.MEM_TONE})" in msg, (
+        f"{dil}: ton etiketi prompt'ta yok; hafiza blogu: "
+        f"{[s for s in msg.splitlines() if s.startswith('- (')]}")
+    assert f"({oteki.MEM_TONE})" not in msg, (
+        f"{dil}: prompt'ta OTEKI dilin ton etiketi duruyor "
+        f"({oteki.MEM_TONE!r}) — dil sabitlenmis olabilir")
+
+
 @pytest.mark.skipif(
     os.getenv("RYTHO_CANLI_LLM") != "1" or not config.GEMINI_API_KEY,
     reason="Canlı LLM izni yok (RYTHO_CANLI_LLM=1 gerekir)")

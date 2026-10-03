@@ -367,18 +367,30 @@ alınan paketler (100/300/1000) **hiç yanmaz**.
   `wallet.TOKEN_COSTS`. Bedeli bu belgeye kopyalamak, iki yerden birinin
   sessizce bayatlaması demekti — nitekim §12b'deki pazarlama satırı tam bu
   yüzden "300 kredi" diye kaldı.
-- ⚠️ **Aynı tuzak istemcide AÇIK duruyor:** `/wallet` yanıtı `costs`
-  haritasını gönderiyor ve `wallet.dart` onu ayrıştırıyor, ama arayüzde
-  **hiç kullanılmıyor** — jeton mağazasındaki bedel satırı
-  (`tokenCostsNote`) elle yazılmış bir l10n dizesi. Yani `TOKEN_COSTS`
-  değişirse ekrandaki rakam sessizce yanlışa düşer. Bugün eşleşiyor
-  (sohbet 1 · İ Ching 2 · ikili 3 · derin 5); ölçüldü 2026-10-02.
+- **İstemcideki aynı tuzak KAPANDI** (ölçüldü 2026-10-03). Bu maddenin eski
+  hâli "`/wallet` `costs` haritasını gönderiyor ama arayüzde hiç
+  kullanılmıyor" diyordu; o gerekçe artık YANLIŞ ve yanlış gerekçe kusurdur.
+  Ölçülen hâl: `token_store_screen.dart` bedel satırını
+  `bedelSatiri(l10n.tokenCostsNote, cuzdan.costs)` ile kuruyor, yani l10n
+  dizesi bedel gerçeğinin ikinci KAYNAĞI değil yalnızca ŞABLONU — sayılar
+  sunucudan gelen haritadan yazılıyor.
+  ⚠️ Kapanan şeyin ne olduğu önemli: eksik olan bekçi DEĞİLDİ (HEAD'i ölçen
+  `test_honesty.py::TestJetonIddialari` zaten her etiketin yanındaki sayıyı
+  çiviliyordu), **sunucu dağıtımı penceresiydi** — backend ayrı dağıtıldığı
+  için `TOKEN_COSTS` değiştiği an KURULU paketin derlenmiş cümlesi eski
+  rakamı söylemeye devam ediyordu ve bunu hiçbir test göremezdi. Harita
+  okunamazsa satır şablonla çizilir, yani **kaybolmaz**; bekçisi
+  `apps/mobile/test/bedel_satiri_test.dart`.
 - **Bedeli harcamadan ÖNCE gösteren tek ekran İ Ching'dir** ve o da
   `/wallet`ten değil `/reports/iching/status` yanıtındaki `token_cost`tan
-  okuyor (`iching_tab.dart`, varsayılanı elde yazılmış `2`). Derin
+  okuyor. ⚠️ Bu maddenin eski hâli "varsayılanı elde yazılmış `2`" diyordu;
+  ölçüldü (2026-10-03) ve artık öyle DEĞİL: `iching_tab.dart`
+  `ichingBedeli()` alan yok/sıfır/yanlış türdeyse `null` dönüyor ve rozet
+  hiç çizilmiyor — yani ekran susuyor, uydurmuyor. Derin
   raporlar, ikili okuma ve sohbet harcama anında bir bedel satırı
-  göstermiyor; bedel yalnız jeton mağazası ekranında, o da sabit metinle
-  duruyor. ⚠️ Bu yüzden "uygulama bir raporun kaça geldiğini harcamadan
+  göstermiyor; bedel yalnız jeton mağazası ekranında yazılı — o satır artık
+  sunucudan okuyor ama mağaza ekranı harcama NOKTASI değil.
+  ⚠️ Bu yüzden "uygulama bir raporun kaça geldiğini harcamadan
   önce gösterir" cümlesi **pazarlama sayfalarına yazılamaz** — bir tur
   boyunca yazıldı ve ölçülmemişti; yerine mağazaya işaret eden ve
   önbellekten tekrar okumanın bedava olduğunu söyleyen cümle kondu

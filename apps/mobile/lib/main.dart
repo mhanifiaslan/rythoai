@@ -12,12 +12,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/abonelik_kurtarma.dart';
 import 'core/api.dart';
 import 'core/app_config.dart';
 import 'core/auth_service.dart' show signOutEverywhere;
 import 'core/deep_links.dart';
 import 'core/device_session.dart' show deviceConflictProvider;
 import 'core/gate_guard.dart';
+import 'core/gun_donumu.dart';
 import 'core/language_sync.dart';
 import 'core/locale.dart';
 import 'core/notifications.dart';
@@ -173,39 +175,53 @@ class RythoApp extends ConsumerWidget {
         ref.watch(effectiveLocaleProvider.select((l) => l.languageCode))));
 
     return SystemLocaleObserver(
-      // Ön plana dönüşte zorunlu güncelleme eşiği yeniden okunur
-      // (bkz. core/app_config.dart).
-      child: UpdateGateObserver(
-        // Kapı kapanınca (426/409) yığın köke iner: kapı ekranı `_Gate`'in
-        // alt ağacında yaşar, basılı bir rotanın altında kalmasın (bkz.
-        // core/gate_guard.dart).
-        child: GateRootGuard(
-          navigatorKey: rythoNavigatorKey,
-          child: MaterialApp(
-            title: 'Rytho',
-            debugShowCheckedModeBanner: false,
-            theme: buildRythoTheme(),
-            // Sunucu 402 döndüğünde paywall'ı hangi ekranda olursak olalım
-            // açabilmek için (bkz. core/api.dart).
-            navigatorKey: rythoNavigatorKey,
-            locale: locale,
-            supportedLocales: kSupportedLocales,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            // Yazı ölçeği tavanı (cihaz bulgusu): sistem yazı boyutu çok
-            // büyükken uzun başlık cümleleri dar ekranda satıra sığmıyor ve
-            // sağ taraf kırpılıyordu. Yerleşimler esnetildi (Wrap/Flexible)
-            // ama tipografi sabit punto üzerine kurulu: %130 üstü ölçekte
-            // kart mimarisi dağılıyor. Tavan yalnız ÜST uçta — kullanıcı
-            // yazıyı küçültmek isterse (0,85) ona dokunulmaz.
-            builder: (context, child) {
-              final mq = MediaQuery.of(context);
-              final olcek = mq.textScaler.clamp(maxScaleFactor: kMaxTextScale);
-              return MediaQuery(
-                data: mq.copyWith(textScaler: olcek),
-                child: child ?? const SizedBox.shrink(),
-              );
-            },
-            home: const _Gate(),
+      // Ön plana dönüşte yerel GÜNÜN değişip değişmediğine bakılır: günlük
+      // sağlayıcılar (günlük okuma, BaZi, Doğum Heksagramı) düz
+      // `FutureProvider` olduğu için sonuçları oturum boyunca önbellekte
+      // kalıyor ve gün dönümünde dünkü metin ekranda duruyordu
+      // (bkz. core/gun_donumu.dart). Gözcü `MaterialApp`ın ÜSTÜNDE:
+      // kancanın yaşaması için ağacın bu oturum boyunca yaşayan bir
+      // katmanında olması gerekiyor, aşağıdaki rotalar basılıp sökülüyor.
+      child: GunDonumuGozcusu(
+        // Ön plana dönüşte, OKUNAMAMIŞ abonelik durumu yeniden sorulur:
+        // `bilinmiyor` hâli terminaldi ve yedi yüzeyi oturum boyunca
+        // iskelette bırakıyordu (bkz. core/abonelik_kurtarma.dart).
+        child: AbonelikKurtarmaGozcusu(
+          // Ön plana dönüşte zorunlu güncelleme eşiği yeniden okunur
+          // (bkz. core/app_config.dart).
+          child: UpdateGateObserver(
+            // Kapı kapanınca (426/409) yığın köke iner: kapı ekranı `_Gate`'in
+            // alt ağacında yaşar, basılı bir rotanın altında kalmasın (bkz.
+            // core/gate_guard.dart).
+            child: GateRootGuard(
+              navigatorKey: rythoNavigatorKey,
+              child: MaterialApp(
+                title: 'Rytho',
+                debugShowCheckedModeBanner: false,
+                theme: buildRythoTheme(),
+                // Sunucu 402 döndüğünde paywall'ı hangi ekranda olursak olalım
+                // açabilmek için (bkz. core/api.dart).
+                navigatorKey: rythoNavigatorKey,
+                locale: locale,
+                supportedLocales: kSupportedLocales,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                // Yazı ölçeği tavanı (cihaz bulgusu): sistem yazı boyutu çok
+                // büyükken uzun başlık cümleleri dar ekranda satıra sığmıyor ve
+                // sağ taraf kırpılıyordu. Yerleşimler esnetildi (Wrap/Flexible)
+                // ama tipografi sabit punto üzerine kurulu: %130 üstü ölçekte
+                // kart mimarisi dağılıyor. Tavan yalnız ÜST uçta — kullanıcı
+                // yazıyı küçültmek isterse (0,85) ona dokunulmaz.
+                builder: (context, child) {
+                  final mq = MediaQuery.of(context);
+                  final olcek = mq.textScaler.clamp(maxScaleFactor: kMaxTextScale);
+                  return MediaQuery(
+                    data: mq.copyWith(textScaler: olcek),
+                    child: child ?? const SizedBox.shrink(),
+                  );
+                },
+                home: const _Gate(),
+              ),
+            ),
           ),
         ),
       ),

@@ -12,7 +12,7 @@ import datetime as dt
 
 import pytest
 
-from services import chart_context
+from services import chart_context, prompts
 
 DOGUM = dict(name="Test", year=1990, month=8, day=14, hour=7, minute=35,
              city="Istanbul", nation="TR")
@@ -357,7 +357,7 @@ def test_bazi_fisiltisi_yalnizca_kapida_acilir(temiz_onbellek, monkeypatch):
     Sızıntı olursa hata çıkmaz — ücretsiz kullanıcı ücretli veriyi görür.
     """
     monkeypatch.setattr(chart_context, "chart_facts",
-                        lambda uid, profile: {"sun": None, "moon": None,
+                        lambda uid, profile, **kw: {"sun": None, "moon": None,
                                               "placements": [],
                                               "transits": []})
     monkeypatch.setattr(chart_context, "bazi_facts",
@@ -384,3 +384,165 @@ def test_bazi_olgulari_kompakt_ve_ham_dogum_tasimiyor(temiz_onbellek):
     metin = json.dumps(olgular, ensure_ascii=False)
     assert "07:35" not in metin
     assert "Istanbul" not in metin
+
+
+# --------------------------------------------------------------------------
+# Olgu NOBETCISI: "hesaplamadim" ile "hesapladim, cikmadi" ayni sey degil
+# --------------------------------------------------------------------------
+
+def test_olgular_None_GECILIRSE_yeniden_HESAPLANMAZ(temiz_onbellek,
+                                                    monkeypatch):
+    """`facts=None` GECMEK "hesapla" demek DEGIL, "cikmadi" demek.
+
+    Olculen kusur: iki cagiran da (`api/chat.py`, `api/face_reading.py`)
+    olgulari KENDISI uretip geciyor ve gerekcesi yorumlarinda yaziyor —
+    "iki ayri cagri iki ayri onbellek turu demek olurdu". Ama efemeris
+    dustugunde `chart_facts` None donuyordu ve eski kapi (`if facts is
+    None`) onu "verilmedi" sanip AYNI hesabi bir kez daha deniyordu:
+    istek basina IKI bosa hesap. `_cached` hata yolunda `cache.set`
+    cagirmadigi icin ikinci deneme de onbellekten donmuyor.
+
+    Iki yon birden olculuyor, yoksa bekci kor kalir: nobetci kapiyi
+    kilitlediyse olgu HIC verilmeyen cagiranda da hesap yapilmazdi ve
+    sohbet kalici olarak sig ozete duserdi.
+    """
+    sayac = {"n": 0}
+
+    def sahte_olgular(uid, profile, today=None):
+        sayac["n"] += 1
+        return None
+
+    monkeypatch.setattr(chart_context, "chart_facts", sahte_olgular)
+
+    blok = chart_context.chart_whisper("u-nob-1", PROFIL, lang="tr",
+                                       facts=None)
+    assert sayac["n"] == 0, (
+        "`facts=None` gecilmesine ragmen olgular YENIDEN hesaplandi: "
+        "efemeris dustugunde istek basina iki bosa hesap")
+    assert "Aslan" in blok, "sig ozete dusulmeliydi"
+
+    # Olgu HIC verilmedi: hesap YAPILMALI (nobetci kapiyi kilitlemedi).
+    chart_context.chart_whisper("u-nob-2", PROFIL, lang="tr")
+    assert sayac["n"] == 1, (
+        "olgu hic verilmediginde de hesap yapilmadi: nobetci kapiyi "
+        "kilitlemis, sohbet kalici olarak sig ozete duser")
+
+
+# --------------------------------------------------------------------------
+# Butce: TEK fikstur degil EN KOTU HAL
+# --------------------------------------------------------------------------
+
+#: Yigilma UST SINIRI — kaynakta dilim YOK, sayim turetiyor.
+#:
+#: `chart_facts` yigilmalari `TRADITIONAL + OUTER` (10 nokta) uzerinden
+#: sayiyor ve esik `_STELLIUM_MIN`. Hicbir `[:n]` dilimi yok, yani ust
+#: sinir aritmetikten gelir: 10 // 3 = 3. Sabit BURADA tanimlanmiyor,
+#: kaynaktan TURETILIYOR — elle "2" yazildigi tur en kotu hal eksik
+#: olculdu (asagidaki uyari).
+_EN_COK_YIGILMA = len(chart_context.TRADITIONAL + chart_context.OUTER) \
+    // chart_context._STELLIUM_MIN
+
+
+def _en_kotu_olgular(lang: str) -> dict:
+    """Oge sinirlari TAM DOLU + O DILDE en uzun adlar.
+
+    Blok KARAKTERLE sinirli degil OGE ile sinirli (`_MAX_NATAL_ASPECTS`,
+    `_MAX_TRANSITS`, `_PLACEMENT_POINTS`, `_EN_COK_YIGILMA`, iki yaklasan).
+    O yuzden en kotu hal HESAPLANABILIR.
+
+    ⚠️ Bu fikstur bir tur boyunca "en uzun secenek" diyor ama IKI yerde
+    ALT SINIRIN altini olcuyordu (olculdu 2026-10-03):
+
+      * burc adi elle `"sagittarius"` yazilmisti. EN tarafta dogru
+        ("Sagittarius", 11 krk) ama TR tarafta o burcun adi "Yay" (3 krk)
+        ve TR'nin en uzunu "Ikizler" (7). Ad 11 yerde geciyor (Gunes, Ay,
+        Yukselen + 8 yerlesim), yani TR olcumu ~65 karakter eksikti.
+      * "en fazla iki yigilma" deniyordu; kaynakta dilim yok, ucu da
+        mumkun (bkz. `_EN_COK_YIGILMA`).
+
+    Ikisi de hukmu degistirmedi (tavan yine asilmiyor) ama BILDIRILEN
+    bosluk gercek bosluktan %70 buyuktu — ve bu bekcinin tek isi o
+    boslugu dogru bildirmek. Burc adi artik DILIN KENDI tablosundan
+    turetiliyor: tabloya daha uzun bir ad girdigi gun fikstur kendini
+    guncelliyor.
+
+    Gunes/Ay BILEREK retro DEGIL: gokte olmayan bir hali olcup "en kotu
+    hal" demek, olculmeyeni soylemek olurdu. Yerlesimlerin hepsi retro.
+    """
+    burclar = prompts.get(lang).SIGN_NAMES
+    uzun_burc = max(burclar, key=lambda k: len(burclar[k]))
+    uzun_cift = ("Medium_Coeli", "True_North_Lunar_Node")
+    return {
+        "sun": {"planet": "Sun", "sign": uzun_burc, "house": 12,
+                "retrograde": False, "position": 29.9},
+        "moon": {"planet": "Moon", "sign": uzun_burc, "house": 11,
+                 "retrograde": False, "position": 29.9},
+        "ascendant": uzun_burc,
+        "placements": [{"planet": ad, "sign": uzun_burc, "house": 12,
+                        "retrograde": True, "position": 29.9}
+                       for ad in chart_context._PLACEMENT_POINTS],
+        "elements": {"fire": 4, "earth": 2, "air": 1, "water": 1},
+        "modalities": {"cardinal": 4, "fixed": 2, "mutable": 2},
+        "stelliums": [{"house": 12 - i, "count": 3}
+                      for i in range(_EN_COK_YIGILMA)],
+        "aspects": [{"p1": uzun_cift[0], "p2": uzun_cift[1],
+                     "aspect": "opposition", "orb": 0.1}
+                    for _ in range(chart_context._MAX_NATAL_ASPECTS)],
+        "transits": [{"transit": uzun_cift[0], "natal": uzun_cift[1],
+                      "aspect": "opposition", "orb": 0.1}
+                     for _ in range(chart_context._MAX_TRANSITS)],
+        "upcoming": [{"date": "2026-10-07", "transit": uzun_cift[0],
+                      "natal": uzun_cift[1], "aspect": "opposition"}
+                     for _ in range(2)],
+    }
+
+
+def test_blok_EN_KOTU_HALDE_de_butceyi_asmaz():
+    """Ustteki bekci TEK fikstur olcuyor; bu, OGE SINIRLARININ sonucunu.
+
+    Fark neden onemli: `chart_whisper` kaynaginda KARAKTER sinirI almiyor
+    ve tavan `prompt_composer.MAX_CHART_CHARS`ta, yani YALNIZ sohbet
+    yolunda. Oteki cagiran (`api/face_reading` -> `report_service`)
+    composer'dan gecmiyor, dolayisiyla onun tek guvencesi bloğun OGE ile
+    sinirli olmasi. Bu bekci o guvenceyi sayiya baglar: bir sonraki tur
+    `_MAX_NATAL_ASPECTS`i 6'dan 12'ye cikarirsa ya da yerlesim satirina
+    yeni bir alan eklerse burasi kirmizi doner.
+
+    Olculen (2026-10-03, DOGRULAMA turu, fikstur duzeltildikten SONRA):
+      * `render(..., include_transits=True)` TR 1296 / EN 1286 karakter —
+        yani tavana kalan bosluk 104 / 114, eski olcumun bildirdigi
+        169 / 137 DEGIL;
+      * `render(..., include_transits=False)` (kalici yari) TR 902 / EN 921;
+      * `gunun_gokyuzu` TR 422 / EN 391;
+      * firaset prompt'una giren TOPLAM (kalici + gun) TR 1324 / EN 1312.
+
+    ⚠️ Son satir asil olcu: firaset yolunun HIC tavani yok (composer'dan
+    gecmiyor) ve en kotu halde 1400'e 76 karakter kaliyor. Bu bekci o
+    yuzden kalici + gun toplamini da olcuyor — `render`i tek basina
+    olcmek o yolu eksik olcmek olurdu.
+
+    ⚠️ BaZi fisiltisi EKLENDIGINDE tavan ASILIYOR ve bu BILINCLI:
+    `include_bazi` yalniz SOHBET yolunda aciliyor ve o yol composer'dan
+    geciyor — `prompt_composer._kirp` kirpar ve o dosyanin kendi gerekcesi
+    "kirpma, sessiz buyumeye yegdir" diyor. Burada olculen sey
+    composer'siz yolun tavani, o yuzden BaZi haric.
+    """
+    from services import prompt_composer
+
+    for lang in ("tr", "en"):
+        kotu = _en_kotu_olgular(lang)
+        tam = chart_context.render(kotu, lang=lang)
+        kalici = chart_context.render(kotu, lang=lang,
+                                      include_transits=False)
+        gok = chart_context.gunun_gokyuzu(kotu, lang=lang)
+        assert len(tam) < prompt_composer.MAX_CHART_CHARS, (
+            f"[{lang}] en kotu halde blok {len(tam)} karakter — tavan "
+            f"{prompt_composer.MAX_CHART_CHARS}; composer'dan gecmeyen "
+            f"cagiranda kirpilmadan prompt'a girer")
+        assert len(kalici) + len(gok) < prompt_composer.MAX_CHART_CHARS, (
+            f"[{lang}] firaset yolunun TOPLAMI {len(kalici) + len(gok)} "
+            f"karakter — o yol composer'dan gecmiyor, yani kirpilmadan "
+            f"prompt'a giriyor")
+        assert len(kalici) < len(tam), (
+            f"[{lang}] include_transits=False blogu kucultmedi: gun "
+            f"satirlari kalici bloktan cikmiyor")

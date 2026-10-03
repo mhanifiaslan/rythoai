@@ -253,9 +253,30 @@ def record_click(raw_code: str) -> bool:
     Uç KİMLİKSİZ ve herkese açık; üç kapı bu yüzden ZORUNLU:
 
     1. Biçim (`normalize_code`) — desene uymayan kod hiç yazıma girmez.
-    2. Kod GERÇEKTEN var mı. Bu kapı olmadan herkes uydurduğu kodla istek
-       atıp sınırsız Firestore dokümanı yazdırabilir: hem fatura hem çöp
-       veri. Bir okumaya değer.
+       Bu kapı bir OKUMAYA bile mal olmadan reddeder ve tek başına
+       yüklüdür (bekçi: `test_bicimsiz_kod_HIC_OKUMA_HIC_YAZIM_uretmez`).
+    2. Kod GERÇEKTEN var mı — bir okumaya değer, ama ASIL SEBEBİ İÇİN
+       değil.
+
+       ⚠️ Bu kapının gerekçesi bir tur boyunca "bu kapı olmadan herkes
+       uydurduğu kodla sınırsız Firestore dokümanı yazdırabilir" diye
+       yazılıydı ve ÖLÇÜLÜNCE YANLIŞ ÇIKTI (2026-10-03, mutasyon):
+       kapı tümden kaldırıldığında üç ortak test dosyasının 136 testi
+       de YEŞİL kalıyor — çünkü davranış DEĞİŞMİYOR. Sebebi üç satır
+       aşağıda zaten yazılı: koşan toplam `update` ile artıyor, `update`
+       var olmayan dokümanda başarısız oluyor ve toplu yazım ATOMİK —
+       yani gün sayacının `set(merge=True)`ı da hiç uygulanmıyor.
+       Uydurma kod bu yüzden kapı olmasa da HİÇBİR doküman doğurmuyor
+       (bekçi: `test_kod_arada_silinirse_GUN_sayaci_da_yazilmaz`).
+
+       Kapının ölçülen değeri daha dar ama gerçek: kimliksiz bir
+       çağıranın her uydurma kodu aksi halde bir BAŞARISIZ toplu yazıma
+       ve bir `logger.warning` satırına mal olurdu — yani kimliksiz
+       çağıran sunucu günlüğünü istediği kadar şişirebilirdi (aynı
+       sınıf kusur `api/maintenance.py`de ASCII olmayan `Authorization`
+       ile ölçüldü). Kapı bunu tek bir okumaya indiriyor, ve reddi
+       KASITLI kılıyor: atomikliğe bel bağlayan bir koruma, bir gün
+       `update` `set(merge=True)`a çevrildiğinde sessizce kaybolur.
     3. Her hata yutulur (best-effort).
 
     Kodun VAR OLMADIĞI bilgisi çağırana SIZDIRILMAZ (uç 404 değil 204

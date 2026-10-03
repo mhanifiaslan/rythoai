@@ -305,8 +305,18 @@ def chart_facts(chart: dict[str, Any] | None) -> set[Claim]:
         if isinstance(ev, int) and 1 <= ev <= 12:
             olgular.add(("house", ad, ev))
 
-    # İki şekil de kabul edilir: astro_service haritası (`points`) ve
-    # chart_context olguları (`placements`) — sohbet ikincisini üretiyor.
+    # İki şekil de kabul edilir ve HER İKİSİNİN DE TÜM alanları okunur:
+    #
+    #   * `astro_service` haritası: `points` (+ `house_no`), `asc`,
+    #     `sr_ascendant`, `aspects`.
+    #   * `chart_context.chart_facts` olguları: `placements` (+ `house`),
+    #     `sun`, `moon`, `ascendant` (DÜZ DİZE), `aspects`, `transits`,
+    #     `upcoming`.
+    #
+    # ⚠️ "İki şekil de kabul edilir" bir tur boyunca burada yazılıydı ama
+    # ikinci şeklin ÜÇ alanı (`ascendant` dizesi, `transits`, `upcoming`)
+    # sessizce atlanıyordu — yani iddia doğru, kapsam eksikti. Eksik
+    # dayanak yanlış pozitif demek ve yanlış pozitifin bedeli BİR LLM TURU.
     for pt in chart.get("points") or []:
         ekle(pt.get("name"), pt.get("sign"), pt.get("house_no"))
     for pt in chart.get("placements") or []:
@@ -317,17 +327,46 @@ def chart_facts(chart: dict[str, Any] | None) -> set[Claim]:
             ekle(pt.get("planet"), pt.get("sign"), pt.get("house"))
 
     # Yükselen ayrı alanda gelir; yıl haritasında adı `sr_ascendant`.
+    #
+    # İKİ ŞEKİL: `astro_service` sözlük veriyor (`{"sign": "Vir"}`),
+    # `chart_context.chart_facts` ise DÜZ DİZE (`"virgo"`). Dize şekli bir
+    # tur boyunca sessizce atlanıyordu ve bunun ölçülmüş sonucu şu: sohbet
+    # ucu dayanağı `facts=`ten kuruyor (`api/chat.py`), yani Yükselen burcu
+    # dayanak kümesine HİÇ girmiyordu. Metin yolu onu kurtarıyordu (fısıltı
+    # bloğunun ilk satırı "Yükselen: Başak" yazıyor ve `extract_claims` onu
+    # görüyor), ama kurtarma TESADÜFİ: blok prompt bütçesinde kırpılırsa ya
+    # da fısıltı sığ özete düşerse dayanak kaybolur ve DOĞRU bir Yükselen
+    # cümlesi "uydurma" damgası yiyip bir LLM turu daha ısmarlar.
+    # Ölçüldü (2026-10-03): dize şekliyle `("sign", "Ascendant", "virgo")`
+    # dayanakta YOKTU; blok prompt'tan düşürülünce yanlış pozitif üretti.
     for anahtar in ("asc", "sr_ascendant", "ascendant"):
         asc = chart.get(anahtar)
         if isinstance(asc, dict) and asc.get("sign"):
             olgular.add(("sign", "Ascendant",
                          _SIGN_CODE_TO_KEY.get(asc["sign"],
                                                str(asc["sign"]).lower())))
+        elif isinstance(asc, str) and asc.strip():
+            olgular.add(("sign", "Ascendant",
+                         _SIGN_CODE_TO_KEY.get(asc, asc.strip().lower())))
 
     for a in chart.get("aspects") or []:
         p1, p2, aci = a.get("p1"), a.get("p2"), a.get("aspect")
         if p1 and p2 and aci:
             uclar = tuple(sorted((p1, p2)))
+            olgular.add(("aspect", uclar[0], aci, uclar[1]))
+
+    # TRANSİT ve YAKLAŞAN açılar da dayanaktır — alan adları farklı
+    # (`transit`/`natal`, `p1`/`p2` değil) ve bu yüzden yukarıdaki döngü
+    # onları görmüyordu. İkisi de prompt'a MEŞRU olarak giriyor (fısıltı
+    # bloğu ya da `gunun_gokyuzu`), yani burada eksik kalmaları yalnızca
+    # dayanağı daraltır: gün satırlarını taşımayan bir çağıran
+    # (`include_transits=False`) için doğru bir transit cümlesi dayanaksız
+    # kalır. Dayanağı genişletmek yalnız YANLIŞ POZİTİFİ azaltır; gerçek
+    # bir uydurma hâlâ kümenin dışındadır.
+    for a in (chart.get("transits") or []) + (chart.get("upcoming") or []):
+        gezen, natal, aci = a.get("transit"), a.get("natal"), a.get("aspect")
+        if gezen and natal and aci:
+            uclar = tuple(sorted((gezen, natal)))
             olgular.add(("aspect", uclar[0], aci, uclar[1]))
 
     return olgular

@@ -322,10 +322,16 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
           I Ching, the daily dyad, the Birth Gate and face reading<br>
           Ten people in your circle, each with an AI relationship reading</p>
           <!-- Türkçe sayfadaki uzun gerekçenin aynısı (web/index.html):
-               bedeli harcamadan ÖNCE gösteren tek ekran İ Ching, mağaza
-               satırı elle yazılmış bir l10n dizesi, ve tekrar okuma yalnız
-               önbellek ömrü boyunca bedava. Bu yüzden cümle süreye değil
-               "yeni üretim" olgusuna bağlı.
+               bedeli harcamadan ÖNCE gösteren tek ekran İ Ching, ve tekrar
+               okuma yalnız önbellek ömrü boyunca bedava. Bu yüzden cümle
+               süreye değil "yeni üretim" olgusuna bağlı.
+               ⚠️ Bu notun eski hâli "mağaza satırı elle yazılmış bir l10n
+               dizesi" diyordu; o gerekçe YANLIŞ kaldı ve düzeltildi
+               (ölçüldü 2026-10-03): satır
+               bedelSatiri(l10n.tokenCostsNote, cuzdan.costs) ile sunucudan
+               kuruluyor. Cümleye "current/up-to-date" sıfatı yine
+               yazılmıyor — sunucu ayrı dağıtıldığı için harita gelmezse
+               şablonun kendi sayıları çizilir ve bayatlayabilir.
                Bekçi: backend/tests/test_honesty.py::TestJetonIddialari. -->
           <p style="margin-top:12px;font-size:12.5px">Tokens are spent per
           report, and the costs are listed in the app's token store. A token

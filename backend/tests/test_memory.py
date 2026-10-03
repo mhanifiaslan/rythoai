@@ -688,6 +688,85 @@ def test_budama_omru_icindeki_eski_olguyu_da_zayif_sayar():
         "guven tek basina siralamis; eski olgu yeni olgunun slotunu almis"
 
 
+def test_siralama_RESIDUSU_omursuz_kategoriler_tazeyi_geciyor(monkeypatch):
+    """OLCULEN SINIR: taze olgu yalniz KISA omurlu rakibi geciyor.
+
+    `test_butcenin_basini_en_yeni_olgu_kapar` DOGRU ama fiksturu dar: eski
+    rakip `concern` (omur 30 gun, yarilanma 15), yani tazelik carpani
+    rakibi hizla eziyor. Omursuz kategorilerde (`preference`/`milestone`,
+    yarilanma 365) ayni sey OLMUYOR ve `memory_context`in docstring'i bir
+    tur boyunca "en guncel olan butcenin basini kapar" diye GENELLEDI —
+    o gerekce olculdugunde yanlis cikti.
+
+    Olculen (bu bekci): 1 gunluk IMA EDILMIS (`confidence` 0.5) bir
+    `work` olgusu, bes `preference` (200 gun) ve bes `milestone`
+    (300 gun) kaydinin ARKASINDA kaliyor.
+
+    IKI BAGIMSIZ ISARET ve ikincisi asil degerli olan:
+      1. taze olgu `MAX_WHISPER_FACTS` diliminin DISINDA,
+      2. BUTCEYI BUYUTMEK KURTARMIYOR — dilim butce bolusmesinden ONCE
+         uygulandigi icin 400/600/1200/4000 hepsinde ayni. "Gunluk
+         sigmiyor" diye `max_chars`i buyuten bir sonraki okuyucu, taze
+         olgulara da yardim ettigini sanirdi.
+
+    ⚠️ BU BEKCI KUSURU KORUMAK ICIN DEGIL, GORUNUR KILMAK ICIN VAR.
+    Onarim bir AYAR karari: agirlik formulunu degistirmek
+    `test_siralamada_guven_hala_rol_oynar` ile dogrudan gerilimde (guven
+    bilgiyi IMA ile SOYLENMIS arasinda ayirir ve atilamaz) ve kok neden
+    ayri — omursuz kategorilerin haber niteligindeki olgularla AYNI
+    agirlik yarisina girmesi; ikisi ayri liste olmali. Karar verilip
+    siralama degistiginde bu bekci KIRMIZI olur ve mesaji ustteki
+    docstring'in da guncellenmesini ister. Alternatifi daha kotuydu:
+    "taze her zaman kazanir" diye yazmak kimsenin vermedigi bir ayar
+    kararini sessizce civilemek, hic olcmemek ise bir tur boyunca oldugu
+    gibi kusuru gorunmez tutmak olurdu.
+    """
+    taze = {"category": "work", "key": "work.yeni",
+            "value": "DUN ima edilen is haberi", "confidence": 0.5,
+            "updatedAt": _gun_once(1)}
+    eskiler = [
+        {"category": "preference", "key": f"preference.p{i}",
+         "value": f"eski tercih {i}", "confidence": 0.9,
+         "updatedAt": _gun_once(200)} for i in range(5)
+    ] + [
+        {"category": "milestone", "key": f"milestone.m{i}",
+         "value": f"eski kilometre tasi {i}", "confidence": 0.9,
+         "updatedAt": _gun_once(300)} for i in range(5)
+    ]
+
+    # 1. ISARET: dilimin DISINDA. Sira dogrudan olculuyor (fisiltidan
+    #    geri okumak degil), cunku olculen sey SIRALAMA.
+    sirali = sorted(
+        [taze, *eskiler],
+        key=lambda f: (memory_service._SIRA_ONCELIGI.get(
+            str(f.get("category")), 0), memory_service._etkin_agirlik(f, _AN)),
+        reverse=True)
+    dizin = [f["key"] for f in sirali].index("work.yeni")
+    assert dizin >= memory_service.MAX_WHISPER_FACTS, (
+        f"SIRALAMA DEGISMIS: taze olgu artik {dizin}. sirada ve "
+        f"MAX_WHISPER_FACTS={memory_service.MAX_WHISPER_FACTS} diliminin "
+        f"ICINDE. Bu residunun kapanmasi bir AYAR karariydi — karar "
+        f"verildiyse `memory_service.memory_context` docstring'indeki "
+        f"'2. KAPININ SINIRI' blogu ve bu bekci birlikte guncellenmeli")
+
+    # 2. ISARET: BUTCE BUYUTMEK KURTARMIYOR (dilim butceden ONCE).
+    #
+    # YOKLUK IDDIASI TEK BASINA KOR: bos bir fisilti "taze olgu yok"
+    # sinavini kusursuz gecer. Bu yuzden her butcede ESKI olgunun
+    # GERCEKTEN girdigi de ayrica sorulyor — iddia "fisilti calisiyor AMA
+    # tazeyi almiyor" olmak zorunda.
+    for mc in (400, 600, 1200, 4000):
+        metin = _fisilti(monkeypatch, [taze, *eskiler], max_chars=mc)
+        assert any(e["value"] in metin for e in eskiler), (
+            f"max_chars={mc}'de fisiltiya HIC olgu girmedi — yokluk "
+            f"iddiasi bos cikti, bekci olcmuyor: {metin!r}")
+        assert taze["value"] not in metin, (
+            f"max_chars={mc}'de taze olgu fisiltiya girdi — dilim artik "
+            f"butce bolusmesinden SONRA uygulaniyor olabilir; "
+            f"`MAX_WHISPER_FACTS` yorumu ve ustteki 1. isaret bu sirayi "
+            f"varsayiyor")
+
+
 def test_siralamada_guven_hala_rol_oynar(monkeypatch):
     """Agirlik `guven x tazelik`; tazelik TEK BASINA degil.
 
@@ -957,12 +1036,39 @@ def test_yas_etiketi_bugun_ve_dun_ayri_yazilir():
 
     Capa diyakritige BAGLANMIYOR (depo kurali: tek Turkce kelimeye capa
     atmak ASCII yazimda korlesir). Uc bagimsiz isaret: ucu birbirinden
-    farkli, ilk ikisi sayi TASIMIYOR, ucuncusu tasiyor."""
-    etiketler = [memory_service._yas_etiketi(y) for y in (0.0, 1.4, 12.0)]
-    assert len(set(etiketler)) == 3, etiketler
-    assert not any(c.isdigit() for c in etiketler[0]), etiketler[0]
-    assert not any(c.isdigit() for c in etiketler[1]), etiketler[1]
-    assert "12" in etiketler[2], etiketler[2]
+    farkli, ilk ikisi sayi TASIMIYOR, ucuncusu tasiyor.
+
+    IDDIA IKI DILDE BIRDEN kuruluyor (ayni yapisal kural her dilde
+    tutmali) ve ayrica diller BIRBIRINDEN FARKLI olmali: etiketler
+    `prompts`a tasinmadan once sabit Turkceydi, yani Ingilizce prompt
+    Turkce etiket aliyordu. Tek dilde kurulan bir iddia o hali YESIL
+    GECIRIR — iki dilin AYNI cikmasi tam olarak kusurun imzasidir."""
+    from services import prompts
+
+    hepsi = {}
+    for dil in ("tr", "en"):
+        p = prompts.get(dil)
+        etiketler = [memory_service._yas_etiketi(y, p)
+                     for y in (0.0, 1.4, 12.0)]
+        hepsi[dil] = etiketler
+        assert len(set(etiketler)) == 3, (dil, etiketler)
+        assert not any(c.isdigit() for c in etiketler[0]), (dil, etiketler[0])
+        assert not any(c.isdigit() for c in etiketler[1]), (dil, etiketler[1])
+        assert "12" in etiketler[2], (dil, etiketler[2])
+    # KARSILASTIRMA ESIK ESIK, liste liste DEGIL.
+    #
+    # ⚠️ Bu satir bir KOR BEKCI onarimidir (M11, minimal mutasyonla
+    # olculdu): `hepsi["tr"] != hepsi["en"]` iddiasi, UC esikten YALNIZ
+    # BIRINI sabit Turkceye ceviren mutasyonu 106/106 YESIL geciriyordu —
+    # cunku kalan iki esik farkli kaldigi icin LISTELER yine esit
+    # degildi. Yani liste duzeyinde kurulan iddia, esiklerin ikisini
+    # cevirip birini unutan onarimi gormez. Her esik kendi basina
+    # olculmek zorunda.
+    for i, (t, e) in enumerate(zip(hepsi["tr"], hepsi["en"])):
+        assert t != e, (
+            f"{i}. yas esigi iki dilde AYNI: {t!r} — o esik sabit "
+            f"Turkce kalmis, hafiza fisiltisi Ingilizce prompt'a Turkce "
+            f"girecek")
 
 
 def test_budama_omru_gecmisi_agir_olsa_da_canlinin_onune_gecirmez():
@@ -1184,6 +1290,189 @@ def test_fisilti_payi_olgularin_tekelini_kesiyor(monkeypatch):
     # Paylarin toplami 1.0 olmali: eksikse butce bosa gider, fazlaysa
     # oransal tur tavan olmaktan cikar ve ilk bilesen yine tekel kurar.
     assert abs(sum(memory_service._FISILTI_PAYLARI.values()) - 1.0) < 1e-9
+
+
+def _etiketler(metin: str) -> list[str]:
+    """Fisilti satirlarinin yalniz ETIKET kismini (parantez ici) dondurur.
+
+    Olgu DEGERLERI ayiklanmiyor: fikstur degerleri Turkce kullanici
+    metnidir ve oyle kalmasi gerekir — cevrilecek olan yalnizca sunucunun
+    kendi koydugu etiket.
+    """
+    cikan = []
+    for satir in metin.splitlines():
+        if satir.startswith("- (") and ")" in satir:
+            cikan.append(satir[3:satir.index(")")])
+    return cikan
+
+
+def test_fisilti_etiketleri_OTURUMUN_DILINDE(monkeypatch):
+    """Hafiza fisiltisinin IC ETIKETLERI `lang`i izlemeli.
+
+    Olculdu (onarim oncesi): `memory_context`in dil parametresi YOKTU ve
+    etiketler sabit Turkceydi. Blok BASLIGI (`prompts.WHISPER_MEMORY`)
+    dile gore geliyordu, yani Ingilizce oturumda Ingilizce bir basligin
+    altina "(ruh hali seyri)", "(gunluk 2026-09-25)", "(ton tercihi)" ve
+    "(concern, 1 gun once)" satirlari giriyordu.
+
+    `test_language_isolation.py` bunu GORMUYOR cunku o testler
+    `memory_context`i monkeypatch ediyor — yani dil izolasyonu bu yuzeyde
+    hic olculmemisti.
+
+    CAPA TEK BIR TURKCE KELIMEYE BAGLI DEGIL (depo kurali): esikler
+    `prompts` modullerinden OKUNUYOR, yani etiket metni degisse de bekci
+    yasar. Dort bagimsiz isaret:
+      1. TR cagri TR etiketleri uretir (VARSAYILANIN kaymadigi da budur),
+      2. EN ciktidaki her etiket EN modulunun BEYAN ETTIGI bir etikettir
+         (kapali kume — yazima bakmaz, bkz. M14 notu asagida),
+      3. bilesenlerin hepsi gercekten uretilmistir (bos fisilti kapali
+         kume sinavini kusursuz gecer),
+      4. iki dilin etiket kumesi FARKLIdir.
+    """
+    from services import prompts
+
+    # Fikstur olgulari 1 GUNLUK, yani yas etiketinin yalniz "dun" dali
+    # kosuyor. 12 gunluk bir olgu BILEREK ekleniyor: UCUNCU dal
+    # (`MEM_AGE_DAYS_FMT`) aksi halde hic uretilmez ve o dali sabit
+    # Turkceye ceviren bir mutasyon buradan GECERDI (M11 ile olculdu).
+    hafiza = _b4_hafiza(olgu_sayisi=2)
+    hafiza["facts"].append(
+        {"category": "goal", "key": "goal.eski", "value": "uzun vadeli bir "
+         "hedef uzerinde calisiyor", "confidence": 0.9,
+         "updatedAt": _gun_once(12)})
+    monkeypatch.setattr(memory_service, "get_memory", lambda uid: hafiza)
+
+    tr, en = prompts.get("tr"), prompts.get("en")
+    tr_metin = memory_service.memory_context("u", max_chars=4000, simdi=_AN)
+    en_metin = memory_service.memory_context("u", max_chars=4000, simdi=_AN,
+                                             lang="en")
+
+    # 1. TR tarafi: varsayilan (lang verilmemis) hal Turkce KALMALI.
+    #    Bu yarim iddia degil, ONARIMIN GERI UYUMLULUK kapisi:
+    #    `report_service` dili gecirmiyor ve davranisi degismemeli.
+    assert tr.MEM_MOOD_TRAIL in _etiketler(tr_metin), _etiketler(tr_metin)
+    assert tr.MEM_TONE in _etiketler(tr_metin), _etiketler(tr_metin)
+
+    # 2. EN tarafi: KAPALI KUME — uretilen her etiket EN modulunun
+    #    BEYAN ETTIGI bir etiket (ya da cevrilmeyen bir kategori adi)
+    #    olmak zorunda.
+    #
+    # ⚠️ Buranin ilk hali "TR etiketlerinden hicbiri gorunmesin" diye
+    # yazilmisti ve KOR CIKTI (M14, minimal mutasyonla olculdu): tek bir
+    # etiketi ASCII yazimla sabitleyen mutasyon ("son turda aradigi",
+    # diyakritiksiz) 106/106 YESIL geciyordu — cunku `tr.MEM_LAST_NEED`
+    # ("son turda aradığı") o dizede ALT DIZE olarak GECMIYOR. Bu, depo
+    # kuralinin birebir ornegi: capayi tek bir Turkce yazima baglamak
+    # ASCII yazimda korlesir.
+    #
+    # Kapali kume bu sinifin TAMAMINI kesiyor ve yazima HIC bakmiyor:
+    # beyan edilmeyen bir etiket, hangi alfabeyle yazilmis olursa olsun
+    # listeye giremez.
+    en_etiketler = _etiketler(en_metin)
+    beyan_edilen = {en.MEM_MOOD_TRAIL, en.MEM_LAST_NEED, en.MEM_TONE}
+    gunluk_oneki = en.MEM_DIARY_FMT.split("{")[0]
+    yas_bicimleri = {en.MEM_AGE_TODAY, en.MEM_AGE_YESTERDAY}
+    yas_oneki = en.MEM_AGE_DAYS_FMT.split("{")[0]  # "" olabilir
+    yas_soneki = en.MEM_AGE_DAYS_FMT.split("}")[-1]
+
+    def _tanidik(etiket: str) -> bool:
+        if etiket in beyan_edilen:
+            return True
+        if gunluk_oneki and etiket.startswith(gunluk_oneki):
+            return True
+        # Olgu etiketi: "kategori" ya da "kategori, <yas>".
+        kategori, _, yas = etiket.partition(", ")
+        if kategori not in memory_service.CATEGORIES:
+            return False
+        if not yas:
+            return True
+        return (yas in yas_bicimleri
+                or (yas.startswith(yas_oneki) and yas.endswith(yas_soneki)))
+
+    for etiket in en_etiketler:
+        assert _tanidik(etiket), (
+            f"Ingilizce fisiltida EN modulunun beyan ETMEDIGI etiket: "
+            f"{etiket!r} — sabit metin kalmis. Tum etiketler: "
+            f"{en_etiketler}")
+    # Kume kapali olmak YETMEZ: bilesenler GERCEKTEN uretilmis olmali,
+    # yoksa bos bir fisilti kapali kume sinavini kusursuz gecer.
+    assert en.MEM_MOOD_TRAIL in en_etiketler, en_etiketler
+    assert en.MEM_TONE in en_etiketler, en_etiketler
+    assert en.MEM_LAST_NEED in en_etiketler, en_etiketler
+    assert any(e.startswith(gunluk_oneki) for e in en_etiketler), en_etiketler
+
+    # 3. Iki kume FARKLI olmali — ayni cikmasi kusurun imzasidir.
+    assert set(_etiketler(tr_metin)) != set(en_etiketler)
+
+    # KATEGORI ADI BILEREK CEVRILMIYOR: `WHISPER_MEMORY` yasagi
+    # "(sensitivity)" etiketini ADIYLA aniyor, yani kategori kimligi iki
+    # dilde de AYNI kalmak zorunda. Cevirmek yasagi sessizce kopartirdi.
+    assert any(e.startswith("concern") for e in _etiketler(tr_metin))
+    assert any(e.startswith("concern") for e in en_etiketler), en_etiketler
+
+
+#: Hafiza fisiltisinin dile bagli etiketleri. Liste BURADA duruyor ki yeni
+#: bir etiket eklendiginde iki dile de konmasi ZORUNLU olsun.
+MEM_ETIKETLERI = ("MEM_AGE_TODAY", "MEM_AGE_YESTERDAY", "MEM_AGE_DAYS_FMT",
+                  "MEM_MOOD_TRAIL", "MEM_LAST_NEED", "MEM_DIARY_FMT",
+                  "MEM_TONE")
+
+#: Turkce harfleri ASCII karsiliklarina indirir.
+#:
+#: ⚠️ NEDEN GEREKLI (P3, minimal mutasyonla olculdu): ham `!=`
+#: karsilastirmasi, `en.py`deki bir etiketi DIYAKRITIKSIZ Turkceye ceviren
+#: mutasyonu (`"son turda aradigi"`) 107/107 YESIL geciriyordu — cunku
+#: Turkcesi `"son turda aradığı"` ve iki dize gercekten farkli. Depo
+#: kuralinin birebir ornegi: capayi tek bir yazima baglamak ASCII yazimda
+#: korlesir, bu yuzden iddia IKI yazimda birden sorulur.
+#:
+#: `str.lower()` ONCE DEGIL SONRA gelmez: Turkce noktali I once elle
+#: cevrilir (`"İ".lower()` "i" degil "i"+U+0307 verir).
+_ASCIYE = str.maketrans({"ç": "c", "ğ": "g", "ı": "i", "ö": "o",
+                         "ş": "s", "ü": "u", "â": "a", "î": "i", "û": "u"})
+
+
+def _sadelestir(metin: str) -> str:
+    return metin.replace("İ", "i").replace("I", "ı").lower().translate(_ASCIYE)
+
+
+def test_hafiza_etiketleri_IKI_DILDE_AYRISIR():
+    """Her `MEM_*` sabiti iki dilde FARKLI olmali ve HICBIRI bos olmamali.
+
+    NEDEN kapali kume bekcisi YETMIYOR: o bekci "uretilen etiket EN
+    modulunun beyan ettigi bir etiket mi" diye soruyor. `en.py`deki tek
+    bir degerin Turkce metne cevrilmesi (kopyala-yapistir, ya da bir
+    ceviri turunda atlanmasi) o sinavi KUSURSUZ gecer — cunku deger
+    gercekten EN modulunun beyanidir. Ayrismayi olcen tek yer burasi.
+
+    Ayrica yeni bir etiket EKLENDIGINDE iki dile de konmasini zorluyor:
+    `getattr` varsayilani YOK, yani eksik sabit AttributeError degil
+    acik bir iddia hatasi verir.
+
+    Capa diyakritige ya da tek bir kelimeye BAGLI DEGIL: olculen sey
+    metnin NE OLDUGU degil, iki dilde AYNI OLMADIGI.
+    """
+    from services import prompts
+
+    tr, en = prompts.get("tr"), prompts.get("en")
+    for ad in MEM_ETIKETLERI:
+        t, e = getattr(tr, ad, None), getattr(en, ad, None)
+        assert t, f"tr.{ad} yok ya da bos"
+        assert e, f"en.{ad} yok ya da bos"
+        assert t != e, (
+            f"{ad} iki dilde AYNI ({t!r}) — Ingilizce prompt bu etiketi "
+            f"Turkce aliyor")
+        # IKINCI, BAGIMSIZ ISARET: diyakritiksiz yazim da ayni sayilir.
+        # Ustteki ham karsilastirma ASCII cevirisini (P3) goremiyordu.
+        assert _sadelestir(t) != _sadelestir(e), (
+            f"{ad} iki dilde AYNI (diyakritiksiz yazim): {t!r} / {e!r} — "
+            f"Ingilizce etiket Turkcenin ASCII yazimi")
+        # Bicim sabitleri yer tutucularini KORUMAK zorunda: yer tutucusu
+        # dusen bir kalip `format()`te sessizce sabit metne doner.
+        if ad.endswith("_FMT"):
+            yuva = "{days}" if "AGE" in ad else "{date}"
+            assert yuva in t, f"tr.{ad} yer tutucusunu kaybetmis: {t!r}"
+            assert yuva in e, f"en.{ad} yer tutucusunu kaybetmis: {e!r}"
 
 
 def test_ruh_hali_seyri_tek_girise_inmez(monkeypatch):

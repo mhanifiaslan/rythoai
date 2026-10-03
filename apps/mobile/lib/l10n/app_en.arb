@@ -990,6 +990,7 @@
   "accountSection": "Account",
   "accountSaved": "Your account details are updated.",
   "displayNameEmpty": "Your name can't be empty.",
+  "displayNameTooLong": "Your name can be at most {count} characters.",
   "usernameChangeNote": "If you change it, your old username is released and someone else can take it.",
   "emailChangeNote": "Your email is the key to your sign-in; contact support to change it.",
   "emailNotVerified": "Your email isn't verified yet.",

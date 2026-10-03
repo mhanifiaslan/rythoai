@@ -140,9 +140,24 @@ _KIRMIZI_ESIGI = 3
 #:   3. Kırmızı ancak `ok == 0` iken yanar; kuyrukta iki kişi varsa ve
 #:      biri başarılıysa koşu yeşildir.
 #:
-#: `circle` varsayılanda (3) BİLEREK bırakıldı: kapısı "son 3 günde
-#: görülmüş" (`fark < WINBACK_TIERS[0]`), yani adayı AKTİF kullanıcılardır
-#: ve kuyruğu `daily` ile aynı büyüklük sırasında. `checkin`/`streak`/
+#: `circle` varsayılanda (3) bırakıldı ama gerekçesi ÖLÇÜLMEMİŞ bir
+#: gerekçeydi ve düzeltildi (2026-10-03): "kapısı son 3 günde görülmüş,
+#: yani adayı AKTİF kullanıcılardır ve kuyruğu `daily` ile aynı büyüklük
+#: sırasında" yazıyordu. İki yerden yanlış. (1) Kıyas KUYRUĞA değil
+#: `generation["attempted"]`a yapılmalı — eşiği okuyan kapı o sayacı
+#: okuyor. (2) `circle`ın `attempted` nüfusu `daily`nin ALT KÜMESİ DEĞİL,
+#: YAPISAL OLARAK DAHA DARDIR: sayaç yalnız `olctu is not None` iken
+#: artıyor ve bu "kullanıcının EN AZ BİR arkadaşı ya da eklenmiş kişisi
+#: var" demek (`_cift_adaylari` boş değil) — isteğe bağlı bir sosyal
+#: eylem. O oran bu depoda HİÇBİR YERDE ölçülmedi.
+#: Sonuç: `circle` için eşik 1'e ÇEKİLMEDİ, çünkü ölçmeden eşik seçmek
+#: `winback`te onarılan kusurun aynısını ters yönde üretir (hiç dolmayan
+#: eşik yerine her gün yanan eşik) ve "ölçülmeyen söylenmez" kuralını
+#: çiğner. Dürüst durum: `circle`ın üretim kapısı ÖLÇÜLMEMİŞ bir eşikle
+#: duruyor ve kuyruğu 3'ün altındaysa `winback`teki kusur burada SÜRÜYOR.
+#: Kapanması için gereken tek şey ölçüm: bir koşunun `generation`
+#: dökümünden `attempted` dağılımı (`notifyRuns/{gün}-circle`).
+#: `checkin`/`streak`/
 #: `midday` buraya hiç girmiyor çünkü `generation` sayacını HİÇ
 #: artırmıyorlar (LLM çağırmıyorlar: biri yazılmış soruyu okuyor, ikisi
 #: şablon) — onlarda üretim kapısı tanım gereği sessizdir.
@@ -153,6 +168,41 @@ _KIRMIZI_ESIGI = 3
 _SLOT_KIRMIZI_ESIGI = {
     "winback": 1,
 }
+
+#: Eşiği DÜŞÜRÜLEN her slotun, o eşik seçilirken ÖLÇÜLEN kuyruk tavanı.
+#:
+#: NEDEN gerekti: yukarıdaki "⚠️ eşik yeniden ölçülüp yükseltilmeli"
+#: uyarısı DOĞRU ama hiçbir yere BAĞLI DEĞİLDİ — yorumu okuyan kimse
+#: olmazsa nüfus büyüdüğünde eşik sessizce yanlışa dönüşür. Bağımsız
+#: ölçüm (2026-10-03): `winback` kuyruğu 18 profille en çok **2** (3'e
+#: ulaşma %0), 50 profille en çok 5 (%26), 200 profille en çok 20 (%77).
+#: Yani eşik 1 BUGÜN doğru, büyüyen nüfusta YANLIŞ ALARM üretir.
+#:
+#: Kuyruk bu tavanı aştığı an koşu bir UYARI basıyor: kalibrasyon
+#: bandının dışına çıkıldı, eşik yeniden ÖLÇÜLMELİ. Tavanı aşmak kusur
+#: DEĞİL, kalibrasyonun son kullanma tarihidir — o yüzden uyarı, hata
+#: değil ve durum koduna dokunmuyor.
+#:
+#: ⚠️ Yalnız eşiği DÜŞÜRÜLMÜŞ slotlar burada: tehlike yönü onlarda
+#: BÜYÜME (küçük eşik + büyük kuyruk = gürültüye kırmızı yanma).
+#: Varsayılan eşikli slotlarda tehlike yönü TERSİ (kuyruk eşiğin altına
+#: inerse kapı hiç çalışmaz) ve o ayrı bir ölçüm — ikisini tek kurala
+#: sıkıştırmak yanlış gerekçe olurdu.
+_OLCULEN_KUYRUK_TAVANI = {
+    "winback": 2,
+}
+
+
+def _kalibrasyon_bandi_asildi(type_: str, kuyruk: int) -> int | None:
+    """Kuyruk, eşik seçilirken ölçülen tavanı aştı mı — aştıysa o tavan.
+
+    Ölçümü OLMAYAN slot için asla konuşmaz (`None`): ölçülmeyen bir
+    tavanı varsaymak "ölçülmeyen söylenmez" kuralını çiğnerdi.
+    """
+    tavan = _OLCULEN_KUYRUK_TAVANI.get(type_)
+    if tavan is None or kuyruk <= tavan:
+        return None
+    return tavan
 
 
 def _kirmizi_esigi(type_: str) -> int:
@@ -484,6 +534,11 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
         # SS-turu: gövde SORU biçimliyse üretici bunu beyan eder; sohbet
         # tohumu dil kapısından SONRA atılır (aşağıda).
         soru = False
+        # DM-turu dil ağının ölçümünden ÇIKARILACAK özel ad. Yalnız karşı
+        # tarafın görünen adını metne koyan slotlar doldurur (`circle`);
+        # boş kalınca `ozel_ad_haric` metne DOKUNMAZ, yani öteki
+        # dalların davranışı birebir aynı.
+        karsi_ad = ""
 
         if type == "daily":
             sign = profile_service.sun_sign_key(profil)
@@ -551,8 +606,9 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
             # bağlanıyor: ölçüm elde edilemezse bu kesinti durum koduna
             # kadar çıkmalı, yoksa "gonderilen=N basarisiz=0" diyen bir
             # koşu yine bir ayı yutar.
-            cevre, gerekce, olctu = notification_service.circle_push(
-                profil, lang, today=yerel.date())
+            cevre, gerekce, olctu, karsi_ad = (
+                notification_service.circle_push(
+                    profil, lang, today=yerel.date()))
             if olctu is not None:
                 uretim["attempted"] = uretim.get("attempted", 0) + 1
                 _anahtar = "ok" if olctu else "fallback"
@@ -589,6 +645,11 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
             baslik, govde = icerik.baslik, icerik.govde
             # Gövde SORU: aşağıdaki ortak tohum dalı sohbeti açar.
             soru = icerik.soru
+            # 10. basamağın gövdesi karşı tarafın ADINI taşıyabilir; ad
+            # dil ölçümünden çıkarılmalı, yoksa aşağıdaki ortak ağ
+            # İngilizce bir kullanıcıya giden Türkçe adlı geri çağrıyı
+            # düşürürdü (`ozel_ad_haric` gerekçesi).
+            karsi_ad = icerik.ozel_ad
             # Basamak ve sessizlik epizodunun çapası gönderim kaydına
             # yazılır; sayacın dönüşte sıfırlanması buna dayanıyor.
             ekstralar[profil["uid"]] = (
@@ -618,8 +679,18 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
         # GİTMEZ ve görünür atlanır. Üreticiler kendi muhafızını taşır
         # (`_bundle_body`, `checkin_push`); burası kaçağı yakalayan ağ.
         # Sohbet tohumu bu kapıdan SONRA: yanlış dilde soru sohbete girmez.
-        if (i18n.language_conflicts(govde, lang)
-                or i18n.language_conflicts(baslik, lang)):
+        #
+        # ⚠️ ÖLÇÜLEN metin, GÖNDERİLEN metin değil: karşı tarafın özel adı
+        # ölçümden çıkarılıyor (`ozel_ad_haric`, gerekçesi orada). Ad
+        # DİL TAŞIMAZ ama `guess_language` harf tabanlı karar veriyor ve
+        # tek bir "ş" bütün başlığın dilini belirliyordu — `lang="en"`
+        # kullanan birinin Türkçe adlı bir arkadaşı varsa Çevrem
+        # bildirimi her gün `dil-uyusmaz` ile düşüyordu. Ağ yerinde:
+        # kaçak gövdenin dil işareti addan değil cümleden gelir.
+        _baslik_olcum = notification_service.ozel_ad_haric(baslik, karsi_ad)
+        _govde_olcum = notification_service.ozel_ad_haric(govde, karsi_ad)
+        if (i18n.language_conflicts(_govde_olcum, lang)
+                or i18n.language_conflicts(_baslik_olcum, lang)):
             logger.warning(
                 "Bildirim dil uyuşmazlığı, gönderilmedi: uid=%s tur=%s "
                 "lang=%s baslik=%r govde=%r",
@@ -692,6 +763,15 @@ def _run(type: str, *, dry_run: bool, force: bool, ignore_dedupe: bool,
         logger.error("Bildirim kosusu TAMAMEN dustu (%s): tur=%s kuyruk=%d "
                      "gonderilen=%d uretim=%s",
                      gerekce, type, yanit.queued, yanit.sent, uretim)
+    # Eşik kalibrasyonunun son kullanma tarihi. `status`a DOKUNMAZ: bant
+    # aşımı kusur değil, "bu eşik artık ölçülmüş değil" demek.
+    _tavan = _kalibrasyon_bandi_asildi(type, yanit.queued)
+    if _tavan is not None:
+        logger.warning(
+            "Bildirim esigi KALIBRASYON BANDI DISINDA: tur=%s kuyruk=%d > "
+            "olculen tavan=%d (esik=%d). Esik YENIDEN OLCULMELI — kucuk "
+            "esik + buyuyen kuyruk yanlis alarm uretir.",
+            type, yanit.queued, _tavan, _kirmizi_esigi(type))
     if mark:
         _kosu_kaydet(type, now_utc.date().isoformat(), yanit, now_utc)
     return yanit, mesajlar

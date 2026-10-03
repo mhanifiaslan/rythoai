@@ -294,7 +294,7 @@ def test_ingilizce_burc_ve_gunluk_promptu_turkce_icermez(monkeypatch,
 
     kutu = _yakala(monkeypatch, report_service)
     monkeypatch.setattr(report_service.memory_service, "memory_context",
-                        lambda uid, max_chars=600: "")
+                        lambda uid, max_chars=600, **k: "")
 
     sky = prompts.localize_sky(
         "en", sky_service.get_sky_now(include_nasa=False))

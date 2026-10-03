@@ -26,6 +26,25 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    // Görünen adın SUİSTİMAL TAVANI — arayüz sınırının kopyası DEĞİL.
+    //
+    // İstemci 40 rune ile sınırlıyor (`kDisplayNameMaxChars`,
+    // account_screen.dart) ama kural katmanında hiçbir sınır yoktu: değişmiş
+    // bir istemci megabaytlık bir ad yazabilirdi ve o ad `publicProfiles`
+    // üzerinden BAŞKA kullanıcılara gider (arkadaş listesi, rehber eşleşmesi).
+    //
+    // Sayı bilerek 40 DEĞİL 64: iki katman aynı sayıyı tutarsa bir gün
+    // ayrışırlar ve ayrışma sessiz olur — kullanıcı arayüzde kabul edilen bir
+    // adı kaydedemez, hata da `permission-denied` diye çıkar (bu depoda aynı
+    // sınıf üç kez yaşandı: faceConsent, residenceCity, platform aynası).
+    // Buradaki iş ürün kuralını TEKRARLAMAK değil, tavanı ÇİVİLEMEK.
+    // Ayrıca `size()` karakter sayar, istemci rune sayar; birebir eşitlik
+    // zaten garanti edilemez.
+    function adBoyutuMakul() {
+      return !('displayName' in request.resource.data)
+        || request.resource.data.displayName.size() <= 64;
+    }
+
     // Biyometrik işleme rızasını İSTEMCİ DEĞİŞTİREMEZ.
     //
     // Alan bir dönem yazılabilir listesinde HİÇ yoktu; amaç doğruydu ama yan
@@ -103,6 +122,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid)
+        && adBoyutuMakul()
         && request.resource.data.keys().hasOnly([
           'uid', 'displayName', 'photoUrl', 'email', 'username',
           'birthDate', 'birthTime', 'birthCity', 'birthNation', 'gender',
@@ -279,6 +299,7 @@ service cloud.firestore {
       allow get: if signedIn();
       allow list: if false;
       allow create, update: if isOwner(uid)
+        && adBoyutuMakul()
         && request.resource.data.keys().hasOnly([
           'uid', 'displayName', 'photoUrl', 'username', 'sunSign',
           'streakCount', 'streakVisible', 'lastSeenDaily', 'updatedAt'

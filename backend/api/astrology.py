@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from core import cache
 from core.auth import AuthUser, get_current_user
-from core.entitlements import is_subscriber
+from core.entitlements import is_subscriber, user_local_date
 from core.i18n import get_language
 from core.messages import text
 from services import astro_service, chart_context, profile_service, prompts
@@ -171,7 +171,15 @@ def transit_calendar(user: AuthUser = Depends(get_current_user),
                 days=TRANSIT_CALENDAR_DAYS)
             # Tema/ton: natal olgular önbellekli (chart_facts, 180 gün);
             # üretilemezse olaylar temasız kalır — takvim yine çalışır.
-            natal = chart_context.chart_facts(user.uid, profile)
+            #
+            # `today=` ŞART: verilmezse kova sunucunun UTC gününden kurulur
+            # ve Türkiye'de (UTC+3) 00:00-03:00 arası kullanıcının DÜNÜNE
+            # düşer — yani gün dönmüşken bir önceki günün transitleri
+            # "bugün" diye okunur. Aynı onarım `api/chat.py` ve
+            # `api/face_reading.py`de yapılmıştı; burası atlanmıştı.
+            natal = chart_context.chart_facts(
+                user.uid, profile,
+                today=user_local_date(user.uid))
             cal = {**cal, "events": signal_service.enrich_events(
                 cal.get("events") or [], natal)}
             cache.set(anahtar, cal, ttl_seconds=24 * 3600)

@@ -3650,6 +3650,12 @@ abstract class AppLocalizations {
   /// **'Adın boş olamaz.'**
   String get displayNameEmpty;
 
+  /// No description provided for @displayNameTooLong.
+  ///
+  /// In tr, this message translates to:
+  /// **'Adın en çok {count} karakter olabilir.'**
+  String displayNameTooLong(int count);
+
   /// No description provided for @usernameChangeNote.
   ///
   /// In tr, this message translates to:

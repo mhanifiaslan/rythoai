@@ -33,9 +33,11 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import logging
+from types import ModuleType
 from typing import Any
 
 from core import firestore as firestore_client
+from services import prompts
 
 logger = logging.getLogger(__name__)
 
@@ -621,7 +623,7 @@ def get_diary(uid: str) -> list[dict[str, Any]]:
                   reverse=True)
 
 
-def _yas_etiketi(yas_gun: float) -> str:
+def _yas_etiketi(yas_gun: float, p: ModuleType) -> str:
     """Yaşı modelin okuyabileceği göreli bir ifadeye çevirir.
 
     MUTLAK tarih değil GÖRELİ ifade yazılıyor: sohbet prompt'unun bugünün
@@ -629,16 +631,22 @@ def _yas_etiketi(yas_gun: float) -> str:
     anlatmazdı. İhtiyaç, "bu üç gün önceydi" ile "bu altı ay önceydi"
     arasındaki farkın GÖRÜNMESİ — eski fısıltı tarihi hiç yazmıyordu ve
     model bilginin dünkü mü yıllık mı olduğunu bilemiyordu.
+
+    ``p`` ZORUNLU ve varsayılanı YOK: varsayılan koymak "dili verilmezse
+    Türkçe" kararını burada BİR KEZ DAHA kurardı ve o karar tek bir yere
+    ait (`memory_context`, `prompts.get(None)`). İki yerde duran bir
+    varsayılan, birinin sessizce sapmasıyla biter.
     """
     gun = int(yas_gun)
     if gun <= 0:
-        return "bugün"
+        return p.MEM_AGE_TODAY
     if gun == 1:
-        return "dün"
-    return f"{gun} gün önce"
+        return p.MEM_AGE_YESTERDAY
+    return p.MEM_AGE_DAYS_FMT.format(days=gun)
 
 
-def _ruh_hali_satiri(trail: list[dict[str, Any]], pay: int) -> str:
+def _ruh_hali_satiri(trail: list[dict[str, Any]], pay: int,
+                     p: ModuleType) -> str:
     """Ruh hali seyri satırı — payına sığacak kadar GİRİŞLE.
 
     NEDEN kırpma burada ve neden EN AZ İKİ giriş: seyir TEK bir satıra
@@ -660,7 +668,7 @@ def _ruh_hali_satiri(trail: list[dict[str, Any]], pay: int) -> str:
         return metin
 
     def _satir(n: int) -> str:
-        return "- (ruh hali seyri) " + ", ".join(
+        return f"- ({p.MEM_MOOD_TRAIL}) " + ", ".join(
             _yaz(e) for e in trail[-n:])
 
     for n in range(len(trail), 1, -1):
@@ -758,7 +766,8 @@ def _paylara_bol(bilesenler: list[tuple[str, list[str]]],
 
 
 def memory_context(uid: str, max_chars: int = 600,
-                   simdi: dt.datetime | None = None) -> str:
+                   simdi: dt.datetime | None = None,
+                   lang: str | None = None) -> str:
     """Hafızayı prompt'a iliştirilebilecek kompakt bir özete indirger.
 
     `prompt_composer` bunu "arka plan fısıltısı" olarak kullanır; bilgi
@@ -766,14 +775,49 @@ def memory_context(uid: str, max_chars: int = 600,
 
     Olgu seçimi üç kapıdan geçer ve sırası önemli:
     1. geçersiz kılınmış ve ömrü geçmiş olgular HİÇ girmez (unutma),
-    2. kalanlar güven × tazelik ile sıralanır (en ısrarlı değil en güncel
-       olan bütçenin başını kapar),
+    2. kalanlar güven × tazelik ile sıralanır — en ISRARLI olan bütçenin
+       başını KAPMAZ; güven tek başına birincilik bileti değildir,
     3. ``MAX_WHISPER_FACTS`` dilimi uygulanır.
+
+    ⚠️ 2. KAPININ SINIRI (ölçüldü, doğrulama turu 2026-10-03). Bu satır
+    bir tur boyunca "en güncel olan bütçenin başını kapar" diye yazdı ve
+    o gerekçe YANLIŞTI — tazelik sıralamanın tek belirleyicisi değil,
+    yarılanma süresi KATEGORİYE bağlı. Ömürsüz kategorilerin yarılanması
+    365 gün (`KALICI_YARILANMA_GUN`), `concern`ın ise 15; yani taze bir
+    olgu yalnız AYNI ya da DAHA KISA ömürlü bir rakibi geçer. Ölçülen
+    karşı örnek: 1 günlük ima edilmiş bir ``work`` olgusu (0.5 × 0.998 =
+    0.496) beş ``preference`` (200 gün, 0.9 → 0.616) ve beş ``milestone``
+    (300 gün, 0.9 → 0.509) kaydının ARKASINDA, 11 olgunun 10.'su olarak
+    kalıyor ve ``MAX_WHISPER_FACTS`` dilimine HİÇ girmiyor.
+
+    Bu artık bir hipotez değil, çivili bir ölçüm:
+    `test_siralama_RESIDUSU_omursuz_kategoriler_tazeyi_geciyor`. Kök
+    neden orada da yazılı — ömürsüz kategorilerin haber niteliğindeki
+    olgularla aynı ağırlık yarışına girmesi — ve onarımı bir AYAR
+    kararıdır (`test_siralamada_guven_hala_rol_oynar` ile doğrudan
+    gerilimde), sahibin kararını ister.
 
     Bütçe bileşenler arasında PAYLARA bölünür (`_FISILTI_PAYLARI`); hangi
     kusurun kapandığı ve payların nereden geldiği orada ölçüldü.
+
+    ``lang``: fısıltının İÇ ETİKETLERİNİN dili (`prompts.MEM_*`).
+    Eskiden parametre YOKTU ve etiketler sabit Türkçeydi: İngilizce bir
+    oturumda İngilizce başlığın (`WHISPER_MEMORY`) altına
+    "(ruh hali seyri)", "(günlük 2026-10-01)", "(ton tercihi)" ve
+    "(work, 3 gün önce)" satırları giriyordu. `test_language_isolation.py`
+    bunu görmüyor çünkü o testler `memory_context`i monkeypatch ediyor.
+
+    Parametre EKLENTİ, zorunlu değil — gerekçesi çağrı yerlerinin
+    dağınıklığı: `api/chat.py` (dili var) dili geçiriyor,
+    `report_service.py`nin iki çağrı yeri (başka bir pakete ait)
+    geçirmiyor ve varsayılanla ESKİSİ GİBİ Türkçe alıyor. İmzayı zorunlu
+    yapmak o paketi kırardı; varsayılanı değiştirmek de onların İngilizce
+    raporunu habersiz değiştirirdi. Yani İngilizce RAPOR yüzeyi hâlâ
+    Türkçe etiket alıyor ve bu bilinen bir açıktır (rapora yazıldı),
+    sohbet yüzeyi kapandı.
     """
     an = _simdi(simdi)
+    p = prompts.get(lang)
     memory = get_memory(uid)
 
     uygun = [f for f in memory["facts"]
@@ -789,7 +833,7 @@ def memory_context(uid: str, max_chars: int = 600,
         etiket = str(fact.get("category"))
         yas = _yas_gun(fact, an)
         if yas is not None:
-            etiket += f", {_yas_etiketi(yas)}"
+            etiket += f", {_yas_etiketi(yas, p)}"
         olgu_satirlari.append(f"- ({etiket}) {fact['value']}")
 
     # Ruh hali SEYRİ — tek fotoğraf değil eğilim (S-turu). Yoğunluk da
@@ -799,19 +843,20 @@ def memory_context(uid: str, max_chars: int = 600,
     trail = memory["moodTrail"][-5:]
     if trail:
         ruh_hali_satirlari.append(_ruh_hali_satiri(
-            trail, int(max_chars * _FISILTI_PAYLARI["ruh_hali"])))
+            trail, int(max_chars * _FISILTI_PAYLARI["ruh_hali"]), p))
         # En son turda kullanıcının ne aradığı, tonun en güçlü ipucu.
         son = trail[-1]
         if son.get("needs"):
-            ruh_hali_satirlari.append(f"- (son turda aradığı) {son['needs']}")
+            ruh_hali_satirlari.append(
+                f"- ({p.MEM_LAST_NEED}) {son['needs']}")
 
     # Günlük (R2-G1): son girişler sohbetin gözüne girer — "son ayda ne
     # oldu?" sorusu bu satırlar + gökyüzü verisiyle cevaplanabilir.
     gunluk_satirlari = [
-        f"- (günlük {g.get('date')}) {g.get('text')}"
+        f"- ({p.MEM_DIARY_FMT.format(date=g.get('date'))}) {g.get('text')}"
         for g in (memory.get("diary") or [])[-6:]]
 
-    ton_satirlari = ([f"- (ton tercihi) {memory['toneHint']}"]
+    ton_satirlari = ([f"- ({p.MEM_TONE}) {memory['toneHint']}"]
                      if memory.get("toneHint") else [])
 
     return _paylara_bol([

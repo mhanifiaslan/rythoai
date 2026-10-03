@@ -29,6 +29,31 @@ final ichingStatusProvider =
   return Map<String, dynamic>.from(yanit.data['data'] as Map);
 });
 
+/// Çekim bedeli — SUNUCUNUN söylediği sayı, yoksa `null`.
+///
+/// NEDEN saf bir işlev olarak ayrı: rozet `IChingTab`ın içinde yaşıyor ve o
+/// ağaç Firebase oturumu + profil sağlayıcıları istiyor, yani kararın
+/// bekçisi widget testiyle yazılamazdı (depodaki `plusHaliniOku` ve
+/// `abonelikDurumunuOku` aynı gerekçeyle saf).
+///
+/// NEDEN elle yazılmış bir yedek sayı YOK: burada bir dönem `?? 2` vardı ve
+/// o, bedel gerçeğinin istemcideki İKİNCİ kopyasıydı — hiçbir bekçi onu
+/// sunucudaki `TOKEN_COSTS['iching']`e bağlamıyordu. Sunucu bedeli 3 yapıp
+/// alanı göndermeyi bıraktığında (eski derleme, 503 sonrası eksik gövde,
+/// alan adı değişikliği) rozet "2 kredi" der, çekim 3 düşerdi. Bu ekran
+/// bedeli HARCAMADAN ÖNCE gösteren TEK yüzey, yani yalanın en pahalı yeri.
+///
+/// NEDEN sıfır ve negatif de `null`: "0 kredi" bedava demektir ve
+/// gönderilmemiş bir alanla aynı şey değil; bozuk bir gövdeden bedava
+/// sözü üretmek, susmaktan kötü. Tür de sorulur — JSON `2.0` ya da `"2"`
+/// gönderirse `as int?` SESSİZCE null döndürmez, FIRLATIR; burada
+/// `is int` ile sorulduğu için rozet yalnız çizilmez.
+int? ichingBedeli(Map<String, dynamic>? durum) {
+  final ham = durum?['token_cost'];
+  if (ham is! int || ham <= 0) return null;
+  return ham;
+}
+
 /// Sunucunun satır değerlerini (ALTTAN ÜSTE 6/7/8/9, `iching_service.py`
 /// `line_values`) iniş klibi varyantına çevirir: k = değer − 6 = logo yüzü
 /// yukarı para sayısı (logo yüzü = "3"/yazı; 6 = üç ters yüz, 9 = üç logo).
@@ -238,8 +263,14 @@ class _IChingTabState extends ConsumerState<IChingTab> {
       Consumer(builder: (context, ref, _) {
         final durum = ref.watch(ichingStatusProvider).value;
         if (durum == null) return const SizedBox(height: 8);
-        final metin =
-            l10n.iChingQuotaTokens(durum['token_cost'] as int? ?? 2);
+        // Bedel SUNUCUDAN gelir, elle YAZILMAZ — gerekçe [ichingBedeli]'nde.
+        //
+        // Alan yoksa rozet HİÇ çizilmez: ölçülmeyen söylenmez. Yüksekliğin
+        // `durum == null` dalıyla aynı tutulması bilinçli — rozetin
+        // yokluğu düğmenin altındaki boşluğu zıplatmaz.
+        final bedel = ichingBedeli(durum);
+        if (bedel == null) return const SizedBox(height: 8);
+        final metin = l10n.iChingQuotaTokens(bedel);
         return Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Center(

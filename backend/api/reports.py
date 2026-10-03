@@ -427,10 +427,26 @@ def progressions(data: BirthData,
 def birth_hexagram(data: BirthData,
                    user: AuthUser = Depends(require_plus("birth_hexagram")),
                    lang: str = Depends(get_language)):
-    """Doğum Heksagramı — kalıcı kimlik katmanı (Revize İ5).
+    """Doğum Heksagramı — GÜNLÜK yüzey, kalıcı ÇEKİRDEK (Revize İ5).
 
     Çekim değil: doğum anındaki Güneş boylamının 64 kapı çarkındaki yeri.
-    Natal raporla aynı sınıf — Rytho+ + 5 token, 30 gün önbellek.
+    Gövde kalıcı (sabit kapı + 64 pasajdan biri); GÜNLÜK olan son bölüm —
+    Güneş'in bugün aynı çarkta durduğu kapının doğum kapısıyla kesişimi.
+    Ömür ve anahtarın gün terimi `report_service.birth_hexagram_report`da;
+    tek kaynak orası, buraya SAYI yazılmaz (yazılan sayı bayatlar).
+
+    Rytho+ + 5 token DEĞİŞMEDİ (sahip kararı, 2026-10-03): yüzey günlüğe
+    çekildi, fiyatı ölçüm sonrası sahip belirleyecek.
+
+    ⚠️ Bu docstring iki tur boyunca yüzeyi KİMLİK katmanı sayıyor ve
+    ömrünü BİR AY diye yazıyordu; ölçüldüğünde ikisi de yanlış çıktı
+    (2026-10-03). Yanlış gerekçe bu depoda kusurdur ve bu ikisinin
+    bedeli somut: burayı okuyup yüzeyi kimlik sanan bir sonraki tur ya
+    gün katmanını "yanlışlıkla eklenmiş" diye kaldırır, ya ömrü geri
+    alır, ya da "kalıcı" varsayımına dayanan bir ön-ısıtma/paylaşımlı
+    önbellek ekler — üçü de yüzeyi sessizce kimliğe döndürür.
+    Bekçi: `tests/test_gunluk_tazelik.py`
+    (`test_dogum_kapisi_UCUNUN_docstringi_OLCULEN_omurle_CELISMEZ`).
     """
     try:
         konum = birth_hexagram_service.birth_hexagram(

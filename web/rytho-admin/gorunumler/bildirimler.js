@@ -20,9 +20,20 @@
   var RY = window.RY;
   RY.gorunumler = RY.gorunumler || {};
 
+  // ⚠️ Bu liste `notify_runner.RUN_TYPES` ile AYNI KÜMEYİ taşımak zorunda ve
+  // elle yazılı olmasının tek sebebi etiketler: Türkçe görünen adlar panele
+  // ait, sunucuya değil. Küme `test_notify_turleri_tek_kaynak.py` ile çivili.
+  //
+  // Bir tur boyunca dörtte kaldı ve bedeli ölçüldü: `circle`/`winback`
+  // slotları eklenince operatör onları panelden ne izleyebildi ne prova
+  // edebildi — koşu türü seçicisinde HİÇ görünmüyorlardı ve koşu kayıtları
+  // "—" diye çiziliyordu. Aynı küme depoda ALTI yerde yaşıyordu; beşi tek
+  // kaynağa bağlandı, bu altıncısı bekçiyle bağlı.
   var TURLER = [
     { deger: 'daily', etiket: 'Günlük (sabah)' },
     { deger: 'midday', etiket: 'Öğle' },
+    { deger: 'circle', etiket: 'Çevrem (yakınların)' },
+    { deger: 'winback', etiket: 'Geri kazanım' },
     { deger: 'checkin', etiket: 'Check-in (akşam)' },
     { deger: 'streak', etiket: 'Seri hatırlatma' }
   ];

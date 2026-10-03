@@ -377,29 +377,70 @@ def test_sakin_gun_dusus_SAYILMAZ(monkeypatch):
     assert olctu is True
 
 
-def test_karsi_tarafin_adi_baska_dilin_harfini_tasirsa_yalin_soru(monkeypatch):
-    """Gorunen ad baska bir dilin harflerini tasiyabilir ("Şeyma" +
-    lang=en) ve kosudaki ORTAK dil agi butun push'u dusururdu — geri cagri
-    o kullaniciya HIC ulasmazdi. Yalin soruya dusmek iddiayi kucultur,
-    bildirimi oldurmez."""
-    from core import i18n
-    from services import prompts
-
+def _adli_vurus(monkeypatch, ad):
+    """10. basamagin olcumunu `ad` adli bir karsi tarafla kurar."""
     monkeypatch.setattr(ns, "_cift_adaylari",
                         lambda uid, lang: [("cp", {"fromUid": "f1"})])
     monkeypatch.setattr(
         ns, "_en_iyi_vurus",
         lambda uid, adaylar, today, hesapla: (
-            (type("C", (), {"label": "Şeyma Gülşah"})(), {"fromUid": "f1"},
+            (type("C", (), {"label": ad})(), {"fromUid": "f1"},
              {"transit": "Saturn"}),
             True))
+
+
+def test_karsi_tarafin_ADI_dil_dususu_SAYILMAZ(monkeypatch):
+    """OZEL AD DIL TASIMAZ: adi yuzunden olculmus govde FEDA EDILMEZ.
+
+    Onceki hali yalin soruya dusuyordu ve gerekcesi "kosudaki ortak dil
+    agi butun push'u dusururdu" diye yaziliydi. O gerekce ARTIK YANLIS:
+    ag adi olcumden cikariyor (`ozel_ad_haric`). Yarim onarimin bedeli
+    olculdu — `olctu=False` yazmak SAHTE bir uretim dususu uretiyordu ve
+    `_SLOT_KIRMIZI_ESIGI["winback"] = 1` ile birleserek, kuyrukta yalniz
+    Turkce adli arkadasi olan tek bir Ingilizce kullanici varsa ucu
+    **503**e dusuruyordu: hicbir sey bozuk olmadigi halde Scheduler
+    kirmizi.
+
+    Uc bagimsiz isaret soruluyor, ciddiyeti ayri: govde olculmus satir
+    olmali, dokum `ok` saymali, ve ad koseden kosuya TASINMALI (yoksa
+    ortak ag ayni push'u bir sonraki kapida dusururdu).
+    """
+    from services import prompts
+
+    _adli_vurus(monkeypatch, "Şeyma Gülşah")
+    icerik, _veri, olctu = ns.winback_push(
+        profil(language="en"), "en", 10,
+        sky=prompts.localize_sky("en", SAHTE_GOKYUZU), today=BUGUN)
+
+    assert icerik.govde != ns.WINBACK_TEXTS[10]["en"]["yalin"], (
+        "adi yuzunden olculmus govde feda edildi")
+    assert "Şeyma Gülşah" in icerik.govde
+    assert olctu is True, "ad kaynakli dusus URETIM dususu sayildi"
+    assert icerik.ozel_ad == "Şeyma Gülşah", (
+        "ad kosuya tasinmadi — ortak dil agi ayni push'u dusurur")
+
+
+def test_GERCEK_dil_kacagi_hala_yalin_soruya_duser(monkeypatch):
+    """Ad muafiyeti agi KAPATMADI: dil isareti CUMLEDEN geliyorsa yedek.
+
+    Kacak ad ASCII tutularak kuruluyor (`"John"`), yani Turkce isaret
+    yalnizca sablonun kendisinden gelebilir — muafiyet onu maskelemez.
+    """
+    from services import prompts
+
+    _adli_vurus(monkeypatch, "John")
+    # Sablonu TURKCE olanla degistirip profili `en` birakiyoruz: govde
+    # gercekten baska dilde uretilmis olur (olculen kacak sinifi).
+    monkeypatch.setitem(ns.WINBACK_TEXTS[10], "en",
+                        dict(ns.WINBACK_TEXTS[10]["tr"],
+                             yalin=ns.WINBACK_TEXTS[10]["en"]["yalin"]))
     icerik, _veri, olctu = ns.winback_push(
         profil(language="en"), "en", 10,
         sky=prompts.localize_sky("en", SAHTE_GOKYUZU), today=BUGUN)
 
     assert icerik.govde == ns.WINBACK_TEXTS[10]["en"]["yalin"]
     assert olctu is False
-    assert not i18n.language_conflicts(icerik.govde, "en")
+    assert icerik.ozel_ad == "", "yedege dusen govdenin adi tasinmamali"
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +473,7 @@ def test_cevrem_onbellekteki_cifti_BEDAVA_kullanir(monkeypatch):
 
     monkeypatch.setattr(synastry_service, "pair_transits", hesap_yasak)
 
-    yuk, gerekce, olctu = ns.circle_push(profil(), "tr", today=BUGUN)
+    yuk, gerekce, olctu, _ad = ns.circle_push(profil(), "tr", today=BUGUN)
     assert gerekce == "gonderilecek" and olctu is True
     baslik, govde, veri = yuk
     assert "Erkan" in baslik and govde
@@ -463,7 +504,7 @@ def test_cevrem_onbellek_bosken_GUNDE_BIR_hesaplar(monkeypatch):
 
     monkeypatch.setattr(synastry_service, "pair_transits", sahte_hesap)
 
-    yuk, gerekce, olctu = ns.circle_push(profil(), "tr", today=BUGUN)
+    yuk, gerekce, olctu, _ad = ns.circle_push(profil(), "tr", today=BUGUN)
     assert gerekce == "gonderilecek" and olctu is True and yuk is not None
     assert len(hesaplanan) == 1, f"gunde birden fazla hesap: {hesaplanan}"
 
@@ -492,7 +533,7 @@ def test_cevrem_aday_sirasi_GUNE_gore_doner(monkeypatch):
 
 def test_cevrem_adayi_olmayan_kullanici_dusus_SAYILMAZ(monkeypatch):
     monkeypatch.setattr(ns, "_cift_adaylari", lambda uid, lang: [])
-    yuk, gerekce, olctu = ns.circle_push(profil(), "tr", today=BUGUN)
+    yuk, gerekce, olctu, _ad = ns.circle_push(profil(), "tr", today=BUGUN)
     assert yuk is None and gerekce == "cevre-yok" and olctu is None
 
 
@@ -508,7 +549,7 @@ def test_cevrem_olcum_elde_edilemezse_dusus_SAYILIR(monkeypatch):
     monkeypatch.setattr(synastry_service, "pair_transits",
                         lambda uid, other, today=None: None)
 
-    yuk, gerekce, olctu = ns.circle_push(profil(), "tr", today=BUGUN)
+    yuk, gerekce, olctu, _ad = ns.circle_push(profil(), "tr", today=BUGUN)
     assert yuk is None and gerekce == "olay-yok" and olctu is False
 
 

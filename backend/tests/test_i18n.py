@@ -139,7 +139,7 @@ def test_turkce_onbellek_ingilizce_istegi_karsilamaz(monkeypatch):
 def test_gunluk_okuma_onbellegi_dile_gore_ayrisir(monkeypatch):
     monkeypatch.setattr(report_service, "retrieve_context", lambda *a, **k: "")
     monkeypatch.setattr(report_service.memory_service, "memory_context",
-                        lambda uid, max_chars=600: "")
+                        lambda uid, max_chars=600, **k: "")
     monkeypatch.setattr(report_service.gemini_service, "generate",
                         lambda prompt, **k: f"reading-{k.get('lang')}")
 

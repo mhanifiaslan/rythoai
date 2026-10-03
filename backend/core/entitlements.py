@@ -212,8 +212,24 @@ def _user_tz(uid: str):
         # Tembel import: services -> core yonu zaten var, modul duzeyinde
         # geri bag dongusel import olurdu (device desenindeki gerekce).
         from services import notification_service, profile_service
-        tz = notification_service.user_timezone(
-            profile_service.get_profile(uid) or {})
+        try:
+            tz = notification_service.user_timezone(
+                profile_service.get_profile(uid) or {})
+        except Exception as exc:
+            # ⚠️ BU KAPI DOCSTRING'IN SOZUNU TUTAN SEY. Baslik "okunamazsa
+            # varsayilan" diyordu ama okuma HICBIR korumada degildi, yani
+            # gerekce YANLISTI: profil okumasi dustugu an `user_local_date`
+            # firlatiyor ve onu cagiran UC 500 donuyordu. Olculdu — transit
+            # takvimi ucuna `today=` eklendiginde butun takvim testleri 500
+            # verdi; uretimde de gecici bir Firestore hatasi takvimi
+            # tamamen dusururdu. Gun sinirini bilememek bir HIZMET KESINTISI
+            # sebebi degil: varsayilan saat dilimi en kotu ihtimalle gun
+            # sinirini birkac saat kaydirir.
+            logger.warning("Saat dilimi okunamadi (%s), varsayilan: %s",
+                           uid, exc)
+            from services.notification_service import DEFAULT_TIMEZONE
+            from zoneinfo import ZoneInfo
+            return ZoneInfo(DEFAULT_TIMEZONE)
         cache.set(anahtar, tz.key, ttl_seconds=_TZ_CACHE_TTL, owner_uid=uid)
         return tz
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError

@@ -44,7 +44,7 @@ ev = importlib.util.module_from_spec(_spec)
 sys.modules["eval_genericness"] = ev
 _spec.loader.exec_module(ev)
 
-from services import gemini_service, prompt_composer  # noqa: E402
+from services import gemini_service, prompt_composer, prompts  # noqa: E402
 
 N = prompt_composer.normalize
 
@@ -885,7 +885,7 @@ class TestModHukumleri:
         monkeypatch.setattr(ev, "_onbellegi_atla", lambda: None)
         y = ev._yuzeyler()["bazi"]
         sahte = dataclasses.replace(
-            y, uret=lambda g, l: "Her haritaya aynı metin.",
+            y, uret=lambda g, l: {"text": "Her haritaya aynı metin."},
             olgular=None,
             girdiler=lambda n: [("x", {}), ("y", {})])
         assert ev._rapor_modu(sahte, 2) == 1
@@ -897,7 +897,7 @@ class TestModHukumleri:
 
         def uret(g, l):
             sayac["n"] += 1
-            return f"Haritaya özel metin {sayac['n']}."
+            return {"text": f"Haritaya özel metin {sayac['n']}."}
 
         y = dataclasses.replace(
             ev._yuzeyler()["bazi"], uret=uret, olgular=None,
@@ -1194,7 +1194,7 @@ class TestRaporModuGercektenOlcuyor:
 
         def uret(g, l):
             sayac["n"] += 1
-            return f"{metin} (girdi {sayac['n']})"
+            return {"text": f"{metin} (girdi {sayac['n']})"}
 
         y = dataclasses.replace(
             ev._yuzeyler()["bazi"], uret=uret, olgular=None,
@@ -1216,3 +1216,775 @@ class TestRaporModuGercektenOlcuyor:
         cikti = self._cikti(monkeypatch, "Satürn kare Güneş okunuyor.")
         assert "YAGCILIK: 0" in cikti
         assert "YASAK   : 0" in cikti
+
+
+# ---------------------------------------------------------------------------
+# YEDEK METNI OLCMEK — "metinler farkli" tek basina yesil yapmaz
+# ---------------------------------------------------------------------------
+
+
+def _metin_ayiklayan_ureticiler() -> set[str]:
+    """`_uret_*` ureticilerinden `["text"]` ile metni AYIKLAYANLARI bulur.
+
+    `ast` ile yapiliyor, metin aramasiyla degil: bu dosyanin ve betigin
+    yorumlari bu kaliptan bolca soz ediyor ve duz arama kendi
+    aciklamasina takilirdi (CLAUDE.md: yoklugu arayan bekci onu anlatan
+    yorumu gormemeli).
+    """
+    kaynak = io.open(_BETIK, encoding="utf-8").read()
+    bulunan: set[str] = set()
+    for dugum in ast.parse(kaynak).body:
+        if not isinstance(dugum, ast.FunctionDef):
+            continue
+        if not dugum.name.startswith("_uret_"):
+            continue
+        for n in ast.walk(dugum):
+            if (isinstance(n, ast.Subscript)
+                    and isinstance(n.slice, ast.Constant)
+                    and n.slice.value == "text"):
+                bulunan.add(dugum.name)
+    return bulunan
+
+
+class TestYedekMetinHukmu:
+    """Olcum SABLON metnini model ciktisi sanmasin.
+
+    Bu, bu depoda bir kez CANLI olarak olusmus kusur sinifinin aynisi
+    (CLAUDE.md §6: "Zamanlanmis isler bir AY boyunca YESIL yalan
+    soyledi"). Olcerin eski hâli `report_service` sozlugunden yalniz
+    `["text"]` aliyor, `fallback` bayragini ATIYORDU; sablonlar ise
+    girdiye ozel alan tasiyor (`NATAL_FALLBACK` "Günesin {sun_sign}…"),
+    yani tam dususte dort girdi dort FARKLI dize uretiyor ve hukum
+    "jenerik degil" cikiyordu.
+
+    Testler IKI YONE sorar: yedek varken kirmizi, yedek yokken yesil.
+    Tek yon sorulsaydi "her kosuda kirmizi don" da gecerdi ve arac
+    kullanilamaz hâle gelirken bekci bunu gormezdi.
+    """
+
+    @staticmethod
+    def _kos(monkeypatch, sonuclar):
+        import contextlib
+        monkeypatch.setattr(ev, "_vektorle", lambda m: None)
+        monkeypatch.setattr(ev, "_onbellegi_atla", lambda: None)
+        sira = list(sonuclar)
+        y = dataclasses.replace(
+            ev._yuzeyler()["bazi"], uret=lambda g, l: sira.pop(0),
+            olgular=None,
+            girdiler=lambda n: [("x", {}), ("y", {})])
+        tampon = io.StringIO()
+        with contextlib.redirect_stdout(tampon):
+            kod = ev._rapor_modu(y, 2)
+        return kod, tampon.getvalue()
+
+    #: Girdiye OZEL alan tasiyan iki sablon — gercek sablonlarin biçimi.
+    _AYRISIK_YEDEK = (
+        {"text": "Günesin Aslan, Ayin Boga.", "fallback": True},
+        {"text": "Günesin Terazi, Ayin Yay.", "fallback": True},
+    )
+
+    def test_ayrisik_yedekler_yesil_donmez(self, monkeypatch):
+        """Iki yedek BIREBIR FARKLI olsa da hukum kirmizi olmali."""
+        kod, cikti = self._kos(monkeypatch, self._AYRISIK_YEDEK)
+        assert "birebir farkli metin : 2/2" in cikti, cikti
+        assert kod == 1, (
+            "yedek metinler farkli diye yesil dondu; hic LLM metni "
+            "uretilmemisken 'jenerik degil' hukmu verilmis olurdu")
+
+    def test_yedek_sayisi_basiliyor(self, monkeypatch):
+        """Sayi EKRANDA da olmali: donus kodunu insan okumuyor."""
+        _, cikti = self._kos(monkeypatch, self._AYRISIK_YEDEK)
+        assert "YEDEK (sablon) metin : 2/2" in cikti, cikti
+        assert "OLCMUYOR" in cikti, cikti
+
+    def test_yedeksiz_kosu_yine_yesil(self, monkeypatch):
+        """Ters yon: bayrak yoksa hukum degismemeli."""
+        kod, cikti = self._kos(monkeypatch, (
+            {"text": "Satürn kare Günes okunuyor."},
+            {"text": "Jüpiter ucgen Ay okunuyor."},
+        ))
+        assert "YEDEK (sablon) metin : 0/2" in cikti, cikti
+        assert kod == 0, cikti
+
+    def test_tek_yedek_de_kirmizi(self, monkeypatch):
+        """Kismi dusus de hukmu baglar: olculen kume karisik olur."""
+        kod, _ = self._kos(monkeypatch, (
+            {"text": "Satürn kare Günes okunuyor."},
+            {"text": "Günesin Terazi, Ayin Yay.", "fallback": True},
+        ))
+        assert kod == 1
+
+    @staticmethod
+    def _hafiza_kos(monkeypatch, sonuclar):
+        import contextlib
+        monkeypatch.setattr(ev, "_vektorle", lambda m: None)
+        monkeypatch.setattr(ev, "_onbellegi_atla", lambda: None)
+        monkeypatch.setattr(ev, "_hafizayi_sabitle", lambda m: None)
+        sira = list(sonuclar)
+        y = dataclasses.replace(
+            ev._yuzeyler()["daily"], uret=lambda g, l: sira.pop(0),
+            girdiler=lambda n: [("x", {}), ("y", {})])
+        tampon = io.StringIO()
+        with contextlib.redirect_stdout(tampon):
+            kod = ev._hafiza_modu(y)
+        return kod, tampon.getvalue()
+
+    def test_hafiza_modunda_kismi_yedek_yesil_donmez(self, monkeypatch):
+        """Hafiza modunun hukmu YEDEGE de bakmali.
+
+        ⚠️ Bu test ilk hâlinde KÖR BEKCIYDI ve mutasyonla olculdu: iki
+        yedek metin VERILIYORDU ve girdi sabit oldugu icin ikisi birebir
+        ayni oluyordu, yani hukum zaten "ayrismadi" uzerinden kirmiziya
+        dusuyordu. Hukumden yedek terimi silindiginde test YESIL kaliyordu.
+
+        Terimin gercekten korudugu hâl bu: GECICI dusus. Ilk cagri
+        sablona duser, ikincisi model metni dondurur -> metinler FARKLI,
+        sizinti yok, birebir dokum yok. Yedek terimi olmasa mod yesil
+        doner ve okuyan "hafiza kilidi saglam" der — oysa iki metnin biri
+        hic uretilmemistir.
+        """
+        kod, cikti = self._hafiza_kos(monkeypatch, (
+            {"text": "Bugun soylenecek olculmus bir sey yok.",
+             "fallback": True},
+            {"text": "Lisedeki dersin ve verecegin karar birlikte duruyor.",
+             "fallback": False},
+        ))
+        assert "birebir farkli metin: 2/2" in cikti, cikti
+        assert kod == 1, cikti
+
+    def test_hafiza_modunda_yedek_teshisi_saptirmiyor(self, monkeypatch):
+        """Yedek, hafiza modunda AYRISMAMA gibi gorunur.
+
+        Girdi sabit oldugu icin TAM dususte iki metin birebir ayni olur
+        ve okuyan "hafiza hukme girmiyor" der — oysa sebep uretimin
+        dusmesi. Yanlis gerekceye varilmasin diye yedek ONCE ve ADIYLA
+        basilmali (CLAUDE.md §6'daki "403 biçim hatasi olarak
+        loglaniyor" tuzaginin aynisi). Burada olculen sey HUKUM degil
+        TESHIS: yazi olmazsa sayi dogru, gerekce yanlis olur.
+        """
+        kod, cikti = self._hafiza_kos(monkeypatch, (
+            {"text": "Sablon.", "fallback": True},
+            {"text": "Sablon.", "fallback": True},
+        ))
+        assert "hafizadan degil" in cikti, cikti
+        assert kod == 1
+
+    def test_ureticiler_metni_ayiklamiyor(self):
+        """Ureticiler sozlugun TAMAMINI dondurmeli.
+
+        Yapisal bekci: bir uretici `["text"]` ile metni ayiklarsa
+        `fallback` bayragi o yuzeyde SESSIZCE kaybolur — yukaridaki
+        hukum testleri sahte uretici kullandigi icin bunu goremez.
+        """
+        ayiklayan = _metin_ayiklayan_ureticiler()
+        assert not ayiklayan, (
+            "bu ureticiler sozlukten yalniz metni AYIKLIYOR ve fallback "
+            f"bayragini dusuruyor: {sorted(ayiklayan)}")
+
+
+# ---------------------------------------------------------------------------
+# GUN SINIRI — olcum betigi uretim profilini okumaz
+# ---------------------------------------------------------------------------
+
+
+class TestGunSinirPini:
+    """Gunluk yuzeylere gun PARAMETREYLE veriliyor mu.
+
+    Betik uc gunluk yuzeyi `today`/`sky` gecirmeden cagiriyordu. Cagri
+    kirilmiyordu (hepsi varsayilanli) ama iki sey birden oluyordu:
+    (1) BaZi/dogum kapisi/gunluk okuma/ikili dinamik gunu
+    `entitlements.user_local_date("eval")`den aliyordu — var olmayan bir
+    uid icin IKI uretim okumasi (olculdu: `cache.get("user-tz-eval")` +
+    `profile_service.get_profile("eval")`); (2) firasette gun blogu BOS
+    geciyordu ve sablon o hâlde "bugun" kelimesini yasakliyor, yani
+    "GUNLUK yuzey" diye kayitli bir yuzeyin gun kesisimi hic
+    olculmuyordu.
+    """
+
+    @staticmethod
+    def _yakala(monkeypatch):
+        """`report_service` cagrilarini kwargs'lariyla yakalar.
+
+        Girdi hesaplari (kerykeion/BaZi) da pinleniyor: olculen sey
+        BAGLANTI, hesap degil.
+        """
+        from core import entitlements
+        from services import report_service
+
+        def _yasak(uid):
+            raise AssertionError(
+                "Olcum betigi uretim profilini okumaya kalkti: "
+                f"user_local_date({uid!r})")
+
+        monkeypatch.setattr(entitlements, "user_local_date", _yasak)
+        monkeypatch.setattr(ev, "_bazi_harita", lambda g: {"pillars": {}})
+        monkeypatch.setattr(ev, "_dogum_kapisi", lambda g: {"gate": 1})
+        monkeypatch.setattr(ev, "_natal", lambda g: {"points": []})
+        monkeypatch.setattr(ev, "_sinastri", lambda c: {"aspects": []})
+        monkeypatch.setattr(ev, "_gokyuzu", lambda lang="tr": {})
+
+        cagrilar: dict = {}
+
+        def kayit(ad):
+            def f(*a, **kw):
+                cagrilar[ad] = kw
+                return {"text": "metin"}
+            return f
+
+        for ad in ("bazi_report", "birth_hexagram_report", "daily_reading",
+                   "dyad_reading", "firasa_report", "horoscope_reading"):
+            monkeypatch.setattr(report_service, ad, kayit(ad))
+        return cagrilar
+
+    def test_bazi_gunu_parametreyle_geciyor(self, monkeypatch):
+        c = self._yakala(monkeypatch)
+        ev._uret_bazi(ev.HARITALAR[0][1], "tr")
+        assert c["bazi_report"].get("today") == ev._olcum_gunu()
+
+    def test_dogum_kapisi_gunu_parametreyle_geciyor(self, monkeypatch):
+        c = self._yakala(monkeypatch)
+        ev._uret_dogum_kapisi(ev.HARITALAR[0][1], "tr")
+        assert c["birth_hexagram_report"].get("today") == ev._olcum_gunu()
+
+    def test_gunluk_okuma_gunu_parametreyle_geciyor(self, monkeypatch):
+        """Ayni sinif: bu yuzey bulgu kaydinda ANILMIYORDU.
+
+        Kayit uc yuzey sayiyordu; ayni kusur `daily_reading` ve
+        `dyad_reading`de de vardi (ikisi de `today or
+        user_local_date(uid)` yaziyor). Bulgu listesine guvenip ucunu
+        onarmak, ayni kusuru iki yerde birakmak olurdu.
+        """
+        c = self._yakala(monkeypatch)
+        ev._uret_gunluk(ev.HARITALAR[0][1], "tr")
+        assert c["daily_reading"].get("today") == ev._olcum_gunu()
+
+    def test_ikili_dinamik_gunu_parametreyle_geciyor(self, monkeypatch):
+        c = self._yakala(monkeypatch)
+        ev._uret_ikili(({"name": "Ada"}, {"name": "Bora"}), "tr")
+        assert c["dyad_reading"].get("today") == ev._olcum_gunu()
+
+    def test_burc_yorumu_gunu_parametreyle_geciyor(self, monkeypatch):
+        """BESINCI yuzey: bir sonraki turda yakalandi.
+
+        `horoscope_reading` gunu dogrudan prompta yaziyor ve parametre
+        verilmezse SUNUCUNUN UTC gununu kullaniyor; kardes yuzey (gunluk
+        bildirim govdesi) ise `_olcum_gunu()` aliyor. Tablodaki `olcu`
+        satiri ikisini ayni sinifa koydugu ve girdilerini (`_burclar`)
+        PAYLASTIRDIGI icin gun teriminin ayrismasi tam olarak
+        kiyaslanabilirligi bozardi.
+        """
+        c = self._yakala(monkeypatch)
+        ev._uret_burc("leo", "tr")
+        assert c["horoscope_reading"].get("today") == ev._olcum_gunu()
+
+    def test_today_alabilen_her_yuzey_today_aliyor(self, monkeypatch):
+        """TUKETICI LISTESI IMZALARDAN okunur, elle yazilmaz.
+
+        Bu bekci, elle sayilan listenin iki kez eksik kalmasindan sonra
+        yazildi (ilk turda uc yuzey yazilmisti, dort eksikti; ikinci
+        turda biri — burc yorumu — hâlâ eksikti). Soru artik tek tek
+        yuzey adi degil DEGISMEZ: "`report_service`'te `today`
+        parametresi olan ve olculen her yuzey onu GECMELI". Yeni bir
+        gunluk yuzey eklendiginde ya da var olan birine `today`
+        eklendiginde bu test kendiliginden sorar.
+
+        Yuzey -> uretim fonksiyonu baglantisi uydurulmuyor: tablonun
+        kendi `kaynak` alani zaten o adi tasiyor.
+        """
+        import inspect
+
+        from services import report_service
+
+        # Imzalar YAMADAN ONCE okunur: `_yakala` fonksiyonlari degistiriyor.
+        # `ValueError`/`TypeError` yutulur cunku modulde imzasi okunamayan
+        # bir sey (C fonksiyonu, yeniden ice alinmis bir sinif) bulunmasi
+        # bu bekcinin DERDI DEGIL — olmeyen bekci daha iyi bekcidir.
+        imzalar = {}
+        for ad in dir(report_service):
+            nesne = getattr(report_service, ad, None)
+            if ad.startswith("_") or not callable(nesne):
+                continue
+            try:
+                imzalar[ad] = inspect.signature(nesne).parameters
+            except (ValueError, TypeError):  # pragma: no cover
+                continue
+        c = self._yakala(monkeypatch)
+
+        sorulan = []
+        for y in ev._yuzeyler().values():
+            if y.kapsam != "olculuyor" or y.uret is None:
+                continue
+            modul, _, fn = y.kaynak.partition(".")
+            if modul != "report_service" or "today" not in imzalar.get(fn, {}):
+                continue
+            girdiler = y.girdiler(2) if y.girdiler else []
+            assert girdiler, f"{y.ad}: girdi uretilemedi"
+            y.uret(girdiler[0][1], "tr")
+            assert c[fn].get("today") == ev._olcum_gunu(), (
+                f"{y.ad} ({y.kaynak}) gunu GECMIYOR")
+            sorulan.append(y.ad)
+
+        # Dongunun bos donmesi testi sessizce ise yaramaz yapardi.
+        assert len(sorulan) >= 5, sorulan
+
+    def test_firaset_harita_ve_gun_blogu_geciyor(self, monkeypatch):
+        c = self._yakala(monkeypatch)
+        monkeypatch.setattr(ev, "_firaset_baglam_onbellek", {})
+        monkeypatch.setattr(ev.chart_context, "natal_facts", lambda b: {})
+        monkeypatch.setattr(ev.chart_context, "transit_facts",
+                            lambda b: {"hits": [{"x": 1}], "upcoming": []})
+        bayraklar: dict = {}
+
+        def sahte_render(f, lang=None, include_transits=True):
+            bayraklar["include_transits"] = include_transits
+            return "HARITA-BLOGU"
+
+        def sahte_gokyuzu(f, lang=None, today=None):
+            bayraklar["today"] = today
+            return "GUN-BLOGU"
+
+        monkeypatch.setattr(ev.chart_context, "render", sahte_render)
+        monkeypatch.setattr(ev.chart_context, "gunun_gokyuzu",
+                            sahte_gokyuzu)
+        ev._uret_firasa({"jawWidth": 0.8}, "tr")
+
+        assert c["firasa_report"].get("chart") == "HARITA-BLOGU"
+        assert c["firasa_report"].get("sky") == "GUN-BLOGU"
+        assert bayraklar["today"] == ev._olcum_gunu()
+        # Kalici blok gun satirlarini TASIMAMALI: gun ayri baslik altinda
+        # veriliyor, iki kez verilse model hangisinin bugune ait oldugunu
+        # ayirt edemezdi.
+        assert bayraklar["include_transits"] is False
+
+    def test_olcum_gunu_varsayilan_dilimde(self, monkeypatch):
+        """Gun SUNUCUNUN degil varsayilan dilimin gunu olmali.
+
+        Fark yalniz 21:00-24:00 UTC arasinda gorunur, yani gercek saate
+        bagli bir test gunun %87'sinde kor olurdu. Bu yuzden an
+        SABITLENIYOR: 22:30 UTC'de Istanbul ERTESI gunde.
+        """
+        import datetime as _dt
+        import types
+
+        sabit = _dt.datetime(2026, 10, 3, 22, 30, tzinfo=_dt.timezone.utc)
+
+        class _Dt(_dt.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return sabit.astimezone(tz) if tz else sabit
+
+        monkeypatch.setattr(ev, "_gun_onbellek", {})
+        monkeypatch.setattr(ev, "dt", types.SimpleNamespace(
+            datetime=_Dt, timezone=_dt.timezone, date=_dt.date))
+        assert ev._olcum_gunu() == _dt.date(2026, 10, 4)
+
+    def test_olcum_gunu_profil_okumuyor(self, monkeypatch):
+        """Gun URETIMDEN sorulmuyor.
+
+        ⚠️ GEREKCE DARALTILDI (dogrulama turu, 2026-10-03). Bu testin
+        eski hâli adinda ve docstring'inde IKI sey iddia ediyordu:
+        "profil okunmuyor VE deger kosu boyunca ayni". Ikincisini
+        `_olcum_gunu() == _olcum_gunu()` ile soruyordu ve o esitlik
+        onbellek OLMASA DA dogrudur — iki ardisik cagri arasinda gun
+        donmez. Mutasyonla olculdu: onbellek tamamen kaldirildiginda
+        takim 164/164 YESIL kaldi. Yani test adinin yarisi kanitsizdi.
+        Onbellek katmani artik ayri sorulyor (bkz. asagidaki test).
+        """
+        from core import entitlements
+        from services import profile_service
+
+        def _yasak(*a, **kw):
+            raise AssertionError("olcum betigi uretimden gun sordu")
+
+        import datetime as _dt
+
+        monkeypatch.setattr(entitlements, "user_local_date", _yasak)
+        monkeypatch.setattr(profile_service, "get_profile", _yasak)
+        monkeypatch.setattr(ev, "_gun_onbellek", {})
+        assert isinstance(ev._olcum_gunu(), _dt.date)
+
+    def test_olcum_gunu_gun_sinirini_bolen_kosuda_degismiyor(
+            self, monkeypatch):
+        """Onbellek katmaninin KENDISI: saat ilerlerken deger ilerlemez.
+
+        Korudugu hâl olculebilir ve gercek: kosu DAKIKALAR suruyor
+        (yuzey basina birkac LLM uretimi) ve gun sinirini ortadan
+        bolebilir. Burada saat iki cagri arasinda 23:59:30'dan
+        00:00:30'a (Istanbul) ilerletiliyor — onbellek olmasa BaZi ile
+        dogum kapisi iki AYRI gunun blogunu alir ve o ayrisma urunun
+        degil OLCUMUN artifakti olurdu.
+
+        Sahte saat `now()` cagrisini SAYIYOR, gercek saate bakmiyor:
+        aksi hâlde test gunun %99'unda kor olurdu (gerceginde gun
+        yalniz gece yarisi doner).
+        """
+        import datetime as _dt
+        import types
+        from zoneinfo import ZoneInfo
+
+        from services.notification_service import DEFAULT_TIMEZONE
+
+        anlar = [
+            _dt.datetime(2026, 10, 3, 20, 59, 30, tzinfo=_dt.timezone.utc),
+            _dt.datetime(2026, 10, 3, 21, 0, 30, tzinfo=_dt.timezone.utc),
+        ]
+        # Fixture'in GERCEKTEN gun sinirini astigi, kodun kac kez saat
+        # sordugundan BAGIMSIZ olarak burada kanitlanir: yoksa test, saat
+        # hic ilerlemedigi icin de yesil kalirdi (yanlis guvence).
+        yerel = ZoneInfo(DEFAULT_TIMEZONE)
+        assert anlar[0].astimezone(yerel).date() == _dt.date(2026, 10, 3)
+        assert anlar[1].astimezone(yerel).date() == _dt.date(2026, 10, 4)
+
+        sira = iter(anlar)
+
+        class _Dt(_dt.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                an = next(sira)
+                return an.astimezone(tz) if tz else an
+
+        monkeypatch.setattr(ev, "_gun_onbellek", {})
+        monkeypatch.setattr(ev, "dt", types.SimpleNamespace(
+            datetime=_Dt, timezone=_dt.timezone, date=_dt.date))
+
+        assert ev._olcum_gunu() == ev._olcum_gunu() == _dt.date(2026, 10, 3)
+
+
+# ---------------------------------------------------------------------------
+# PUSH YUZEYI — "kapsam disi" gerekcesi olculdu ve YANLIS cikti
+# ---------------------------------------------------------------------------
+
+
+class TestPushYuzeyiKapsamda:
+    """Gunluk bildirim govdesi artik olculuyor.
+
+    Kapsam disi gerekcesi *"bildirim zamanlama/quiet-hours kurulumunu da
+    tasimak demek"* diye yaziliydi ve olculdugunde yanlis cikti:
+    `daily_push_body(sign, sky, lang, gun)` — burc anahtari, zaten elde
+    olan yerelleştirilmiş gokyuzu ve bir gun dizesi. Zamanlama, sessiz
+    saatler, cihaz jetonu: hicbiri gerekmiyor. Gerekcesi yanlis olan
+    yorum kusurdur (CLAUDE.md §1).
+    """
+
+    def test_yuzey_gercekten_olculuyor(self):
+        y = ev._yuzeyler()["push-daily"]
+        assert y.kapsam == "olculuyor"
+        assert y.girdiler is not None
+        assert y.uret is not None
+
+    def test_paylasimli_gokyuzu_yuzeyleri_ayni_girdiyi_kullaniyor(self):
+        """Burc listesi iki yerde elle tutulmasin.
+
+        Ikisi ayni sinifta (paylasimli gokyuzu) ve ayrismayi olcen bir
+        aracta girdinin ayni olmasi, iki yuzeyin kiyaslanabilir olmasinin
+        kosulu.
+        """
+        t = ev._yuzeyler()
+        assert t["push-daily"].girdiler is t["horoscope"].girdiler
+
+    def test_push_olgu_olcusu_iddia_etmiyor(self):
+        """Gokyuzu on iki burca ayni gelir: girdiye ozel olgu kumesi YOK.
+
+        Olgu cikarici baglanmis olsaydi arac olcmedigi bir seyi
+        olcuyormus gibi gosterirdi (olculmeyen soylenmez).
+        """
+        assert ev._yuzeyler()["push-daily"].olgular is None
+
+    @staticmethod
+    def _sahte_govde(monkeypatch, metin):
+        from services import notification_service
+        monkeypatch.setattr(ev, "_gokyuzu", lambda lang="tr": {})
+        monkeypatch.setattr(notification_service, "daily_push_body",
+                            lambda sign, sky, lang, gun=None: metin)
+
+    def test_sablona_dusen_satir_yedek_isaretleniyor(self, monkeypatch):
+        """Bayrak SABLONDAN turetilir, elle kopyalanmaz.
+
+        `daily_push_body` bayrak dondurmuyor (donusu duz dize), bu yuzden
+        kiyas burada kuruluyor. Beklenen metin `prompts`tan okundugu icin
+        sablon degistiginde kiyas da degisir — bayatlayamaz.
+        """
+        from services import prompts as _prompts
+        p = _prompts.get("tr")
+        gun = ev._olcum_gunu().isoformat()
+        sablon = p.PUSH_DAILY_FALLBACK.format(
+            sign=p.SIGN_NAMES.get("leo", "leo"),
+            date=_prompts.signal_date("tr", gun))
+        self._sahte_govde(monkeypatch, sablon)
+        assert ev._uret_push("leo", "tr")["fallback"] is True
+
+    def test_model_satiri_yedek_sayilmiyor(self, monkeypatch):
+        """Ters yon: her satiri yedek saymak da yalan olurdu."""
+        self._sahte_govde(monkeypatch, "Ay Boga'da; bugun somut bir adim.")
+        sonuc = ev._uret_push("leo", "tr")
+        assert sonuc["fallback"] is False
+        assert sonuc["text"].startswith("Ay")
+
+
+# ---------------------------------------------------------------------------
+# SON SES YUMUSAMASI — ayni Turkce olgusu AD eslestirmesinde de var
+# ---------------------------------------------------------------------------
+
+#: Turkce'de sozcuk sonundaki sert unsuz, unlu ile baslayan bir ek alinca
+#: yumusar. Tablo BETIKTEN okunuyor, burada yeniden yazilmiyor: iki yerde
+#: elle tutulsa bekci kendi kopyasini dogrulayip betigin kopyasini
+#: gormezdi (bu dosyada bir kez olan hata).
+_YUMUSAMA = ev._SON_SES_YUMUSAMASI
+
+
+def _yumusamis_tamlayan(ad: str) -> str:
+    """Adin yumusamis ilgi hâli — modelin gercekten yazacagi bicim.
+
+    Tek ek varyanti (ilgi hâli) yeterli kanit: eslesme EKE hic bakmiyor,
+    yalniz govdenin yumusamis yazimina bakiyor. Unlu uyumu yuzunden
+    gercek metinde dort varyant birden gorulur; hepsini sormak ayni
+    katmani dort kez sormak olurdu.
+    """
+    return ad[:-1] + _YUMUSAMA[ad[-1]] + "in"
+
+
+def _yumusayan_adlar() -> list[str]:
+    """Olcerin GERCEK tablolarindaki, yumusamaya ugrayan uzun adlar.
+
+    Liste elle yazilmaz: burc / aci / BaZi element ve hayvan adlari
+    `prompts`tan okunur, boylece yeni bir ad eklendiginde bekci
+    kendiliginden sorar ve bayatlayamaz.
+
+    `_KISA_AD_SINIRI` esigi filtre olarak KULLANILIYOR cunku kisa ad dali
+    tam kelime eslesmesi yapiyor: yumusamis yazim ancak ekle birlikte
+    goruldugu icin orada ZATEN eslesemez (gerekcesi `_ad_gecti`de).
+    """
+    p = prompts.get("tr")
+    havuz: list[str] = list(p.SIGN_NAMES.values())
+    havuz += list(getattr(p, "ASPECT_NAMES", {}).values())
+    havuz += list(getattr(p, "BAZI_ELEMENTS", {}).values())
+    havuz += list(getattr(p, "BAZI_ANIMALS", {}).values())
+    return sorted({a for a in havuz
+                   if isinstance(a, str) and a[-1:] in _YUMUSAMA
+                   and len(a) >= ev._KISA_AD_SINIRI})
+
+
+class TestAdYumusamasi:
+    """`_ad_gecti`nin UZUN ad dali yumusamis yazimi gormeli.
+
+    ⚠️ Bu kusur bir DOGRULAMA turunda bulundu (2026-10-03) ve degerli
+    olan yeri sudur: ayni Turkce olgusu bu dosyada ZATEN kayitliydi —
+    `_ek_toleransli_desen` tam bunun icin yazilmis ve docstring'i
+    "kural genel" diyordu. Ama genellik yalnizca YAGCILIK listesi
+    icindeydi; ad tablolari ayni fonksiyonu hic cagirmiyordu. Yani
+    onarilmis bir kusurun ikizi, bir fonksiyon oteside aciktaydi.
+
+    Kayip olculdu, tahmin edilmedi: bes burc adi, iki aci adi, BaZi'de
+    `Kopek` ve `Ahsap`, 64 heksagram adinin 17'si. Sapma TEK YONLU —
+    hepsi olguyu KAYBETTIRIYOR, yani araci "rapor kendi hesabindan
+    konusmuyor" demeye iter. Gurultu gibi gorunmez, hukmu sistematik
+    olarak kotuye ceker.
+    """
+
+    def test_tablo_betikten_okunuyor(self):
+        """Dort sert unsuzun hepsi haritada olmali.
+
+        `k` ile sinirli hal yagcilik listesinde yetiyordu (orada baska
+        uye yoktu); ad tablolarinda ucu birden geciyor.
+        """
+        assert _YUMUSAMA == {"k": "ğ", "p": "b", "t": "d", "ç": "c"}
+
+    def test_olcerin_kendi_tablolarinda_yumusayan_ad_var(self):
+        """Bekcinin on kosulu: havuz bosalirsa test sessizce ise yaramaz.
+
+        Esik 5: bes burc adi (Yengec, Basak, Akrep, Oglak, Balik) + iki
+        aci adi (Altmislik, Beslik) + Kopek + Ahsap.
+        """
+        adlar = _yumusayan_adlar()
+        assert len(adlar) >= 5, adlar
+        assert "Başak" in adlar and "Akrep" in adlar and "Yengeç" in adlar
+
+    @pytest.mark.parametrize("ad", _yumusayan_adlar())
+    def test_yumusamis_bicim_yakalaniyor(self, ad):
+        bicim = _yumusamis_tamlayan(ad)
+        assert ev._ad_gecti(N(f"Bu dönemde {bicim} vurgusu var."), ad), bicim
+
+    @pytest.mark.parametrize("ad, metin", [
+        # Yumusamamis bicimler KACMAMALI: cozum bir yonu onarip otekini
+        # bozmamali.
+        ("Başak", "Merkür Başak burcunda."),
+        ("Başak", "Merkür Başakta duruyor."),
+        ("Balık", "Venüs Balık burcunda."),
+        ("Akrep", "Satürn Akrep burcunda."),
+    ])
+    def test_yumusamamis_bicim_hala_yakalaniyor(self, ad, metin):
+        assert ev._ad_gecti(N(metin), ad)
+
+    @pytest.mark.parametrize("ad, metin", [
+        # Yumusamis desen kelime ORTASINA da kacmamali — uzun ad dalinin
+        # kendi bekcisiyle (TestUzunAdKelimeOrtasi) ayni disiplin.
+        ("Balık", "Bu kabalık değil, sınır koymak."),
+        ("Balık", "Bu kabalığın sebebi başka."),
+        ("Başak", "Başarının bedeli var."),
+        ("Akrep", "Akreditasyon süreci uzadı."),
+        ("Oğlak", "Oğlan çocuğu gibi davranıyor."),
+    ])
+    def test_yumusamis_desen_yanlis_pozitif_uretmiyor(self, ad, metin):
+        assert not ev._ad_gecti(N(metin), ad)
+
+    def test_olgu_cikarici_yumusamis_metinde_olgu_buluyor(self):
+        """Uctan uca: kusur burada ZARAR veriyordu.
+
+        `_ad_gecti` tek basina bir sayi degil; `_astro_olgular` gezegen
+        VE burcu birlikte istiyor, yani burc adinin kacmasi yerlesimi
+        TAMAMEN dusuruyordu.
+        """
+        facts = {"placements": [{"planet": "Mercury", "sign": "virgo",
+                                 "house": 3}]}
+        assert ev._astro_olgular(
+            "Merkür Başağın üçüncü derecesinde, 3. evde.",
+            facts) == {"Mercury-virgo", "Mercury-ev3"}
+
+    def test_yagcilik_sinifi_hala_calisiyor(self):
+        """Paylasilan fonksiyon genisletildi: eski cagiran bozulmamali."""
+        assert ev._yagcilik_bulgulari("Bu bir öğrenme yolculuğu.") == [
+            "öğrenme yolculuğu"]
+        assert ev._yagcilik_bulgulari(
+            "Farkındalığın alanı genişliyor.") == ["farkındalığın alanı"]
+
+
+# ---------------------------------------------------------------------------
+# KONSOL AKIS KIPI — cokme UCRETLI uretimlerden SONRA gelir
+# ---------------------------------------------------------------------------
+
+
+def _modul_duzeyi_reconfigure() -> list[tuple[str, dict]]:
+    """Betikte MODUL DUZEYINDE yapilan `reconfigure` cagrilarini bulur.
+
+    `ast` ile: bu dosyanin ve betigin yorumlari `reconfigure`dan ve
+    `errors="replace"`dan bolca soz ediyor, duz metin aramasi kendi
+    aciklamasina takilirdi (CLAUDE.md: yoklugu arayan bekci onu anlatan
+    yorumu gormemeli).
+
+    Donen: (uzerinde cagrildigi akis adi, anahtar kelimeler) ikilileri.
+    Akis adi dongu degiskeninden geliyorsa dongunun GEZDIGI adlar
+    yazilir — betik iki akisi tek dongude geziyor ve o bicim degisirse
+    bekci yine dogruyu soylemeli.
+    """
+    kaynak = io.open(_BETIK, encoding="utf-8").read()
+    agac = ast.parse(kaynak)
+    bulunan: list[tuple[str, dict]] = []
+
+    def _akis_adlari(dugum: ast.AST) -> list[str]:
+        """`sys.stdout` / `sys.stderr` niteliklerini toplar."""
+        return [n.attr for n in ast.walk(dugum)
+                if isinstance(n, ast.Attribute)
+                and isinstance(n.value, ast.Name) and n.value.id == "sys"]
+
+    for ust in agac.body:
+        hedefler = _akis_adlari(ust) if isinstance(ust, ast.For) else []
+        for n in ast.walk(ust):
+            if not (isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "reconfigure"):
+                continue
+            kw = {k.arg: getattr(k.value, "value", None) for k in n.keywords}
+            for ad in (hedefler or _akis_adlari(n.func)):
+                bulunan.append((ad, kw))
+    return bulunan
+
+
+class TestKonsolAkisKipi:
+    """cp1254 konsolunda yazdirma programi DUSURMEMELI.
+
+    ⚠️ Bu katman KOR cikti (dogrulama turu, 2026-10-03): kayit "zaten
+    kapali" diye isaretlenmisti, kod gercekten yerindeydi — ama hicbir
+    test onu tutmuyordu. Minimal mutasyonla olculdu: `reconfigure`
+    satiri silindiginde takim 164/164 YESIL kaldi. Kaza ile guvenli olan
+    sey guvence degildir (ayni ders `TestLlmPini`de yazili).
+
+    Bedeli ASIMETRIK oldugu icin onemli: cokme UCRETLI uretimlerden
+    SONRA gelir, yani jeton/kota harcanmis olup olcum kaybedilir.
+
+    ⚠️ Risk CJK ile sinirli DEGIL ve bu olculdu: `_rapor_modu` ile
+    `_hafiza_modu` uyari satirlarini "⚠️" ile basiyor, `--help` ise
+    modul docstring'ini basiyor (o da tasiyor). Yani dar bir "BaZi
+    sutunlari" gerekcesi yanlis olurdu — katman her kosuda yuk tasiyor.
+    """
+
+    #: cp1254'un kodlayamadigi karakterler. "⚠" betigin BUGUN GERCEKTEN
+    #: yazdirdigi karakter (asagidaki `test_gerekce_HALA_gecerli...` onu
+    #: kaynaktan dogruluyor). CJK ikisi bugun YAZDIRILMIYOR ve bu burada
+    #: durmalarinin sebebi: BaZi prompt'u modele CJK sutun etiketi
+    #: VERIYOR ("庚午 (Geng Wu)", bkz. `_bazi_olgular`), yani yerel bir
+    #: etiketi oldugu gibi basan bir degisiklik onlari cikti yoluna geri
+    #: koyar. Sinif testi sinif olarak sorulmali — tek yazima baglanan
+    #: capa kor olur (CLAUDE.md §5).
+    SORUNLU = ("⚠", "庚", "蒙")
+
+    @pytest.mark.parametrize("karakter", SORUNLU)
+    def test_cp1254_strict_bu_karakterlerde_patliyor(self, karakter):
+        """Onculun kendisi sinanir: risk VAR mi.
+
+        Bu test olmasa sonraki testler bos bir seyi kanitlardi — "replace
+        kipi calisiyor" cumlesi, strict kipin hic patlamadigi bir
+        dunyada da dogrudur.
+        """
+        akis = io.TextIOWrapper(io.BytesIO(), encoding="cp1254",
+                                errors="strict")
+        with pytest.raises(UnicodeEncodeError):
+            akis.write(karakter)
+            akis.flush()
+
+    @pytest.mark.parametrize("karakter", SORUNLU)
+    def test_replace_kipi_ayni_karakteri_gecirir(self, karakter):
+        akis = io.TextIOWrapper(io.BytesIO(), encoding="cp1254",
+                                errors="strict")
+        akis.reconfigure(errors="replace")
+        akis.write(f"GOKYUZU {karakter} satiri")
+        akis.flush()
+        assert akis.buffer.getvalue()
+
+    def test_betik_iki_akisi_da_replace_kipine_cekiyor(self):
+        """Hem `stdout` hem `stderr`: biri atlanirsa teshis yarim kalir.
+
+        `_rapor_modu` hukmu `stdout`a, kapsam disi uyarisi `stderr`e
+        basiyor; yalniz birini gevsetmek cokmeyi oteki akisa tasirdi.
+        """
+        cagrilar = _modul_duzeyi_reconfigure()
+        kipler = {ad: kw.get("errors") for ad, kw in cagrilar}
+        assert kipler.get("stdout") == "replace", cagrilar
+        assert kipler.get("stderr") == "replace", cagrilar
+
+    def test_kodlama_DEGISTIRILMIYOR(self):
+        """Yalniz hata kipi gevsetilir.
+
+        `encoding="utf-8"` demek cp1254 konsolunda Turkce'yi mojibake
+        yapmaktir (CLAUDE.md §5: `GÖKYÜZÜ` -> `GÃ–KYÃœZÃœ`). Yani bu
+        satirin DAR olmasi kasitli ve gerekcesi olculmus.
+        """
+        for ad, kw in _modul_duzeyi_reconfigure():
+            assert "encoding" not in kw, (ad, kw)
+
+    def test_gerekce_HALA_gecerli_yazdirilan_metinde(self):
+        """Katmanin sebebi olculebilir kalmali.
+
+        Betigin yazdirdigi dize sabitleri taranir: en az biri cp1254'te
+        kodlanamayan bir karakter tasimali. Tasimiyorsa gerekce
+        BAYATLAMIS demektir ve o zaman yorumun kendisi kusurdur — bu
+        depoda bayat gerekce iki kez kusur sayildi.
+
+        Tarama `ast` ile ve yalniz `print` ARGUMANLARINDA: yorumlar ve
+        docstring'ler cagri argumani degil.
+        """
+        kaynak = io.open(_BETIK, encoding="utf-8").read()
+        tasiyan = []
+        for n in ast.walk(ast.parse(kaynak)):
+            if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                    and n.func.id == "print"):
+                continue
+            for parca in ast.walk(n):
+                if not (isinstance(parca, ast.Constant)
+                        and isinstance(parca.value, str)):
+                    continue
+                try:
+                    parca.value.encode("cp1254")
+                except UnicodeEncodeError:
+                    tasiyan.append(parca.value[:40])
+        assert tasiyan, ("Yazdirilan hicbir dize cp1254 disi karakter "
+                         "tasimiyor: akis kipi gerekcesi yeniden olculmeli.")

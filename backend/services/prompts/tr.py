@@ -308,6 +308,29 @@ WHISPER_MEMORY = (
     "— malzeme değil, YASAKTIR; ona dokunma, ima etme, andığını belli "
     "etme):"
 )
+#: Hafıza fısıltısının İÇ ETİKETLERİ (`memory_service.memory_context`
+#: kurar). Blok BAŞLIĞI (`WHISPER_MEMORY`) dile göre geliyordu ama
+#: İÇERİĞİN etiketleri sabit Türkçeydi: İngilizce bir prompt'ta
+#: İngilizce başlığın altına "(ruh hali seyri)", "(günlük 2026-10-01)",
+#: "(ton tercihi)" ve "(work, 3 gün önce)" satırları giriyordu.
+#:
+#: NEDEN burada ve neden `memory_service`te değil: etiketler MODELE giden
+#: prompt metnidir, hafıza şeması değil. Kategori adları (`work`,
+#: `sensitivity`) BİLEREK çevrilmiyor — `WHISPER_MEMORY` yasağı
+#: "(sensitivity)" etiketli kaydı ADIYLA anıyor, yani kategori adı iki
+#: dilde de AYNI kalmak zorunda; çevirmek o yasağı sessizce kopartırdı.
+#:
+#: ⚠️ Türkçe değerler birebir eski sabitlerdir: `memory_context`in
+#: varsayılanı (lang=None) Türkçedir ve bu metinler bayt bayt aynı
+#: kalmalı, yoksa `tests/test_memory.py`deki etiket çapaları
+#: (`- (ruh hali seyri)`, `- (ton tercihi)`) yanlış bir sebeple kırılır.
+MEM_AGE_TODAY = "bugün"
+MEM_AGE_YESTERDAY = "dün"
+MEM_AGE_DAYS_FMT = "{days} gün önce"
+MEM_MOOD_TRAIL = "ruh hali seyri"
+MEM_LAST_NEED = "son turda aradığı"
+MEM_DIARY_FMT = "günlük {date}"
+MEM_TONE = "ton tercihi"
 WHISPER_RELATIONSHIP = (
     "KULLANICININ SORDUĞU KİŞİYLE İLİŞKİ ÖLÇÜMÜ (iki doğum haritası "
     "arasındaki açılardan sunucuda hesaplandı — buna sadık kal, burada "

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -821,11 +822,18 @@ class PushIcerik:
     Kararı ÜRETİCİ verir, çağıran değil. `notify.py` yalnız bu bayrağa
     bakar; hiçbir yerde `if type == "checkin"` yazmaz. Yeni bir soru
     biçimli bildirim eklemek tek satır: `soru=True`.
+
+    ``ozel_ad`` metnin içine KONMUŞ karşı taraf adıdır ve yalnız koşunun
+    dil ağının ölçümünden çıkarılması için taşınır (`ozel_ad_haric`).
+    Burada duruyor çünkü onu bilen tek yer üretici: koşu metinden ya da
+    yükten adı geri çıkaramaz. Boş varsayılan, ad taşımayan üreticilerin
+    (`checkin_push`) davranışını birebir aynı bırakıyor.
     """
 
     baslik: str
     govde: str
     soru: bool = False
+    ozel_ad: str = ""
 
 
 def _bundle_in_other_language(fp: str, lang: str) -> bool:
@@ -1081,13 +1089,56 @@ def _en_iyi_vurus(uid: str, adaylar: list[tuple[Any, dict[str, str]]],
     return ((cp, kimlik, vuruslar[0]) if vuruslar else None), True
 
 
+def ozel_ad_haric(metin: str, ad: str) -> str:
+    """Dil ÖLÇÜMÜ için metni özel addan arındırır — gönderilen metni DEĞİL.
+
+    NEDEN var (ölçüldü 2026-10-03): ÖZEL AD DİL TAŞIMAZ, ama
+    `i18n.guess_language` harf tabanlı karar veriyor ve karşı tarafın
+    görünen adındaki tek bir Türkçe harf bütün cümlenin dilini
+    belirliyordu. Ölçüm: `lang="en"` profiline giden Çevrem başlığı
+    ``"🔭 Today: you and Şeyma"`` → ``guess_language`` **"mixed"** →
+    `language_conflicts(..., "en")` **True** → koşunun ortak dil ağı
+    push'u TAMAMEN düşürüyordu. Aynı şey gövdede de oluyordu
+    (``"for Şeyma: mars → venus Trine …"`` → "tr"). Sonuç: İngilizce
+    kullanan birinin Türkçe adlı bir arkadaşı/eklenen kişisi varsa o
+    ilişki hakkındaki bildirim o kullanıcıya **HİÇ** ulaşmıyordu — her
+    gün, sessizce, yalnız `atlanan["dil-uyusmaz"]` sayacında.
+
+    Ağ KALDIRILMADI, yalnız ÖLÇTÜĞÜ metin arındırıldı: kaçak gövde
+    (LLM/paket metni) hâlâ yakalanıyor, çünkü oradaki dil işareti addan
+    değil cümlenin kendisinden geliyor. Adı çıkarmak gerçek bir kaçağı
+    maskeleyemez: Türkçe işareti YALNIZ özel addan gelen bir metni
+    "Türkçe" saymak zaten yanlış hükümdü.
+
+    ⚠️ Eşleşme SÖZCÜK SINIRINDA (``\\b``): bu depoda alt dize eşleşmesi
+    iki kez yanlış pozitif üretti ("ay" ⊂ "ayrıca"). Ad "Ay" olsa bile
+    "ayrıca" bozulmaz. Python ``re`` Unicode modunda ``ı ğ ş ç ö ü İ``
+    harflerini sözcük karakteri sayar, yani sınır Türkçe adlarda da
+    doğru çalışır. Ad ``re.escape`` ile veriliyor: görünen ad kullanıcı
+    girdisi, içinde düzenli ifade metakarakteri olabilir.
+
+    Boş ad metni DEĞİŞTİRMEZ — çağıranların çoğu ad taşımıyor ve onların
+    davranışı birebir aynı kalmalı.
+    """
+    if not metin or not ad:
+        return metin
+    return re.sub(r"\b" + re.escape(ad) + r"\b", " ", metin)
+
+
 def circle_push(profile: dict[str, Any], lang: str,
                 today: dt.date | None = None
                 ) -> tuple[tuple[str, str, dict[str, str]] | None, str,
-                           bool | None]:
+                           bool | None, str]:
     """Çevrem slotu (CV) — eklenen kişi/aile ya da arkadaşla bugünün ölçümü.
 
-    `(yük, gerekçe, ölçüldü)` döner. Gövde ve yük öğlenin eski yedek
+    `(yük, gerekçe, ölçüldü, karşı_ad)` döner. Dördüncü değer karşı
+    tarafın GÖRÜNEN ADIDIR ve yalnız koşunun dil ağının o adı ölçümden
+    çıkarması için var (`ozel_ad_haric`) — yüke girmez, push'ta
+    taşınmaz. Ad burada döndürülüyor çünkü onu BİLEN tek yer burası:
+    koşu `veri` sözlüğünden adı geri çıkaramaz (yükte kimlik var, ad
+    yok) ve başlık şablonunu tersine çevirmek kırılgan olurdu.
+
+    Gövde ve yük öğlenin eski yedek
     dalıyla BİREBİR aynı: ölçüm LLM'siz teknik satır, hedef o ilişkinin
     ekranı. Değişen tek şey slotun kendi saatine çıkması ve önbellek
     şartının gevşemesi (`_en_iyi_vurus`).
@@ -1114,21 +1165,22 @@ def circle_push(profile: dict[str, Any], lang: str,
         adaylar = _cift_adaylari(uid, lang)
         secim, olctu = _en_iyi_vurus(uid, adaylar, today, hesapla=True)
         if secim is None:
-            return None, ("cevre-yok" if olctu is None else "olay-yok"), olctu
+            return (None, ("cevre-yok" if olctu is None else "olay-yok"),
+                    olctu, "")
         cp, kimlik, v = secim
         satirlar = synastry_service.pair_transit_lines([v], cp.label, lang)
         if not satirlar or not 0 < len(satirlar[0]) <= MAX_PUSH_BODY:
-            return None, "olay-yok", olctu
+            return None, "olay-yok", olctu, ""
         p = prompts.get(lang)
         return ((p.PUSH_MIDDAY_PAIR_TITLE.format(name=cp.label),
                  satirlar[0],
                  {"type": "friend", "src": "midday",
                   "d": today.isoformat(), **kimlik}),
-                "gonderilecek", True)
+                "gonderilecek", True, cp.label)
     except Exception as exc:
         logger.warning("Cevre bildirimi uretilemedi (%s): %s",
                        profile.get("uid"), exc)
-        return None, "olay-yok", False
+        return None, "olay-yok", False, ""
 
 
 # ---------------------------------------------------------------------------
@@ -1225,8 +1277,12 @@ def _gokyuzu_ayrintisi(sky: dict[str, Any] | None) -> str | None:
 
 def _cevre_govdesi(profile: dict[str, Any], lang: str,
                    sablon: dict[str, str],
-                   today: dt.date | None) -> tuple[str, bool | None]:
+                   today: dt.date | None) -> tuple[str, bool | None, str]:
     """10. basamağın gövdesi: çevresindeki biriyle bugünün ölçümü.
+
+    `(gövde, ölçüldü, karşı_ad)` döner. Üçüncü değer aşağıdaki dil
+    kapısının o adı ölçümden çıkarması için var (`ozel_ad_haric`);
+    gövdenin kendisi değişmez.
 
     Çevrem slotuyla AYNI ölçümden beslenir (`_en_iyi_vurus`) — tek hesap,
     iki yüzey. Aynı gün ikisinin birden gitmesi mümkün değil: `should_send`
@@ -1237,11 +1293,11 @@ def _cevre_govdesi(profile: dict[str, Any], lang: str,
     secim, olctu = _en_iyi_vurus(uid, adaylar, today or dt.date.today(),
                                  hesapla=True)
     if secim is None:
-        return "", olctu
+        return "", olctu, ""
     cp, _kimlik, v = secim
     return sablon["veri"].format(
         label=cp.label,
-        transit=prompts.planet_name(lang, v.get("transit"))), True
+        transit=prompts.planet_name(lang, v.get("transit"))), True, cp.label
 
 
 def winback_push(profile: dict[str, Any], lang: str, basamak: int,
@@ -1273,6 +1329,7 @@ def winback_push(profile: dict[str, Any], lang: str, basamak: int,
     sablon = sablonlar.get(lang) or sablonlar[i18n.DEFAULT]
     govde = ""
     olctu: bool | None = None
+    karsi_ad = ""
 
     if basamak == WINBACK_TIERS[0]:
         ayrinti = _gokyuzu_ayrintisi(sky)
@@ -1280,25 +1337,48 @@ def winback_push(profile: dict[str, Any], lang: str, basamak: int,
         if ayrinti:
             govde = sablon["veri"].format(detay=ayrinti)
     elif basamak == WINBACK_TIERS[1]:
-        govde, olctu = _cevre_govdesi(profile, lang, sablon, today)
+        govde, olctu, karsi_ad = _cevre_govdesi(profile, lang, sablon, today)
 
     if govde and (not 0 < len(govde) <= MAX_PUSH_BODY
-                  or i18n.language_conflicts(govde, lang)):
+                  or i18n.language_conflicts(
+                      ozel_ad_haric(govde, karsi_ad), lang)):
         # Karşı tarafın ADI başka bir dilin harflerini taşıyabilir
         # ("Şeyma" + lang=en) ve koşudaki ortak dil ağı bütün push'u
         # düşürürdü — geri çağrı o kullanıcıya HİÇ ulaşmazdı. Veri-siz
         # soruya düşmek iddiayı küçültür, bildirimi öldürmez. Uzunluk de
         # aynı kapıdan: uzun bir görünen ad gövdeyi taşırabilir.
+        #
+        # ⚠️ AD ÖLÇÜMDEN ÇIKIYOR (`ozel_ad_haric`) ve bu YARIM kalmış bir
+        # onarımın tamamlanması: yedek dal push'u kurtarıyordu ama
+        # `olctu=False` yazdığı için SAHTE bir üretim düşüşü üretiyordu.
+        # `_SLOT_KIRMIZI_ESIGI["winback"] = 1` ile birleşince bedeli
+        # ölçülebilir: o gün kuyrukta yalnız Türkçe adlı bir arkadaşı
+        # olan tek bir İngilizce kullanıcı varsa koşu `ok=0` ile biter ve
+        # uç **503** döner — hiçbir şey bozuk olmadığı hâlde Scheduler
+        # kırmızı yanar. Artık yalnız GERÇEK dil kaçağı yedeğe düşürüyor.
         logger.info("Geri kazanim govdesi dusuruldu (uid=%s basamak=%s "
                     "lang=%s uzunluk=%d) — yalın soruya düşüldü",
                     profile.get("uid"), basamak, lang, len(govde))
         govde = ""
         olctu = False
+        # ⚠️ Bu satır EMNİYET PAYI, yük taşıyan şey DEĞİL — ölçüldü
+        # (mutasyon D4-M10): düşürüldüğünde takım yeşil kalıyor, çünkü bir
+        # altındaki `if not govde:` dalı `karsi_ad`ı ZATEN sıfırlıyor ve
+        # `govde` burada "" yapıldığı için o dal her halde koşuyor. İkisi
+        # KARŞILIKLI yedek; biri tek başına yeter. Bu terimi yakalayan bir
+        # bekçi YAZILAMAZ (aynı durum `winback_state`in `not capa`
+        # teriminde de ölçüldü) — "bekçisi yok" eksiklik değil,
+        # eşdeğerliğin sonucu. Gerekçesi yanlış okunmasın diye yazılı
+        # duruyor: burayı silen biri davranış değiştirmediğini BİLEREK
+        # silsin.
+        karsi_ad = ""
     if not govde:
         govde = sablon["yalin"]
+        karsi_ad = ""
 
     gun = (today or dt.date.today()).isoformat()
-    return (PushIcerik(sablon["baslik"], govde, soru=True),
+    return (PushIcerik(sablon["baslik"], govde, soru=True,
+                       ozel_ad=karsi_ad),
             {"type": "checkin", "route": "chat", "q": govde, "q_date": gun,
              "src": "winback", "tier": str(basamak)},
             olctu)

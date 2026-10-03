@@ -2032,6 +2032,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displayNameEmpty => 'Your name can\'t be empty.';
 
   @override
+  String displayNameTooLong(int count) {
+    return 'Your name can be at most $count characters.';
+  }
+
+  @override
   String get usernameChangeNote =>
       'If you change it, your old username is released and someone else can take it.';
 
