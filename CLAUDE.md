@@ -163,8 +163,15 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 ## 6. Bugünkü durum (2026-10-02)
 
 Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.18.0+48**. Backend rev **00106**.
-46 hiç yüklenmedi ve 47'ye geçildi — sürüm kodu ucuz, kullanılmış olabilecek
-bir kodu geri kullanmak değil.
+46 **kapalı teste yüklenmiş** (30 Eylül 22:24, Console ekranından ölçüldü),
+47'ye geçildi.
+
+⚠️ **Bu notun eski hâli yanlıştı** ve tam da tehlikeli yönde: *"46 Play'e
+henüz yüklenmedi — sürüm kodu hâlâ serbest, yeniden derlerken artırma"*
+diyordu. Console gerçeği tersini gösterdi. Kod artırıldığı için zarar
+görülmedi, ama o nota uyan biri **"sürüm kodu daha önce kullanıldı"**
+duvarına çarpardı. Ders: **bir sürüm kodunun serbest olduğu depodan
+bilinemez** — yalnız Console'un kanal sayfası söyler.
 
 ### Üç yüzey artık GERÇEKTEN günlük (2026-10-03) — ve bedeli 5'te kaldı
 
@@ -293,7 +300,15 @@ ediliyor**, yani para kaybı yok — ama bakiye açıklamasız yükselirken ekra
 "rapor" duruyor. Bildirim yedeği **36 saat** önbellekli, yani iyileşmeden
 sonra kendini onarmıyor.
 
-**Kapalı test yürüyor** (Alpha kanalı). 45 hem dahili hem kapalı testte.
+**Kapalı test yürüyor** (Alpha kanalı, 172 ülke/bölge). Kapalı testteki son
+sürüm **46 (1.17.0)** — 30 Eylül 22:24'te sunuldu (ölçüldü 2026-10-03).
+
+**Kanallar arası yükseltme KAYNAK kanalın sayfasından başlar.** Bir kez
+karıştırıldı: kapalı testin sayfasında ⋮ → "Sürümü yükselt" açıldı ve
+seçenekler yalnız **Açık test / Üretim** çıktı — çünkü yükseltme yalnız
+YUKARI gider ve o sayfa kapalı testin KENDİ sürümünü taşıyor. Dahili
+testteki bir paketi kapalı teste almak için menü **İç test** sayfasındaki o
+sürümün satırında açılır: ⋮ → Sürümü yükselt → **Kapalı test**.
 
 ⚠️ **Üretim yolundaki tek kritik madde: testçi sayısı.** 12 testçi / 14 gün
 sayacı, testçiler **opt-in bağlantısını açıp "Testçi ol"a basana kadar
