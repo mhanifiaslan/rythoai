@@ -117,6 +117,48 @@ const _kExtraEmojis = {
   'True_North_Lunar_Node': '☊', 'True_South_Lunar_Node': '☋',
 };
 
+/// Ekranı açan anlam cümlesinin öznesi: **Güneş** — listede varsa ve
+/// ölçümü şüpheli işaretlenmemişse. Yoksa null, yani cümle hiç çizilmez.
+///
+/// NEDEN burada bir KARAR gerekiyor: ızgara on noktayı birden gösteriyor,
+/// `yerlesimCumlesi` ise TEK bir yerleşimi anlatıyor (gezegen × ev). Yani
+/// seçim kullanıcıya görünen bir hüküm ve gerekçesi yazılmak zorunda.
+///
+/// NEDEN ADA göre, listedeki SIRAYA göre değil: gelen sıra bir sıralama
+/// değil, sunucunun nokta sayımı (`astro_service._subject_points`). Sıraya
+/// bağlanan başlık, sayım sırası değiştiği gün sessizce başka bir gezegeni
+/// anlatmaya başlar ve bunu kimse fark etmez.
+///
+/// NEDEN Güneş — iki ayrı CİNS gerekçe, karıştırılmamalı:
+///   1. ÜRÜN KARARI (ölçüm değil): ücretsiz katmanın omurgası tek bir burç
+///      anahtarına bağlı günlük yorum (`signHoroscopeProvider`) ve kişi
+///      ekranındaki Büyük Üçlü panelinin ilk satırı da Güneş. Kullanıcının
+///      haritası hakkında ZATEN bildiği nokta bu; ekranı onunla açmak yeni
+///      bir sözlük öğretmeden anlamla başlıyor.
+///   2. ÖLÇÜLDÜ (`astro_service._ay_belirsizligini_isaretle`): `uncertain`
+///      bayrağını sunucu YALNIZ Ay'a basıyor — saat bilinmeyen haritada
+///      Ay'ın burcu gün içinde değişebiliyor (16 tarihin 7'si). Ay bu
+///      ekranın başlığı yapılsaydı, saatsiz haritalarda sayfa sunucunun
+///      kendi şüphe işaretini taşıyan noktayla açılırdı; hemen altındaki
+///      satır da "Doğum saatine göre … da olabilir" diyor.
+///
+/// ⚠️ Ay'ın HIZI bu seçimde gerekçe DEĞİL ve öyle sanılmamalı: Ay zodyağı
+/// 27,3 günde dolaşıyor (Güneş ~365), ama cümle yalnız AD + EV kullanıyor,
+/// burcu kullanmıyor — yani "daha hızlı nokta daha kişisel cümle üretir"
+/// gerekçesi burada ölçüme uymaz. İki nokta da 12 ayrı cümle verir.
+///
+/// ⚠️ `uncertain` kapısı bugün hiçbir veride KAPANMIYOR (sunucu Güneş'i
+/// işaretlemiyor) ama duruyor: bir gün işaretlerse başlık yanlış bir şey
+/// söylemektense hiç çizilmesin. Kör kalmasın diye bekçisi fixture ile
+/// kapatılıyor (`gezegen_anlam_test.dart`).
+Map<String, dynamic>? anlamNoktasi(List<Map<String, dynamic>> noktalar) {
+  for (final p in noktalar) {
+    if (p['name'] != 'Sun') continue;
+    return p['uncertain'] == true ? null : p;
+  }
+  return null;
+}
+
 class AtlasPlanetsScreen extends StatelessWidget {
   const AtlasPlanetsScreen({super.key, required this.points});
 
@@ -133,9 +175,51 @@ class AtlasPlanetsScreen extends StatelessWidget {
     final ek =
         points.where((p) => _kExtraEmojis.containsKey(p['name'])).toList();
 
+    // ANLAM KATMANI: bu ekran "anlam önce" ailesinin TEK kaçağıydı —
+    // açılışta on noktalık bir ızgara (emoji · burç · derece · ev) ve
+    // sıfır anlam cümlesi. Öznenin NEDEN Güneş olduğu `anlamNoktasi`da;
+    // burada yalnız çizim kararları duruyor.
+    //
+    // ⚠️ Panelin ETİKETİ YOK ve bu bilinçli: `yerlesimCumlesi` öznesini
+    // KENDİ içinde söylüyor ("Güneş: öz kimliğin …"), yani bir etiket
+    // aynı adı bir kez daha yazar ve ızgara satırıyla birlikte ÜÇÜNCÜ
+    // tekrar olurdu — aynı gerekçeyle `yerlesimCumlesi` ev etiketini de
+    // cümleden atmıştı.
+    //
+    // Açılar ekranındaki kardeş panel etiket TAŞIYOR ve bu bir çelişki
+    // DEĞİL: `aspectMeaningText` açı TÜRÜNÜ anlatır, çifti adlandırmaz,
+    // yani o cümlenin öznesi yalnız etiketten geliyor. Ayrım ölçülebilir
+    // ve ölçülüyor (`gezegen_anlam_test.dart`: rol cümlesi kendi öznesini
+    // içeriyor, açı cümlesi iki gezegen adının hiçbirini içermiyor).
+    //
+    // ⚠️ Bu gerekçenin ilk yazımı "etiket kalkarsa çift ekranda hiçbir
+    // yerde yazmaz" diyordu ve ÖLÇÜLDÜĞÜNDE YANLIŞ çıktı: etiket
+    // kaldırılınca çift ekranda hâlâ TAM BİR KEZ duruyor (kendi grup
+    // satırında) — doğrulama turunda mutasyonla ölçüldü. Kaybolan şey
+    // çiftin varlığı değil CÜMLEYE BAĞI: ekran birçok çifti birden
+    // listeliyor ve etiketsiz cümle hangisini anlattığını söylemiyor.
+    // Aynı dosyanın 3.2 ölçümü de zaten "çift iki kez yazılıyor" diyor;
+    // eski gerekçe kendi paketiyle çelişiyordu.
+    //
+    // Panel DOKUNULABİLİR: cümlenin dayanağı (derece · ev · hız) nokta
+    // alt-sayfasında duruyor ve kullanıcı anlamdan ölçüme inebilmeli.
+    // Izgara satırı da aynı sayfayı açtığı için bu yeni bir yol değil,
+    // kısa yol — yani dokunuş kalkarsa bilgi kaybolmaz, yalnız yol uzar.
+    final anlamNokta = anlamNoktasi(points);
+    final anlamCumlesi = anlamNokta == null
+        ? null
+        : yerlesimCumlesi(l10n, anlamNokta['name'] as String?,
+            anlamNokta['house_no'] as int?);
+
     return _DetayIskelet(
       title: l10n.atlasPlanetPositions,
       children: [
+        if (anlamNokta != null && anlamCumlesi != null)
+          GlassPanel(
+            onTap: () => showPointSheet(context, anlamNokta),
+            child:
+                Text(anlamCumlesi, style: RythoText.body(14, height: 1.5)),
+          ),
         GlassPanel(child: PlanetGrid(points: klasik)),
         if (ek.isNotEmpty) ...[
           const SizedBox(height: RythoSpace.sm),
@@ -826,6 +910,31 @@ class AtlasAspectsScreen extends StatelessWidget {
     return _DetayIskelet(
       title: l10n.atlasAspects,
       children: [
+        // ⚠️ Lider çifti bu ekranda İKİ kez yazılıyor (buradaki etiket +
+        // kendi grubundaki liste satırı) ve ölçüldükten sonra ikisi de
+        // BIRAKILDI — "aynı metin iki kez yazılmasın" ilkesi burada
+        // uygulanmıyor, çünkü ölçüm iki konumun aynı işi görmediğini
+        // söylüyor:
+        //   · Buradaki etiket cümlenin ÖZNESİ. `aspectMeaningText` açı
+        //     türünü anlatıyor ve çifti hiç adlandırmıyor; etiket
+        //     kalkarsa cümle ÖZNESİZ kalır — hangi çifti anlattığı
+        //     ekranda hiçbir şeyden okunamaz, çünkü aşağıda birden çok
+        //     çift listeleniyor ve cümleyi onlardan birine bağlayan şey
+        //     yalnız bu etiketti.
+        //     ⚠️ ÖLÇÜLDÜ (doğrulama turu, mutasyon): etiket kaldırılınca
+        //     çift ekrandan SİLİNMİYOR, kendi grup satırında TAM BİR KEZ
+        //     kalıyor. Bu gerekçenin ilk yazımı "hiçbir yerde yazmaz"
+        //     diyordu ve yanlıştı; kaybolan şey çiftin VARLIĞI değil
+        //     cümleyle BAĞI.
+        //   · Liste satırı ÖLÇÜMÜ taşıyor (orb · tür · hareket) ve bu
+        //     sayılar başka hiçbir yerde ekranda değil. Satır kalkarsa
+        //     ekranın kendi dipnotu ("Her grupta en dar orb önce")
+        //     grubun en dar açısı listede olmadığı için YANLIŞ BEYAN
+        //     olur — bu depoda en pahalı kusur sınıfı.
+        // Yani tekrar BAŞLIK + LİSTE ÖĞESİ tekrarı, gövde tekrarı değil.
+        // Gezegen ekranındaki kardeş panelin etiketi YOK ve o da aynı
+        // ölçünün sonucu: orada anlam cümlesi öznesini kendi içinde
+        // söylüyor. Bekçi: `gezegen_anlam_test.dart`.
         if (lider != null && liderAnlam != null)
           GlassPanel(
             label: aspectPairLabel(context, lider),

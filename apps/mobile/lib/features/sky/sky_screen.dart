@@ -757,12 +757,7 @@ class _SignalsSectionState extends ConsumerState<_SignalsSection> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final sinyal = sinyaller[indeks];
-      final insight = sinyal['insight'] as String?;
-      final kartCumlesi = (insight != null && insight.isNotEmpty)
-          ? insight
-          : (sinyal['headline'] as String? ?? '');
-      showSignalBasisSheet(context, {...sinyal, 'card_text': kartCumlesi});
+      _sinyalDayanaginiAc(context, sinyaller[indeks]);
     });
   }
 
@@ -812,37 +807,45 @@ class _SignalsSectionState extends ConsumerState<_SignalsSection> {
   }
 }
 
+/// Sinyal dayanağı sayfasını açan TEK yol — kart dokunuşu VE sabah
+/// bildirimi buradan geçer.
+///
+/// İki giriş yolu ayrı ayrı yazılmıştı ve bildirim yolu `onAsk`i
+/// GEÇİRMİYORDU; `basis_sheet` düğmeyi koşullu çizdiği için bildirimden
+/// gelen kullanıcı sohbet kapısını HİÇ görmüyordu (ölçüldü). Çağrıyı tek
+/// yere indirmek o sapmayı yapısal olarak imkânsız kılıyor: üçüncü bir
+/// giriş yolu eklenirse düğme bedava geliyor.
+void _sinyalDayanaginiAc(BuildContext context, Map<String, dynamic> sinyal) {
+  final l10n = AppLocalizations.of(context);
+  // Sayfaya karttaki CÜMLE de gider (R3-1): kullanıcı "neye dayanıyor"
+  // sorusunu abone yorumuna sorduysa sayfa o cümleyle açılmalı.
+  final insight = sinyal['insight'] as String?;
+  final kartCumlesi = (insight != null && insight.isNotEmpty)
+      ? insight
+      : (sinyal['headline'] as String? ?? '');
+  showSignalBasisSheet(
+    context,
+    {...sinyal, 'card_text': kartCumlesi},
+    onAsk: () {
+      Navigator.of(context).pop();
+      // R4-1 / K2: soru O SİNYALE ÖZELDİR — karttaki cümle + dayanağı
+      // birlikte gider, model kullanıcının okuduğu cümleyi açar ve
+      // "başka konu" hissi oluşmaz.
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ChatScreen(
+            initialText: l10n.signalAskPrefill(
+                kartCumlesi, (sinyal['technical'] as String?) ?? '')),
+      ));
+    },
+  );
+}
+
 /// Tek sinyal kartı: tema çipi + başlık cümlesi + (varsa) abone yorumu +
 /// "Neden?" — dokunuş dayanak alt-sayfasını açar (R2-S2).
 class _SignalCard extends StatelessWidget {
   const _SignalCard({required this.sinyal});
 
   final Map<String, dynamic> sinyal;
-
-  void _openBasis(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    // Sayfaya karttaki CÜMLE de gider (R3-1): kullanıcı "neye dayanıyor"
-    // sorusunu abone yorumuna sorduysa sayfa o cümleyle açılmalı.
-    final insight = sinyal['insight'] as String?;
-    final kartCumlesi = (insight != null && insight.isNotEmpty)
-        ? insight
-        : (sinyal['headline'] as String? ?? '');
-    showSignalBasisSheet(
-      context,
-      {...sinyal, 'card_text': kartCumlesi},
-      onAsk: () {
-        Navigator.of(context).pop();
-        // R4-1: soruya KARTTAKİ cümle + dayanağı birlikte gider — model
-        // kullanıcının okuduğu cümleyi açar, "başka konu" hissi biter.
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ChatScreen(
-              initialText: l10n.signalAskPrefill(
-                  kartCumlesi,
-                  (sinyal['technical'] as String?) ?? '')),
-        ));
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -863,7 +866,7 @@ class _SignalCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(
           horizontal: RythoSpace.lg, vertical: 5),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 11),
-      onTap: () => _openBasis(context),
+      onTap: () => _sinyalDayanaginiAc(context, sinyal),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Tema başlığı: kullanıcı bir bakışta "bu kariyer mi ilişki mi"
         // sorusunu cevaplayabilmeli — ikon + büyük ad, silik değil.

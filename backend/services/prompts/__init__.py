@@ -507,15 +507,22 @@ def localize_transit_calendar(lang: str | None, cal: dict | None) -> dict:
         # sayfasını sinyal kartlarıyla AYNI dille doldurur: gündelik cümle
         # + teknik dayanak satırı.
         #
-        # `line` ARTIK burada üretilmez (Ç-turu). Eskiden tema×ton sabit
-        # bir 12 cümlelik tabloya (`SIGNAL_HUMAN_LINES`) bakıyordu ve
-        # birçok farklı astrolojik olay birebir aynı cümleye düşüyordu
-        # (ölçüldü: bir günde üç ayrı olay aynı cümleyi üç kez gösterdi).
-        # Yorum artık `api/astrology.py`'de abone için `calendar_insights`
-        # ile ÖNCEDEN üretilip olaya `o["line"]` olarak yazılıyor; burası
+        # KESİNLEŞME olaylarının `line`ı burada ÜRETİLMEZ (Ç-turu).
+        # Eskiden tema×ton sabit bir 12 cümlelik tabloya
+        # (`SIGNAL_HUMAN_LINES`) bakıyordu ve birçok farklı astrolojik
+        # olay birebir aynı cümleye düşüyordu (ölçüldü: bir günde üç ayrı
+        # olay aynı cümleyi üç kez gösterdi). Yorum artık
+        # `api/astrology.py`'de abone için `calendar_insights` ile
+        # ÖNCEDEN üretilip olaya `o["line"]` olarak yazılıyor; burası
         # yalnız OLDUĞU GİBİ taşır. Üretilmediyse (ücretsiz kullanıcı ya
         # da AI biçimi tutturamadıysa) boş kalır — mobil bu durumda kendi
         # teknik dayanak yedeğini gösterir (`calendar_strip.dart`).
+        #
+        # ⚠️ Bu gerekçe YALNIZ kesinleşmeler için geçerli. İSTASYONLARIN
+        # `line`ı aşağıdaki dalda BURADA kurulur ve kurulması gerekir:
+        # `calendar_insights` LLM'e yalnız `aspect_exact` + temalı
+        # olayları veriyor, yani istasyon hiçbir katmanda LLM cümlesi
+        # ALMAZ — üzerine yazma riski de yok.
         if o.get("theme") and o.get("tone"):
             sonuç["theme_local"] = p.SIGNAL_THEME_NAMES.get(o["theme"],
                                                             o["theme"])
@@ -528,6 +535,34 @@ def localize_transit_calendar(lang: str | None, cal: dict | None) -> dict:
                 date=sonuç.get("date_local", o.get("date")))
             if o.get("natal_sign"):
                 sonuç["natal_sign_local"] = sign_name(lang, o["natal_sign"])
+        elif str(o.get("type") or "").startswith("station"):
+            # OP2-turu: istasyon satırı bir ADLANDIRMAYDI, okuma değildi.
+            # Cihazda gün sayfasında tek satır "Plüton — ileri harekete
+            # dönüş" yazıyordu; sahip "bu ne demek, ne getirip ne
+            # götürüyor" diye sordu ve cevap üründe HİÇBİR YERDE yoktu.
+            #
+            # Anlam SABİT TABLODAN kurulur — LLM yok, jeton yok (emsal:
+            # `atlas_detail_screens.dart` gezegen rolü × ev alanı).
+            # `signal_service.enrich_events` istasyona TEMA VERMİYOR ve
+            # vermemeli: istasyon kişisel bir natal noktaya bağlanmıyor.
+            # Burada üretilen cümle de bu yüzden KİŞİSEL DEĞİL —
+            # gezegenin kendi doğası ve yönünün evresi anlatılır, kullanıcı
+            # anlatılmaz. Kişiye özel olmadığı için `locked` da konmaz:
+            # paylaşımlı bir olgu, ücretsiz katmanda da görünür.
+            #
+            # Yön evresi tabloda yoksa cümle HİÇ yazılmaz. Olay türünü
+            # tanımadan "istasyon işte" diye genel bir cümle basmak
+            # ölçülmeyeni söylemek olurdu; mobil o durumda kendi teknik
+            # dayanak yedeğini gösterir.
+            evre = p.STATION_PHASE_LINES.get(o.get("type"))
+            tema = p.STATION_PLANET_THEMES.get(o.get("transit"))
+            if evre and tema:
+                sonuç["line"] = evre.format(
+                    transit=sonuç["transit_local"], theme=tema)
+                sonuç["technical"] = p.STATION_LINE_TECHNICAL.format(
+                    transit=sonuç["transit_local"],
+                    date=sonuç.get("date_local", o.get("date")),
+                    event=sonuç["type_local"])
         return sonuç
 
     sonuç = {**cal,

@@ -902,6 +902,71 @@ TRANSIT_EVENT_NAMES = {
     "station_direct": "stations direct",
 }
 
+#: STATION MEANING (OP2 round). On the day sheet the "Other movements"
+#: row was a LABEL, not a reading: the device showed a single line,
+#: "Pluto - stations direct", and nowhere could the user learn what it
+#: meant.
+#:
+#: The sentence is the PRODUCT OF TWO TABLES: the planet theme below x
+#: the phase of direction. The 12 cells are not hand-written - writing
+#: them out would bring back a defect already on record here (44 fixed
+#: sentences were PRINTED side by side, never synthesised). Precedent:
+#: atlas_detail_screens.dart `planetRoleText` x `houseAreaText`.
+#:
+#: WARNING: the sentence is never personalised, and cannot be. A station
+#: attaches to no natal point of the user's, which is why
+#: `signal_service.enrich_events` gives it no theme; saying "in your
+#: chart" would break "nothing is said that was not measured". What is
+#: described is THE PLANET ITSELF: "Pluto tears out a foundation" is
+#: about Pluto, not about the user - measured and true. Being shared
+#: rather than personal, it is open to every tier and carries no
+#: `locked` (see api/astrology.py `_takvimi_kilitle`).
+#:
+#: Source `knowledge/corpus/en/prediction_doctrine.md` (license:
+#: rytho-original): slow-planet themes and the station doctrine. The same
+#: document's "Ethics of Predictive Language" says a hard season is
+#: called hard but together with its function, so both phase lines name
+#: the GAIN and the COST together; naming only one either sells fear or
+#: lulls.
+#:
+#: Keys must stay in step with `predict_service._TRANSIT_GEZEGENLERI`: a
+#: missing planet silently yields a station with no sentence.
+STATION_PLANET_THEMES = {
+    "Jupiter": "the influence that enlarges a doorway",
+    "Saturn": "the influence that tests a structure",
+    "Uranus": "the influence that opens what is shut from an "
+              "unexpected side",
+    "Neptune": "the influence that dissolves an edge",
+    "Pluto": "the influence that tears out a foundation and pours it anew",
+    "Chiron": "the influence that touches an old wound",
+}
+
+#: Phases of direction. Keys are the event types `predict_service`
+#: emits - a type absent from this table gets NO sentence at all (no
+#: invented phase).
+STATION_PHASE_LINES = {
+    "station_retrograde": (
+        "{transit} stands still and turns retrograde — {theme}. A "
+        "station is the day this influence is most concentrated: as speed "
+        "falls to zero, effect rises to its peak. What follows opens no "
+        "new ground; it turns what is already open inward for review. The "
+        "gain is a second look, the cost is giving up speed."),
+    "station_direct": (
+        "{transit} stands still and turns direct — {theme}. A station "
+        "is the day this influence is most concentrated: as speed falls "
+        "to zero, effect rises to its peak. The review phase closes and "
+        "the matter opens outward again. The gain is stalled work moving, "
+        "the cost is the quiet shelter the retreat allowed."),
+}
+
+#: The station's BASIS. What is measured is the sign change of speed
+#: (`predict_service`: `hizlar[i - 1] > 0 >= hizlar[i]`); the line names
+#: exactly that measurement. It shows the basis, it does not praise the
+#: discipline.
+STATION_LINE_TECHNICAL = (
+    "{transit} slows to zero speed and changes direction on {date} "
+    "({event}).")
+
 #: Declination aspects (T4): the "hidden" conjunction/opposition that
 #: longitude alone never shows.
 DECLINATION_ASPECT_NAMES = {

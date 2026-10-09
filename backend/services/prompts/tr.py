@@ -894,6 +894,65 @@ TRANSIT_EVENT_NAMES = {
     "station_direct": "ileri harekete dönüş",
 }
 
+#: İSTASYON ANLAMI (OP2-turu). Gün alt sayfasındaki "Diğer hareketler"
+#: satırı bir ADLANDIRMAYDI, okuma değildi: cihazda tek satır
+#: "Plüton — ileri harekete dönüş" yazıyordu ve kullanıcı bunun ne demek
+#: olduğunu hiçbir yerden öğrenemiyordu.
+#:
+#: Cümle İKİ TABLONUN ÇARPIMIDIR: aşağıdaki gezegen teması × yön evresi.
+#: 12 kutu elle yazılmadı — yazılsaydı depoda kayıtlı kusur geri gelirdi
+#: (44 sabit cümle yan yana BASILIYORDU, sentezlenmiyordu). Emsal:
+#: atlas_detail_screens.dart `planetRoleText` × `houseAreaText`.
+#:
+#: ⚠️ Cümle KİŞİSELLEŞTİRİLMEZ ve kişiselleştirilemez. İstasyon kişisel
+#: bir natal noktaya bağlanmadığı için `signal_service.enrich_events` ona
+#: tema vermiyor; "senin haritanda" demek "ölçülmeyen söylenmez"i ihlal
+#: ederdi. Anlatılan şey GEZEGENİN KENDİSİ: "Plüton temeli söker" cümlesi
+#: Plüton hakkındadır, kullanıcı hakkında değil — ölçülmüş ve doğru.
+#: Kişiye özel olmadığı için her katmana açıktır ve `locked` TAŞIMAZ
+#: (bkz. api/astrology.py `_takvimi_kilitle`, test_transit_calendar.py).
+#:
+#: Kaynak `knowledge/corpus/tr/tahmin_doktrin.md` (license:
+#: rytho-original): yavaş gezegen temaları ve istasyon doktrini. Aynı
+#: belgenin "Tahmin Dilinin Ahlakı" bölümü "zor dönem zor diye söylenir —
+#: ama işleviyle birlikte" diyor, bu yüzden iki evre cümlesi de KAZANCI ve
+#: BEDELİ birlikte söyler; yalnız birini söylemek ya korku satar ya uyutur.
+#:
+#: Anahtarlar `predict_service._TRANSIT_GEZEGENLERI` ile aynı kalmalı:
+#: eksik bir gezegen sessizce cümlesiz bir istasyon üretir.
+STATION_PLANET_THEMES = {
+    "Jupiter": "bir kapıyı büyüten etki",
+    "Saturn": "bir yapıyı sınayan etki",
+    "Uranus": "kapalı olanı beklenmedik yerinden açan etki",
+    "Neptune": "sınırları eriten etki",
+    "Pluto": "temeli söküp yeniden döken etki",
+    "Chiron": "eski bir yaraya dokunan etki",
+}
+
+#: Yön evreleri. Anahtarlar `predict_service`in ürettiği olay türleridir
+#: — tür adı tabloda yoksa cümle HİÇ yazılmaz (uydurma yön evresi yok).
+STATION_PHASE_LINES = {
+    "station_retrograde": (
+        "{transit} duruyor ve geri dönüşe geçiyor — {theme}. İstasyon, bu "
+        "etkinin en yoğunlaştığı gündür: hız sıfıra inerken etki zirveye "
+        "çıkar. Bundan sonrası yeni bir zemin açmaz; açılmış olanı içe "
+        "döndürüp gözden geçirtir. Kazancı ikinci bir bakış, bedeli "
+        "hızdan vazgeçmek."),
+    "station_direct": (
+        "{transit} duruyor ve ileri harekete dönüyor — {theme}. İstasyon, "
+        "bu etkinin en yoğunlaştığı gündür: hız sıfıra inerken etki "
+        "zirveye çıkar. Gözden geçirme evresi kapanır, konu yeniden dışa "
+        "açılır. Kazancı tıkanan işin yeniden yürümesi, bedeli geri "
+        "çekilmenin tanıdığı sessiz süre."),
+}
+
+#: İstasyonun DAYANAĞI. Ölçülen şey hız işaretinin değişmesidir
+#: (`predict_service`: `hizlar[i - 1] > 0 >= hizlar[i]`); satır tam o
+#: ölçümü adıyla söyler. Dayanağı gösterir, disiplini övmez.
+STATION_LINE_TECHNICAL = (
+    "{transit} {date} günü hızını sıfıra indirip yön değiştiriyor "
+    "({event}).")
+
 #: Deklinasyon açıları (T4): boylamda görünmeyen, "gizli" kavuşum/karşıt.
 DECLINATION_ASPECT_NAMES = {
     "parallel": "paralel",

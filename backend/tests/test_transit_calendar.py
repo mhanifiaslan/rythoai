@@ -34,7 +34,15 @@ SAHTE_TAKVIM = {
         {"type": "aspect_exact", "date": "2026-08-20",
          "transit": "Mars", "natal": "Venus", "aspect": "trine",
          "orb": 0.4, "theme": "relationships", "tone": "support"},
-        {"type": "station", "date": "2026-09-02", "transit": "Mercury"},
+        # OP2: tur ve gezegen GERCEK olmali. `predict_service` "station"
+        # diye bir tur uretmiyor (yalniz station_retrograde /
+        # station_direct) ve Merkur transit gezegeni degil - eski sahte
+        # yuk ikisini de uyduruyordu. Bedeli olculdu: istasyon anlam
+        # cumlesi eklendikten sonra da bu dosya yesil kaliyordu, cunku
+        # uydurma tur tabloya hic ugramiyordu. Sahte yuk motorun
+        # URETTIGI bicimde degilse bekci kordur.
+        {"type": "station_retrograde", "date": "2026-09-02",
+         "transit": "Pluto"},
     ],
     "active_now": [],
 }
@@ -147,21 +155,59 @@ def test_abonede_okuma_AYNEN_kalir(monkeypatch, kullanici, sahte_motor):
 
 
 @uygulama_gerekir
-def test_okumasi_olmayan_olaya_kilit_KONMAZ(monkeypatch, kullanici,
-                                            sahte_motor):
-    """Istasyonlarin (retro donusleri) hicbir katmanda gundelik cumlesi yok.
+def test_paylasimli_okumaya_kilit_KONMAZ(monkeypatch, kullanici,
+                                         sahte_motor):
+    """Istasyonun okumasi PAYLASIMLI oldugu icin kilit rozeti ona konmaz.
 
-    Onlari da kilitli isaretlemek "Rytho+ ile acilir" deyip abonelikte de
-    acilmayan bir sey vaat etmek olurdu; cihaz turunda kullanici gun
-    kartinda tam bunu gordu. Kilit YALNIZCA okumasi olan olaya konur.
+    Bu testin eski gerekcesi "istasyonlarin hicbir katmanda gundelik
+    cumlesi yok" diyordu ve OP2'den sonra YANLISTIR: istasyon artik sabit
+    tablodan bir anlam cumlesi aliyor. Degismez AYNI kaldi, gerekcesi
+    degisti - ve gerekce onemli, cunku kilit kosulu `theme` varligina
+    bakiyor, `line`a bakmiyor (bkz. api/astrology.py `_takvimi_kilitle`).
+
+    Yeni gerekce: o cumle kisiye ozel DEGIL. Gezegenin kendi dogasini ve
+    yonunun evresini anlatir, kullaniciyi anlatmaz; olculmus ve paylasimli
+    bir olgudur, bu yuzden ucretsiz katmanda da gorunur. Ona "Rytho+ ile
+    acilir" demek abonelikte FAZLA bir sey vermeyen bir kilit satmak
+    olurdu - cihaz turunda (1.5.1+18) kullanici gun kartinda tam bunu
+    gordu.
     """
     veri = _cek(monkeypatch, sahte_motor, abone=False)
     tipler = {o["type"]: o for o in veri["events"]}
 
     assert tipler["aspect_exact"]["locked"] is True
-    assert "locked" not in tipler["station"]
+    assert "locked" not in tipler["station_retrograde"]
     # Istasyonun olcumu ucretsiz katmanda da duruyor.
-    assert tipler["station"]["transit_local"]
+    assert tipler["station_retrograde"]["transit_local"]
+    # OP2: ANLAMI da duruyor. `_KILITLI_ALANLAR` bu iki alani ucretsiz
+    # katmanda siliyor; silme kosulu temasiz olaya ugramadigi icin
+    # istasyonun anlami gecip gidiyor. Kosul `line` varligina baglansa
+    # sahibin sikayet ettigi ciplak satir geri donerdi.
+    assert tipler["station_retrograde"]["line"]
+    assert tipler["station_retrograde"]["technical"]
+
+
+@uygulama_gerekir
+def test_istasyonun_anlami_HER_KATMANDA_AYNI(monkeypatch, kullanici,
+                                             sahte_motor):
+    """Ucretsiz ve abone kullanici istasyonda AYNI cumleyi gorur.
+
+    Ayrim bilerek boyle: "hesap bedava, yorum parali" kurali KISIYE OZEL
+    yoruma bakar. Istasyon cumlesi LLM'den gelmiyor, sabit tablodan
+    geliyor ve kullanicidan bagimsiz - iki katmanda farkli olmasi icin
+    hicbir gerekce yok. Iki yonu de kirilgan: ayrisirsa ya ucretsiz
+    kullanici ciplak satira doner ya da abone fazladan bir sey aldigini
+    sanir.
+    """
+    ucretsiz = _cek(monkeypatch, sahte_motor, abone=False)
+    abone = _cek(monkeypatch, sahte_motor, abone=True)
+
+    def istasyon(veri):
+        return next(o for o in veri["events"]
+                    if o["type"] == "station_retrograde")
+
+    assert istasyon(ucretsiz)["line"] == istasyon(abone)["line"]
+    assert istasyon(ucretsiz)["technical"] == istasyon(abone)["technical"]
 
 
 @uygulama_gerekir

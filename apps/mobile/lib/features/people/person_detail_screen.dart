@@ -158,8 +158,30 @@ class PersonDetailScreen extends ConsumerWidget {
               _EylemSatiri(
                 icon: Icons.auto_awesome_rounded,
                 label: l10n.signalAsk,
+                // TOHUM: etiket "Rytho'ya sor" diyordu ama sohbet BOŞ
+                // açılıyordu — çağrı vardı, soru yoktu. `initialText`
+                // giriş alanını ÖN-DOLDURUR, GÖNDERMEZ
+                // (`chat_screen.dart`: "son söz onun"), yani tohum bir
+                // teklif; kullanıcı silip kendi sorusunu yazabilir.
+                //
+                // NEDEN yeni bir dize değil `chartAskPrefill`: bu
+                // ekranın gövdesi kişinin ÇARKI (Büyük Üçlü +
+                // `ChartWheel`) ve aynı çarkı tam ekran açan düğme
+                // ZATEN bu anahtarı bu adla kullanıyor — oraya
+                // `titleOverride: ad` geçiyor, `ChartInspectorScreen._sor`
+                // da `chartAskPrefill(_baslik)` kuruyor. Yani aynı
+                // kişinin iki girişi aynı cümleyi üretiyor; ayrı bir
+                // dize ikisini sebepsiz AYRIŞTIRIRDI.
+                //
+                // `ad` = `person.label ?? relationLabel(...)`: kullanıcı
+                // bir ad yazmadıysa ilişki sözcüğü geçer, yani tohum her
+                // hâlde ekranın başlığında okunan sözcüğü kullanır ve
+                // sohbete yeni bir sözlük sokmaz. `personId` KALIYOR:
+                // yetki kapısı ve bağlam fısıltısı tohumdan bağımsız.
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ChatScreen(personId: person.id))),
+                    builder: (_) => ChatScreen(
+                        personId: person.id,
+                        initialText: l10n.chartAskPrefill(ad)))),
               ),
             ]),
           ),

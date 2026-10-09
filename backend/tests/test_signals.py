@@ -653,10 +653,31 @@ class TestTakvimZenginlestirme:
         assert kesin["date_local"] == "18 Ağustos"
         # `line` önceden yazılmadıysa BOŞ kalır — sabit cümleye DÜŞMEZ.
         assert kesin["line"] == ""
-        # İstasyon satırı eski davranışını korur.
+        # İstasyon satırı ARTIK `line` TAŞIYOR — bu bilinçli bir değişiklik.
+        #
+        # Eski hâl `assert "line" not in istasyon` idi ve gerekçesi doğruydu:
+        # istasyon kişisel bir natal noktaya bağlanmadığı için ona TEMA
+        # uydurmak "ölçülmeyen söylenmez"i ihlal ederdi. Ama sahibin isteği o
+        # kuralı ihlal ETMİYOR: kişisel tema değil, HAREKETİN KENDİSİNİN ne
+        # demek olduğu isteniyor. "Plüton temeli söker ve yeniden döker"
+        # cümlesi PLÜTON HAKKINDADIR, kullanıcı hakkında değil — ölçülmüş ve
+        # doğru. Cihazda şikâyet edilen hâl şuydu: gün sayfasında yalnız
+        # "Plüton — ileri harekete dönüş" yazıyor, anlamı hiç yok.
+        #
+        # Kaynak metin uydurma değil: `knowledge/corpus/tr/tahmin_doktrin.md`
+        # (`license: rytho-original`) altı yavaş gezegenin temasını ve istasyon
+        # doktrinini zaten yazıyor; tablo oradan türetildi ve 6 tema × 2 yön
+        # olarak ÇARPILIYOR (12 dize elle yazılmadı).
         istasyon = yerel["events"][1]
-        assert "line" not in istasyon
+        assert istasyon["line"], "istasyon anlam cümlesi üretilmiyor"
+        assert istasyon["technical"], "istasyonun sebep satırı üretilmiyor"
         assert istasyon["type_local"] == "retroya dönüş"
+        # ⚠️ ASIL KAPI: cümle KİŞİSELLEŞTİRİLMEZ. Bunu kaybetmek, yukarıdaki
+        # eski kuralın haklı olduğu zemine geri düşmek olurdu.
+        for yasak in ("senin", "haritanda", "sana ", "haritandaki"):
+            assert yasak not in istasyon["line"].lower(), (
+                f"istasyon cümlesi kişiselleştirilmiş ({yasak!r}): hareket "
+                f"herkes için aynı, kullanıcının haritasına bağlı değil")
 
     def test_onceden_yazilmis_ai_metni_oldugu_gibi_tasinir(self):
         """`api/astrology.py` `line`'ı olaya YAZDIKTAN SONRA çağırır —

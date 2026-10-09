@@ -201,7 +201,20 @@ Future<void> showDaySheet(BuildContext context, DateTime gun,
       borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       side: BorderSide(color: RythoColors.glassStroke),
     ),
-    builder: (_) => _GunSayfasi(gun: gun, olaylar: olaylar),
+    // Kaydırma SARMALAYICIDA. Gövde `mainAxisSize: min` bir `Column`
+    // ve bu sayfa doğduğu günden beri kaydırmasızdı; içerik kısa
+    // olduğu için görünmüyordu. Kart desenine geçiş satır başına
+    // yükseklik ekledi ve ÖLÇÜLDÜ (320x480 değil, 320x640 / yazı
+    // ölçeği tavanı): tek kartta 130 px, üç kartta 1162 px taşma.
+    // Eski düz satır biçimi aynı ekranda hiç taşmıyordu, yani kusur
+    // bu turda doğdu.
+    //
+    // Taşma ürün kodunda istisna olarak GÖRÜNMEZ — ekrandan sessizce
+    // kırpılır. Kardeş desende (`basis_sheet`, aynı tür
+    // `isScrollControlled` alt sayfa) bu 131 px sessiz kırpılma olarak
+    // ölçülmüştü; bekçi `calendar_strip_test.dart`te.
+    builder: (_) => SingleChildScrollView(
+        child: _GunSayfasi(gun: gun, olaylar: olaylar)),
   );
 }
 
@@ -300,6 +313,22 @@ class _KilitSatiri extends StatelessWidget {
   }
 }
 
+/// Gün sayfasındaki tek olay satırı.
+///
+/// ## Sira: ANLAM → SEBEP → DAVET
+///
+/// Sahip cihaz ekran görüntüsüyle geldi: bu satırda yalnız
+/// "Plüton — ileri harekete dönüş" yazıyordu. İki ETİKETİN tire ile
+/// yapıştırılmış hâliydi (bu dosya yapıştırıyordu, sunucu böyle bir
+/// cümle üretmiyordu) ve kullanıcının "bu ne demek, ne getirip ne
+/// götürüyor" sorusunun cevabı ürünün HİÇBİR yüzeyinde yoktu.
+///
+/// Sıra bu yüzden böyle: önce ne demek olduğu (`line`), SONRA sebebi
+/// olarak ölçümün kendi ifadesi (`technical`), en altta sohbete götüren
+/// giriş. Tersi, ölçüm disiplinini anlamın önüne koyan hâliydi.
+/// Hiyerarşi de bunu söyler: anlam okuma ölçüsünde (15/1,65), sebep
+/// daha küçük ve silik — `basis_sheet`te ölçülen kusurun aynısı
+/// (sayfanın ASIL metni teknik tablodan küçük görünüyordu).
 class _OlaySatiri extends StatelessWidget {
   const _OlaySatiri({required this.olay});
 
@@ -311,9 +340,14 @@ class _OlaySatiri extends StatelessWidget {
     final cumle = olay['line'] as String?;
 
     // Kilitli olay burada HİÇBİR ŞEY çizmez: kilit cümlesi sayfanın
-    // sonunda bir kez duruyor. Okuması olmayan olay (istasyon) ise
-    // ölçümüyle yazılır — ona kilit demek yanlış olurdu, abonelikte de
-    // açılacak bir okuması yok.
+    // sonunda bir kez duruyor.
+    //
+    // Okumasız dalın kapsamı OP2'de DARALDI ve eski gerekçesi ("istasyonun
+    // hiçbir katmanda okuması yok") artık yanlış: sunucu istasyona da sabit
+    // tablodan bir anlam cümlesi yazıyor. Dal yine de duruyor, çünkü
+    // sunucu cümleyi UYDURMUYOR — tanımadığı bir yön evresi ya da
+    // tablosunda olmayan bir gezegen gelirse `line` HİÇ yazılmıyor. O
+    // durumda satır ölçümüyle yazılır: eksik olan anlamdır, ölçüm değil.
     if (cumle == null || cumle.isEmpty) {
       if (olay['locked'] == true) return const SizedBox.shrink();
       final teknik = olay['technical'] as String? ??
@@ -328,16 +362,32 @@ class _OlaySatiri extends StatelessWidget {
       );
     }
 
+    // Sebep satırı: istasyonda "Plüton şu gün hızını sıfıra indirip yön
+    // değiştiriyor", kesinleşmede açının kendi ifadesi. İkisi de ÖLÇÜMÜN
+    // adı; disiplinin reklamı değil (yani "hesaplanmış gökyüzü verisidir"
+    // gibi bir övgü satırı buraya girmez).
+    final sebep = (olay['technical'] as String?)?.trim();
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: GestureDetector(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GlassPanel(
+        // Cam panel kendi kenar boşluğunu taşıyor; gün sayfası zaten
+        // kendi iç boşluğunu veriyor ve ikisi toplanınca kart daralıyordu.
+        margin: EdgeInsets.zero,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 11),
         onTap: () => _dayanak(context, olay, l10n),
-        behavior: HitTestBehavior.opaque,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(cumle, style: RythoText.body(13.5, height: 1.5)),
-          const SizedBox(height: 4),
-          Text(l10n.signalWhy,
-              style: RythoText.label(10, color: RythoColors.lilac)),
+          Text(cumle, style: RythoType.reading),
+          if (sebep != null && sebep.isNotEmpty) ...[
+            const SizedBox(height: 9),
+            Text(sebep,
+                style:
+                    RythoText.mono(11.5, color: RythoColors.parchmentDim)),
+          ],
+          const SizedBox(height: 9),
+          // Oku, dokunulabildiğini söyleyen tek işaret: ana ekran sinyal
+          // kartıyla (`sky_screen` `_SignalCard`) AYNI yazım. Eski hâl
+          // oksuz "Neye dayanıyor?" basıyordu ve bir başlık gibi okunuyordu.
         ]),
       ),
     );

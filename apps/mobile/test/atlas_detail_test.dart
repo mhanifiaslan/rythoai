@@ -96,7 +96,14 @@ void main() {
           .pumpWidget(_sar(AtlasPlanetsScreen(points: _gezegenler)));
       await _bekle(tester);
 
-      expect(find.textContaining('Güneş'), findsOneWidget);
+      // OP5-turu: ekran artik GUNES'in anlam cumlesiyle aciliyor ve o
+      // cumle oznesini KENDI icinde soyluyor ("Günes: …"), yani Günes
+      // ekranda iki kez geciyor — cumlede ve izgara satirinda. Oteki iki
+      // gezegen yalniz izgarada, yani bu test hem listenin TAMAMINI hem
+      // oznenin TEKLIGINI olcuyor. Sayi iki yone de calisir: anlam
+      // katmani duserse 1, ikinci bir cumle ya da panel etiketi eklenirse
+      // 3 cikar. Yapisal bekcisi: gezegen_anlam_test.dart.
+      expect(find.textContaining('Güneş'), findsNWidgets(2));
       expect(find.textContaining('Ay'), findsOneWidget);
       expect(find.textContaining('Merkür'), findsOneWidget);
     });
@@ -122,7 +129,8 @@ void main() {
       await _bekle(tester);
 
       expect(find.textContaining('Kiron'), findsOneWidget);
-      expect(find.textContaining('Güneş'), findsOneWidget);
+      // Bkz. yukarisi: Günes hem anlam cumlesinde hem izgara satirinda.
+      expect(find.textContaining('Güneş'), findsNWidgets(2));
     });
 
     testWidgets('derece ve ev gosterilir (R5-2)', (tester) async {
@@ -162,6 +170,18 @@ void main() {
       // eslesme var (anlam paneli basligi + liste satiri) — ve yazildi.
       // Iki yone de calisir: panel ya da satir cogalirsa 3 cikar, biri
       // kaybolursa 1.
+      //
+      // ⚠️ Bu IKILIK OP5-turunda bir KUSUR SANILDI ("ayni metin iki kez
+      // yazilmasin") ve olculdu: kaldirilmasi ISTENMEDI, cunku iki konum
+      // ayni isi gormuyor. Biri cumlenin OZNESI — `aspectMeaningText` aci
+      // TURUNU anlatir, cifti hic adlandirmaz; etiket kalkarsa cumlenin
+      // hangi olcume dayandigi ekranda HIC yazmaz. Oteki OLCUMUN satiri
+      // (orb · tur · hareket) ve o sayilar ekranda baska hicbir yerde
+      // degil; satir kalkarsa ekranin kendi dipnotu ("her grupta en dar
+      // orb once") yanlis beyana doner. Yani buradaki 2 "bugun oyle"
+      // degil "oyle kalmali" demek; ayrimin yapisal bekcisi
+      // gezegen_anlam_test.dart -> "lider cift IKI konumda, ikisi FARKLI
+      // is goruyor".
       expect(find.textContaining('Güneş'), findsNWidgets(2));
     });
 

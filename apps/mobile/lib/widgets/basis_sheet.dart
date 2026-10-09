@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
 import '../theme/rytho_tokens.dart';
+import 'motion.dart' show reduceMotion;
+import 'nebula_widgets.dart' show Pressable;
 
 /// Tema anahtarı -> ikon. Anahtarlar sunucudaki signal_service.THEMES ile
 /// aynı; sinyal kartları ve takvim günleri aynı işareti kullanır.
@@ -15,14 +17,15 @@ const kThemeIcons = {
 
 /// "Neden?" alt-sayfası (R2-S2): bir sinyalin DAYANAĞI.
 ///
-/// "Ölçülmeyen söylenmez" ilkesinin görünür hâli: kart üstündeki cümlenin
-/// hangi ölçümlerden çıktığını satır satır gösterir — gezen gezegen, natal
-/// nokta (burcu ve eviyle), açı, ölçülen orb, kesinleşme tarihi. Yorum
-/// (insight) varsa en sonda, "bu ölçümlerin üzerine kurulu" çerçevesiyle.
+/// Sıra ÖNCE ANLAM: yorum → geldiği yerin tek satırlık ifadesi → katlanmış
+/// ölçüm tablosu → sohbet kapısı. Gerekçe sahip kararıdır (2026-10-03): bu
+/// bir lifestyle ürünü, ölçüm disiplini KORUNUR ama her kullanıcıya
+/// anlatılmaz — dayanağı SORAN kişi açar. Ölçülmemiş hiçbir satır hâlâ
+/// çizilmiyor (alan yoksa satır atlanır), yani disiplin yerinde; kalkan şey
+/// yalnız disiplinin reklamıydı.
 ///
 /// Sunucu sözleşmesi: /api/v1/reports/signals yanıtındaki tek sinyal
-/// (localize edilmiş alanlarıyla). Bileşen alan yoksa satırı ATLAR —
-/// üretilmemiş bilgi çizilmez.
+/// (localize edilmiş alanlarıyla).
 Future<void> showSignalBasisSheet(
   BuildContext context,
   Map<String, dynamic> signal, {
@@ -37,11 +40,16 @@ Future<void> showSignalBasisSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       side: BorderSide(color: RythoColors.glassStroke),
     ),
-    builder: (_) => _BasisSheet(signal: signal, onAsk: onAsk, title: title),
+    // Kaydırma SARMALAYICIDA (kardeş desen: atlas_detail_screens nokta
+    // sayfası, orada 131 px sessiz kırpılma ÖLÇÜLDÜ). Gövde `min` bir
+    // Column; katlanır bölme açıldığında içerik ekrandan uzun olabiliyor ve
+    // sarmalayıcı olmadan taşma SESSİZ kırpılmaya dönüşür.
+    builder: (_) =>
+        SingleChildScrollView(child: _BasisSheet(signal: signal, onAsk: onAsk, title: title)),
   );
 }
 
-class _BasisSheet extends StatelessWidget {
+class _BasisSheet extends StatefulWidget {
   const _BasisSheet({required this.signal, this.onAsk, this.title});
 
   final Map<String, dynamic> signal;
@@ -52,7 +60,17 @@ class _BasisSheet extends StatelessWidget {
   final String? title;
 
   @override
+  State<_BasisSheet> createState() => _BasisSheetState();
+}
+
+class _BasisSheetState extends State<_BasisSheet> {
+  /// Teknik bölmenin açıklığı. VARSAYILAN KAPALI (K1): teknik katman aynı
+  /// sayfada durur ama kendini dayatmaz.
+  bool _acik = false;
+
+  @override
   Widget build(BuildContext context) {
+    final signal = widget.signal;
     final l10n = AppLocalizations.of(context);
 
     final gokyuzu = [
@@ -69,7 +87,53 @@ class _BasisSheet extends StatelessWidget {
     ];
 
     final orb = signal['orb'];
-    final insight = signal['insight'] as String?;
+
+    // Başlığın altında KARTTAKİ CÜMLE durur (R3-1) — kullanıcı hangi
+    // cümleye "neden" sorduysa onu görür. Eski sürüm bu cümleyi sayfanın
+    // ALTINDA "Rytho'nun yorumu" kutusuyla BİR KEZ DAHA basıyordu: cihaz
+    // ekran görüntüsünde aynı paragraf iki kez, aralarında teknik tablo.
+    // Silinen o alt kutudur, bu değil — böylece R3-1 bulgusu korunur ve
+    // tekrar biter.
+    final yorum = (signal['card_text'] as String?) ??
+        (signal['headline'] as String? ?? '');
+
+    // Kaynak cümlesi: ölçümün kendi ifadesi ("Satürn, natal Ay ile Kare
+    // açısını ... kesinleştiriyor"). Katlanır bölmedeki ÖLÇÜM satırından
+    // BURAYA terfi etti; iki yerde birden basılsa sayfa yine bir şeyi iki
+    // kez yazardı.
+    //
+    // ⚠️ `insight` boşken sunucu `headline`ı `technical` ile AYNI döndürüyor
+    // (backend/services/prompts: `insan = teknik`, test_signals ile
+    // çivili). O hâlde yorum slotu ZATEN ölçüm cümlesidir; aşağıya bir kez
+    // daha yazmak sahibin şikâyet ettiği tekrarın ikinci hâlidir. Eşitse
+    // kaynak satırı çizilmez — dayanak katlanır bölmede durmaya devam eder.
+    final teknik = signal['technical'] as String?;
+    final kaynakGoster = teknik != null &&
+        teknik.trim().isNotEmpty &&
+        teknik.trim() != yorum.trim();
+
+    final satirlar = <Widget>[
+      _Satir(etiket: l10n.basisSky, deger: gokyuzu),
+      _Satir(
+          etiket: l10n.basisNatal,
+          deger: natalParcalar.where((p) => p.isNotEmpty).join(' · ')),
+      _Satir(
+          etiket: l10n.basisAspect,
+          deger: (signal['aspect_local'] ?? signal['aspect'] ?? '') as String),
+      if (orb is num) _Satir(etiket: l10n.basisOrb, deger: '${orb.toString()}°'),
+      if (signal['exact_on_local'] is String)
+        _Satir(
+            etiket: l10n.basisExact,
+            deger: signal['exact_on_local'] as String,
+            vurgu: true),
+      // Kaynak dipnotu KATLANIR BÖLMENİN İÇİNDE: efemeris/orb açıklaması
+      // dayanağı SORAN kişinin cevabıdır. Dışarıda dururken herkese
+      // basılan bir öz-reklam gibi okunuyordu (sahip bulgusu).
+      const SizedBox(height: RythoSpace.sm),
+      Text(l10n.basisFootnote,
+          style: RythoText.body(11.5,
+              color: RythoColors.parchmentDim, height: 1.4)),
+    ];
 
     return SafeArea(
       child: Padding(
@@ -90,70 +154,73 @@ class _BasisSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: RythoSpace.md),
-            Text(title ?? l10n.basisSheetTitle,
+            Text(widget.title ?? l10n.basisSheetTitle,
                 style: RythoText.display(17, w: FontWeight.w600)),
-            const SizedBox(height: 6),
-            // Başlığın altında KARTTAKİ CÜMLE durur (R3-1) — kullanıcı
-            // hangi cümleye "neden" sorduysa onu görür. Eski sürüm burada
-            // teknik satırı basıyordu ve "başka bir cümlenin nedeni
-            // soruluyor" algısı yaratıyordu (cihaz bulgusu). Teknik ölçüm
-            // aşağıda kendi etiketli satırında.
-            Text(
-                (signal['card_text'] as String?) ??
-                    (signal['headline'] as String? ?? ''),
-                style: RythoText.body(13, color: RythoColors.lilac,
-                    height: 1.4)),
-            const SizedBox(height: RythoSpace.md),
-            if (signal['technical'] is String)
-              _Satir(
-                  etiket: l10n.basisMeasurement,
-                  deger: signal['technical'] as String),
-            _Satir(etiket: l10n.basisSky, deger: gokyuzu),
-            _Satir(
-                etiket: l10n.basisNatal,
-                deger:
-                    natalParcalar.where((p) => p.isNotEmpty).join(' · ')),
-            _Satir(
-                etiket: l10n.basisAspect,
-                deger: (signal['aspect_local'] ?? signal['aspect'] ?? '')
-                    as String),
-            if (orb is num)
-              _Satir(etiket: l10n.basisOrb, deger: '${orb.toString()}°'),
-            if (signal['exact_on_local'] is String)
-              _Satir(
-                  etiket: l10n.basisExact,
-                  deger: signal['exact_on_local'] as String,
-                  vurgu: true),
-            if (insight != null && insight.isNotEmpty) ...[
-              const SizedBox(height: RythoSpace.sm),
-              Container(
-                padding: const EdgeInsets.all(RythoSpace.md),
-                decoration: BoxDecoration(
-                  color: RythoColors.glassFill,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: RythoColors.glassStroke),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.basisSynthesis.toUpperCase(),
-                        style: RythoType.dataSmall),
-                    const SizedBox(height: 4),
-                    Text(insight, style: RythoText.body(13.5, height: 1.45)),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 10),
+            // Okuma yüzeyinin hazır rolü: 15 / 1,65. Burada `body(13)` ile
+            // çizilirken sayfanın ASIL metni teknik tablodan daha küçük
+            // görünüyordu — hiyerarşi anlamın aleyhineydi.
+            Text(yorum, style: RythoType.reading),
+            if (kaynakGoster) ...[
+              const SizedBox(height: 10),
+              Text(teknik.trim(),
+                  style: RythoText.mono(11.5,
+                      color: RythoColors.parchmentDim)),
             ],
             const SizedBox(height: RythoSpace.md),
-            Text(l10n.basisFootnote,
-                style: RythoText.body(11.5,
-                    color: RythoColors.parchmentDim, height: 1.4)),
-            if (onAsk != null) ...[
+            Pressable(
+              onTap: () => setState(() => _acik = !_acik),
+              child: Text('${l10n.signalWhy} ${_acik ? '▴' : '▾'}',
+                  style: RythoText.body(11.5,
+                      color: RythoColors.parchmentDim, w: FontWeight.w600)),
+            ),
+            // Emsal (relationship_screen) burada `AnimatedCrossFade` +
+            // çıplak `Duration(milliseconds: 220)` kullanıyor. İki şey
+            // bilerek kopyalanmadı:
+            //
+            // 1. Süre/eğri çıplak yazılmadı — design-system "yeni kod
+            //    çıplak süre yazmaz" diyor ve her hareketi `reduceMotion`
+            //    kapısından geçirmeyi şart koşuyor.
+            // 2. `AnimatedCrossFade` İKİ ÇOCUĞU DA koşulsuz monte ediyor
+            //    (Flutter kaynağında okundu: görünmeyen dal yalnız
+            //    `FadeTransition` opaklık 0 + `IgnorePointer` ile sarılı,
+            //    ağaçtan DÜŞMÜYOR). Yani "kapalı" hâlde ölçüm satırları
+            //    hâlâ kuruluyor ve yokluklarını arayan bir bekçi
+            //    YAZILAMIYOR — teknik tablonun kapalıyken sızdığı bir
+            //    gerileme sessiz kalırdı. `AnimatedSize` + koşullu çocuk
+            //    aynı görünümü verir, kapalıyken satırlar GERÇEKTEN yok.
+            AnimatedSize(
+              alignment: Alignment.topCenter,
+              duration:
+                  reduceMotion(context) ? Duration.zero : RythoMotion.base,
+              curve: RythoMotion.enter,
+              child: !_acik
+                  ? const SizedBox(width: double.infinity)
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [const SizedBox(height: 6), ...satirlar],
+                    ),
+            ),
+            if (widget.onAsk != null) ...[
               const SizedBox(height: RythoSpace.md),
-              OutlinedButton.icon(
-                onPressed: onAsk,
-                icon: const Text('✦', style: TextStyle(fontSize: 14)),
-                label: Text(l10n.signalAsk),
+              // Birincil eylem ALT KENARDA — §9c'nin YERLEŞİM kuralı
+              // ("en sık yapılan eylem AppBar'da değil alt kenarda",
+              // cihaz hükmüyle kazanılmış). Eski sırada dipnotun ALTINDA,
+              // yani kuyrukta duruyordu (git HEAD'de ölçüldü).
+              //
+              // ⚠️ §9c'nin BİÇİM şartı (degrade hap, 48 dp,
+              // mediumImpact) bilerek uygulanmadı ve bu bir uyum iddiası
+              // DEĞİL: o şart bir EKRANIN kendi eylemi için yazıldı,
+              // burası bir alt sayfa. Biçim yayında olan kardeş yüzeyden
+              // alındı (relationship_screen: `Pressable` + metin bağı).
+              // Eski hâli `OutlinedButton.icon`du — Material teması kendi
+              // rengini/gölgesini dayatır, §9c bunu zaten reddediyor.
+              // Alt sayfada hangi biçimin daha iyi olduğu ÖLÇÜLMEDİ.
+              Pressable(
+                onTap: widget.onAsk,
+                child: Text('✦ ${l10n.signalAsk} →',
+                    style: RythoText.body(13,
+                        color: RythoColors.lilac, w: FontWeight.w600)),
               ),
             ],
           ],
