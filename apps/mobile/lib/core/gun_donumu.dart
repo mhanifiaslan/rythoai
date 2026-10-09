@@ -76,12 +76,31 @@ class _GunDonumuGozcusuState extends ConsumerState<GunDonumuGozcusu>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Açılıştaki anahtar BURADA da yazılır: `gunAnahtariProvider`ın kendi
-    // varsayılanı gerçek `DateTime.now`u okuyor ve test saati enjekte
-    // edildiğinde ikisi ayrışırdı. Yazım build'in İÇİNDE olamaz (Riverpod
-    // 3'te sağlayıcı build'i içinde `StateProvider`a yazmak fırlatıyor —
-    // `subscription.dart`ta ölçüldü), `initState` build dışıdır.
-    _bak();
+    // ⚠️ AÇILIŞTA YAZIM YOK — ve bu bilinçli.
+    //
+    // Burada bir zamanlar `_bak()` çağrılıyordu; gerekçesi "sağlayıcının
+    // varsayılanı gerçek `DateTime.now`u okuyor, test saati enjekte
+    // edildiğinde ikisi ayrışır" idi. Yani ÜRETİM KODU, YALNIZ TESTİN
+    // enjeksiyonunu uzlaştırmak için sağlayıcıya yazıyordu.
+    //
+    // Bedeli ölçüldü (yığın izi): `_bak` → `initState` → `_firstBuild`,
+    // üstünde bir `ProxyElement.update` zinciri. `initState` ağacın kurulumu
+    // SIRASINDA koşar — build dışı DEĞİLDİR — ve oradan `StateProvider`a
+    // yazmak `Tried to modify a provider while the widget tree was building`
+    // fırlatır. Gözcü bir yeniden kurulum sırasında monte edildiğinde patlıyordu;
+    // ilk açılışta sessiz kalması kusuru gizliyordu.
+    //
+    // ⚠️ `scheduleMicrotask`a ERTELEMEK ÇÖZÜM DEĞİL: ölçüldü, sağlayıcıyı
+    // İKİNCİ kez kurduruyor — yani bu dosyanın var olma sebebi olan jeton
+    // musluğunu kendi eliyle açıyor (bkz. yukarıda `autoDispose` gerekçesi).
+    //
+    // Doğru yer varsayılanın kendisi: üretimde `gunAnahtariProvider`ın
+    // varsayılanı ZATEN `gunAnahtari(DateTime.now())`, yani uzlaştırılacak
+    // bir fark yok. Test sahte saatini `ProviderScope` override'ıyla verir —
+    // enjeksiyon testin işi, üretim kodunun değil.
+    //
+    // `_bak()` asıl işinde duruyor: ön plana DÖNÜŞTE (aşağıda), ki orası
+    // build dışıdır ve yazım güvenlidir.
   }
 
   @override

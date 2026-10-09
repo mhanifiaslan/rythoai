@@ -83,6 +83,12 @@ void main() {
         (tester) async {
       var saat = DateTime(2026, 10, 3, 21, 0);
       await tester.pumpWidget(ProviderScope(
+        // Sahte saat ENJEKSİYONU testin işi: üretim kodu bunun için
+        // eğilmez. Eskiden gözcü `initState` içinde sağlayıcıya YAZIYORDU
+        // ve tek gerekçesi buydu — ama `initState` ağacın kurulumu SIRASINDA
+        // koşuyor, yani o yazım "provider modified while building" fırlatıyordu.
+        // Ölçüm ve gerekçe: `lib/core/gun_donumu.dart` `initState`.
+        overrides: [gunAnahtariProvider.overrideWith((_) => gunAnahtari(saat))],
         child: GunDonumuGozcusu(
           now: () => saat,
           child: Consumer(
@@ -111,6 +117,12 @@ void main() {
         (tester) async {
       var saat = DateTime(2026, 10, 3, 9, 0);
       await tester.pumpWidget(ProviderScope(
+        // Sahte saat ENJEKSİYONU testin işi: üretim kodu bunun için
+        // eğilmez. Eskiden gözcü `initState` içinde sağlayıcıya YAZIYORDU
+        // ve tek gerekçesi buydu — ama `initState` ağacın kurulumu SIRASINDA
+        // koşuyor, yani o yazım "provider modified while building" fırlatıyordu.
+        // Ölçüm ve gerekçe: `lib/core/gun_donumu.dart` `initState`.
+        overrides: [gunAnahtariProvider.overrideWith((_) => gunAnahtari(saat))],
         child: GunDonumuGozcusu(
           now: () => saat,
           child: Consumer(
@@ -139,6 +151,12 @@ void main() {
     testWidgets('arka plana GİDİŞ tek başına yeniden kurmaz', (tester) async {
       var saat = DateTime(2026, 10, 3, 9, 0);
       await tester.pumpWidget(ProviderScope(
+        // Sahte saat ENJEKSİYONU testin işi: üretim kodu bunun için
+        // eğilmez. Eskiden gözcü `initState` içinde sağlayıcıya YAZIYORDU
+        // ve tek gerekçesi buydu — ama `initState` ağacın kurulumu SIRASINDA
+        // koşuyor, yani o yazım "provider modified while building" fırlatıyordu.
+        // Ölçüm ve gerekçe: `lib/core/gun_donumu.dart` `initState`.
+        overrides: [gunAnahtariProvider.overrideWith((_) => gunAnahtari(saat))],
         child: GunDonumuGozcusu(
           now: () => saat,
           child: Consumer(
