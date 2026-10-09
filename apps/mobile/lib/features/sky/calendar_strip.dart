@@ -388,6 +388,9 @@ class _OlaySatiri extends StatelessWidget {
           // Oku, dokunulabildiğini söyleyen tek işaret: ana ekran sinyal
           // kartıyla (`sky_screen` `_SignalCard`) AYNI yazım. Eski hâl
           // oksuz "Neye dayanıyor?" basıyordu ve bir başlık gibi okunuyordu.
+          Text('${l10n.signalWhy} →',
+              style: RythoText.body(11.5,
+                  color: RythoColors.parchmentDim, w: FontWeight.w600)),
         ]),
       ),
     );
