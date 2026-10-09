@@ -85,6 +85,24 @@ Future<void> _yazVeGonder(WidgetTester tester, String metin) async {
   await tester.enterText(find.byType(TextField), metin);
   await tester.pump();
   await tester.tap(find.widgetWithText(GoldButton, 'Gönder'));
+  // SEÇİM TEMİZLENİR — bu bir TEST ORTAMI onarımı, ürün davranışı değil.
+  //
+  // `enterText` alanda bir seçim bırakıyor. Hata dalında (429) form ekranda
+  // KALIYOR, yani SnackBar girerken alanın seçim tutamaçları da çiziliyor ve
+  // test ortamında `RenderEditable._paintHandleLayers` null'a düşüyor
+  // (`NoSuchMethodError ... during paint()`). Gerçek cihazda o katman var;
+  // kusur üründe değil. 200 dalı etkilenmiyordu çünkü ekran teşekküre
+  // geçince alan ağaçtan kalkıyor — bu yüzden YALNIZ 429 testi düşüyordu.
+  //
+  // ⚠️ `offset: -1` = seçim YOK. Çökmeyi durduran tek şey bu satır; odağı
+  // bırakmak (`primaryFocus?.unfocus()`) ÖLÇÜLDÜ ve YETMİYOR, o yüzden
+  // konmadı.
+  //
+  // Testin ÖLÇTÜĞÜ hiçbir şey değişmiyor: SnackBar metni, teşekkür
+  // görünümünün yokluğu, formun kalması ve düğmenin kilitlenmemesi aynen
+  // sınanıyor.
+  tester.widget<TextField>(find.byType(TextField)).controller?.selection =
+      const TextSelection.collapsed(offset: -1);
   await _bekle(tester);
 }
 
