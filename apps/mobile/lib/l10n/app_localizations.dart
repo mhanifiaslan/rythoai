@@ -3785,7 +3785,7 @@ abstract class AppLocalizations {
   /// No description provided for @basisFootnote.
   ///
   /// In tr, this message translates to:
-  /// **'Buradaki her alan hesaplanmış gökyüzü verisidir: konumlar efemeristen, açı ve orb ölçümden gelir. Rytho\'nun yorumu bu ölçümlerin üzerine kurulur — ölçülmeyen söylenmez.'**
+  /// **'Konumlar efemeristen gelir, açı ve orb ölçülür; yorum bu ölçümlerin üzerine kurulur.'**
   String get basisFootnote;
 
   /// No description provided for @relationshipOpen.
@@ -4199,7 +4199,7 @@ abstract class AppLocalizations {
   /// No description provided for @pointSheetFootnote.
   ///
   /// In tr, this message translates to:
-  /// **'Bu sayfa önce ANLAMI, sonra ÖLÇÜMÜ gösterir. Anlam cümlesi klasik yorum geleneğinden gelir ve ölçülen yerleşimi anlatır — sana özel bir yorum değildir; derece, ev ve hız ise doğum anının gerçek gökyüzünden hesaplanır (Swiss Ephemeris).'**
+  /// **'Derece, ev ve hız doğum anının gerçek gökyüzünden hesaplanır (Swiss Ephemeris); anlam cümlesi klasik yorum geleneğidir, sana özel değildir.'**
   String get pointSheetFootnote;
 
   /// No description provided for @pointPlacementSentence.
@@ -4883,7 +4883,7 @@ abstract class AppLocalizations {
   /// No description provided for @relationshipTodayLabel.
   ///
   /// In tr, this message translates to:
-  /// **'BUGÜN ARANIZA DOKUNAN GÖKYÜZÜ'**
+  /// **'Bugün aranıza dokunan gökyüzü'**
   String get relationshipTodayLabel;
 
   /// No description provided for @relationshipTodayQuiet.
@@ -5099,7 +5099,7 @@ abstract class AppLocalizations {
   /// No description provided for @chartHourUnknownNote.
   ///
   /// In tr, this message translates to:
-  /// **'Doğum saati bilinmediği için evler, Yükselen ve eksenler çizilmedi — ölçülmeyen söylenmez.'**
+  /// **'Doğum saati bilinmediği için evler, Yükselen ve eksenler çizilmedi.'**
   String get chartHourUnknownNote;
 
   /// No description provided for @chartAspectarianTitle.

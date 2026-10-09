@@ -1041,7 +1041,7 @@
     }
   },
   "basisSynthesis": "Rytho'nun yorumu",
-  "basisFootnote": "Buradaki her alan hesaplanmış gökyüzü verisidir: konumlar efemeristen, açı ve orb ölçümden gelir. Rytho'nun yorumu bu ölçümlerin üzerine kurulur — ölçülmeyen söylenmez.",
+  "basisFootnote": "Konumlar efemeristen gelir, açı ve orb ölçülür; yorum bu ölçümlerin üzerine kurulur.",
   "relationshipOpen": "İlişkiyi incele",
   "relationshipOpenSubtitle": "İki haritanız nerede kolaylaşıyor, nerede emek istiyor",
   "relationshipTitle": "Sen & {name}",
@@ -1155,7 +1155,7 @@
   "planetMotion": "Hareket",
   "planetSpeed": "Günlük hız",
   "planetRetrograde": "retro",
-  "pointSheetFootnote": "Bu sayfa önce ANLAMI, sonra ÖLÇÜMÜ gösterir. Anlam cümlesi klasik yorum geleneğinden gelir ve ölçülen yerleşimi anlatır — sana özel bir yorum değildir; derece, ev ve hız ise doğum anının gerçek gökyüzünden hesaplanır (Swiss Ephemeris).",
+  "pointSheetFootnote": "Derece, ev ve hız doğum anının gerçek gökyüzünden hesaplanır (Swiss Ephemeris); anlam cümlesi klasik yorum geleneğidir, sana özel değildir.",
   "pointPlacementSentence": "{rol} — bunlar {alan} alanında işler.",
   "@pointPlacementSentence": {
     "placeholders": {
@@ -1310,7 +1310,7 @@
   "relationWork": "İş arkadaşım",
   "relationOther": "Yakınım",
 
-  "relationshipTodayLabel": "BUGÜN ARANIZA DOKUNAN GÖKYÜZÜ",
+  "relationshipTodayLabel": "Bugün aranıza dokunan gökyüzü",
   "relationshipTodayQuiet": "Bugün aranıza dokunan belirgin bir transit yok — sakin bir gün.",
   "relationshipTodayAskPrefill": "Bugün {name} ile aramıza dokunan gökyüzünü konuşalım.",
   "@relationshipTodayAskPrefill": { "placeholders": { "name": { "type": "String" } } },
@@ -1358,7 +1358,7 @@
   "chartOrbLabel": "Orb ≤ {orb}°",
   "@chartOrbLabel": { "placeholders": { "orb": { "type": "int" } } },
   "chartHouseSystem": "Placidus evleri · Tropikal zodyak",
-  "chartHourUnknownNote": "Doğum saati bilinmediği için evler, Yükselen ve eksenler çizilmedi — ölçülmeyen söylenmez.",
+  "chartHourUnknownNote": "Doğum saati bilinmediği için evler, Yükselen ve eksenler çizilmedi.",
   "chartAspectarianTitle": "AÇI TABLOSU",
   "chartPositionsTitle": "KONUMLAR",
   "chartApplyingLetter": "Y",

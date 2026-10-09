@@ -2107,7 +2107,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get basisFootnote =>
-      'Buradaki her alan hesaplanmış gökyüzü verisidir: konumlar efemeristen, açı ve orb ölçümden gelir. Rytho\'nun yorumu bu ölçümlerin üzerine kurulur — ölçülmeyen söylenmez.';
+      'Konumlar efemeristen gelir, açı ve orb ölçülür; yorum bu ölçümlerin üzerine kurulur.';
 
   @override
   String get relationshipOpen => 'İlişkiyi incele';
@@ -2339,7 +2339,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get pointSheetFootnote =>
-      'Bu sayfa önce ANLAMI, sonra ÖLÇÜMÜ gösterir. Anlam cümlesi klasik yorum geleneğinden gelir ve ölçülen yerleşimi anlatır — sana özel bir yorum değildir; derece, ev ve hız ise doğum anının gerçek gökyüzünden hesaplanır (Swiss Ephemeris).';
+      'Derece, ev ve hız doğum anının gerçek gökyüzünden hesaplanır (Swiss Ephemeris); anlam cümlesi klasik yorum geleneğidir, sana özel değildir.';
 
   @override
   String pointPlacementSentence(String rol, String alan) {
@@ -2735,7 +2735,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get relationOther => 'Yakınım';
 
   @override
-  String get relationshipTodayLabel => 'BUGÜN ARANIZA DOKUNAN GÖKYÜZÜ';
+  String get relationshipTodayLabel => 'Bugün aranıza dokunan gökyüzü';
 
   @override
   String get relationshipTodayQuiet =>
@@ -2870,7 +2870,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get chartHourUnknownNote =>
-      'Doğum saati bilinmediği için evler, Yükselen ve eksenler çizilmedi — ölçülmeyen söylenmez.';
+      'Doğum saati bilinmediği için evler, Yükselen ve eksenler çizilmedi.';
 
   @override
   String get chartAspectarianTitle => 'AÇI TABLOSU';

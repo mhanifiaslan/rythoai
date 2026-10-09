@@ -2110,7 +2110,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get basisFootnote =>
-      'Every field here is computed sky data: positions come from the ephemeris, the aspect and orb are measured. Rytho\'s reading is built on these measurements — nothing unmeasured is claimed.';
+      'Positions come from the ephemeris, the aspect and orb are measured; the reading is built on them.';
 
   @override
   String get relationshipOpen => 'Explore the relationship';
@@ -2343,7 +2343,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pointSheetFootnote =>
-      'This page shows the MEANING first, then the MEASUREMENT. The meaning sentence comes from classical interpretive tradition and describes the measured placement — it is not a reading specific to you; degree, house and speed are computed from the real sky at your birth moment (Swiss Ephemeris).';
+      'Degree, house and speed are computed from the real sky at your birth moment (Swiss Ephemeris); the meaning sentence is classical interpretive tradition, not specific to you.';
 
   @override
   String pointPlacementSentence(String rol, String alan) {
@@ -2749,7 +2749,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get relationOther => 'Close to me';
 
   @override
-  String get relationshipTodayLabel => 'TODAY\'S SKY BETWEEN YOU';
+  String get relationshipTodayLabel => 'Today\'s sky between you';
 
   @override
   String get relationshipTodayQuiet =>
@@ -2884,7 +2884,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chartHourUnknownNote =>
-      'Birth time unknown, so houses, Ascendant and axes are not drawn — nothing unmeasured is shown.';
+      'Birth time unknown, so houses, Ascendant and axes are not drawn.';
 
   @override
   String get chartAspectarianTitle => 'ASPECT GRID';
