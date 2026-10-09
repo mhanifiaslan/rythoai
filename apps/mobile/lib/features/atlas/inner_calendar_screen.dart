@@ -10,6 +10,7 @@ import '../../widgets/atlas_widgets.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart' show SkeletonPanel;
 import '../../widgets/motion.dart';
+import '../chat/chat_screen.dart';
 import '../paywall/plus_locked_card.dart';
 
 /// **İç mevsim** (T5, R5-6'da yeniden adlandırıldı): ikincil progresyon.
@@ -84,9 +85,37 @@ class InnerCalendarScreen extends ConsumerWidget {
               .fadeIn(duration: 380.ms)
               .slideY(begin: 0.06, curve: Curves.easeOutCubic);
 
+          final okuma = (prog['report'] as String? ?? '').trim();
+
           return ListView(
             padding: const EdgeInsets.only(top: 8, bottom: 120),
             children: [
+              // ⚠️ OKUMA ÖNDE, ÖLÇÜM ARKADA — ve bu sıra bir sahip kararı.
+              //
+              // Bu ekran "progres Ay Yay'da 12°" ile açılıyordu; insan
+              // cümlesi (LLM okuması) sayfanın EN SONUNDAYDI, dört ölçüm
+              // bloğunun arkasında. Sahibin tarifi: "bu bir lifestyle
+              // uygulaması, daha anlaşılırdan isteyenler için daha teknik
+              // bir yapıya gidilmeli." Ölçüm KALDIRILMADI — yalnız sıra
+              // tersine döndü: ne olduğu önce, nasıl ölçüldüğü sonra.
+              //
+              // NEDEN boşsa hiç çizilmiyor: okuma üretilemediğinde (LLM
+              // reddi) üstte boş bir blok kalırdı ve sayfa yine bir sayıyla
+              // açılırdı — ama bu kez bir de boşlukla. Boş yer, uydurulmuş
+              // cümleden iyidir; uydurulmuş BOŞLUKTAN da iyidir.
+              //
+              // ⚠️ Burada `fallback` bayrağı OKUNAMIYOR çünkü bu uç onu
+              // HİÇ DÖNDÜRMÜYOR (altı uçtan biri; bkz. CLAUDE.md). BaZi
+              // sekmesindeki dürüst `ErrorCard` dalı burada kurulamaz —
+              // kurmak, gönderilmeyen bir bayrağa dayanmak olurdu.
+              if (okuma.isNotEmpty) ...[
+                blok(Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: MarginNote(
+                      title: l10n.innerCalendarNote, text: okuma),
+                )),
+                blok(const SectionDivider()),
+              ],
               // Progres Ay — iç mevsimin omurgası.
               blok(Plaque(
                 label: l10n.innerCalendarProgMoon,
@@ -156,13 +185,12 @@ class InnerCalendarScreen extends ConsumerWidget {
                               ))
                           .toList()),
                 )),
-              blok(const SectionDivider()),
-              blok(Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: MarginNote(
-                    title: l10n.innerCalendarNote,
-                    text: prog['report'] ?? ''),
-              )),
+              // Sayfanın birincil eylemi en alt kenarda (tasarım doktrini):
+              // kullanıcı okumayı ve ölçümü gördükten SONRA soruyla gelir.
+              blok(RythoyaSor(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ChatScreen(
+                          initialText: l10n.innerCalendarAskPrefill))))),
             ],
           );
         },

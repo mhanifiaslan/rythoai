@@ -2922,6 +2922,27 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get innerCalendarAskPrefill =>
+      'I\'ve opened my inner season. Can you unpack what my progressed Moon is saying in this stretch?';
+
+  @override
+  String get birthHexagramAskPrefill =>
+      'I\'ve opened my birth gate. Can you unpack how this gate works in my character?';
+
+  @override
+  String get solarReturnAskPrefill =>
+      'I\'ve opened my solar return. Can you unpack what this year brings me?';
+
+  @override
+  String get baziAskPrefill =>
+      'I\'ve opened my BaZi chart. Can you unpack what my four pillars say?';
+
+  @override
+  String iChingAskPrefill(String question) {
+    return 'I asked the oracle this: \"$question\" Can you unpack the answer it gave?';
+  }
+
+  @override
   String get chartShareTooltip => 'Share the wheel';
 
   @override

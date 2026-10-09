@@ -2908,6 +2908,27 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
+  String get innerCalendarAskPrefill =>
+      'İç mevsim sayfamı açtım. Progres Ay\'ımın şu dönemde ne anlattığını biraz açar mısın?';
+
+  @override
+  String get birthHexagramAskPrefill =>
+      'Doğum kapımı açtım. Bu kapının karakterimde nasıl çalıştığını biraz açar mısın?';
+
+  @override
+  String get solarReturnAskPrefill =>
+      'Yıl haritamı açtım. Bu yılın bana ne getirdiğini biraz açar mısın?';
+
+  @override
+  String get baziAskPrefill =>
+      'BaZi haritamı açtım. Dört sütunumun ne anlattığını biraz açar mısın?';
+
+  @override
+  String iChingAskPrefill(String question) {
+    return 'Kehanete şunu sordum: \"$question\" Gelen cevabı biraz açar mısın?';
+  }
+
+  @override
   String get chartShareTooltip => 'Çarkı paylaş';
 
   @override

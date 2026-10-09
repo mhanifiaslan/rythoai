@@ -5156,6 +5156,36 @@ abstract class AppLocalizations {
   /// **'Şu an {title} çarkını inceliyorum. Bu haritada öne çıkan neler?'**
   String chartAskPrefill(String title);
 
+  /// No description provided for @innerCalendarAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'İç mevsim sayfamı açtım. Progres Ay\'ımın şu dönemde ne anlattığını biraz açar mısın?'**
+  String get innerCalendarAskPrefill;
+
+  /// No description provided for @birthHexagramAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'Doğum kapımı açtım. Bu kapının karakterimde nasıl çalıştığını biraz açar mısın?'**
+  String get birthHexagramAskPrefill;
+
+  /// No description provided for @solarReturnAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yıl haritamı açtım. Bu yılın bana ne getirdiğini biraz açar mısın?'**
+  String get solarReturnAskPrefill;
+
+  /// No description provided for @baziAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'BaZi haritamı açtım. Dört sütunumun ne anlattığını biraz açar mısın?'**
+  String get baziAskPrefill;
+
+  /// No description provided for @iChingAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kehanete şunu sordum: \"{question}\" Gelen cevabı biraz açar mısın?'**
+  String iChingAskPrefill(String question);
+
   /// No description provided for @chartShareTooltip.
   ///
   /// In tr, this message translates to:

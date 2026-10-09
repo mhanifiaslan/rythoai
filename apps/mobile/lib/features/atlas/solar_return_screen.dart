@@ -11,6 +11,7 @@ import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/markdown_text.dart' show markdownToPlain;
 import '../../widgets/motion.dart';
+import '../chat/chat_screen.dart';
 import '../paywall/plus_locked_card.dart';
 import '../share/share_card.dart' show shareReportCard;
 
@@ -99,6 +100,24 @@ class SolarReturnScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.only(top: 8, bottom: 120),
             children: [
+              // ⚠️ OKUMA ÖNDE, ÖLÇÜM ARKADA (sahip kararı, lifestyle turu).
+              //
+              // Ekran bir TARİH-SAAT ile açılıyordu ve yılın okuması dört
+              // bloğun arkasında, sayfanın en sonundaydı. Dönüş anı doğru
+              // ve hak edilmiş bir ölçüm — kaldırılmadı, yalnız okumanın
+              // ARKASINA alındı: "bu yıl bana ne getiriyor" önce,
+              // "hangi dakikada başlıyor" sonra.
+              //
+              // Boşsa hiç çizilmiyor; aşağıdaki paylaşım düğmesi de aynı
+              // koşula bakıyor, yani iki yüzey tek kaynaktan karar alıyor.
+              if (rapor.trim().isNotEmpty) ...[
+                blok(Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child:
+                      MarginNote(title: l10n.solarReturnNote, text: rapor),
+                )),
+                blok(const SectionDivider()),
+              ],
               // Dönüş anı — yılın açılış anı, ekranın en büyük tipografisi.
               // Dakika hassasiyetli bir hesap; büyük yazılması hak edilmiş.
               blok(_DonusKarti(
@@ -144,12 +163,6 @@ class SolarReturnScreen extends ConsumerWidget {
                         ),
                       ]),
                 )),
-              blok(const SectionDivider()),
-              blok(Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: MarginNote(
-                    title: l10n.solarReturnNote, text: rapor),
-              )),
               if (rapor.trim().isNotEmpty)
                 blok(Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
@@ -166,6 +179,11 @@ class SolarReturnScreen extends ConsumerWidget {
                     ),
                   ),
                 )),
+              // Sayfanın birincil eylemi en alt kenarda (tasarım doktrini).
+              blok(RythoyaSor(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ChatScreen(
+                          initialText: l10n.solarReturnAskPrefill))))),
             ],
           );
         },

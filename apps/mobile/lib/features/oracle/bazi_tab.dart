@@ -8,6 +8,7 @@ import '../../widgets/atlas_widgets.dart';
 import '../../widgets/frame_sequence.dart';
 import '../../widgets/glass.dart' show SkeletonPanel;
 import '../../widgets/motion.dart';
+import '../chat/chat_screen.dart';
 import '../paywall/plus_locked_card.dart';
 import '../../core/api.dart' show RaporUretilemedi, friendlyError;
 import '../../widgets/common.dart' show ErrorCard;
@@ -91,6 +92,37 @@ class BaziTab extends ConsumerWidget {
               style: RythoText.body(13, color: RythoColors.parchmentDim),
             ),
           ),
+          // ⚠️ OKUMA ÖNDE, ÖLÇÜM ARKADA (sahip kararı, lifestyle turu).
+          //
+          // Ekran başlıktan sonra DOĞRUDAN dört sütun tablosuna giriyordu;
+          // kader notu (insan cümlesi) altı bloğun arkasında, sayfanın en
+          // sonundaydı. Üstteki iki satır (başlık + "Çin burcun") KALDI
+          // çünkü onlar ölçüm değil AD — konunun kendisi.
+          //
+          // ⚠️ `fallback` DALI AYNEN TAŞINDI ve yorumunun gerekçesi burada
+          // GÜNCELLENDİ: eski hâli "ÜSTTEKİ her şey deterministik hesap"
+          // diyordu, oysa sıra döndükten sonra o hesap ALTTA. Gerekçesi
+          // yanlış bir yorum bu depoda kusur sayılır. Doğru hâli: yorum
+          // üretilemediyse HARİTA YERİNDE KALIR (aşağıda), yalnız bu kalem
+          // dürüst cümleye döner — hesabın ücreti ödendi, LLM paragrafı
+          // düştü diye onu da silmek "ölçüleni söyle"yi tersine çevirmek
+          // olurdu. `screen` kapalı kümeden ('bazi' sessizce düşürülürdü).
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: data['fallback'] == true
+                ? ErrorCard(
+                    message: friendlyError(
+                        RaporUretilemedi(
+                            jetonIadeEdildi: data['refunded'] == true),
+                        l10n),
+                    screen: 'oracle',
+                    onRetry: () => ref.invalidate(baziReportProvider),
+                  )
+                : MarginNote(
+                    title: l10n.baziFateNote, text: data['report'] ?? ''),
+          ),
+          const SectionDivider(),
           Plaque(
             label: l10n.baziFourPillars,
             padding: const EdgeInsets.all(12),
@@ -332,26 +364,11 @@ class BaziTab extends ConsumerWidget {
                         color: RythoColors.parchmentDim)),
             ]),
           ),
-          const SectionDivider(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            // Yorum uretilemediyse (gz-2) HARITA YERINDE KALIR, yalniz bu
-            // kalem durust cumleye doner. Ustteki her sey deterministik
-            // hesap ve ucreti odendi; LLM paragrafi dustu diye onu da
-            // silmek "olculeni soyle" doktrinini tersine cevirmek olurdu.
-            // `screen` kapali kumeden ('bazi' sessizce dusurulurdu).
-            child: data['fallback'] == true
-                ? ErrorCard(
-                    message: friendlyError(
-                        RaporUretilemedi(
-                            jetonIadeEdildi: data['refunded'] == true),
-                        l10n),
-                    screen: 'oracle',
-                    onRetry: () => ref.invalidate(baziReportProvider),
-                  )
-                : MarginNote(
-                    title: l10n.baziFateNote, text: data['report'] ?? ''),
-          ),
+          // Sayfanın birincil eylemi en alt kenarda (tasarım doktrini).
+          RythoyaSor(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) =>
+                      ChatScreen(initialText: l10n.baziAskPrefill)))),
           const SizedBox(height: 32),
         ]);
       },

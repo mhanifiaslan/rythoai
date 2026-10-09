@@ -10,6 +10,7 @@ import '../../core/api.dart';
 import '../../core/sound.dart';
 import '../../core/providers.dart' show PlusHali, aboneHaliProvider;
 import '../../core/wallet.dart';
+import '../chat/chat_screen.dart';
 import '../paywall/plus_locked_card.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
@@ -645,26 +646,33 @@ class _HexagramView extends StatelessWidget {
                   ]),
             ),
           ]),
-          const SizedBox(height: 10),
-          Text(
-              l10n.iChingTrigramsLabel(
-                  '${lower['name'] ?? ''} (${lower['element'] ?? ''})',
-                  '${upper['name'] ?? ''} (${upper['element'] ?? ''})'),
-              style: RythoText.body(11.5, color: RythoColors.parchmentDim)),
-          if (nuclear != null)
-            Text(
-                l10n.iChingNuclearLabel(
-                    nuclear['name_local'] ?? nuclear['name_tr'] ?? '',
-                    nuclear['number'] as int),
-                style:
-                    RythoText.body(11.5, color: RythoColors.parchmentDim)),
+          // Lejant glif panelinde KALDI: hareketli çizgi işaretlerini
+          // çözen tek şey o ve glifin kendisini okutuyor — dayanak değil,
+          // glifin alt yazısı. Trigram ve nükleer satırları ise ölçüm;
+          // aşağıdaki dayanak bölümüne indiler.
           if (moving.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(l10n.iChingLegend,
                 style: RythoText.mono(10, color: RythoColors.parchmentDim)),
           ],
         ]),
       )),
+      // ⚠️ OKUMA GLİFİN HEMEN ALTINDA — ve glifin ÜSTÜNE alınmadı.
+      //
+      // Lifestyle turunda diğer dört ekranda okuma en başa alındı; burada
+      // glif panelı önde BIRAKILDI çünkü kullanıcı o glifi kendi eliyle
+      // ÜRETTİ: soruyu yazdı, çekimi yaptı, `CastScene` çizgileri tek tek
+      // indirdi. Kehanetin cevabı o glif; okumayı onun üstüne koymak,
+      // kullanıcının yaptığı işi sayfadan aşağı itmek olurdu.
+      //
+      // Taşınan şey ÖLÇÜM: trigram+element satırı ve nükleer heksagram
+      // panelin içindeydi, şimdi dayanak bölümünde. Sıra: glif → okuma →
+      // klasik kaynak metinleri → dayanak → Rytho'ya sor.
+      if ((result['report'] as String? ?? '').trim().isNotEmpty) ...[
+        blok(MarginNote(
+            title: l10n.iChingOracleNote, text: result['report'] as String)),
+        blok(const SectionDivider()),
+      ],
       blok(Plaque(
         margin: const EdgeInsets.symmetric(vertical: 8),
         label: l10n.iChingJudgmentTitle,
@@ -717,17 +725,44 @@ class _HexagramView extends StatelessWidget {
           label: l10n.iChingLiuYaoTitle,
           child: _LiuYaoTable(l10n: l10n, liuYao: liuYao, moving: moving),
         )),
-      if ((context_?['day_pillar']?['label'] as String?)?.isNotEmpty ??
-          false)
-        blok(Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(
-              l10n.iChingDayLabel(context_!['day_pillar']['label'] as String),
-              style: RythoText.mono(10.5, color: RythoColors.parchmentDim)),
-        )),
-      blok(const SectionDivider()),
-      blok(MarginNote(
-          title: l10n.iChingOracleNote, text: result['report'] ?? '')),
+      // Dayanak: çekimin ölçülen yapısı — glif panelinden buraya indi.
+      // "Bilginin geldiği yer" okumanın ALTINDA durur (sahibin sırası).
+      blok(Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          Text(
+              l10n.iChingTrigramsLabel(
+                  '${lower['name'] ?? ''} (${lower['element'] ?? ''})',
+                  '${upper['name'] ?? ''} (${upper['element'] ?? ''})'),
+              style: RythoText.body(11.5, color: RythoColors.parchmentDim)),
+          if (nuclear != null)
+            Text(
+                l10n.iChingNuclearLabel(
+                    nuclear['name_local'] ?? nuclear['name_tr'] ?? '',
+                    nuclear['number'] as int),
+                style:
+                    RythoText.body(11.5, color: RythoColors.parchmentDim)),
+          if ((context_?['day_pillar']?['label'] as String?)?.isNotEmpty ??
+              false)
+            Text(
+                l10n.iChingDayLabel(
+                    context_!['day_pillar']['label'] as String),
+                style:
+                    RythoText.mono(10.5, color: RythoColors.parchmentDim)),
+        ]),
+      )),
+      // Sayfanın birincil eylemi en alt kenarda (tasarım doktrini).
+      //
+      // ⚠️ Tohum KULLANICININ KENDİ SORUSUNU taşıyor, uydurulmuş bir soru
+      // değil: `cast['question']` sunucunun geri döndürdüğü ham metin
+      // (`iching_service.py`). Beş ekranın en güçlü tohumu bu — kehanet
+      // zaten bir soruya verilmiş cevap, sohbet o soruyla sürüyor.
+      blok(RythoyaSor(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ChatScreen(
+                  initialText: l10n.iChingAskPrefill(
+                      '${cast['question'] ?? ''}')))))),
     ]);
   }
 }

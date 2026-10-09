@@ -3,10 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
 import 'glass.dart';
 import 'markdown_text.dart';
 import 'motion.dart';
+import 'nebula_widgets.dart' show Pressable;
 
 /// "Levha" — v2'de cam panele delege eder; eski çağrı yüzeyi korunur.
 class Plaque extends StatelessWidget {
@@ -216,6 +218,43 @@ class MarginNote extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Okumanın altındaki sohbet kapısı — "✦ Rytho'ya sor →".
+///
+/// NEDEN TEK YERDE: beş teknik ekranın beşine de aynı satır giriyor ve bu
+/// depoda ölçülmüş bir ders var — bir metnin beş kopyası varsa dördü
+/// ayrışır (gizlilik politikası, `test_besinci_kopya_geri_dogmaz`).
+/// Etiket de `l10n.signalAsk`'ten okunuyor: sinyal kartı, ilişki ekseni ve
+/// bu beş ekran aynı sözcüğü kullanmalı.
+///
+/// NEDEN `GoldButton` DEĞİL: altın düğme satın alma/onay gibi gerçek
+/// birincil eylemlere ayrılmış. Bu bir DAVET — sayfanın sonunda duran,
+/// isteyenin dokunduğu bir kapı. Kullanıcı bu ekrana zaten okumak için
+/// geldi; davet okumayı gölgelemez.
+///
+/// ⚠️ Dokunma alanı ayrı ayarlandı: emsal (`relationship_screen`) satırı
+/// 11.5 px çıplak metindi ve uzun bir kaydırmanın dibinde 17 px'lik bir
+/// hedef bırakıyordu. Dikey 14 px dolgu alanı ~44 px'e çıkarıyor —
+/// Material'ın en küçük dokunulabilir hedefi.
+class RythoyaSor extends StatelessWidget {
+  const RythoyaSor({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Pressable(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Text('✦ ${l10n.signalAsk} →',
+            style: RythoText.body(13,
+                color: RythoColors.lilac, w: FontWeight.w600)),
       ),
     );
   }
