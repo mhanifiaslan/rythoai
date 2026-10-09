@@ -215,6 +215,56 @@ yorumu bunun tersi — anahtarı kullanıcıdan bağımsız, doküman sahipsiz, 
 toplamı ~$1,2/ay ve kullanıcı sayısından BAĞIMSIZ. İki sınıfı karıştırmak
 maliyet tahminini mertebe yanlış yapar.
 
+### Bu bir LIFESTYLE uygulaması (sahip kararı, 2026-10-10)
+
+Sahibin tarifi: *"Rytho'da teknik ifadeler ve teknik bir kart düzeni var,
+bu bir lifestyle uygulaması, dolayısıyla daha anlaşılırdan isteyenler için
+daha teknik bir yapıya gidilmeli."* Bu bir üslup tercihi değil **yerleşim
+kuralı** ve her yeni yüzeye uygulanır.
+
+**AYRIM, bu turun belkemiği — karıştırılırsa ürün ya ölçümünü ya dilini
+kaybeder:**
+
+| | Karar |
+|---|---|
+| Ölçüm **DİSİPLİNİ** (eşitlikte baskınlık söylenmez, saatsizde ev çizilmez, orbu ölçülmemiş açı lider olamaz) | **KORUNUR, dokunulmaz** |
+| Disiplinin **REKLAMI** (ekrana basılan *"ölçülmeyen söylenmez"*, *"bu sayfa önce ANLAMI sonra ÖLÇÜMÜ gösterir"*) | **KALDIRILDI** |
+
+Yani: **dayanağı GÖSTER, disiplini ÖVME.** Hiçbir ölçüm bloğu silinmedi —
+yalnız sıra tersine döndü: ne olduğu önce, nasıl ölçüldüğü sonra, en altta
+"Rytho'ya sor".
+
+⚠️ **"Ölçüm" ile "ad" aynı şey DEĞİL ve bu ayrım iki ekranda yerleşimi
+belirledi.** Doğum kapısının 56 px'lik glifi ve İ Ching'in çekim glifi bir
+ölçüm değil **konunun kendisi** — İ Ching'de kullanıcı onu kendi eliyle
+üretti (soruyu yazdı, çekimi yaptı, çizgiler tek tek indi). O yüzden o iki
+ekranda glif ÖNDE kaldı, okuma hemen altına geldi; panelin **içindeki**
+ölçümler (mono Güneş boylamı, trigram+element, nükleer heksagram, gün
+sütunu) aşağıdaki dayanak bölümüne indi. Okumayı glifin üstüne koymak,
+kullanıcının yaptığı işi sayfadan aşağı itmek olurdu.
+
+**Bekçi:** `anlam_once_bes_ekran_test.dart` (17 test). Dördünde **gerçek
+yerleşim** ölçülüyor (`getTopLeft().dy` karşılaştırması); İ Ching'de
+kaynaktan çivileniyor çünkü `_HexagramView` özel ve ona ulaşmak çekimin
+tamamını koşturmak demek — sınır beyanı testin içinde yazılı.
+
+⚠️ **dy bekçisi tek başına KÖR:** yalnız "okuma ŞU ölçümün üstünde" diyor,
+anlamın **üstüne adı bilinmeyen YENİ bir blok** eklemek takımı yeşil
+bırakır. Aynı boşluk `anlam_once_test`te Harita İnceleme için bir kez
+yakalanmıştı; ikinci bağımsız işaret (`children: [` ile okuma arasında
+izinli kalemlerden başka bir şey kalmaması) o yüzden kuruldu.
+
+**"Rytho'ya sor" tek yerde** (`RythoyaSor`, `atlas_widgets.dart`) ve etiket
+`l10n.signalAsk`ten okunuyor — beş kopyanın dördü ayrışır. Tohum sohbeti
+**o soruyla** açar ama **göndermez** (`chat_screen.dart` doktrini); otomatik
+gönderim hem kullanıcının ağzına soru koyar hem jeton musluğu olur.
+
+⚠️ `bazi_tab.dart:230` `chart['missing_elements'] as List` **hoşgörüsüz
+cast**: alan gelmezse `Null is not a List` fırlar ve BaZi sekmesinin
+TAMAMI çöker. Yıl Haritası aynı riski bir üretim olayından sonra hoşgörülü
+ayrıştırmayla kapatmış (`solar_return_screen.dart:69-71`), BaZi kapatmamış.
+Ölçüldü ama onarılmadı — bu turun kapsamı yerleşimdi.
+
 ### ⚠️ CANLI KESİNTİ: Gemini 403 "Lightning dunning decision is deny"
 
 Bu bölüm bir kez gün kaybettirdi ve **ölçme yöntemi** asıl değerli kısım.
