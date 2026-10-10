@@ -167,10 +167,12 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ---
 
-## 6. Bugünkü durum (2026-10-02)
+## 6. Bugünkü durum (2026-10-10)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.19.0+49** (henüz derlenmedi).
-Backend rev **00107** (`2026-10-03 10:36 UTC`, trafiğin %100'ü).
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.19.0+49**, AAB **üretildi**
+(`10-10 07:25`, 113,1 MiB, beş kapı da OK) ama **Play'e HENÜZ YÜKLENMEDİ**.
+Backend rev **00108-gtj** — `10-10` dağıtıldı, trafiğin %100'ü, `/health`
+**200** (deploy logundan BAĞIMSIZ sorguyla doğrulandı).
 
 **Kapalı testteki son sürüm 48 (1.18.0)** — 4 Ekim 20:29'da sunuldu, kanal
 Etkin, 172 ülke/bölge (Console ekranından ölçüldü 2026-10-10). Yani **48
@@ -179,24 +181,25 @@ olduğu Console'un **kapalı test** sayfasından okundu; dahili testte daha
 yüksek bir kod durursa yükleme "sürüm kodu daha önce kullanıldı" der ve
 artırmak gerekir — o sayfaya bakılmadan bilinemez.
 
-### ⚠️ GÖNDERİLMEMİŞ İŞ İKİ YERDE BİRDEN BEKLİYOR (ölçüldü 2026-10-10)
+### İki kanalın bağlaşımı (ölçüldü 2026-10-10, backend yarısı KAPANDI)
 
-İki dağıtım kanalı ayrı ayrı bayatladı ve **birbirine bağlı** — yalnız
-birini göndermek birinci şikâyeti hiç onarmamış gibi gösterir.
+İki dağıtım kanalı ayrı ayrı bayatlamıştı ve **birbirine bağlıydı**.
+Backend gönderildi; Play yarısı duruyor.
 
-| Kanal | Canlı olan | Deponun ucu | Arada ne var |
+| Kanal | Önceki canlı | Şimdi | Durum |
 |---|---|---|---|
-| Play (AAB 48) | `36d250a` (AAB diskte `10-03 04:46 UTC`, commit'in dakikası) | `3bc8e15` | **35 `lib/` dosyası**, 6 commit |
-| Cloud Run | rev **00107** = `2d0bfeb` (7 dk sonra dağıtılmış) | `d6a9477` | **3 prompt dosyası** |
+| Cloud Run | rev 00107 = `2d0bfeb` (10-03) | rev **00108** | ✅ gönderildi |
+| Play | AAB 48 = `36d250a` (10-03 04:46 UTC) | AAB 49 diskte | ⏳ yüklenmedi |
 
-**Bağlaşım, ölçülmüş:** istasyon kartının anlam cümlesi SUNUCUDA üretiliyor
-(`prompts/tr.py` `STATION_PLANET_THEMES` × `STATION_PHASE_LINES`). İstemci
-yalnız `line`/`technical` alanlarını basıyor. Eski sunucu istasyona `line`
-YAZMIYOR ve istemci o durumda `calendar_strip.dart:351-363` dalına düşüp
-`transit_local — type_local` basıyor — yani **tam olarak şikâyet edilen
-"Plüton — ileri harekete dönüş" satırı.** Sonuç: yalnız AAB gönderilirse
-ikinci şikâyet (dayanak sayfası, tamamen istemci tarafı) onarılmış görünür,
-birinci şikâyet **hiç dokunulmamış** görünür. **Önce backend, sonra paket.**
+**Bağlaşım, ölçülmüş — ve sırayı bu belirledi:** istasyon kartının anlam
+cümlesi SUNUCUDA üretiliyor (`prompts/tr.py` `STATION_PLANET_THEMES` ×
+`STATION_PHASE_LINES`). İstemci yalnız `line`/`technical` alanlarını
+basıyor. Eski sunucu istasyona `line` YAZMIYOR ve istemci o durumda
+`calendar_strip.dart:351-363` dalına düşüp `transit_local — type_local`
+basıyor — yani **tam olarak şikâyet edilen "Plüton — ileri harekete dönüş"
+satırı.** Yalnız AAB gönderilseydi ikinci şikâyet (dayanak sayfası, tamamen
+istemci tarafı) onarılmış, birinci şikâyet **hiç dokunulmamış** görünürdü.
+**Kural: önce backend, sonra paket.**
 
 ⚠️ **Sürüm kodu 48 YANMIŞ** — dahili teste yüklendi, yeni derleme artırmak
 zorunda. Hangi kodun serbest olduğu **depodan bilinemez**, yalnız Console'un
