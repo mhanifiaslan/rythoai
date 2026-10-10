@@ -43,4 +43,68 @@ void main() {
     expect(w.total, 0);
     expect(w.bilinmiyor, isFalse);
   });
+
+  group('bakiyeYazisi', () {
+    test('bilinmiyor → "—", yoksa sayı', () {
+      // Döküm satırları toplam "—" iken "0" yazıyordu — aynı kartta
+      // "bilinmiyor" ve "sıfır" yan yana.
+      expect(WalletStatus.unknown.bakiyeYazisi(0), '—');
+      expect(WalletStatus.unknown.bakiyeYazisi(42), '—');
+      expect(WalletStatus.none.bakiyeYazisi(0), '0');
+      const w = WalletStatus(allowance: 7, purchased: 3, monthlyAllowance: 100);
+      expect(w.bakiyeYazisi(w.total), '10');
+    });
+  });
+
+  group('dusuk — eşik haktan türer', () {
+    WalletStatus w(int toplam, {int hak = 100}) =>
+        WalletStatus(allowance: toplam, purchased: 0, monthlyAllowance: hak);
+
+    test('hakkın %10\'u ve altı düşük, üstü değil', () {
+      // Sohbet çipi 30'u elle yazmış, "300'ün %10'u" diye gerekçelemişti;
+      // hak 100'e inince sayı 30 kaldı. Eşik artık haktan: 100 → 10.
+      expect(w(10).dusuk, isTrue);
+      expect(w(0).dusuk, isTrue);
+      expect(w(11).dusuk, isFalse);
+      expect(w(15).dusuk, isFalse);
+      expect(w(30).dusuk, isFalse, reason: 'eski elle yazılı eşik');
+    });
+
+    test('hak 300 iken eşik 30', () {
+      expect(w(30, hak: 300).dusuk, isTrue);
+      expect(w(31, hak: 300).dusuk, isFalse);
+    });
+
+    test('hak bilinmiyorken (0) taban 10', () {
+      expect(w(10, hak: 0).dusuk, isTrue);
+      expect(w(11, hak: 0).dusuk, isFalse);
+    });
+
+    test('bilinmiyor → ASLA düşük (total 0 olsa da)', () {
+      expect(WalletStatus.unknown.dusuk, isFalse,
+          reason: 'dolu cüzdanlı kullanıcı "bitmek üzere" rengi görmesin');
+    });
+  });
+
+  group('packs', () {
+    test('sunucunun packs alanı ayrıştırılır', () {
+      final w = WalletStatus.fromJson(const {
+        'allowance': 1,
+        'purchased': 0,
+        'monthly_allowance': 100,
+        'packs': {'rytho_tokens_small': 100, 'rytho_tokens_large': 1000},
+      });
+      expect(w.packs, {'rytho_tokens_small': 100, 'rytho_tokens_large': 1000});
+    });
+
+    test('eski sunucu alanı göndermezse BOŞ — fırlatmaz', () {
+      final w = WalletStatus.fromJson(const {
+        'allowance': 1,
+        'purchased': 0,
+        'monthly_allowance': 100,
+      });
+      expect(w.packs, isEmpty);
+      expect(WalletStatus.none.packs, isEmpty);
+    });
+  });
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
 import '../theme/rytho_tokens.dart';
+import 'alt_sayfa.dart' show showRythoSheet;
 import 'motion.dart' show reduceMotion;
 import 'nebula_widgets.dart' show Pressable;
 
@@ -32,20 +33,14 @@ Future<void> showSignalBasisSheet(
   VoidCallback? onAsk,
   String? title,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: RythoColors.inkLight,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      side: BorderSide(color: RythoColors.glassStroke),
-    ),
-    // Kaydırma SARMALAYICIDA (kardeş desen: atlas_detail_screens nokta
-    // sayfası, orada 131 px sessiz kırpılma ÖLÇÜLDÜ). Gövde `min` bir
-    // Column; katlanır bölme açıldığında içerik ekrandan uzun olabiliyor ve
-    // sarmalayıcı olmadan taşma SESSİZ kırpılmaya dönüşür.
-    builder: (_) =>
-        SingleChildScrollView(child: _BasisSheet(signal: signal, onAsk: onAsk, title: title)),
+  // Kabuk ortak (`showRythoSheet`): zemin, köşe, tutamak ve kaydırma
+  // sarmalayıcısı oradan gelir. Sarmalayıcı burada ŞART: gövde `min` bir
+  // Column; katlanır bölme açıldığında içerik ekrandan uzun olabiliyor ve
+  // sarmalayıcı olmadan taşma SESSİZ kırpılmaya dönüşür (kardeş desende
+  // 131 px ölçüldü).
+  return showRythoSheet<void>(
+    context,
+    builder: (_) => _BasisSheet(signal: signal, onAsk: onAsk, title: title),
   );
 }
 
@@ -113,16 +108,17 @@ class _BasisSheetState extends State<_BasisSheet> {
         teknik.trim() != yorum.trim();
 
     final satirlar = <Widget>[
-      _Satir(etiket: l10n.basisSky, deger: gokyuzu),
-      _Satir(
+      OlcumSatiri(etiket: l10n.basisSky, deger: gokyuzu),
+      OlcumSatiri(
           etiket: l10n.basisNatal,
           deger: natalParcalar.where((p) => p.isNotEmpty).join(' · ')),
-      _Satir(
+      OlcumSatiri(
           etiket: l10n.basisAspect,
           deger: (signal['aspect_local'] ?? signal['aspect'] ?? '') as String),
-      if (orb is num) _Satir(etiket: l10n.basisOrb, deger: '${orb.toString()}°'),
+      if (orb is num)
+        OlcumSatiri(etiket: l10n.basisOrb, deger: '${orb.toString()}°'),
       if (signal['exact_on_local'] is String)
-        _Satir(
+        OlcumSatiri(
             etiket: l10n.basisExact,
             deger: signal['exact_on_local'] as String,
             vurgu: true),
@@ -135,27 +131,16 @@ class _BasisSheetState extends State<_BasisSheet> {
               color: RythoColors.parchmentDim, height: 1.4)),
     ];
 
-    return SafeArea(
-      child: Padding(
+    // Güvenli alan ve tutamak kabuktan geliyor (`showRythoSheet`).
+    return Padding(
         padding: const EdgeInsets.fromLTRB(
             RythoSpace.lg, RythoSpace.md, RythoSpace.lg, RythoSpace.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: RythoColors.glassStroke,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: RythoSpace.md),
             Text(widget.title ?? l10n.basisSheetTitle,
-                style: RythoText.display(17, w: FontWeight.w600)),
+                style: RythoType.sheetTitle),
             const SizedBox(height: 10),
             // Okuma yüzeyinin hazır rolü: 15 / 1,65. Burada `body(13)` ile
             // çizilirken sayfanın ASIL metni teknik tablodan daha küçük
@@ -225,30 +210,44 @@ class _BasisSheetState extends State<_BasisSheet> {
             ],
           ],
         ),
-      ),
     );
   }
 }
 
-class _Satir extends StatelessWidget {
-  const _Satir(
-      {required this.etiket, required this.deger, this.vurgu = false});
+/// Ölçüm satırı: solda sabit genişlikte etiket, sağda değer.
+///
+/// Dayanak sayfasının ve atlas alt sayfalarının ortak satırı (atlas
+/// kopyası D6'da buna geçer). Etiket BÜYÜK HARFE ÇEVRİLMEZ: eski hâl
+/// `toUpperCase()` çağırıyordu ve Türkçe'de `i` → `I` düşüyordu
+/// ("kesinleşme" → "KESINLEŞME"). Rol tipografisi (`RythoType.label`)
+/// zaten etiket ağırlığını ve aralığını veriyor; büyük harf gerekmiyor.
+///
+/// Değer boşsa satır HİÇ çizilmez — ölçülmemiş alan boş etiket olarak
+/// bile sunulmaz.
+class OlcumSatiri extends StatelessWidget {
+  const OlcumSatiri(
+      {super.key,
+      required this.etiket,
+      required this.deger,
+      this.vurgu = false});
 
   final String etiket;
   final String deger;
+
+  /// Altın vurgu — kesinleşme tarihi gibi günün çapası olan değer.
   final bool vurgu;
 
   @override
   Widget build(BuildContext context) {
     if (deger.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 108,
-            child: Text(etiket.toUpperCase(), style: RythoType.dataSmall),
+            child: Text(etiket, style: RythoType.label),
           ),
           const SizedBox(width: RythoSpace.sm),
           Expanded(

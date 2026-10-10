@@ -48,6 +48,7 @@ class WalletStatus {
     required this.monthlyAllowance,
     this.allowanceResetsAt,
     this.costs = const {},
+    this.packs = const {},
     this.bilinmiyor = false,
   });
 
@@ -80,6 +81,14 @@ class WalletStatus {
   /// gerekçeyi geri getirir.
   final Map<String, int> costs;
 
+  /// Ürün kimliği -> paket adedi: sunucudaki `TOKEN_PACKS`ın aynısı.
+  ///
+  /// Sunucu bunu `packs` alanıyla gönderiyor (`core/wallet.py`, gerekçesi
+  /// orada: ekrandaki "300 kredi" ile webhook'un yüklediği sayı iki ayrı
+  /// yerde yazılıydı). Eski sunucu alanı göndermezse harita BOŞ kalır —
+  /// `kPackDisplayAmounts` yedeğine düşmek çağıranın kararı, buranın değil.
+  final Map<String, int> packs;
+
   /// Bakiye OKUNAMADI — sıfır DEĞİL, BİLİNMİYOR.
   ///
   /// Ayrım B10 onarımının doğurduğu bir riski kapatıyor. Tazeleme artık
@@ -91,6 +100,28 @@ class WalletStatus {
   final bool bilinmiyor;
 
   int get total => allowance + purchased;
+
+  /// Bakiye "bitmek üzere" mi — aylık hakkın %10'u ve altı.
+  ///
+  /// Eşik HAKTAN türetilir, sabit değil: sohbet çipi `30`u elle yazmış ve
+  /// "aylık hakkın (300) %10'u" diye gerekçelemişti; hak 100'e inince (K1)
+  /// sayı 30 kaldı, gerekçe 10 derken ikisi birbirini yalanlıyordu. Hak
+  /// bilinmiyorken (abone değil, `monthly_allowance` 0) taban 10: ücretsiz
+  /// kullanıcının bakiyesi zaten küçük paketlerden geliyor.
+  ///
+  /// [bilinmiyor] iken HER ZAMAN false: `total` o hâlde 0 olduğu için
+  /// "düşük" uyarısı kendiliğinden yanıyordu ve dolu cüzdanlı kullanıcı
+  /// "bitmek üzere" rengini görüyordu (chat_screen'de ölçüldü, B10).
+  bool get dusuk =>
+      !bilinmiyor &&
+      total <= (monthlyAllowance > 0 ? monthlyAllowance ~/ 10 : 10);
+
+  /// Ekrana basılacak sayı — ya da "—".
+  ///
+  /// Dökümün her satırı (hak, satın alınan, toplam) bu işlevden geçsin:
+  /// toplam "—" çizilirken alt satırlar `'$allowance'` ile "0" yazıyordu,
+  /// yani aynı kartta "bilinmiyor" ve "sıfır" yan yana duruyordu.
+  String bakiyeYazisi(int deger) => bilinmiyor ? '—' : '$deger';
 
   static const none = WalletStatus(
       allowance: 0, purchased: 0, monthlyAllowance: 0);
@@ -107,6 +138,9 @@ class WalletStatus {
       monthlyAllowance: (json['monthly_allowance'] as num?)?.toInt() ?? 0,
       allowanceResetsAt: resets == null ? null : DateTime.tryParse(resets),
       costs: (json['costs'] as Map?)?.map(
+              (k, v) => MapEntry(k.toString(), (v as num).toInt())) ??
+          const {},
+      packs: (json['packs'] as Map?)?.map(
               (k, v) => MapEntry(k.toString(), (v as num).toInt())) ??
           const {},
     );

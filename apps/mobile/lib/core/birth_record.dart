@@ -24,9 +24,28 @@ library;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart' show TimeOfDay;
 
 import 'api.dart';
 import 'friends.dart';
+
+/// Saat girişi tutarlı mı: "biliyorum" dendiyse bir saat SEÇİLMİŞ olmalı.
+///
+/// NEDEN (ölçüldü): profil düzeltme ekranı saati bilinmeyen kaydı açarken
+/// `12:00` uyduruyor, kullanıcı "biliyorum" deyip saat seçmeden kaydedince
+/// o uydurma saat gerçek gibi yazılıyordu. Sihirbazdaki `_saatSecildi`
+/// korumasının karşılığı orada yoktu. İki ekran da kaydet düğmesini bu
+/// kapıdan geçirir; saf olduğu için test edilebilir.
+bool dogumSaatiGecerli({required bool biliniyor, required TimeOfDay? saat}) =>
+    !biliniyor || saat != null;
+
+/// `TimeOfDay` → `HH:mm`; null → null (saat bilinmiyor, `BirthRecord.time`
+/// ile aynı anlam). "Bilinmiyor"u `12:00`a çeviren tek satır bu depoda bir
+/// kez yazıldı ve zarar verdi; dönüşüm burada, uydurma değeri olmadan.
+String? saatMetni(TimeOfDay? saat) => saat == null
+    ? null
+    : '${saat.hour.toString().padLeft(2, '0')}:'
+        '${saat.minute.toString().padLeft(2, '0')}';
 
 /// Kullanıcının girdiği doğum anı.
 class BirthRecord {

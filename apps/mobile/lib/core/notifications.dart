@@ -158,43 +158,71 @@ Future<void> markNotificationPromptShown() async {
   } catch (_) {}
 }
 
+/// İzin isteğinin ÜÇ sonucu — `bool` yetmiyordu.
+///
+/// NEDEN (test-raporu senaryo 99, ölçüldü 2026-10-10): istek her yolda bool
+/// dönüyor ve [ensureNotificationPermissionAsked] her dönüşte bayrağı
+/// yazıyordu. OS diyaloğu hiç AÇILMADAN düşen istek (`notDetermined` dönen
+/// ya da fırlatan çağrı) da "soruldu" sayılıyor, ana ekrandaki ikinci şans
+/// hiç çalışmıyordu. Kullanıcının bir KARAR verdiği iki hâl bayrak yazar;
+/// soru sorulamadıysa bayrak yazılmaz ve sonraki açılışta yeniden sorulur.
+enum IzinSonucu { verildi, reddedildi, sorulamadi }
+
 /// İzni GEREKİYORSA ister — sıra hatasının tek yerde onarımı (OT3).
 ///
 /// Eski çağıranlar bayrağı istekten ÖNCE yazıyordu: kullanıcı OS
 /// diyaloğunu kapatırsa (istek yarıda düşerse bile) bayrak yazılmış
 /// oluyor ve uygulama BİR DAHA HİÇ sormuyordu — "bildirim gelmiyor"
 /// şikâyetlerinin sessiz köklerinden biri. Artık: önce istenir, bayrak
-/// ANCAK istek tamamlanınca yazılır; istek fırlatırsa bayrak yazılmaz
-/// ve bir sonraki fırsatta yeniden denenir.
+/// ANCAK kullanıcı bir karar verdiyse ([IzinSonucu.verildi] ya da
+/// [IzinSonucu.reddedildi]) yazılır; soru sorulamadıysa ya da istek
+/// fırlatırsa bayrak yazılmaz ve bir sonraki fırsatta yeniden denenir.
 ///
 /// [requester] test dikişidir; üretimde [requestNotificationPermission].
 Future<void> ensureNotificationPermissionAsked(
-    {Future<bool> Function()? requester}) async {
+    {Future<IzinSonucu> Function()? requester}) async {
   if (await notificationPromptShown()) return;
-  await (requester ?? requestNotificationPermission)();
+  final sonuc = await (requester ?? requestNotificationPermission)();
+  if (sonuc == IzinSonucu.sorulamadi) return;
   await markNotificationPromptShown();
 }
 
 /// Bildirim iznini ister ve sonucu döndürür.
 ///
 /// Ayrı bir fonksiyon: izin isteme ANI ürün kararıdır (bkz. sınıf açıklaması)
-/// ve senkronizasyondan bağımsız tetiklenir.
-Future<bool> requestNotificationPermission() async {
+/// ve senkronizasyondan bağımsız tetiklenir. İstisna ve `notDetermined`
+/// (diyalog açılmadı) → [IzinSonucu.sorulamadi]: ikisi de karar değildir.
+Future<IzinSonucu> requestNotificationPermission() async {
   try {
     final ayar = await FirebaseMessaging.instance.requestPermission();
-    final verildi =
-        ayar.authorizationStatus == AuthorizationStatus.authorized ||
-            ayar.authorizationStatus == AuthorizationStatus.provisional;
+    final durum = ayar.authorizationStatus;
+    if (durum == AuthorizationStatus.notDetermined) {
+      return IzinSonucu.sorulamadi;
+    }
+    final verildi = durum == AuthorizationStatus.authorized ||
+        durum == AuthorizationStatus.provisional;
     // İzin oranı ölçülmezse bildirim sisteminin işe yarayıp yaramadığı
     // bilinemez: gönderim başarılı görünür ama kimseye ulaşmıyordur.
     Analytics.notificationPermission(granted: verildi);
     if (verildi) await syncNotificationContext();
-    return verildi;
+    return verildi ? IzinSonucu.verildi : IzinSonucu.reddedildi;
   } catch (e) {
     debugPrint('Bildirim izni istenemedi: $e');
-    return false;
+    return IzinSonucu.sorulamadi;
   }
 }
+
+/// İşletim sistemi düzeyindeki bildirim izni (ayar ekranı bandı için).
+///
+/// `autoDispose`: izin durumu uygulama dışında değişir (kullanıcı sistem
+/// ayarına gidip döner); izleyen ekran kapanınca önbellek düşer ve bir
+/// sonraki açılış taze okur. Oturum boyu önbellek, düzeltilmiş izni
+/// "hâlâ kapalı" gösterirdi (CLAUDE.md §5 Riverpod notu).
+final osBildirimDurumuProvider =
+    FutureProvider.autoDispose<AuthorizationStatus>((ref) async {
+  final ayar = await FirebaseMessaging.instance.getNotificationSettings();
+  return ayar.authorizationStatus;
+});
 
 /// Token yenilendiğinde profili güncel tutar.
 ///

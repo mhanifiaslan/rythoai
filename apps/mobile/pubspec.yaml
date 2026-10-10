@@ -96,6 +96,7 @@ dependencies:
   # Üçüncü parti atıf SDK'sı (Branch vb.) alınmadı; gerekçe
   # lib/core/partner_referrer.dart başlığında.
   play_install_referrer: ^0.5.0
+  app_settings: ^9.0.0
 
 dev_dependencies:
   flutter_test:

@@ -183,10 +183,11 @@ void main() {
       await _sayfaAc(tester);
       expect(_katlanirBaslik, findsOneWidget,
           reason: 'katlanir bolmenin kapisi gorunmuyor');
-      // Satir ETIKETLERI `_Satir` icinde buyuk harfe cevriliyor.
-      expect(find.text(_tr.basisSky.toUpperCase()), findsNothing);
-      expect(find.text(_tr.basisAspect.toUpperCase()), findsNothing);
-      expect(find.text(_tr.basisOrb.toUpperCase()), findsNothing);
+      // Satir etiketleri `OlcumSatiri`de l10n metniyle BIREBIR cizilir;
+      // eski `toUpperCase()` Turkce noktali i'yi dusuruyordu (D5).
+      expect(find.text(_tr.basisSky), findsNothing);
+      expect(find.text(_tr.basisAspect), findsNothing);
+      expect(find.text(_tr.basisOrb), findsNothing);
       // Kaynak dipnotu da bolmenin ICINDE: dayanagi SORAN gorur, herkese
       // basilmaz (sahip karari — disiplinin reklami kalkar).
       expect(find.text(_tr.basisFootnote), findsNothing);
@@ -195,11 +196,11 @@ void main() {
     testWidgets('dokununca aciliyor ve satirlar geliyor', (tester) async {
       await _sayfaAc(tester);
       await _bolmeyiAc(tester);
-      expect(find.text(_tr.basisSky.toUpperCase()), findsOneWidget);
-      expect(find.text(_tr.basisNatal.toUpperCase()), findsOneWidget);
-      expect(find.text(_tr.basisAspect.toUpperCase()), findsOneWidget);
-      expect(find.text(_tr.basisOrb.toUpperCase()), findsOneWidget);
-      expect(find.text(_tr.basisExact.toUpperCase()), findsOneWidget);
+      expect(find.text(_tr.basisSky), findsOneWidget);
+      expect(find.text(_tr.basisNatal), findsOneWidget);
+      expect(find.text(_tr.basisAspect), findsOneWidget);
+      expect(find.text(_tr.basisOrb), findsOneWidget);
+      expect(find.text(_tr.basisExact), findsOneWidget);
       // Olculen degerler de geliyor — etiketler bos kabuk degil.
       expect(find.text('1.2°'), findsOneWidget);
       expect(find.textContaining(_tr.basisHouse(4)), findsOneWidget);
@@ -210,7 +211,7 @@ void main() {
       await _sayfaAc(tester);
       await _bolmeyiAc(tester);
       await _bolmeyiAc(tester);
-      expect(find.text(_tr.basisSky.toUpperCase()), findsNothing);
+      expect(find.text(_tr.basisSky), findsNothing);
       expect(find.text(_tr.basisFootnote), findsNothing);
     });
   });

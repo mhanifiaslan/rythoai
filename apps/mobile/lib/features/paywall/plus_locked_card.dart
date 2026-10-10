@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
-import '../../widgets/fade_through_route.dart';
 import '../../widgets/glass.dart';
-import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart' show Pressable;
-import 'paywall_screen.dart';
+import 'kilit_rozeti.dart';
+import 'ozellik_katalogu.dart';
+import 'paywall_acilis.dart';
 
 /// Rytho+ kilitli içerik kartı.
 ///
@@ -20,66 +19,53 @@ class PlusLockedCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.description,
-    this.emoji = '🔒',
+    this.ozellik,
+    this.emoji,
     this.centered = false,
-  });
+  }) : assert(ozellik != null || emoji != null,
+            'kilit kartı emojisini katalogdan ya da çağırandan alır; '
+            'varsayılan kilit emojisi kalktı — kilit anlamını rozet taşıyor');
 
   final String title;
   final String description;
-  final String emoji;
+
+  /// Katalog üyesi: emoji buradan, paywall'a da hangi özellikten gelindiği
+  /// bu üyeyle taşınır. Verilmezse [emoji] zorunlu.
+  final PlusOzellik? ozellik;
+
+  /// Katalog dışı emoji — [ozellik] verilmeyen çağrı yerleri için köprü.
+  /// Eski varsayılan `🔒` BİLEREK yok: kart zaten altın kilit rozeti
+  /// taşıyor, başta ikinci bir kilit aynı şeyi iki dilde söylüyordu
+  /// (`KilitRozeti` gerekçesi).
+  final String? emoji;
 
   /// Tüm ekranı kaplayan boş durumlarda ortalanır (Atlas, BaZi gibi).
   final bool centered;
 
   @override
   Widget build(BuildContext context) {
-    // Altın kilit rozeti (R12-C3): girişte bir kez parlar (tek atış
-    // shimmer) — 5 kullanım yerinin hepsinde aynı anda nefes alan sürekli
-    // bir döngü ekranı ucuzlatırdı, o yüzden BİLEREK yok.
-    Widget kilit = Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: RythoColors.gold.withValues(alpha: 0.12),
-      ),
-      child: const Icon(Icons.lock_rounded,
-          size: 14, color: RythoColors.goldBright),
-    );
-    if (!reduceMotion(context)) {
-      kilit = kilit
-          .animate()
-          .scale(
-              begin: const Offset(0.7, 0.7),
-              end: const Offset(1, 1),
-              duration: const Duration(milliseconds: 400),
-              curve: RythoMotion.pop)
-          .then()
-          .shimmer(
-              duration: 800.ms,
-              color: RythoColors.goldBright.withValues(alpha: 0.35));
-    }
-
     // Pressable (R12-C3): dokununca ölçek + haptik — kilitli kart artık
-    // "basılabilir" hissettiriyor. Fade-through R12-B2'den.
+    // "basılabilir" hissettiriyor. Rota türünü `acPaywall` seçer: bu bir
+    // DOKUNUŞ, fade-through (R12-B2).
     final card = Pressable(
-      onTap: () => Navigator.of(context)
-          .push(FadeThroughRoute(builder: (_) => const PaywallScreen())),
+      onTap: () => acPaywall(context,
+          kaynak: PaywallKaynak.kilitKarti, ozellik: ozellik),
       child: GlassPanel(
         child: Row(children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 12),
+          Text(emoji ?? ozellik!.emoji, style: RythoText.emoji(20)),
+          const SizedBox(width: RythoSpace.md),
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: RythoText.display(16)),
-              const SizedBox(height: 3),
-              Text(description,
-                  style:
-                      RythoText.body(12.5, color: RythoColors.parchmentDim)),
+              Text(title, style: RythoType.cardTitle),
+              const SizedBox(height: RythoSpace.xs),
+              Text(description, style: RythoType.caption),
             ]),
           ),
-          kilit,
-          const SizedBox(width: 6),
+          // Tek atış parıltı (R12-C3): girişte bir kez; sürekli döngü
+          // bilerek yok (`KilitRozeti.animate`).
+          const KilitRozeti(),
+          const SizedBox(width: RythoSpace.xs),
           const Icon(Icons.chevron_right_rounded,
               size: 20, color: RythoColors.parchmentDim),
         ]),

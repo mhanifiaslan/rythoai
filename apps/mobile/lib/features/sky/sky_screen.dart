@@ -27,6 +27,7 @@ import '../../widgets/star_burst.dart';
 import '../../widgets/token_chip.dart';
 import '../shell/app_shell.dart' show shellTabProvider;
 import '../paywall/paywall_screen.dart';
+import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 import 'calendar_strip.dart';
 import 'sign_story_screen.dart';
@@ -411,6 +412,9 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
                     _maybeShowIntroPaywall();
                     return data == null
                         ? PlusLockedCard(
+                            // Katalog üyesi: emoji buradan gelir ve
+                            // paywall hangi özellikten açıldığını bilir.
+                            ozellik: PlusOzellik.daily,
                             title: l10n.personalReadingLocked,
                             description: userSignIndex < 0
                                 ? l10n.personalReadingLockedBody

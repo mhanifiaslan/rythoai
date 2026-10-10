@@ -7,8 +7,45 @@ import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../core/tr_metin.dart' show trBuyuk;
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart' show kMarkaYazi;
+import '../../widgets/chart/chart_data.dart';
+import '../../widgets/chart/chart_palette.dart'
+    show kInnerGlyphColor, kOuterPartnerColor, kOuterTransitColor;
+import '../../widgets/chart/chart_wheel.dart';
+import '../../widgets/chart/wheel_painter.dart' show WheelAspectFilter;
+
+/// Üç kartın ortak zemini — aynı tuval, aynı degrade; ayrışırsa paylaşılan
+/// kartlar aynı uygulamadan çıkmış gibi durmaz.
+const BoxDecoration _kKartZemini = BoxDecoration(
+  gradient: LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF13091F), Color(0xFF241038), Color(0xFF0B0713)],
+  ),
+);
+
+/// Marka satırı: paylaşan kişi uygulamayı tanıtıyor. Ayırt edici iddia da
+/// burada — "gerçek gökyüzü hesabıyla". Üç kartta TEK kopya; marka yazısı
+/// `kMarkaYazi`dan (rytho_tokens), literal değil.
+class _MarkaSatiri extends StatelessWidget {
+  const _MarkaSatiri();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Row(children: [
+      Text(kMarkaYazi, style: RythoText.label(44, color: RythoColors.gold)),
+      const SizedBox(width: 20),
+      Expanded(
+        child: Text(l10n.shareCardTagline,
+            style: RythoText.body(32, color: RythoColors.parchmentDim)),
+      ),
+    ]);
+  }
+}
 
 /// Günlük yorumun dışa paylaşılabilir görsel kartı.
 ///
@@ -164,19 +201,11 @@ class ShareCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
     return SizedBox(
       width: width,
       height: height,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF13091F), Color(0xFF241038), Color(0xFF0B0713)],
-          ),
-        ),
+        decoration: _kKartZemini,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(96, 150, 96, 110),
           child: Column(
@@ -191,7 +220,7 @@ class ShareCard extends StatelessWidget {
                         fontSize: 116, color: RythoColors.goldBright)),
                 const SizedBox(width: 28),
                 Expanded(
-                  child: Text(signName.toUpperCase(),
+                  child: Text(trBuyuk(signName),
                       style: RythoText.display(84)),
                 ),
               ]),
@@ -212,18 +241,7 @@ class ShareCard extends StatelessWidget {
                         color: RythoColors.parchmentDim)),
                 const SizedBox(height: 40),
               ],
-              // Marka satırı: paylaşan kişi uygulamayı tanıtıyor. Ayırt edici
-              // iddia da burada — "gerçek gökyüzü hesabıyla".
-              Row(children: [
-                Text('RYTHO',
-                    style: RythoText.label(44, color: RythoColors.gold)),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Text(l10n.shareCardTagline,
-                      style: RythoText.body(32,
-                          color: RythoColors.parchmentDim)),
-                ),
-              ]),
+              const _MarkaSatiri(),
             ],
           ),
         ),
@@ -274,7 +292,6 @@ class ReportShareCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final rozetler = badges.take(3).toList();
     // Metin alanı rozet sayısına göre daralır; sabit bir yükseklik
     // varsaymak rozetsiz kartta boşluk, üç rozetlide taşma üretirdi.
@@ -285,13 +302,7 @@ class ReportShareCard extends StatelessWidget {
       width: width,
       height: height,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF13091F), Color(0xFF241038), Color(0xFF0B0713)],
-          ),
-        ),
+        decoration: _kKartZemini,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(96, 150, 96, 110),
           child: Column(
@@ -308,7 +319,7 @@ class ReportShareCard extends StatelessWidget {
                   const SizedBox(width: 28),
                 ],
                 Expanded(
-                  child: Text(title.toUpperCase(),
+                  child: Text(trBuyuk(title),
                       style: RythoText.display(66)),
                 ),
               ]),
@@ -322,7 +333,7 @@ class ReportShareCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(etiket.toUpperCase(),
+                            Text(trBuyuk(etiket),
                                 style: RythoText.label(26,
                                     color: RythoColors.parchmentDim)),
                             const SizedBox(height: 12),
@@ -348,16 +359,7 @@ class ReportShareCard extends StatelessWidget {
                       maxSize: 42,
                     ))),
               ),
-              Row(children: [
-                Text('RYTHO',
-                    style: RythoText.label(44, color: RythoColors.gold)),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Text(l10n.shareCardTagline,
-                      style: RythoText.body(32,
-                          color: RythoColors.parchmentDim)),
-                ),
-              ]),
+              const _MarkaSatiri(),
             ],
           ),
         ),
@@ -439,6 +441,142 @@ Future<bool> shareReportCard(
       const Size(ReportShareCard.width, ReportShareCard.height),
     );
 
+/// Çarkın paylaşım kartı (Harita İnceleme): aynı 9:16 tuval, çark 900 px.
+///
+/// NEDEN ayrı bir kart: chart_inspector 700×740'lık özel bir kare kuruyordu —
+/// öteki iki kartla ne oranı ne zemini ne marka satırını paylaşıyordu;
+/// Instagram hikâyesi o kareyi yan boşluklarla ortalıyor, çark ekranın
+/// yarısında kalıyordu. Üç kart artık aynı tuvali, aynı zemini
+/// (`_kKartZemini`) ve aynı marka satırını (`_MarkaSatiri`) kullanır.
+///
+/// **Aynı gizlilik kuralı:** çarkta doğum tarihi/saati/yeri YOK, yalnız
+/// hesaplanmış konumlar. Halka lejantı hangi halkanın kime ait olduğunu
+/// söyler (natal / transit / partner); kişi adı çağıranın verdiği başlıkta.
+class ChartShareCard extends StatelessWidget {
+  const ChartShareCard({
+    super.key,
+    required this.data,
+    required this.title,
+    this.filter = WheelAspectFilter.all,
+    this.maxOrb = 8.0,
+    this.showMinors = false,
+  });
+
+  final ChartData data;
+  final String title;
+
+  /// Çark ayarları Harita İnceleme'den olduğu gibi geçer: kullanıcı ekranda
+  /// hangi açı süzgecini görüyorsa kartta da onu görür.
+  final WheelAspectFilter filter;
+  final double maxOrb;
+  final bool showMinors;
+
+  static const double width = ShareCard.width;
+  static const double height = ShareCard.height;
+
+  /// Çark çapı — tuvalin %83'ü. Daha büyüğü kenar dolgusunu yer; daha
+  /// küçüğü telefonda (1080 → ~390 dp) glifleri Harita İnceleme'deki gömülü
+  /// çarkın altına düşürür.
+  static const double wheelSize = 900;
+
+  /// Yatay dolgu çarktan türer (90 px): ShareCard'ın 96'sı çarkı 888'e
+  /// sığdıramazdı.
+  static const double _yatayDolgu = (width - wheelSize) / 2;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return SizedBox(
+      width: width,
+      height: height,
+      child: DecoratedBox(
+        decoration: _kKartZemini,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(_yatayDolgu, 150, _yatayDolgu, 110),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(trBuyuk(title), style: RythoText.display(66)),
+              const SizedBox(height: 48),
+              Center(
+                child: ChartWheel(
+                  data: data,
+                  size: wheelSize,
+                  interactive: false,
+                  // Süpürme YOK: renderCard tek kare yakalar, progress≈0'da
+                  // boş kare çıkardı (ChartWheel.animate gerekçesi).
+                  animate: false,
+                  filter: filter,
+                  maxOrb: maxOrb,
+                  showMinors: showMinors,
+                ),
+              ),
+              const SizedBox(height: 40),
+              // Halka lejantı — chart_inspector'daki rozetlerin kart ölçeği;
+              // renkler çarkın kendi paletinden (chart_palette) ki lejant
+              // çizilen halkayla aynı rengi söylesin.
+              Wrap(spacing: 40, runSpacing: 16, children: [
+                _HalkaRozeti(
+                    renk: kInnerGlyphColor,
+                    metin: l10n.chartLegendInner(data.rings.first.label)),
+                if (data.isBiWheel)
+                  _HalkaRozeti(
+                      renk: data.rings[1].kind == ChartRingKind.partner
+                          ? kOuterPartnerColor
+                          : kOuterTransitColor,
+                      metin: l10n.chartLegendOuter(data.rings[1].label)),
+              ]),
+              const Spacer(),
+              const _MarkaSatiri(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HalkaRozeti extends StatelessWidget {
+  const _HalkaRozeti({required this.renk, required this.metin});
+
+  final Color renk;
+  final String metin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: renk),
+      ),
+      const SizedBox(width: 16),
+      Text(metin, style: RythoText.body(32, color: RythoColors.parchmentDim)),
+    ]);
+  }
+}
+
+/// Çark kartını paylaşır (Harita İnceleme'nin `_paylas`ının varisi).
+Future<bool> shareChartCard(
+  BuildContext context, {
+  required ChartData data,
+  required String title,
+  WheelAspectFilter filter = WheelAspectFilter.all,
+  double maxOrb = 8.0,
+  bool showMinors = false,
+}) =>
+    shareRenderedCard(
+      context,
+      ChartShareCard(
+        data: data,
+        title: title,
+        filter: filter,
+        maxOrb: maxOrb,
+        showMinors: showMinors,
+      ),
+      const Size(ChartShareCard.width, ChartShareCard.height),
+    );
+
 /// Herhangi bir widget'ı PNG'ye çevirip paylaşım sayfasını açar.
 ///
 /// HI-turu'nda dışa açıldı (eski `_paylas`): Harita İnceleme çark
@@ -459,7 +597,7 @@ Future<bool> shareRenderedCard(
     await dosya.writeAsBytes(bayt);
 
     await SharePlus.instance.share(
-      ShareParams(files: [XFile(dosya.path)], text: 'RYTHO'),
+      ShareParams(files: [XFile(dosya.path)], text: kMarkaYazi),
     );
     return true;
   } catch (e) {

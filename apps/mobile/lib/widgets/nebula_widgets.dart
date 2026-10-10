@@ -13,10 +13,27 @@ export '../theme/rytho_glyphs.dart' show kSignGlyphs;
 
 /// Basınca 0.96'ya küçülen + hafif haptic veren sarmalayıcı — v3 hareket
 /// dilinin standart "dokunuş" tepkisi.
+///
+/// Erişilebilirlik rolü BURADA, çağıran yerde değil: 41 çağrı yeri vardı
+/// ve hiçbiri rol vermiyordu; TalkBack ana ekranın üst şeridini "etiketsiz"
+/// okuyordu (çıplak `GestureDetector` ekran okuyucuya düğme olduğunu
+/// söylemez). `MergeSemantics` çocuğun metnini düğümle birleştirir —
+/// metin taşıyan 41 yer etiketi bedavaya alır; yalnız ikon taşıyanlar
+/// [semanticLabel] geçer. `onTap` yoksa rol de yok: dokunulamayan şeyi
+/// "düğme" diye duyurmak, hiç duyurmamaktan kötü.
 class Pressable extends StatefulWidget {
-  const Pressable({super.key, required this.child, this.onTap});
+  const Pressable({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.semanticLabel,
+  });
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Ekran okuyucunun duyacağı ad. Çocuk zaten metin taşıyorsa gerekmez
+  /// (birleştirilir); ikon-tek yüzeylerde ŞART.
+  final String? semanticLabel;
 
   @override
   State<Pressable> createState() => _PressableState();
@@ -27,22 +44,33 @@ class _PressableState extends State<Pressable> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap != null ? (_) => setState(() => _pressed = true) : null,
-      onTapCancel: () => setState(() => _pressed = false),
-      onTapUp: widget.onTap != null
-          ? (_) {
-              setState(() => _pressed = false);
-              HapticFeedback.lightImpact();
-              widget.onTap!();
-            }
-          : null,
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: widget.child,
+    final dokunulur = widget.onTap != null;
+    return MergeSemantics(
+      child: Semantics(
+        button: dokunulur,
+        enabled: dokunulur,
+        label: widget.semanticLabel,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: dokunulur ? (_) => setState(() => _pressed = true) : null,
+          onTapCancel: () => setState(() => _pressed = false),
+          onTapUp: dokunulur
+              ? (_) {
+                  setState(() => _pressed = false);
+                  HapticFeedback.lightImpact();
+                  widget.onTap!();
+                }
+              : null,
+          child: AnimatedScale(
+            scale: _pressed ? 0.96 : 1.0,
+            // Örtük animatör: `reduceMotion` yalnız `.animate()` zincirlerini
+            // kapatıyordu, basma ölçeği kapısızdı. `kapili` hareket azaltmada
+            // süreyi sıfırlar.
+            duration: kapili(context, RythoMotion.press),
+            curve: RythoMotion.settle,
+            child: widget.child,
+          ),
+        ),
       ),
     );
   }
@@ -145,8 +173,8 @@ class ZodiacChip extends StatelessWidget {
       onTap: onTap,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
+          duration: kapili(context, RythoMotion.base),
+          curve: RythoMotion.enter,
           width: size,
           height: size,
           alignment: Alignment.center,
@@ -186,84 +214,10 @@ class ZodiacChip extends StatelessWidget {
 // ÖTESİNDE değişiyordu. Satış mesajı artık yalnızca `PlusLockedCard`'da —
 // yani kullanıcının kilitli içeriğe baktığı yerde.
 
-/// Animasyonlu degrade ilerleme çubuğu — 800ms'de dolar.
-class GradientProgressBar extends StatelessWidget {
-  const GradientProgressBar({
-    super.key,
-    required this.label,
-    required this.percent,
-    this.delay = Duration.zero,
-    this.color,
-  });
-
-  final String label;
-  final int percent; // 0..100
-  final Duration delay;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = color ?? RythoColors.magenta;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Eski hâl `Row` + `Spacer` idi: iki metin de esnemiyordu, uzun
-        // etiket (sunucudan gelen eksen adı) + yüzde dar ekranda satırı
-        // taşırıyordu. `Wrap` sığdığında aynı görünür, sığmadığında yüzdeyi
-        // alt satıra indirir. `SizedBox`: Wrap gevşek kısıtta büzülür ve
-        // `spaceBetween` yayacak boşluk bulamaz.
-        SizedBox(
-          width: double.infinity,
-          child: Wrap(
-            spacing: RythoSpace.md,
-            runSpacing: 2,
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.end,
-            children: [
-              Text(label, style: RythoText.body(13, w: FontWeight.w600)),
-              Text('%$percent', style: RythoText.mono(12, color: accent))
-                  .animate(delay: delay)
-                  .fadeIn(duration: 500.ms),
-            ],
-          ),
-        ),
-        const SizedBox(height: 7),
-        LayoutBuilder(
-          builder: (_, constraints) => Stack(children: [
-            Container(
-              height: 7,
-              width: constraints.maxWidth,
-              decoration: BoxDecoration(
-                color: RythoColors.inkLighter,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            Container(
-              height: 7,
-              width: constraints.maxWidth * (percent.clamp(0, 100) / 100),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    colors: [RythoColors.violet, accent]),
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: [
-                  BoxShadow(
-                      color: accent.withValues(alpha: 0.4), blurRadius: 8),
-                ],
-              ),
-            )
-                .animate(delay: delay)
-                .scaleX(
-                    begin: 0,
-                    end: 1,
-                    alignment: Alignment.centerLeft,
-                    duration: 800.ms,
-                    curve: Curves.easeOutCubic),
-          ]),
-        ),
-      ]),
-    );
-  }
-}
+// `GradientProgressBar` SİLİNDİ (D3): ölçüldü, `lib/` altında sıfır çağıran
+// kalmıştı — özellikler sayfası yüzdeyi kesre çevirince (bkz.
+// `atlas_detail_test` "kesir olarak gosterilir") çubuğun tüketicisi
+// kalmadı. Okuyucusu olmayan şey ısıtılmaz, çizilmez de.
 
 /// "Yazıyor..." üç nokta animasyonu — sohbette Rytho yanıt beklerken.
 class TypingDots extends StatefulWidget {
@@ -275,9 +229,8 @@ class TypingDots extends StatefulWidget {
 
 class _TypingDotsState extends State<TypingDots>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 900))
-    ..repeat();
+  late final AnimationController _controller =
+      AnimationController(vsync: this, duration: RythoMotion.typing)..repeat();
 
   @override
   void dispose() {
@@ -340,31 +293,46 @@ class StreakBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (count <= 0) return const SizedBox.shrink();
-    return Container(
+    final rozet = Container(
       padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14, vertical: compact ? 5 : 8),
       decoration: BoxDecoration(
         color: RythoColors.gold.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(RythoRadius.pill),
         border: Border.all(color: RythoColors.gold.withValues(alpha: 0.4)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text('🔥', style: TextStyle(fontSize: compact ? 12 : 15)),
-        const SizedBox(width: 4),
+        Text('🔥', style: RythoText.emoji(compact ? 12 : 15)),
+        const SizedBox(width: RythoSpace.xs),
         Text(AppLocalizations.of(context).streakDays(count),
             style: RythoText.label(compact ? 11 : 13, color: RythoColors.goldBright)),
       ]),
-    ).animate().scale(
+    );
+    // Giriş animasyonu kapısızdı: hareket azaltmada da şişerek geliyordu.
+    if (reduceMotion(context)) return rozet;
+    return rozet.animate().scale(
         begin: const Offset(0.7, 0.7),
-        curve: Curves.easeOutBack,
-        duration: 400.ms);
+        curve: RythoMotion.pop,
+        duration: RythoMotion.celebrate);
   }
 }
 
 /// Öneri çipi: sohbette tıklanınca gönderilen hazır sorular.
+///
+/// [selected] tek yerde: geri bildirimin `_EkranCipi`si ve günlüğün emoji
+/// çipleri aynı "seçili çip" görünümünü ayrı ayrı elle yazıyordu; üçü
+/// zamanla ayrışırdı. Seçili hâl degrade DEĞİL — degrade ve glow eyleme
+/// ait (bkz. `login_hierarchy_test`); çip bir DURUM gösterir, ince lila
+/// kontur + hafif dolgu yeter.
 class SuggestionChip extends StatelessWidget {
-  const SuggestionChip({super.key, required this.text, required this.onTap});
+  const SuggestionChip({
+    super.key,
+    required this.text,
+    required this.onTap,
+    this.selected = false,
+  });
   final String text;
   final VoidCallback onTap;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -373,9 +341,12 @@ class SuggestionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: RythoColors.inkLight,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: RythoColors.lilac.withValues(alpha: 0.30)),
+          color: selected
+              ? RythoColors.lilac.withValues(alpha: 0.18)
+              : RythoColors.inkLight,
+          borderRadius: BorderRadius.circular(RythoRadius.pill),
+          border: Border.all(
+              color: RythoColors.lilac.withValues(alpha: selected ? 0.9 : 0.30)),
         ),
         child: Text(text, style: RythoText.body(12.5, w: FontWeight.w600)),
       ),

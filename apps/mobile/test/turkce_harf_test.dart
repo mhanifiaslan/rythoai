@@ -88,8 +88,7 @@ void main() {
       'lib/features/profile/delete_account.dart',
       'lib/features/profile/legal_page.dart',
       'lib/features/profile/profile_screen.dart',
-      'lib/features/share/share_card.dart',
-      'lib/widgets/basis_sheet.dart',
+      // basis_sheet.dart D5'te temizlendi (OlcumSatiri etiketi birebir).
       'lib/widgets/city_search_field.dart',
     };
     test('listede olmayan dosyada çıplak çağrı yok', () {

@@ -20,7 +20,7 @@ void main() {
       // İstek anında bayrak HENÜZ yazılmamış olmalı.
       sira.add('istek');
       expect(await notificationPromptShown(), isFalse);
-      return true;
+      return IzinSonucu.verildi;
     });
     sira.add('bitti');
     expect(sira, ['istek', 'bitti']);
@@ -39,13 +39,30 @@ void main() {
     expect(await notificationPromptShown(), isFalse);
   });
 
+  // Senaryo 99 (test-raporu): "sonraki açılışta yeniden sorulur". Bayrak
+  // her dönüşte yazılıyordu; OS diyaloğu hiç açılmadan dönen istek de
+  // "soruldu" sayılıyor ve ana ekrandaki ikinci şans hiç çalışmıyordu.
+  test('soru SORULAMADIYSA bayrak yazılmaz — ikinci şans yaşar', () async {
+    SharedPreferences.setMockInitialValues({});
+    await ensureNotificationPermissionAsked(
+        requester: () async => IzinSonucu.sorulamadi);
+    expect(await notificationPromptShown(), isFalse);
+  });
+
+  test('ret de bir KARAR: bayrak yazılır, bir daha sorulmaz', () async {
+    SharedPreferences.setMockInitialValues({});
+    await ensureNotificationPermissionAsked(
+        requester: () async => IzinSonucu.reddedildi);
+    expect(await notificationPromptShown(), isTrue);
+  });
+
   test('ikinci çağrı no-op: istek bir daha koşmaz', () async {
     SharedPreferences.setMockInitialValues(
         {'notificationPermissionAsked': true});
     var cagri = 0;
     await ensureNotificationPermissionAsked(requester: () async {
       cagri++;
-      return true;
+      return IzinSonucu.verildi;
     });
     expect(cagri, 0);
   });

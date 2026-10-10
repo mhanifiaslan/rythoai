@@ -21,6 +21,8 @@ import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/star_burst.dart';
 import '../profile/legal_page.dart';
+import 'ozellik_katalogu.dart';
+import 'paywall_acilis.dart';
 
 /// RYTHO+ paywall.
 ///
@@ -29,10 +31,18 @@ import '../profile/legal_page.dart';
 /// yapılacağı ve "Satın alımları geri yükle" seçeneği. Bunlar süsleme değil,
 /// eksikse inceleme reddi sebebidir.
 class PaywallScreen extends ConsumerStatefulWidget {
-  const PaywallScreen({super.key, this.reason});
+  const PaywallScreen({super.key, this.reason, this.kaynak, this.ozellik});
 
   /// Kilitli uçtan dönen açıklama ("… Rytho+ aboneliğine dahildir").
   final String? reason;
+
+  /// Hangi yüzeyden açıldı — analitik etiketi buradan (`paywallEtiketi`).
+  /// `null`: eski çağrı yeri, etiket `reason`dan türetilir.
+  final PaywallKaynak? kaynak;
+
+  /// Hangi özelliğin kilidine basıldı — `null`: genel giriş. Ekranın bunu
+  /// ne yapacağı (ilgili faydayı öne almak) D7'de; burada yalnız taşınır.
+  final PlusOzellik? ozellik;
 
   @override
   ConsumerState<PaywallScreen> createState() => _PaywallScreenState();
@@ -91,10 +101,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   @override
   void initState() {
     super.initState();
-    // `reason` yalnızca kilitli bir uçtan 402 dönünce dolu gelir; boşsa
-    // paywall ilk değerden sonra kendiliğinden açılmıştır. İkisini ayırmak,
-    // hangi girişin dönüştüğünü ölçmenin tek yolu.
-    Analytics.paywallShown(widget.reason == null ? 'intro' : 'locked');
+    // Etiket kaynaktan: hangi yüzeyin dönüştürdüğü ancak böyle ölçülür.
+    // Kaynak taşımayan eski çağrı yerleri için iki değerli kural
+    // `paywallEtiketi`nin içinde duruyor.
+    Analytics.paywallShown(paywallEtiketi(widget.kaynak, widget.reason));
   }
 
   /// Faydalar dile göre üretildiği için const olamaz.

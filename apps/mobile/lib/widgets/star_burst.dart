@@ -1,10 +1,65 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../theme/rytho_theme.dart';
 import '../theme/rytho_tokens.dart';
 import 'motion.dart';
+
+/// Kutlama sarmalayıcısı: [child] arkasında mini [StarBurst], önde
+/// 1→1,25→0,8 ölçek vuruşu. Net ölçek 1,0 (1,25 × 0,8): ikinci faz bir
+/// küçülme değil, şişen rozeti yerine oturtan geri dönüş.
+///
+/// NEDEN tek yerde: `sky_screen`de seri rozeti ve keşif halkası aynı Stack
+/// + OverflowBox + iki fazlı scale zincirini birebir kopya taşıyordu
+/// (496-521 = 561-586). İki kopya ayrışır; kutlamanın tek tanımı burada.
+///
+/// [celebrate] false ya da hareket azaltma açıkken çocuk ÇIPLAK döner —
+/// ne patlama ne Animate. Kutlamanın bilgisini taşıyan şey hareket değil,
+/// rozetin kendisi (yeni sayı / dolmuş halka).
+///
+/// Aynı [celebrate] değeriyle yeniden kutlamak için [key] değiştirilir
+/// (ör. `ValueKey('seri-$sayi')`): Animate zinciri yeni anahtarla baştan
+/// kurulur, aksi hâlde ikinci artış sessiz geçer.
+class Kutlama extends StatelessWidget {
+  const Kutlama({super.key, required this.child, required this.celebrate});
+
+  final Widget child;
+  final bool celebrate;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!celebrate || reduceMotion(context)) return child;
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        // Çocuk küçük (26-40 px); patlama onun kutusuna sığmaz, taşarak çizilir.
+        const Positioned.fill(
+          child: OverflowBox(
+            maxWidth: 100,
+            maxHeight: 100,
+            child: StarBurst(size: 100, particles: 12),
+          ),
+        ),
+        child
+            .animate()
+            .scale(
+                begin: const Offset(1, 1),
+                end: const Offset(1.25, 1.25),
+                duration: RythoMotion.celebrate,
+                curve: RythoMotion.pop)
+            .then()
+            .scale(
+                begin: const Offset(1, 1),
+                end: const Offset(0.8, 0.8),
+                duration: RythoMotion.celebrate,
+                curve: RythoMotion.settle),
+      ],
+    );
+  }
+}
 
 /// Tek atışlık yıldız patlaması (R12-C1) — StarfieldBackground boyacısının
 /// torunu. Hazır Lottie konfetisi yerine markanın kendi parçacık dili:

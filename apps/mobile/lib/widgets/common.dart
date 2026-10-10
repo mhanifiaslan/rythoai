@@ -14,7 +14,10 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+// `when` bir uzantı metodu; yalnız `AsyncValue` gösterilirse derlenmez.
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/api.dart' show friendlyError;
 import '../features/profile/feedback_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
@@ -152,6 +155,70 @@ class ErrorCard extends StatelessWidget {
     return kart
         .animate()
         .shake(hz: 3, offset: const Offset(3, 0), duration: 400.ms);
+  }
+}
+
+/// Sayfa içi asenkron bölüm: yükleniyor → iskelet, hata → [ErrorCard],
+/// veri → [veri], boş veri → hiçbir şey.
+///
+/// NEDEN: ana ekranda sinyal ve takvim bölümleri `provider.value ?? []`
+/// okuyup boşsa kendini gizliyordu (sky_screen, calendar_strip). Hata da
+/// `value == null` olduğu için AYNI yoldan geçiyordu — "bugün sinyal yok"
+/// ile "yükleme düştü" ekranda ayırt edilemiyordu ve kullanıcı düşen bir
+/// isteği yeniden deneyemiyordu. Üç hâl tek yerde ayrılınca her bölümün
+/// kendi `when`ini yazıp hata dalını unutması mümkün değil.
+///
+/// Aşağı çekme tazelemesinde (`ref.refresh`) iskelet FLAŞLAMAZ: eldeki
+/// veri yeni veri gelene kadar ekranda kalır (`skipLoadingOnRefresh`).
+/// Yüklenirken boş kutu ya da iskelet görünmesi düzeni zıplatır.
+class AsyncBolum<T> extends StatelessWidget {
+  const AsyncBolum({
+    super.key,
+    required this.durum,
+    required this.veri,
+    required this.onRetry,
+    this.iskeletYuksekligi = 96,
+    this.bosMu,
+    this.ekranKodu,
+  });
+
+  final AsyncValue<T> durum;
+
+  /// Veri geldiğinde çizilecek gövde.
+  final Widget Function(T) veri;
+
+  /// Hata kartındaki "Tekrar dene" — çağıran sağlayıcıyı geçersiz kılar.
+  final VoidCallback onRetry;
+
+  /// Yükleme iskeletinin yüksekliği; bölümün gerçek hacmine yakın olmalı
+  /// ki cevap gelince düzen zıplamasın.
+  final double iskeletYuksekligi;
+
+  /// Veri "boş" sayılır mı — boşsa bölüm kendini gizler (sinyal listesi
+  /// boşken ana ekran bölümsüz ayakta durur). Verilmezse veri hep çizilir.
+  final bool Function(T)? bosMu;
+
+  /// "Bu ekranı bildir" için ekran kodu. VERİLİRSE bildir düğmesi açılır;
+  /// verilmezse kapalı — bölüm hatası ekranın tamamı değil, her geçici
+  /// düşüşte bildir çağrısı gürültü olur. Ekranını adlandıran çağıran bu
+  /// kararı bilerek veriyor.
+  final String? ekranKodu;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return durum.when(
+      skipLoadingOnRefresh: true,
+      loading: () => SkeletonPanel(height: iskeletYuksekligi),
+      error: (e, _) => ErrorCard(
+        message: friendlyError(e, l10n),
+        onRetry: onRetry,
+        screen: ekranKodu,
+        reportable: ekranKodu != null,
+      ),
+      data: (v) =>
+          bosMu?.call(v) == true ? const SizedBox.shrink() : veri(v),
+    );
   }
 }
 

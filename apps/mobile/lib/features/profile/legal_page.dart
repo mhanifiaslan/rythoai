@@ -1,11 +1,36 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
+import 'legal_texts.dart';
 
 export 'legal_texts.dart'
     show LegalSections, privacyPolicySections, termsOfUseSections;
+
+/// Hangi hukuk metni.
+enum LegalDoc { terms, privacy }
+
+/// Hukuk metnini açar — ÜÇ çağıranın tek kapısı.
+///
+/// NEDEN: giriş ekranı, sihirbazın karşılama adımı ve profil üç ayrı yoldan
+/// `LegalPage` kuruyordu; sihirbaz dili `ingilizce ? en : tr` sabitleriyle
+/// seçiyor, ötekiler `*Sections(dil)` sarmalını çağırıyordu. Dil seçimi
+/// zaten `legal_texts.dart`'ta tek yerde; başlık + bölüm eşlemesi de tek
+/// yerde dursun ki yarın bir dil daha eklenince üç çağıran değil bir
+/// fonksiyon değişsin.
+void openLegal(BuildContext context, LegalDoc doc) {
+  final l10n = AppLocalizations.of(context);
+  final dil = Localizations.localeOf(context).languageCode;
+  final (baslik, bolumler) = switch (doc) {
+    LegalDoc.terms => (l10n.termsOfUse, termsOfUseSections(dil)),
+    LegalDoc.privacy => (l10n.privacyPolicy, privacyPolicySections(dil)),
+  };
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => LegalPage(title: baslik, sections: bolumler),
+  ));
+}
 
 /// Sade cam panelli hukuki metin görüntüleyici.
 /// Metinler dile göre `legal_texts.dart` içinden gelir.

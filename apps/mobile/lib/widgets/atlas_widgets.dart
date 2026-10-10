@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
+import '../theme/rytho_tokens.dart';
 import 'glass.dart';
 import 'markdown_text.dart';
 import 'motion.dart';
@@ -49,6 +50,19 @@ class Plaque extends StatelessWidget {
 /// birincil değildir.
 ///
 /// Adı tarihsel (v1 "altın buton"); renk v3'te mor.
+///
+/// **Degrade `ctaGradient`, `primaryGradient` DEĞİL** (sahip kararı K5):
+/// beyaz metin `primaryGradient`'ın magenta ucunda 3,36:1 ölçüldü, AA
+/// eşiği 4,5. Bu düğme METİN taşıyor, o yüzden koyu kardeşe geçti (her
+/// durak ≥ 4,6, `kontrast_test` bekçili). Dekoratif yüzeyler (dock merkezi,
+/// avatar halkası) `primaryGradient`'ta kalır — onların üstünde metin yok.
+///
+/// `destructive: true` → hesap silme gibi geri dönüşsüz eylem: düz
+/// `madder` dolgu, degrade YOK, glow YOK (design-system: "hesap silme:
+/// süs yok" — parıltı davet eder, bu eylem davet edilmez). Metin `ink`:
+/// `onGradient` (beyaz) madder üstünde 2,74:1 ölçüldü — AA'nın (4,5)
+/// altı, büyük metin eşiğinin (3,0) bile altı. `ink` 7,29:1. K5'in
+/// gerekçesi tam da buydu: metin taşıyan yüzey, metnin okunduğu renkte.
 class GoldButton extends StatefulWidget {
   const GoldButton({
     super.key,
@@ -56,6 +70,7 @@ class GoldButton extends StatefulWidget {
     this.onPressed,
     this.busy = false,
     this.filled = true,
+    this.destructive = false,
     this.icon,
   });
 
@@ -65,6 +80,9 @@ class GoldButton extends StatefulWidget {
 
   /// `false` → ikincil ağırlık. Bir ekranda yalnızca BİR tane `true` olmalı.
   final bool filled;
+
+  /// Yıkıcı eylem (hesap silme). `filled`in önüne geçer: ne degrade ne glow.
+  final bool destructive;
 
   /// Metnin solunda küçük bir işaret (ör. sağlayıcı logosu).
   final Widget? icon;
@@ -79,6 +97,24 @@ class _GoldButtonState extends State<GoldButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null && !widget.busy;
+    final yikici = widget.destructive;
+    final birincil = widget.filled && !yikici;
+
+    // Dolgu tek yerde çözülür; dört hâl (devre dışı / yıkıcı / birincil /
+    // ikincil) birbirini dışlar. Devre dışı hâl eskiden "iki durağı aynı
+    // olan degrade" idi — degrade sayan bekçiler onu birincil sanırdı.
+    final Gradient? degrade = birincil && enabled ? RythoColors.ctaGradient : null;
+    final Color? dolgu = degrade != null
+        ? null
+        : (yikici && enabled ? RythoColors.madder : RythoColors.inkLighter);
+    final Color metin = !enabled
+        ? RythoColors.parchmentDim
+        : yikici
+            ? RythoColors.ink
+            : birincil
+                ? RythoColors.onGradient
+                : RythoColors.parchment;
+
     return GestureDetector(
       onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
       onTapCancel: () => setState(() => _pressed = false),
@@ -89,66 +125,67 @@ class _GoldButtonState extends State<GoldButton> {
               widget.onPressed!();
             }
           : null,
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: Container(
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: widget.filled
-                ? (enabled
-                    ? RythoColors.primaryGradient
-                    : const LinearGradient(colors: [
-                        RythoColors.inkLighter,
-                        RythoColors.inkLighter,
-                      ]))
-                : null,
-            color: widget.filled ? null : RythoColors.inkLighter,
-            border: Border.all(
-              color: widget.filled
-                  ? Colors.white.withValues(alpha: 0.12)
-                  : RythoColors.lilac.withValues(alpha: 0.26),
+      // Rol ve etiket düğümde: meşgulken metin yerine usturlap çiziliyor,
+      // yani ekran okuyucu etiketi ÇOCUKTAN alamaz — düğüm taşır.
+      // `excludeSemantics`: çocuk metni ayrıca duyurulursa etiket iki kez
+      // okunur. Jest dedektörü dışarıda kalır ki dokunma eylemi düğüme
+      // birleşsin. `liveRegion` meşguliyette açılır: düğme devre dışına
+      // düşerken düğüm canlı bölge olur, etiket korunur.
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        liveRegion: widget.busy,
+        label: widget.text,
+        excludeSemantics: true,
+        child: AnimatedScale(
+          scale: _pressed ? 0.96 : 1.0,
+          duration: kapili(context, RythoMotion.press),
+          curve: RythoMotion.settle,
+          child: Container(
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: degrade,
+              color: dolgu,
+              border: Border.all(
+                color: birincil || yikici
+                    ? RythoColors.onGradient.withValues(alpha: 0.12)
+                    : RythoColors.lilac.withValues(alpha: 0.26),
+              ),
+              // Glow YALNIZCA birincilde. İkincil butonun da parlaması,
+              // hiyerarşiyi yeniden siler; yıkıcının parlaması davet eder.
+              boxShadow: birincil && enabled
+                  ? const [
+                      BoxShadow(
+                          color: RythoColors.goldGlow,
+                          blurRadius: 22,
+                          spreadRadius: -4)
+                    ]
+                  : null,
             ),
-            // Glow YALNIZCA birincilde. İkincil butonun da parlaması,
-            // hiyerarşiyi yeniden siler.
-            boxShadow: widget.filled && enabled
-                ? const [
-                    BoxShadow(
-                        color: RythoColors.goldGlow,
-                        blurRadius: 22,
-                        spreadRadius: -4)
-                  ]
-                : null,
-          ),
-          child: widget.busy
-              ? const SizedBox(
-                  width: 22, height: 22, child: AstrolabeSpinner(size: 22))
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.icon != null) ...[
-                      widget.icon!,
-                      const SizedBox(width: 10),
+            child: widget.busy
+                ? const SizedBox(
+                    width: 22, height: 22, child: AstrolabeSpinner(size: 22))
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.icon != null) ...[
+                        widget.icon!,
+                        const SizedBox(width: 10),
+                      ],
+                      // Düğme metni esnemiyordu: bu düğme yer yer sabit
+                      // genişlikli kutuya (ör. `SizedBox(width: 104)`)
+                      // konuyor; uzun etiket + büyük yazı ölçeğinde sağdan
+                      // taşıyordu. `Flexible` metni sarmalarına izin verir.
+                      Flexible(
+                        child: Text(widget.text,
+                            textAlign: TextAlign.center,
+                            style: RythoText.label(14, color: metin)),
+                      ),
                     ],
-                    // Düğme metni esnemiyordu: bu düğme yer yer sabit
-                    // genişlikli kutuya (ör. `SizedBox(width: 104)`)
-                    // konuyor; uzun etiket + büyük yazı ölçeğinde sağdan
-                    // taşıyordu. `Flexible` metni sarmalarına izin verir.
-                    Flexible(
-                      child: Text(widget.text,
-                          textAlign: TextAlign.center,
-                          style: RythoText.label(14,
-                              color: enabled
-                                  ? (widget.filled
-                                      ? Colors.white
-                                      : RythoColors.parchment)
-                                  : RythoColors.parchmentDim)),
-                    ),
-                  ],
-                ),
+                  ),
+          ),
         ),
       ),
     );
@@ -277,7 +314,8 @@ class AstrolabeSpinner extends StatefulWidget {
 class _AstrolabeSpinnerState extends State<AstrolabeSpinner>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+      AnimationController(vsync: this, duration: RythoMotion.spinnerTur)
+        ..repeat();
 
   @override
   void dispose() {

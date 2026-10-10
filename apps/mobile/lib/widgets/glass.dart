@@ -38,12 +38,60 @@ class SkeletonPanel extends StatelessWidget {
     );
     if (reduceMotion(context)) return blok;
     return blok.animate(onPlay: (c) => c.repeat()).shimmer(
-        duration: 1200.ms,
+        duration: RythoMotion.shimmer,
         color: RythoColors.lilac.withValues(alpha: 0.08));
   }
 }
 
-/// v3 kart: koyu mor dolgu, 20px köşe, %6 beyaz kontur, üst kenar ışığı.
+/// Sayfa iskeleti: alt alta [SkeletonPanel] blokları, kaydırılabilir.
+///
+/// NEDEN: aynı üç bloklu `_Iskelet` üç ekranda birebir kopyaydı
+/// (solar_return, inner_calendar, birth_hexagram), BaZi bir türevini,
+/// sohbet listesi de dört eşit satırlık hâlini taşıyordu. Beş kopya beş
+/// ayrı alt boşluk demekti; şimdi tek kaynak ve alt boşluk dock payını
+/// token'dan alıyor (kopyalar 120 yazıyordu, dock'un ölçülmüş payı 130).
+///
+/// Yükseklikler sayfanın GERÇEK bölüm hacimlerini taklit etmeli ki cevap
+/// gelince düzen zıplamasın — varsayılan üçlü, kapı bilinmeyen rapor
+/// sayfalarının ölçüsü.
+class SkeletonList extends StatelessWidget {
+  const SkeletonList({
+    super.key,
+    this.heights = const [150, 110, 90],
+    this.padding,
+  });
+
+  /// Blokların yükseklikleri, üstten alta.
+  final List<double> heights;
+
+  /// Liste dolgusu; verilmezse üstte küçük nefes, altta dock payı.
+  final EdgeInsets? padding;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+        padding: padding ??
+            const EdgeInsets.only(
+                top: RythoSpace.sm, bottom: RythoSpace.dockClearance),
+        children: [for (final h in heights) SkeletonPanel(height: h)],
+      );
+}
+
+/// Kart dolgusunun tonu.
+///
+/// NEDEN: yedi yerde çıplak `Container(color: inkLighter)` kart kabı vardı
+/// (friends ×4, person_form ×2, person_detail ×1) — kontur, üst kenar ışığı
+/// ve köşe yarıçapı her birinde elle tekrarlanıyor ya da eksik kalıyordu.
+/// Ton bir parametre olunca kap tek, yalnız dolgu değişiyor.
+enum GlassTone {
+  /// Standart kart: hafif saydam koyu mor (`glassFill`).
+  base,
+
+  /// Yükseltilmiş yüzey: kart ÜSTÜNDE duran iç kart, giriş alanı zemini
+  /// (`inkLighter`). Saydam değil — altındaki kartın dolgusuyla karışmasın.
+  raised,
+}
+
+/// v3 kart: koyu mor dolgu, 22px köşe, %6 beyaz kontur, üst kenar ışığı.
 /// Adı tarihsel — artık blur zorunlu değil (blur: 0 varsayılan davranış
 /// için performans dostu düz dolgu kullanılır).
 class GlassPanel extends StatelessWidget {
@@ -53,10 +101,11 @@ class GlassPanel extends StatelessWidget {
     this.label,
     this.padding = const EdgeInsets.all(16),
     this.margin = const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    this.radius = 22,
+    this.radius = RythoRadius.card,
     this.blur = 0,
     this.glow = false,
     this.onTap,
+    this.tone = GlassTone.base,
   });
 
   final Widget child;
@@ -67,6 +116,9 @@ class GlassPanel extends StatelessWidget {
   final double blur;
   final bool glow;
   final VoidCallback? onTap;
+
+  /// Dolgu tonu — bkz. [GlassTone].
+  final GlassTone tone;
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +131,9 @@ class GlassPanel extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: borderRadius,
-            color: RythoColors.glassFill,
+            color: tone == GlassTone.raised
+                ? RythoColors.inkLighter
+                : RythoColors.glassFill,
             border: Border.all(color: RythoColors.glassStroke),
           ),
           child: Column(
@@ -222,7 +276,7 @@ class _CenterAiButton extends StatefulWidget {
 class _CenterAiButtonState extends State<_CenterAiButton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulse = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 3000))
+      vsync: this, duration: RythoMotion.breath)
     // Tek yönlü döngü: faz 0→1, sonra başa. `ChatBubblesIcon` t=0 ile
     // t=1'de AYNI kareyi çizdiği için dikiş görünmez. Süre 1600'den
     // 3000'e çıktı — geri sarma kalkınca tam tur yarı yarıya kısalırdı.
@@ -351,53 +405,77 @@ class GlassSegments extends StatelessWidget {
   const GlassSegments({
     super.key,
     required this.labels,
-    required this.index,
+    this.index,
     required this.onChanged,
+    this.compact = false,
   });
 
   final List<String> labels;
-  final int index;
+
+  /// Seçili segment; `null` = hiçbiri seçili. NEDEN nullable: cinsiyet
+  /// seçici gibi "henüz seçilmedi" hâli olan formlar ilk açılışta bir
+  /// segmenti seçili GÖSTEREMEZ — kullanıcı seçmediği şeyi beyan etmiş
+  /// olurdu (ölçülmeyen söylenmez). Eski çağıranlar `index: 0` geçmeye
+  /// devam ediyor.
+  final int? index;
   final ValueChanged<int> onChanged;
+
+  /// Sıkışık boy: 36 dp, 11 pt etiket. Form içi seçiciler (cinsiyet, saat
+  /// biliniyor mu) tam boy sekme çubuğunun ağırlığını taşımamalı.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 42,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(4),
+      height: compact ? 36 : 42,
+      margin: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
+      padding: const EdgeInsets.all(RythoSpace.xs),
       decoration: BoxDecoration(
         color: RythoColors.glassFill,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(RythoRadius.md),
         border: Border.all(color: RythoColors.glassStroke),
       ),
       child: Row(children: [
         for (var i = 0; i < labels.length; i++)
           Expanded(
-            child: GestureDetector(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onChanged(i);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  // Degrade ve glow YOK — bkz. sınıf açıklaması.
-                  color: index == i
-                      ? RythoColors.parchment.withValues(alpha: 0.10)
-                      : null,
-                  borderRadius: BorderRadius.circular(12),
+            // Ekran okuyucu her segmenti "düğme, seçili" diye duymalı;
+            // çıplak Text yalnız metni okur ve kullanıcı hangi sekmede
+            // olduğunu bilemez. Alt ağaç dışlanır ki etiket iki kez
+            // okunmasın (Semantics + Text).
+            child: Semantics(
+              button: true,
+              selected: index == i,
+              label: labels[i],
+              excludeSemantics: true,
+              onTap: () => _sec(i),
+              child: GestureDetector(
+                onTap: () => _sec(i),
+                child: AnimatedContainer(
+                  duration: kapili(context, RythoMotion.base),
+                  curve: RythoMotion.enter,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    // Degrade ve glow YOK — bkz. sınıf açıklaması.
+                    color: index == i
+                        ? RythoColors.parchment.withValues(alpha: 0.10)
+                        : null,
+                    borderRadius: BorderRadius.circular(RythoRadius.sm),
+                  ),
+                  child: Text(labels[i],
+                      style: RythoText.label(compact ? 11 : 12,
+                          color: index == i
+                              ? RythoColors.parchment
+                              : RythoColors.parchmentDim)),
                 ),
-                child: Text(labels[i],
-                    style: RythoText.label(12,
-                        color: index == i
-                            ? RythoColors.parchment
-                            : RythoColors.parchmentDim)),
               ),
             ),
           ),
       ]),
     );
+  }
+
+  void _sec(int i) {
+    HapticFeedback.selectionClick();
+    onChanged(i);
   }
 }

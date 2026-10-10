@@ -29,7 +29,6 @@ import 'package:rytho/theme/rytho_theme.dart';
 import 'package:rytho/widgets/atlas_widgets.dart';
 import 'package:rytho/widgets/chart/chart_data.dart';
 import 'package:rytho/widgets/chart/chart_positions.dart';
-import 'package:rytho/widgets/nebula_widgets.dart';
 import 'package:rytho/widgets/reading_card.dart';
 
 // Harness'ı bilerek PAYLAŞIYORUZ: ölçüt (320 dp × 1,3) tek yerde durmalı,
@@ -139,23 +138,9 @@ void main() {
       expect(find.text('Kabul et ve takibe başla'), findsOneWidget);
     });
 
-    testWidgets('GradientProgressBar uzun etiket + yüzde taşmaz',
-        (tester) async {
-      await darEkranda(
-        tester,
-        const GradientProgressBar(
-          label: 'İletişim ve anlaşılma ekseni',
-          percent: 100,
-        ),
-      );
-      // Yüzde `flutter_animate` gecikmesiyle geliyor; bekleyen zamanlayıcı
-      // kalırsa test çerçevesi ağacı atarken hata verir.
-      await tester.pumpAndSettle();
-      tasmaYok(tester, neden: 'etiket + yüzde tek satıra sıkışıyor');
-      // İkisi de EKRANDA: yüzde alt satıra iner, kısaltılmaz.
-      expect(find.text('İletişim ve anlaşılma ekseni'), findsOneWidget);
-      expect(find.text('%100'), findsOneWidget);
-    });
+    // `GradientProgressBar` bekçisi KALKTI (D3): bileşen silindi — `lib/`
+    // altında sıfır çağıranı vardı, taşma bekçisi tüketicisi olmayan bir
+    // widget'ı yaşatıyordu.
 
     testWidgets('ReadingCard "devamını oku" satırı taşmaz', (tester) async {
       await darEkranda(
