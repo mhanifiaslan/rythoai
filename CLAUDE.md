@@ -160,6 +160,22 @@ kaldırıldı, yönlendirmeye çevrildi, `test_besinci_kopya_geri_dogmaz` ile
 çivilendi. Üç kopya zorunlu (mobil / web TR / web EN birleştirilemiyor),
 dördüncüsünün gerekçesi yok.
 
+**`flutter test` PARALEL koşunca `build/test_cache` bozuluyor** (ölçüldü
+2026-10-10, D4 dalgası). İki ajan aynı anda `flutter test` koşturdu; tek
+artımlı derleme önbelleği (`apps/mobile/build/test_cache/build/*.cache.dill.track.dill`)
+iki süreçten yazılınca SDK İÇİNDEN sahte `NoSuchMethodError:
+RenderEditable.promptRectRange` üretti — `TextField(autofocus: true)` olan
+her testte, proje kodu sıfırken bile. SDK 3.44.7 kaynağında o getter yok.
+Çare: `rm -rf apps/mobile/build/test_cache`. Kural: **"SDK içinde eksik
+getter/method" hatası görülürse kod suçlanmadan önce önbellek silinir.**
+
+**`animateToPage` sıfır süreyi REDDEDER** (`scroll_activity.dart:705`
+assert `duration > Duration.zero`): `kapili(context, …)` hareket azaltmada
+`Duration.zero` döndürdüğü için `animateToPage(duration: kapili(...))`
+7/7 testi düşürdü. Sıfırda `jumpToPage`'e dallanmak ŞART; sihirbazdaki
+`_sayfayaGit` bunu yapıyor, ortak yardımcı `widgets/motion.dart`'a D5'te
+taşınır (ikinci kopya `sign_story_screen.dart:113`).
+
 **Riverpod:** `FutureProvider` varsayılan `isAutoDispose = false` — yutulan
 bir hata **oturum boyunca** önbellekte kalır. Ayrıca `apiProvider`'ın
 interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
@@ -212,7 +228,39 @@ kavram için TEK bileşen kalır. Plan dosyası
 | BaZi fısıltı önbellek anahtarı cinsiyet | ✅ | `d954948` |
 | D3 paylaşılan bileşenler (4 ajan paralel; `OkumaKabi`, `acPaywall`, `ozellik_katalogu`, `IzinKapisi`…) | ✅ Flutter 1033, 57/57 mutasyon | `b9b81c7` |
 | D8-web (App Store hapı, 4 sayfa rytho.css, yorum temizliği, WebP 11,7 MB→0,6 MB, ortak EN) | ✅ pytest 2541, 31+3 mutasyon | `2be3512` |
-| D4 giriş+onboarding · D5 ana ekran+profil · D6 derinlik · D7 para · D8 cırcır+l10n+belge | bekliyor | — |
+| D4 giriş+onboarding (6 adım, önseçim yok, saat uydurulmaz, giriş sükûneti, iptal hata değil) | ✅ Flutter 1103, 48/48 mutasyon | `c16a99d` |
+| D5 ana ekran+profil · D6 derinlik · D7 para · D8 cırcır+l10n+belge | bekliyor | — |
+| **S1 sohbet personası** (plan dışı, sahip şikâyeti 2026-10-10; yalnız backend) | ⏳ 3 ajan | — |
+
+### S1 — sohbet personası kayması (ölçüldü 2026-10-10, üretim Firestore salt okuma)
+
+Sahip şikâyeti: Rytho bir yerden sonra "normal AI chat" gibi sunum hazırlamaya
+başlıyor; bazen sorulmadan "maddi konularda tavsiye veremem" diyor. Ölçüm
+(32 kullanıcı / 122 konuşma / 498 mesaj + şikâyetteki kullanıcının 76 mesajlık
+konuşması) DÖRT ayrı kusur verdi:
+
+- **A — yetki alanı yok.** `CHAT_SYSTEM_INSTRUCTION`'da "görev yardımı
+  yapma" cümlesi hiç yoktu; model önce KENDİLİĞİNDEN teklif etti ("sunumun
+  havasını tasarlamak istersen buradayım"), sonra "sunum hazırlar mısın" →
+  "taslak ve akış planı hazırlayabilirim elbette".
+- **B — yasak-alan kapısı ALT DİZE eşleşiyor** (`safety_rules.py`):
+  "**hisse**diyorum" → finans reddi, "**altın**da" → finans, "mutlu
+  **olurum**" → ölüm, "sick of my job" → sağlık. Hepsi bu makinede koşturularak
+  ölçüldü. ⚠️ Engellenen turlar `write_turn`'dan ÖNCE dönüyor → Firestore'da
+  İZ YOK; "korpusta 0 engel" demek "hiç olmadı" demek DEĞİL.
+- **C — sorulmadan çekince:** kayıtlı cevaplarda 1/498 (gerçek sağlık
+  sorusu). Görülenler B'nin ürünü + ürünün kendi para çipleri/gece soruları
+  temayı açınca modelin NEVER listesine refleks çekince eklemesi.
+- **D — HESAPLANMAMIŞ HARİTA UYDURMA (en ağır):** sohbete yazılan doğum
+  tarihlerinin 3/4'üne model Güneş/Ay burcu uydurdu ("29/04/2010 istanbul" →
+  "Güneş'i Boğa, Ay'ı Akrep"). Sohbet hiçbir şey hesaplamaz; kişi haritası
+  yalnız Çevrem'de hesaplanır. `fact_guard` bunu yakalamadı ve yeniden üretimde
+  de uydurma kalırsa metni yine kullanıcıya gönderiyor (`grounded=False`
+  yalnız önbelleği etkiliyor).
+
+Onarım S1 dalgasında (K kapı+kayıt, P yetki alanı+`persona_guard`+üçüncü
+kişi, E ölçer `tools/sohbet_olc.py`). Yayılım: yalnız backend
+(`infra/deploy-backend.ps1`), AAB gerekmez.
 
 ⚠️ **Dalga kapanış ritüeli** (üç kez işe yaradı): tam takım → ajanların
 `dokunmadigim_ama_gerekli` alanlarını TAM metin oku (dikişler orada; D0'da

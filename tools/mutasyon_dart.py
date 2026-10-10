@@ -68,10 +68,24 @@ for ajan, r in d.items():
             print(f'{ad:54s} DOSYA YOK ({yol})'); sorun.append(ad); continue
         once_sha = hashlib.sha256(ham).hexdigest()
         metin = ham.decode('utf-8')
-        if b['mutasyon_eski'] not in metin:
+        eski, yeni = b['mutasyon_eski'], b['mutasyon_yeni']
+        if yeni.startswith(('(boş', '(bos', '(satır silindi', '(satir silindi')):
+            yeni = ''
+        # Ajan kayitlarindaki serbestlikler (backend harness'iyla ayni):
+        # literal "\n" (ters bolu + n) gercek satir sonu demek; capanin
+        # sonuna eklenmis "(aciklama)" notu capanin parcasi degil.
+        if eski not in metin:
+            # Dosya CRLF ise literal "\n" gercekte "\r\n"dir (dogum_formu.dart'ta
+            # olculdu: 47/48 sonra tek "ÇAPA YOK" bu yuzdendi).
+            satir_sonu = chr(13) + chr(10) if chr(13) in metin else chr(10)
+            aday = re.sub(r'\s+\([^()]*\)\s*$', '', eski.replace(chr(92) + 'n', satir_sonu))
+            if aday in metin:
+                eski = aday
+                yeni = re.sub(r'\s+\([^()]*\)\s*$', '', yeni.replace(chr(92) + 'n', satir_sonu))
+        if eski not in metin:
             print(f'{ad:54s} ÇAPA YOK ({b["mutasyon_dosya"]})'); sorun.append(ad); continue
         io.open(yol, 'w', encoding='utf-8', newline='').write(
-            metin.replace(b['mutasyon_eski'], b['mutasyon_yeni'], 1))
+            metin.replace(eski, yeni, 1))
         kod = kos(dosya)
         open(yol, 'wb').write(ham)
         geri = hashlib.sha256(open(yol, 'rb').read()).hexdigest() == once_sha

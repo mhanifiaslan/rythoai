@@ -75,11 +75,13 @@ for ajan, r in d.items():
         # Ajan kayitlarindaki serbestlikler: literal "\n" (ters bolu + n),
         # capanin sonuna eklenmis "(aciklama)" notu.
         if eski not in metin:
-            aday = eski.replace(chr(92) + 'n', chr(10))
+            # Dosya CRLF ise literal "\n" gercekte "\r\n"dir (Dart harness'inda olculdu).
+            satir_sonu = chr(13) + chr(10) if chr(13) in metin else chr(10)
+            aday = eski.replace(chr(92) + 'n', satir_sonu)
             aday = re.sub(r'\s+\([^()]*\)\s*$', '', aday)
             if aday in metin:
                 eski = aday
-                yeni = re.sub(r'\s+\([^()]*\)\s*$', '', yeni.replace(chr(92) + 'n', chr(10)))
+                yeni = re.sub(r'\s+\([^()]*\)\s*$', '', yeni.replace(chr(92) + 'n', satir_sonu))
         if eski not in metin:
             print(f'{ad:58s} ÇAPA YOK ({b["mutasyon_dosya"]})'); sorun.append(ad); continue
         io.open(yol, 'w', encoding='utf-8', newline='').write(
