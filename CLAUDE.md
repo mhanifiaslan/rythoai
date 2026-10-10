@@ -40,8 +40,15 @@ kullanıcıya söylenmez, beyan edilmez, metne girmez. Tersi de geçerli —
 komutlar **sessizce yanlış projeye** gider. Bu bir kez yanlış bir "panelde hiç
 admin yok" blocker'ı ürettirdi.
 
-Betikler PowerShell (`.ps1`) ve macOS'ta `pwsh` ile koşar:
-`brew install --cask powershell`.
+Betikler PowerShell (`.ps1`). ⚠️ **Windows'ta `pwsh` YOK** — bu makinede
+kurulu olan Windows PowerShell **5.1** (`powershell.exe`) ve `pwsh`
+PowerShell 7'nin komutu. Betik doğrudan çağrılır:
+`.\infra\deploy-backend.ps1`. `pwsh infra/...` yazmak
+`CommandNotFoundException` verir — bu bir kez gerçekten verdi, çünkü
+`pwsh` aşağıdaki macOS satırından Windows'a taşındı. Çalıştırma politikası
+`CurrentUser = RemoteSigned`, depo dosyaları sorunsuz koşuyor.
+
+macOS'ta `pwsh` gerekir: `brew install --cask powershell`.
 
 ---
 
@@ -162,9 +169,15 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ## 6. Bugünkü durum (2026-10-02)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.18.0+48**. Backend rev
-**00107** (`2026-10-03 10:36 UTC`, trafiğin %100'ü). 46 **kapalı teste
-yüklenmiş** (30 Eylül 22:24, Console ekranından ölçüldü), 47'ye geçildi.
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.19.0+49** (henüz derlenmedi).
+Backend rev **00107** (`2026-10-03 10:36 UTC`, trafiğin %100'ü).
+
+**Kapalı testteki son sürüm 48 (1.18.0)** — 4 Ekim 20:29'da sunuldu, kanal
+Etkin, 172 ülke/bölge (Console ekranından ölçüldü 2026-10-10). Yani **48
+YANMIŞ**; sıradaki kod 49 ve `pubspec.yaml` ona ayarlandı. ⚠️ 49'un serbest
+olduğu Console'un **kapalı test** sayfasından okundu; dahili testte daha
+yüksek bir kod durursa yükleme "sürüm kodu daha önce kullanıldı" der ve
+artırmak gerekir — o sayfaya bakılmadan bilinemez.
 
 ### ⚠️ GÖNDERİLMEMİŞ İŞ İKİ YERDE BİRDEN BEKLİYOR (ölçüldü 2026-10-10)
 
