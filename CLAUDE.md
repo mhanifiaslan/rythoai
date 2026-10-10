@@ -390,13 +390,79 @@ tutmaz); **dahili testten kurulu olması saymaz**, yine basması gerekir;
 ve 14 gün boyunca **kayıtlı kalmalı** — "testten ayrıl" sayıyı düşürür ve
 sayaç geriler.
 
-**App Check zorlaması AÇILDI** (2026-09-26 08:50 UTC). Ölçülen durum:
-`firestore.googleapis.com` **ENFORCED**, `identitytoolkit.googleapis.com`
-**ENFORCED**, `firebasestorage.googleapis.com` **UNENFORCED** (kalan tek
-servis; avatar yolu). Sorgu:
+**App Check zorlaması AÇILDI** (2026-09-26). Ölçülen durum — **üç servisin
+ÜÇÜ de ENFORCED** (yeniden ölçüldü 2026-10-10):
+
+| Servis | `updateTime` |
+|---|---|
+| `identitytoolkit.googleapis.com` | `2026-09-26T08:50:52Z` |
+| `firestore.googleapis.com` | `2026-09-26T08:51:11Z` |
+| `firebasestorage.googleapis.com` | `2026-09-26T09:32:55Z` |
+
+Sorgu:
 `GET firebaseappcheck.googleapis.com/v1/projects/rhytoai/services/{servis}`
 — ADC ile çağırırken `x-goog-user-project: rhytoai` başlığı ŞART, yoksa
 kota projesi hatası döner.
+
+⚠️ **Bu notun eski hâli iki hafta yanlış kaldı** ve hatanın cinsi öğretici:
+*"`firebasestorage.googleapis.com` **UNENFORCED** (kalan tek servis)"*
+yazıyordu ve bunu "Konsol borcu" listesinde açık iş olarak taşıyordu.
+Ölçüm 08:50'de alınmış, Storage 09:32'de zorlanmış — yani **ölçüm 42
+dakika erken alındı ve bir daha tekrarlanmadı.** `updateTime` son değişiklik
+anıdır; bir servisin bugün elle açılıp açılmadığı oradan okunur. Ders:
+aynı turda yapılan işlerin HEPSİ bitmeden alınan ölçüm, "ölçüldü" damgası
+taşıdığı için bir daha sorgulanmıyor.
+
+⚠️ **İNDİRME BAĞLANTILARI App Check'ten MUAF — ölçüldü (2026-10-10), ve
+ölçme yöntemi asıl değerli kısım.** Avatar OKUMA yolu Storage SDK'sından
+HİÇ geçmiyor: `avatar_editor.dart:59` `getDownloadURL()` ile aldığı URL'yi
+Firestore'a `photoUrl` olarak yazıyor, üç ekran (`profile_screen.dart:105`,
+`sky_screen.dart:660`, `contacts_screen.dart:299`) onu **çıplak
+`NetworkImage`** ile çekiyor. O istek `dart:io` HTTP'si, App Check jetonu
+taşımıyor ve **hiçbir paket sürümünde taşıyamaz**. Buna rağmen çalışıyor:
+
+- geçerli indirme jetonuyla, App Check jetonu **olmadan** → **HTTP 200**,
+  515.625 baytlık PNG tam geliyor;
+- **aynı URL, indirme jetonu yanlış** → **401 `"Firebase App Check token
+  is invalid."`**
+
+İkinci hâl birincisini kanıtlıyor: uç App Check'i gerçekten zorluyor, ama
+geçerli bir indirme jetonu isteği kapıdan muaf geçiriyor. **Tek bir 200
+yetmezdi** — "muaf" ile "zorlama hiç çalışmıyor" ancak bu iki hâl yan yana
+konunca ayrılıyor.
+
+⚠️ Bunun **bedeli** de yazılı olsun: aynı URL `infra/storage.rules`'taki
+`allow read: if request.auth != null` kuralını da aşıyor. Yani avatar
+bağlantısı eline geçen herkes onu çekebilir. Önceden var olan tasarım,
+indirme bağlantılarının doğası — ama "Storage kuralları koruyor" diye
+yazılırsa yanlış gerekçe olur.
+
+⚠️ **Bir gün bu yol kapanırsa çözümü YENİ PAKET DEĞİL.** Jetonsuz bir
+isteği jetonlu yapmanın tek yolu okumayı SDK'ya taşımak (`ref.getData()`
+ya da backend üzerinden vekil); yeni bir AAB o satırlar değişmedikçe
+aynı jetonsuz GET'i atar.
+
+⚠️ **App Check'in depoda HİÇBİR bekçisi yok.** `main.dart:108`
+`activate()` çağrısı try/catch ile **yutuluyor**; kurulum düşse uygulama
+jetonsuz devam eder ve üç servis de zorlandığı için sessizce kapanır.
+Satır tamamen silinse ne test ne `infra/build-aab.ps1` kapısı fark eder.
+
+Kapsamın kaynağı **servis kaydı değil ÖRNEK KİMLİĞİ** — koddan doğrulandı:
+`FirebaseAppCheckPlugin.kt:46-48` sağlayıcı fabrikasını
+`FirebaseAppCheck.getInstance(FirebaseApp.getInstance(appName))` üzerine
+kuruyor, imzada servis adı geçmiyor. Mobilde **tek** `FirebaseApp` örneği
+var (`main.dart:80`), `instanceFor` ve adlandırılmış ikinci örnek hiç yok —
+yani Storage için ayrı bir etkinleştirme ne gerekiyor ne de mümkün.
+Web'deki "örnek başına" tuzağı mobilde **maddi olarak yok**; oradan buraya
+taşınan bir kaygı yanlış gerekçe olur.
+
+Backend zorlamadan **etkilenmiyor** ve sebebi kova ayrılığı DEĞİL: tek
+Storage yolu hesap silme (`account_service.py:243-266`), Admin SDK /
+servis hesabı kimliğiyle ve `storage.googleapis.com`'a gidiyor — zorlanan
+kapı `firebasestorage.googleapis.com`. ⚠️ O çağrı **best-effort**: engellense
+hiçbir yerde kırmızı görünmez, uç yine `200 deleted` döner. Tek sinyali
+`logger.warning` satırı ve silme raporunda `storageFiles` alanının HİÇ
+olmaması olur.
 
 App Check 1.15.8+43'te eklendi, yani **43 öncesi derlemeler artık
 çalışmıyor**. Açıldığı an üç hesap 43'ün altındaydı (`erkandndr@gmail.com`
@@ -509,8 +575,9 @@ teşhis kısmen YANLIŞTI ve bu bir ders: bulgu notu bir hipotezdir, onarımdan
 **Konsol borcu:** Play Console ürün adları hâlâ uygulamanın sözlüğüne
 uymuyor (makbuzda "1000 Jeton", uygulamada "1000 kredi") — girilecek tam
 metin `docs/store-launch.md`'de tabloyla hazır. Kapalı test sekmesindeki
-**geri bildirim URL'si/e-postası boş**. `firebasestorage.googleapis.com`
-App Check zorlaması hâlâ **UNENFORCED**.
+**geri bildirim URL'si/e-postası boş**.
+(App Check borcu KAPANDI — Storage da 2026-09-26'dan beri ENFORCED, bkz.
+yukarıdaki tablo. Borç listesinde iki hafta yanlış durdu.)
 (API anahtarı kısıtlaması borç DEĞİL artık — yukarıda kapatıldı.)
 
 **Geliştirici adı — çözülmemiş çelişki.** Play'in kendi opt-in sayfası
