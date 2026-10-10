@@ -251,6 +251,35 @@ def test_dogum_verisi_degisince_onbellek_gecersizlesir():
     assert chart_context._birth_digest(a) != chart_context._birth_digest(b)
 
 
+def test_onbellek_anahtari_cinsiyeti_tasir():
+    """BaZi şans dönemlerinin YÖNÜ cinsiyete bağlı (`bazi_facts` motora
+    profile["gender"] geçiyor); anahtar onu taşımazsa cinsiyetini değiştiren
+    — ya da D0'dan önce sessizce "female"a zorlanmış — kullanıcı NATAL_TTL
+    boyunca eski yönün `current_luck`ını taşır (D0'da okuyarak ölçüldü)."""
+    from services import profile_service
+
+    birth = profile_service.birth_kwargs(PROFIL)
+    a = chart_context._birth_digest({**birth, "gender": "female"})
+    b = chart_context._birth_digest({**birth, "gender": "unspecified"})
+    assert a != b
+
+
+def test_bazi_olgulari_cinsiyet_belirtilmeden_dusmuyor_ve_ayri_anahtar(
+        temiz_onbellek):
+    """İki iddia tek testte: (1) yön hesaplanmayınca `luck_pillars` boş,
+    aktif dönem None — IndexError değil; (2) AYNI uid'de cinsiyet verilince
+    dönem dolu gelir. İkincisi anahtarın cinsiyeti taşıdığının ölçümü:
+    taşımasaydı ikinci çağrı önbellekten None dönerdi."""
+    bos = chart_context.bazi_facts("u-cinsiyet", {**PROFIL, "gender": "unspecified"})
+    assert bos is not None
+    assert bos["current_luck"] is None
+    dolu = chart_context.bazi_facts("u-cinsiyet", {**PROFIL, "gender": "female"})
+    assert dolu is not None
+    assert dolu["current_luck"] is not None, (
+        "aynı uid'de cinsiyet değişince önbellek bayat kaldı — anahtar "
+        "cinsiyeti taşımıyor")
+
+
 # --------------------------------------------------------------------------
 # Onbellek — efemeris hesabi her sohbet turunda tekrarlanmamali
 # --------------------------------------------------------------------------

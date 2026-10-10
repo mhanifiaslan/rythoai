@@ -164,9 +164,15 @@ def _birth_digest(birth: dict[str, Any]) -> str:
     İsim dışarıda: haritayı etkilemez, değişmesi önbelleği boşa düşürmemeli.
     Özet kullanılıyor çünkü anahtarın kendisi ham doğum verisi taşımamalı.
     """
+    # "gender" anahtarda: BaZi şans dönemlerinin YÖNÜ cinsiyete bağlı
+    # (`bazi_facts` motora profile["gender"] geçiyor) ama anahtar onu
+    # taşımıyordu — cinsiyetini değiştiren ya da D0'dan önce sessizce
+    # "female"a zorlanmış kullanıcının fısıltısı NATAL_TTL dolana kadar
+    # eski yönün `current_luck`ını taşırdı (D0'da okuyarak ölçüldü). Natal
+    # çağıranlar cinsiyet geçmez → `None` dizesi, anahtar kararlı.
     ham = "|".join(str(birth.get(k)) for k in (
         "year", "month", "day", "hour", "minute", "city", "nation",
-        "hour_known"))
+        "hour_known", "gender"))
     return hashlib.sha256(ham.encode("utf-8")).hexdigest()[:16]
 
 
@@ -399,7 +405,9 @@ def bazi_facts(uid: str, profile: dict[str, Any]) -> dict[str, Any] | None:
     if not has_birth_data(profile):
         return None
     birth = profile_service.birth_kwargs(profile)
-    ozet = _birth_digest(birth)
+    # Cinsiyet anahtara girer; motor aşağıda aynı değeri alıyor (bkz.
+    # `_birth_digest` yorumu).
+    ozet = _birth_digest({**birth, "gender": profile.get("gender") or ""})
     bugun = dt.date.today()
 
     def uret() -> dict[str, Any]:
