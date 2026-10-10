@@ -162,9 +162,35 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ## 6. Bugünkü durum (2026-10-02)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.18.0+48**. Backend rev **00106**.
-46 **kapalı teste yüklenmiş** (30 Eylül 22:24, Console ekranından ölçüldü),
-47'ye geçildi.
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.18.0+48**. Backend rev
+**00107** (`2026-10-03 10:36 UTC`, trafiğin %100'ü). 46 **kapalı teste
+yüklenmiş** (30 Eylül 22:24, Console ekranından ölçüldü), 47'ye geçildi.
+
+### ⚠️ GÖNDERİLMEMİŞ İŞ İKİ YERDE BİRDEN BEKLİYOR (ölçüldü 2026-10-10)
+
+İki dağıtım kanalı ayrı ayrı bayatladı ve **birbirine bağlı** — yalnız
+birini göndermek birinci şikâyeti hiç onarmamış gibi gösterir.
+
+| Kanal | Canlı olan | Deponun ucu | Arada ne var |
+|---|---|---|---|
+| Play (AAB 48) | `36d250a` (AAB diskte `10-03 04:46 UTC`, commit'in dakikası) | `3bc8e15` | **35 `lib/` dosyası**, 6 commit |
+| Cloud Run | rev **00107** = `2d0bfeb` (7 dk sonra dağıtılmış) | `d6a9477` | **3 prompt dosyası** |
+
+**Bağlaşım, ölçülmüş:** istasyon kartının anlam cümlesi SUNUCUDA üretiliyor
+(`prompts/tr.py` `STATION_PLANET_THEMES` × `STATION_PHASE_LINES`). İstemci
+yalnız `line`/`technical` alanlarını basıyor. Eski sunucu istasyona `line`
+YAZMIYOR ve istemci o durumda `calendar_strip.dart:351-363` dalına düşüp
+`transit_local — type_local` basıyor — yani **tam olarak şikâyet edilen
+"Plüton — ileri harekete dönüş" satırı.** Sonuç: yalnız AAB gönderilirse
+ikinci şikâyet (dayanak sayfası, tamamen istemci tarafı) onarılmış görünür,
+birinci şikâyet **hiç dokunulmamış** görünür. **Önce backend, sonra paket.**
+
+⚠️ **Sürüm kodu 48 YANMIŞ** — dahili teste yüklendi, yeni derleme artırmak
+zorunda. Hangi kodun serbest olduğu **depodan bilinemez**, yalnız Console'un
+kanal sayfası söyler (bu notun bir önceki hâli tam bu yüzden yanıltmıştı).
+
+Sıra: `infra/deploy-backend.ps1` → `infra/build-aab.ps1` (düz
+`flutter build appbundle` ASLA) → Console'dan kanal yükseltme.
 
 ⚠️ **Bu notun eski hâli yanlıştı** ve tam da tehlikeli yönde: *"46 Play'e
 henüz yüklenmedi — sürüm kodu hâlâ serbest, yeniden derlerken artırma"*
