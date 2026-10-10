@@ -210,8 +210,10 @@ Android sürümünde `edgeToEdge` açıyor (ikinci Play uyarısı). Bekçi
 optimizasyonu ilk kez açık — bildirim, Google girişi, satın alma/geri
 yükleme, yüz okuma (ML Kit + TFLite), sohbet; ve çubukların içerikle çakışıp
 çakışmadığı.
-Backend rev **00108-gtj** — `10-10` dağıtıldı, trafiğin %100'ü, `/health`
-**200** (deploy logundan BAĞIMSIZ sorguyla doğrulandı).
+Backend rev **00109-vdx** — `10-10` akşam dağıtıldı (S1 sohbet personası +
+D0 `fallback`/sözlük/BaZi `unspecified` CANLI), trafiğin %100'ü, `/health`
+**200** (`gcloud run services describe` + curl ile deploy logundan BAĞIMSIZ
+doğrulandı). Bir önceki 00108 (`10-10` sabah) D0 ÖNCESİYDİ.
 
 **Kapalı testteki son sürüm 48 (1.18.0)** — 4 Ekim 20:29'da sunuldu, kanal
 Etkin, 172 ülke/bölge (Console ekranından ölçüldü 2026-10-10). Yani **48
@@ -236,7 +238,7 @@ kavram için TEK bileşen kalır. Plan dosyası
 | D8-web (App Store hapı, 4 sayfa rytho.css, yorum temizliği, WebP 11,7 MB→0,6 MB, ortak EN) | ✅ pytest 2541, 31+3 mutasyon | `2be3512` |
 | D4 giriş+onboarding (6 adım, önseçim yok, saat uydurulmaz, giriş sükûneti, iptal hata değil) | ✅ Flutter 1103, 48/48 mutasyon | `c16a99d` |
 | D5 ana ekran+profil · D6 derinlik · D7 para · D8 cırcır+l10n+belge | bekliyor | — |
-| **S1 sohbet personası** (plan dışı, sahip şikâyeti 2026-10-10; yalnız backend) | ⏳ 3 ajan | — |
+| **S1 sohbet personası** (plan dışı, sahip şikâyeti 2026-10-10; yalnız backend — kapı ``, yetki alanı, `persona_guard`, `tools/sohbet_olc.py`) | ✅ pytest 2750, 66+7 mutasyon · ✅ CANLI rev 00109 | `5da5ed2` |
 
 ### S1 — sohbet personası kayması (ölçüldü 2026-10-10, üretim Firestore salt okuma)
 
@@ -304,7 +306,7 @@ Backend gönderildi; Play yarısı duruyor.
 
 | Kanal | Önceki canlı | Şimdi | Durum |
 |---|---|---|---|
-| Cloud Run | rev 00107 = `2d0bfeb` (10-03) | rev **00108** | ✅ gönderildi |
+| Cloud Run | rev 00107 = `2d0bfeb` (10-03) | rev **00109** = `5da5ed2` (S1 + D0) | ✅ gönderildi |
 | Play | AAB 48 = `36d250a` (10-03 04:46 UTC) | AAB 49 diskte | ⏳ yüklenmedi |
 
 **Bağlaşım, ölçülmüş — ve sırayı bu belirledi:** istasyon kartının anlam
