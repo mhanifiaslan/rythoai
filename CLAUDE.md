@@ -181,6 +181,38 @@ olduğu Console'un **kapalı test** sayfasından okundu; dahili testte daha
 yüksek bir kod durursa yükleme "sürüm kodu daha önce kullanıldı" der ve
 artırmak gerekir — o sayfaya bakılmadan bilinemez.
 
+### 1.20.0+50 turu — "onar + tekleştir" (başladı 2026-10-10)
+
+Sahip kararı: bu bir **lifestyle** uygulaması; görsel kimlik korunur, aynı
+kavram için TEK bileşen kalır. Plan dosyası
+`~/.claude/plans/google-do-rulamas-gelince-kalan-humble-journal.md` (9 dalga,
+~300 iş kalemi, 8 sahip kararı). Kesintide kaldığı yerden devam için:
+
+| Dalga | Durum | Commit |
+|---|---|---|
+| D0 backend + sözlük ("kredi" tek kelime, `fallback` 6 uçta, BaZi `unspecified`, "sınırsız" gitti) | ✅ pytest 2384, 31/31 mutasyon | `410737a` |
+| D1–D2 fontlar pakette + `RythoGlyphs` + token/hareket/tema eklemeleri | ✅ Flutter 882, 10/10 mutasyon | `eed33c7` |
+| BaZi fısıltı önbellek anahtarı cinsiyet | ✅ | `d954948` |
+| D3 paylaşılan 22 bileşen (4 ajan paralel) | ⏳ | — |
+| D8-web (App Store hapı, 4 sayfa rytho.css, yorum temizliği, WebP, ortak EN) | ⏳ | — |
+| D4 giriş+onboarding · D5 ana ekran+profil · D6 derinlik · D7 para · D8 cırcır+l10n+belge | bekliyor | — |
+
+⚠️ **Dalga kapanış ritüeli** (üç kez işe yaradı): tam takım → ajanların
+`dokunmadigim_ama_gerekli` alanlarını TAM metin oku (dikişler orada; D0'da
+üç kırmızı ve bir ürün kusuru oradan çıktı) → ajan mutasyonlarını kendi
+harness'ınla koştur (`scratchpad/mutasyon_dart.py`, `mutasyon_d0.py`) →
+commit. Ajan "kendim denedim" dese de ölçüm değildir.
+
+⚠️ **`google_fonts` `fontFamilyFallback`'i ÜZERİNE YAZAR**
+(`google_fonts_base.dart:116-119`): parametre olarak vermek işe yaramaz,
+`RythoText._glifli` dönüşten SONRA `.copyWith` ile ekliyor. Glif fontu
+kapsamı iddia edilmez, `tools/font_paketi_uret.py` ölçer; `℞` bilinen açık.
+
+⚠️ **Ağırlık ölçümü üçlü ifadeyi kaçırdı**: `w: a ? w700 : w500` — yalnız
+ilk literali alan ölçüm Manrope-500'ü pakete koymadı; `allowRuntimeFetching
+=false` ile cihazda FIRLARDI. `font_paketi_test` her `w:` ifadesinin HER
+dalını literal ister.
+
 ### İki kanalın bağlaşımı (ölçüldü 2026-10-10, backend yarısı KAPANDI)
 
 İki dağıtım kanalı ayrı ayrı bayatlamıştı ve **birbirine bağlıydı**.
