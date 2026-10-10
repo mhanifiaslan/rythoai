@@ -28,6 +28,7 @@ import '../../theme/rytho_tokens.dart';
 import '../../widgets/common.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/onay.dart' show onayla;
 import '../face/face_consent.dart';
 import 'legal_page.dart';
 import 'notification_settings.dart';
@@ -91,8 +92,6 @@ class PrivacySettingsScreen extends ConsumerWidget {
               subtitle: l10n.streakVisibleSettingBody,
               trailing: Switch(
                 value: profile['streakVisible'] == true,
-                activeThumbColor: RythoColors.magenta,
-                activeTrackColor: RythoColors.violet.withValues(alpha: 0.5),
                 onChanged: (v) => setStreakVisible(v),
               ),
             ),
@@ -105,8 +104,6 @@ class PrivacySettingsScreen extends ConsumerWidget {
               subtitle: l10n.contactMatchSettingBody,
               trailing: Switch(
                 value: profile['contactMatch'] == true,
-                activeThumbColor: RythoColors.magenta,
-                activeTrackColor: RythoColors.violet.withValues(alpha: 0.5),
                 onChanged: (v) => setContactMatch(v),
               ),
             ),
@@ -189,8 +186,6 @@ class _AppearanceSettingsScreenState
             title: l10n.sounds,
             trailing: Switch(
               value: _sesler,
-              activeThumbColor: RythoColors.magenta,
-              activeTrackColor: RythoColors.violet.withValues(alpha: 0.5),
               onChanged: (v) {
                 setState(() => _sesler = v);
                 SoundFx.setEnabled(v);
@@ -272,27 +267,21 @@ class FaceConsentRow extends ConsumerWidget {
           verildi ? l10n.faceConsentSettingOn : l10n.faceConsentSettingOff,
       trailing: Switch(
         value: verildi,
-        activeThumbColor: RythoColors.magenta,
-        activeTrackColor: RythoColors.violet.withValues(alpha: 0.5),
         onChanged: !verildi
             ? null
             : (_) async {
-                final onay = await showDialog<bool>(
-                  context: context,
-                  builder: (c) => AlertDialog(
-                    title: Text(l10n.faceConsentWithdrawTitle),
-                    content: Text(l10n.faceConsentWithdrawBody),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(c, false),
-                          child: Text(l10n.cancel)),
-                      TextButton(
-                          onPressed: () => Navigator.pop(c, true),
-                          child: Text(l10n.faceConsentWithdrawConfirm)),
-                    ],
-                  ),
+                // Onay sorusu TEK kalıp (`onayla`): bu satır eskiden kendi
+                // `AlertDialog`ını kuruyordu — üç kopya üç düğme diline
+                // gidiyordu. Yıkıcı DEĞİL: geri alma GDPR Md.7/3 gereği
+                // vermek kadar kolay olmalı; kırmızı düğme hakkı kullanmayı
+                // tehlikeli gösterirdi.
+                final onay = await onayla(
+                  context,
+                  title: l10n.faceConsentWithdrawTitle,
+                  body: l10n.faceConsentWithdrawBody,
+                  confirmLabel: l10n.faceConsentWithdrawConfirm,
                 );
-                if (onay != true || !context.mounted) return;
+                if (!onay || !context.mounted) return;
                 try {
                   final silinen =
                       await withdrawFaceConsent(ref.read(apiProvider));

@@ -237,30 +237,16 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
     }
     setState(() => _adim++);
     Analytics.onboardingStep(_adimAdlari[_adim]);
-    _sayfayaGit(_adim);
+    // Sayfa geçişinin tek fiili `motion.sayfayaGit`: sıfır süre → `jumpToPage`
+    // (`animateToPage` sıfırı assert ile reddeder; D4'te burada ölçüldü,
+    // D5'te hikâye ekranıyla ortaklaşıp motion.dart'a taşındı).
+    sayfayaGit(_sayfa, context, _adim, curve: RythoMotion.enter);
   }
 
   void _geri() {
     if (_adim == 0 || _busy) return;
     setState(() => _adim--);
-    _sayfayaGit(_adim);
-  }
-
-  /// Sayfa geçişi: hareket açıkken kaydırma, azaltılmışken anında atlama.
-  ///
-  /// NEDEN iki fiil: `animateToPage` sıfır süreyi KABUL ETMEZ
-  /// (`DrivenScrollActivity` `duration > Duration.zero` assert'i) — `kapili`
-  /// hareket azaltmada sıfır döndürünce ilk "Devam" debug'da fırlıyordu
-  /// (ölçüldü 2026-10-10: sihirbaz_adimlar_test, disableAnimations ile;
-  /// cihazda "hareketi azalt" açan kullanıcı ilk adımda takılırdı). Sıfır
-  /// sürenin doğru fiili `jumpToPage`.
-  void _sayfayaGit(int hedef) {
-    final sure = kapili(context, RythoMotion.route);
-    if (sure == Duration.zero) {
-      _sayfa.jumpToPage(hedef);
-    } else {
-      _sayfa.animateToPage(hedef, duration: sure, curve: RythoMotion.enter);
-    }
+    sayfayaGit(_sayfa, context, _adim, curve: RythoMotion.enter);
   }
 
   Future<void> _bitir() async {

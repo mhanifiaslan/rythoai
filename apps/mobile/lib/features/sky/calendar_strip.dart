@@ -6,10 +6,14 @@ import '../../core/providers.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
+import '../../widgets/alt_sayfa.dart';
 import '../../widgets/basis_sheet.dart';
+import '../../widgets/common.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/nebula_widgets.dart' show Pressable;
 import '../chat/chat_screen.dart';
-import '../paywall/paywall_screen.dart';
+import '../paywall/kilit_rozeti.dart';
+import '../paywall/paywall_acilis.dart';
 
 /// Ana ekrandaki **30 günlük takvim şeridi** (R5-6).
 ///
@@ -27,6 +31,15 @@ import '../paywall/paywall_screen.dart';
 /// gerçek temaları gönderiyor, yalnız okuma satırlarını çıkarıp olaya
 /// `locked: true` koyuyor. Yani teaser uydurma değil: gördüğü gün doğru,
 /// gördüğü tema doğru; eksik olan yorum. Kilit gün kartında açıklanıyor.
+///
+/// ## Üç hâl (D5, G2)
+///
+/// Eskiden `takvim.value == null` tek kapıydı: "henüz yüklenmedi", "istek
+/// düştü" ve "doğum kaydı yok" üçü de aynı boşluğa düşüyordu — kullanıcı
+/// düşen bir isteği yeniden deneyemiyordu ve yükleme anında şerit
+/// kaybolup düzeni zıplatıyordu. [AsyncBolum] üçünü ayırır: iskelet /
+/// hata kartı + tekrar dene / veri. Boş veri (doğum kaydı eksik, olay yok)
+/// yine kendini gizler — ana ekran şeritsiz de ayakta durur.
 class CalendarStrip extends ConsumerWidget {
   const CalendarStrip({super.key});
 
@@ -35,20 +48,42 @@ class CalendarStrip extends ConsumerWidget {
   /// bu sayıda hücre çizer.
   static const int gunSayisi = 30;
 
+  /// Şerit yüksekliği; iskelet de aynı hacmi tutar ki cevap gelince düzen
+  /// zıplamasın. 66 → 72 (D5): ay etiketi 8 puntodan etiket rolüne (11)
+  /// çıkınca hücre sütunu 320 dp × 1,3 ölçekte 2,8 px taştı (ölçüldü,
+  /// sky_dar_ekran_test); etiketi geri küçültmek yerine hücre büyüdü.
+  static const double yukseklik = 72;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final takvim = ref.watch(transitCalendarProvider);
+    return AsyncBolum<Map<String, dynamic>?>(
+      durum: ref.watch(transitCalendarProvider),
+      onRetry: () => ref.invalidate(transitCalendarProvider),
+      iskeletYuksekligi: yukseklik,
+      bosMu: (veri) => _olaylar(veri).isEmpty,
+      veri: (veri) => _Serit(olaylar: _olaylar(veri)),
+    );
+  }
 
-    // Bölüm kendi kendini gizler: veri yok, hata, doğum kaydı eksik —
-    // ana ekran şeritsiz de ayakta durmalı (sinyal bölümüyle aynı kural).
-    final veri = takvim.value;
-    if (veri == null) return const SizedBox.shrink();
+  static List<Map<String, dynamic>> _olaylar(Map<String, dynamic>? veri) =>
+      List<Map<String, dynamic>>.from((veri?['events'] as List?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map)) ??
+          const <Map<String, dynamic>>[]);
 
-    final olaylar = List<Map<String, dynamic>>.from(
-        (veri['events'] as List?)?.map((e) =>
-            Map<String, dynamic>.from(e as Map)) ??
-        const <Map<String, dynamic>>[]);
-    if (olaylar.isEmpty) return const SizedBox.shrink();
+  static String _isoGun(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+}
+
+/// Veri gelmiş şerit: 30 hücre, dolu günler dokunulur.
+class _Serit extends StatelessWidget {
+  const _Serit({required this.olaylar});
+
+  final List<Map<String, dynamic>> olaylar;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
 
     // Gün → o güne düşen olaylar. Tarih anahtarı sunucunun ISO metni;
     // yerel `DateTime` aritmetiğine çevirmek yaz saati sınırında günü
@@ -62,44 +97,54 @@ class CalendarStrip extends ConsumerWidget {
 
     final bugun = DateTime.now();
     final gunler = [
-      for (var i = 0; i < gunSayisi; i++)
+      for (var i = 0; i < CalendarStrip.gunSayisi; i++)
         DateTime(bugun.year, bugun.month, bugun.day + i),
     ];
 
-    return SizedBox(
-      height: 66,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
-        itemCount: gunler.length,
-        separatorBuilder: (_, _) => const SizedBox(width: RythoSpace.sm),
-        itemBuilder: (_, i) {
-          final gun = gunler[i];
-          final anahtar = _isoGun(gun);
-          final gununOlaylari = gunlere[anahtar] ?? const [];
-          return _GunHucresi(
-            gun: gun,
-            bugunMu: i == 0,
-            olaylar: gununOlaylari,
-            onTap: gununOlaylari.isEmpty
-                ? null
-                : () => showDaySheet(context, gun, gununOlaylari),
-          );
-        },
+    // Şeridin görünür başlığı yok (burç şeridi gibi kendini anlatıyor);
+    // ekran okuyucu için kap "Önündeki 30 gün" adını taşır — anahtar bir
+    // tur boyunca ARB'de durup hiçbir yerden okunmuyordu.
+    return Semantics(
+      container: true,
+      label: l10n.calendarStripTitle,
+      child: SizedBox(
+        height: CalendarStrip.yukseklik,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
+          itemCount: gunler.length,
+          separatorBuilder: (_, _) => const SizedBox(width: RythoSpace.sm),
+          itemBuilder: (_, i) {
+            final gun = gunler[i];
+            final anahtar = CalendarStrip._isoGun(gun);
+            final gununOlaylari = gunlere[anahtar] ?? const [];
+            return _GunHucresi(
+              gun: gun,
+              bugunMu: i == 0,
+              olaylar: gununOlaylari,
+              onTap: gununOlaylari.isEmpty
+                  ? null
+                  : () => showDaySheet(context, gun, gununOlaylari),
+            );
+          },
+        ),
       ),
     );
   }
-
-  static String _isoGun(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
 }
 
 /// Şeritteki tek gün.
 ///
 /// Olaysız günler de çizilir — takvim ancak sürekli bir zaman şeridi
 /// olduğunda takvimdir; yalnız dolu günleri göstermek onu bir listeye
-/// geri çevirirdi. Olaysız gün soluk ve dokunulamaz.
+/// geri çevirirdi. Olaysız gün soluk ve dokunulamaz; ekran okuyucuya da
+/// "düğme" diye DUYURULMAZ (`enabled: false`) — eski hâl boş güne de
+/// `button` bayrağı veriyor, TalkBack kullanıcısı çift dokunup hiçbir şey
+/// olmadığını görüyordu.
+///
+/// Dolu günün adı "{tarih}, {tema}": görmeyen kullanıcı hücreye gelince
+/// yalnız "12 Ekim" değil, o günün NE olduğunu da duyar. Gören kullanıcı
+/// aynı bilgiyi ikondan okuyor.
 class _GunHucresi extends StatelessWidget {
   const _GunHucresi({
     required this.gun,
@@ -115,72 +160,88 @@ class _GunHucresi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final dolu = olaylar.isNotEmpty;
     final ikon = olaylar
         .map((o) => kThemeIcons[o['theme']])
         .whereType<String>()
         .firstOrNull;
+    final tarih = _ayGun(context, gun);
 
-    return Semantics(
-      button: dolu,
-      label: _ayGun(context, gun),
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          width: 46,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: dolu
-                ? RythoColors.violet.withValues(alpha: 0.14)
-                : Colors.transparent,
-            border: Border.all(
-              // Bugün altın halka; dolu günler soluk lila; boş günler
-              // neredeyse görünmez bir çerçeve — şerit ritmi bozulmasın.
-              color: bugunMu
-                  ? RythoColors.goldBright
-                  : dolu
-                      ? RythoColors.lilac.withValues(alpha: 0.45)
-                      : RythoColors.glassStroke,
-              width: bugunMu ? 1.4 : 1,
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(_ayKisa(context, gun),
-                  style: RythoText.label(8,
-                      color: bugunMu
-                          ? RythoColors.goldBright
-                          : RythoColors.parchmentDim)),
-              const SizedBox(height: 2),
-              Text('${gun.day}',
-                  style: RythoText.display(16,
-                      color: dolu || bugunMu
-                          ? RythoColors.parchment
-                          : RythoColors.parchmentDim)),
-              const SizedBox(height: 3),
-              // İkon satırı HER hücrede aynı yüksekliği tutar; yoksa dolu
-              // ve boş günler farklı boyda çizilip şerit dalgalanır.
-              SizedBox(
-                height: 12,
-                child: ikon != null
-                    ? Text(ikon, style: const TextStyle(fontSize: 10))
-                    : dolu
-                        ? Container(
-                            width: 4,
-                            height: 4,
-                            margin: const EdgeInsets.only(top: 4),
-                            decoration: const BoxDecoration(
-                                color: RythoColors.lilac,
-                                shape: BoxShape.circle),
-                          )
-                        : null,
-              ),
-            ],
+    final kutu = ExcludeSemantics(
+      child: Container(
+        width: 46,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(RythoRadius.sm),
+          color: dolu
+              ? RythoColors.violet.withValues(alpha: 0.14)
+              : Colors.transparent,
+          border: Border.all(
+            // Bugün altın halka; dolu günler soluk lila; boş günler
+            // neredeyse görünmez bir çerçeve — şerit ritmi bozulmasın.
+            color: bugunMu
+                ? RythoColors.goldBright
+                : dolu
+                    ? RythoColors.lilac.withValues(alpha: 0.45)
+                    : RythoColors.glassStroke,
+            width: bugunMu ? 1.4 : 1,
           ),
         ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Ay etiketi 8 puntoydu — bir lifestyle ekranında okunması
+            // beklenen en küçük metin etiket rolünün altına inmez.
+            Text(_ayKisa(context, gun),
+                style: RythoType.label.copyWith(
+                    color: bugunMu
+                        ? RythoColors.goldBright
+                        : RythoColors.parchmentDim)),
+            const SizedBox(height: RythoSpace.xxs),
+            Text('${gun.day}',
+                style: RythoType.cardTitle.copyWith(
+                    color: dolu || bugunMu
+                        ? RythoColors.parchment
+                        : RythoColors.parchmentDim)),
+            const SizedBox(height: RythoSpace.xxs),
+            // İkon satırı HER hücrede aynı yüksekliği tutar; yoksa dolu
+            // ve boş günler farklı boyda çizilip şerit dalgalanır.
+            SizedBox(
+              height: RythoSpace.md,
+              child: ikon != null
+                  ? Text(ikon, style: RythoText.emoji(10))
+                  : dolu
+                      ? Container(
+                          width: RythoSpace.xs,
+                          height: RythoSpace.xs,
+                          margin: const EdgeInsets.only(top: RythoSpace.xs),
+                          decoration: const BoxDecoration(
+                              color: RythoColors.lilac,
+                              shape: BoxShape.circle),
+                        )
+                      : null,
+            ),
+          ],
+        ),
       ),
+    );
+
+    if (!dolu) {
+      return Semantics(label: tarih, enabled: false, child: kutu);
+    }
+    final temalar = {
+      for (final o in olaylar)
+        if (o['theme_local'] is String &&
+            (o['theme_local'] as String).isNotEmpty)
+          o['theme_local'] as String,
+    };
+    final tema = temalar.isEmpty
+        ? l10n.calendarOtherEvents
+        : temalar.join(', ');
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: '$tarih, $tema',
+      child: kutu,
     );
   }
 }
@@ -191,30 +252,19 @@ class _GunHucresi extends StatelessWidget {
 /// gelir. Ücretsiz kullanıcıda tema başlığı ve tarih GÖRÜNÜR, okuma
 /// satırının yerinde kilit satırı durur — gördüğü şey gerçek, göremediği
 /// şey açıkça isimlendirilmiş.
+///
+/// Kabuk `showRythoSheet` (D3): kaydırma sarmalayıcısı oradan gelir. Bu
+/// sayfa bir tur boyunca sarmalayıcısızdı ve 320×640 / yazı ölçeği
+/// tavanında 1162 px içerik SESSİZCE kırpılıyordu (ölçüldü; bekçi
+/// `calendar_strip_test.dart`). Kabuk tek olunca o kapı her sayfada var.
 Future<void> showDaySheet(BuildContext context, DateTime gun,
     List<Map<String, dynamic>> olaylar) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: RythoColors.inkLight,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      side: BorderSide(color: RythoColors.glassStroke),
-    ),
-    // Kaydırma SARMALAYICIDA. Gövde `mainAxisSize: min` bir `Column`
-    // ve bu sayfa doğduğu günden beri kaydırmasızdı; içerik kısa
-    // olduğu için görünmüyordu. Kart desenine geçiş satır başına
-    // yükseklik ekledi ve ÖLÇÜLDÜ (320x480 değil, 320x640 / yazı
-    // ölçeği tavanı): tek kartta 130 px, üç kartta 1162 px taşma.
-    // Eski düz satır biçimi aynı ekranda hiç taşmıyordu, yani kusur
-    // bu turda doğdu.
-    //
-    // Taşma ürün kodunda istisna olarak GÖRÜNMEZ — ekrandan sessizce
-    // kırpılır. Kardeş desende (`basis_sheet`, aynı tür
-    // `isScrollControlled` alt sayfa) bu 131 px sessiz kırpılma olarak
-    // ölçülmüştü; bekçi `calendar_strip_test.dart`te.
-    builder: (_) => SingleChildScrollView(
-        child: _GunSayfasi(gun: gun, olaylar: olaylar)),
+  return showRythoSheet<void>(
+    context,
+    // Başlık kabuğun işi (semantik `header` oradan gelir); gövde yalnız
+    // olay kartlarını çizer.
+    baslik: _ayGun(context, gun),
+    builder: (_) => _GunSayfasi(gun: gun, olaylar: olaylar),
   );
 }
 
@@ -245,67 +295,61 @@ class _GunSayfasi extends StatelessWidget {
     final kilitliSayisi =
         olaylar.where((o) => o['locked'] == true).length;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-            RythoSpace.xl, RythoSpace.lg, RythoSpace.xl, RythoSpace.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_ayGun(context, gun), style: RythoText.display(20)),
-            const SizedBox(height: RythoSpace.lg),
-            for (final tema in sirali) ...[
-              Row(children: [
-                Text(kThemeIcons[tema] ?? '✦',
-                    style: const TextStyle(fontSize: 14)),
-                const SizedBox(width: 8),
-                // Tema adı sunucudan gelir ve esnemiyordu; uzun adda
-                // (büyük yazı ölçeğiyle birlikte) satırı taşırıyordu.
-                Flexible(
-                  child: Text(
-                      (gruplar[tema]!.first['theme_local'] as String?) ??
-                          l10n.calendarOtherEvents,
-                      style: RythoText.label(11, color: RythoColors.lilac)),
-                ),
-              ]),
-              const SizedBox(height: RythoSpace.sm),
-              for (final o in gruplar[tema]!) _OlaySatiri(olay: o),
-              const SizedBox(height: RythoSpace.md),
-            ],
-            if (kilitliSayisi > 0) const _KilitSatiri(),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          RythoSpace.xl, RythoSpace.lg, RythoSpace.xl, RythoSpace.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final tema in sirali) ...[
+            Row(children: [
+              Text(kThemeIcons[tema] ?? '✦', style: RythoText.emoji(14)),
+              const SizedBox(width: RythoSpace.sm),
+              // Tema adı sunucudan gelir ve esnemiyordu; uzun adda
+              // (büyük yazı ölçeğiyle birlikte) satırı taşırıyordu.
+              Flexible(
+                child: Text(
+                    (gruplar[tema]!.first['theme_local'] as String?) ??
+                        l10n.calendarOtherEvents,
+                    style: RythoType.label.copyWith(color: RythoColors.lilac)),
+              ),
+            ]),
+            const SizedBox(height: RythoSpace.sm),
+            for (final o in gruplar[tema]!) _OlaySatiri(olay: o),
+            const SizedBox(height: RythoSpace.md),
           ],
-        ),
+          if (kilitliSayisi > 0) const _KilitSatiri(),
+        ],
       ),
     );
   }
 }
 
 /// Gün kartının tek kilit satırı — dokunuş paywall'ı açar.
+///
+/// Kilit rozeti tek kaynaktan ([KilitRozeti]); gri `lock_outline` kopyası
+/// üç kilit dilinden biriydi. Paywall tek kapıdan ([acPaywall]): kaynak
+/// etiketi "takvim günü" olarak sayılır ve rota türü (dokunuş → fade)
+/// orada seçilir — eski `fullscreenDialog` burada "kesinti" dili
+/// konuşuyordu, oysa kullanıcı kilide kendi bastı.
 class _KilitSatiri extends StatelessWidget {
   const _KilitSatiri();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return GestureDetector(
+    return Pressable(
       onTap: () {
         Navigator.of(context).pop();
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => const PaywallScreen(),
-          fullscreenDialog: true,
-        ));
+        acPaywall(context, kaynak: PaywallKaynak.takvimGunu);
       },
-      behavior: HitTestBehavior.opaque,
       child: GlassPanel(
         child: Row(children: [
-          const Icon(Icons.lock_outline_rounded,
-              size: 15, color: RythoColors.parchmentDim),
-          const SizedBox(width: 10),
+          const KilitRozeti(),
+          const SizedBox(width: RythoSpace.sm),
           Expanded(
-            child: Text(l10n.calendarLockedReading,
-                style:
-                    RythoText.body(12.5, color: RythoColors.parchmentDim)),
+            child: Text(l10n.calendarLockedReading, style: RythoType.bodyDim),
           ),
         ]),
       ),
@@ -356,41 +400,40 @@ class _OlaySatiri extends StatelessWidget {
               .join(' — ');
       if (teknik.isEmpty) return const SizedBox.shrink();
       return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(teknik,
-            style: RythoText.body(12.5, color: RythoColors.parchmentDim)),
+        padding: const EdgeInsets.only(bottom: RythoSpace.sm),
+        child: Text(teknik, style: RythoType.bodyDim),
       );
     }
 
     // Sebep satırı: istasyonda "Plüton şu gün hızını sıfıra indirip yön
     // değiştiriyor", kesinleşmede açının kendi ifadesi. İkisi de ÖLÇÜMÜN
     // adı; disiplinin reklamı değil (yani "hesaplanmış gökyüzü verisidir"
-    // gibi bir övgü satırı buraya girmez).
+    // gibi bir övgü satırı buraya girmez). Mono yazı buradan kalktı: bu
+    // bir cümle, bir derece tablosu değil — mono onu "veri" gibi
+    // gösterip okumanın altında ikinci bir teknik blok kuruyordu.
     final sebep = (olay['technical'] as String?)?.trim();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: RythoSpace.sm),
       child: GlassPanel(
         // Cam panel kendi kenar boşluğunu taşıyor; gün sayfası zaten
         // kendi iç boşluğunu veriyor ve ikisi toplanınca kart daralıyordu.
         margin: EdgeInsets.zero,
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 11),
+        padding: const EdgeInsets.fromLTRB(
+            RythoSpace.md, RythoSpace.md, RythoSpace.md, RythoSpace.md),
         onTap: () => _dayanak(context, olay, l10n),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(cumle, style: RythoType.reading),
           if (sebep != null && sebep.isNotEmpty) ...[
-            const SizedBox(height: 9),
-            Text(sebep,
-                style:
-                    RythoText.mono(11.5, color: RythoColors.parchmentDim)),
+            const SizedBox(height: RythoSpace.sm),
+            Text(sebep, style: RythoType.caption),
           ],
-          const SizedBox(height: 9),
+          const SizedBox(height: RythoSpace.sm),
           // Oku, dokunulabildiğini söyleyen tek işaret: ana ekran sinyal
           // kartıyla (`sky_screen` `_SignalCard`) AYNI yazım. Eski hâl
           // oksuz "Neye dayanıyor?" basıyordu ve bir başlık gibi okunuyordu.
           Text('${l10n.signalWhy} →',
-              style: RythoText.body(11.5,
-                  color: RythoColors.parchmentDim, w: FontWeight.w600)),
+              style: RythoType.caption.copyWith(fontWeight: FontWeight.w600)),
         ]),
       ),
     );
@@ -420,9 +463,7 @@ class _OlaySatiri extends StatelessWidget {
         Navigator.of(context).pop();
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => ChatScreen(
-              initialText: l10n.signalAskPrefill(
-                  o['line'] as String? ?? '',
-                  o['technical'] as String? ?? '')),
+              initialText: l10n.signalAskPrefill(o['line'] as String? ?? '')),
         ));
       },
     );

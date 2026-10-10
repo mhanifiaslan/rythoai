@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:rytho/features/face/face_consent.dart';
 import 'package:rytho/features/profile/legal_page.dart';
 import 'package:rytho/features/profile/profile_sections.dart';
 import 'package:rytho/l10n/app_localizations.dart';
+import 'package:rytho/l10n/app_localizations_tr.dart';
 import 'package:rytho/widgets/common.dart';
 
 /// Asama A4'un degismezleri.
@@ -37,6 +40,16 @@ Widget _uygulama(Widget child) => MaterialApp(
     );
 
 Widget _sar(Widget child) => ProviderScope(child: _uygulama(child));
+
+final _tr = AppLocalizationsTr();
+
+/// Kaynak bekcisi kendi aciklama yorumuna takilmasin.
+String _yorumsuz(String yol) => File(yol)
+    .readAsStringSync()
+    .replaceAll('\r\n', '\n')
+    .split('\n')
+    .where((s) => !s.trimLeft().startsWith('//'))
+    .join('\n');
 
 /// Yildiz alani surekli animasyonlu — `pumpAndSettle` hicbir zaman donmez.
 Future<void> _bekle(WidgetTester tester) async {
@@ -84,6 +97,45 @@ void main() {
       expect(anahtar.value, isFalse);
       expect(anahtar.onChanged, isNull,
           reason: 'riza buradan verilemez, yalnizca geri alinabilir');
+    });
+
+    testWidgets('riza geri alma TEK onay kalibiyla (onayla): baslik + govde '
+        '+ onay etiketi; vazgec hicbir sey yapmaz', (tester) async {
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          profileProvider.overrideWith(
+              (ref) => Stream.value({'streakVisible': false})),
+          faceConsentProvider.overrideWith(
+              (ref) async => const FaceConsent(granted: true, version: 1)),
+        ],
+        child: _uygulama(const PrivacySettingsScreen()),
+      ));
+      await _bekle(tester);
+
+      await tester.tap(find.byType(Switch).last);
+      await _bekle(tester);
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text(_tr.faceConsentWithdrawTitle), findsOneWidget);
+      expect(find.text(_tr.faceConsentWithdrawBody), findsOneWidget);
+      expect(find.widgetWithText(TextButton, _tr.faceConsentWithdrawConfirm),
+          findsOneWidget, reason: 'onay dugmesi; yikici kirmizi DEGIL');
+      expect(find.widgetWithText(TextButton, _tr.cancel), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, _tr.cancel));
+      await _bekle(tester);
+      expect(find.byType(AlertDialog), findsNothing);
+      // Riza hala verili: anahtar acik kaldi, ag cagrisi olmadi.
+      expect(tester.widget<Switch>(find.byType(Switch).last).value, isTrue);
+    });
+
+    test('kaynak: elle AlertDialog yok, onayla var; Switch rengi temadan',
+        () {
+      final k = _yorumsuz('lib/features/profile/profile_sections.dart');
+      expect(k, isNot(contains('AlertDialog(')));
+      expect(k, contains('onayla('));
+      // Tema `switchTheme` (D2) varken elle renk ikinci bir dil olurdu.
+      expect(k, isNot(contains('activeThumbColor')));
+      expect(k, isNot(contains('activeTrackColor')));
     });
 
     testWidgets('uc gizlilik anahtari da burada', (tester) async {

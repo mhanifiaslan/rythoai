@@ -1,11 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/auth_service.dart' show signOutEverywhere;
+import 'package:intl/intl.dart';
 
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/common.dart';
 import '../../widgets/glass.dart' show SkeletonPanel;
+import '../../widgets/onay.dart' show onayliCikis;
 import 'account_screen.dart';
 import 'birth_record_screen.dart';
 import 'feedback_screen.dart';
@@ -22,7 +23,47 @@ import '../../widgets/atlas_widgets.dart';
 import '../../widgets/nebula_widgets.dart';
 import '../../l10n/app_localizations.dart';
 
-/// SİCİL — kendi profilin: kimlik, günlük seri ve **altı ayar satırı**.
+/// Abonelik satırının değeri: "Rytho+ · 320 kredi" / "Ücretsiz · 12 kredi".
+///
+/// NEDEN iki sağlayıcı da `AsyncValue` olarak alınıyor: eski hâl
+/// `.value ?? SubscriptionStatus.none` yazıyordu, yani abonelik YÜKLENİRKEN
+/// aboneye "Ücretsiz" diyordu (ölçüldü 2026-10-10). Cüzdan tarafı aynı
+/// kusuru B10'da "—" ile kapatmıştı, abonelik tarafı kapatmamıştı. Kural
+/// ikisinde de aynı: henüz değer yok, hata ya da sunucudan okunamadı → "—".
+/// Okunmamış bir plana ad vermek, okunmamış bir bakiyeye sayı vermekle
+/// aynı yalan. Tazeleme turunda eski değer korunur (`.value` önceki veriyi
+/// taşır) — yoksa her harcamadan sonra satır "—"ye düşüp geri gelirdi.
+String abonelikOzetiMetni(
+  AsyncValue<SubscriptionStatus> abonelik,
+  AsyncValue<WalletStatus> cuzdan,
+  AppLocalizations l10n,
+) {
+  final a = abonelik.hasError ? null : abonelik.value;
+  final plan = a == null || !a.okunabildi
+      ? '—'
+      : (a.active ? kPlusAdi : l10n.subPlanFree);
+  final c = cuzdan.hasError ? null : cuzdan.value;
+  final bakiye =
+      c == null || c.bilinmiyor ? '—' : l10n.tokenBalanceChip(c.total);
+  return '$plan · $bakiye';
+}
+
+/// Doğum kaydı satırının değeri: ISO `1988-03-07` → `7 Mart 1988`.
+///
+/// Ham ISO satırda duruyordu; tarih kullanıcının dilinde `intl` sembol
+/// verisinden gelir (`DateFormat`), l10n'den değil (bkz. takvim şeridi
+/// bekçisi). Ayrıştırılamayan değer olduğu gibi döner: bozuk kaydı
+/// gizlemek, kullanıcının düzeltmesi gereken şeyi saklamak olurdu.
+String? dogumTarihiYazisi(String? iso, String dil) {
+  if (iso == null) return null;
+  final t = DateTime.tryParse(iso);
+  if (t == null) return iso;
+  return DateFormat('d MMMM yyyy', dil).format(t);
+}
+
+User? _gecerliKullanici() => FirebaseAuth.instance.currentUser;
+
+/// SİCİL — kendi profilin: kimlik, günlük seri ve **dört ayar grubu**.
 ///
 /// ## Yeniden kurgulandı
 ///
@@ -40,7 +81,13 @@ import '../../l10n/app_localizations.dart';
 /// doğum verisi içerdiği için Firestore'da da yalnızca sahibine okunabilir.
 /// Arkadaşların gördüğü alanlar ayrı bir karttan gelir (`publicProfiles/{uid}`).
 class ProfileScreen extends ConsumerStatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.kullanici = _gecerliKullanici});
+
+  /// Oturumdaki kullanıcı — TEST DİKİŞİ. Üretimde `FirebaseAuth.instance`;
+  /// testte Firebase başlatılmadan ekran pompalanabilsin diye değiştirilir
+  /// (sihirbazın `SihirbazSeciciler`i ile aynı gerekçe).
+  @visibleForTesting
+  final User? Function() kullanici;
 
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
@@ -55,8 +102,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final profilAsync = ref.watch(profileProvider);
     final profile = profilAsync.value ?? {};
-    final user = FirebaseAuth.instance.currentUser;
+    final user = widget.kullanici();
     final l10n = AppLocalizations.of(context);
+    final dil = Localizations.localeOf(context).toLanguageTag();
 
     // Profil henüz yüklenmediyse iskelet (R12-B3): eskiden bu ekran boş
     // haritayla ("yok" gibi görünen alanlarla) açılıyordu.
@@ -238,7 +286,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               icon: Icons.cake_outlined,
               title: l10n.birthRecord,
               subtitle: l10n.birthRecordRowSubtitle,
-              value: profile['birthDate'] as String?,
+              value: dogumTarihiYazisi(profile['birthDate'] as String?, dil),
               onTap: () => _ac(const BirthRecordScreen()),
             ),
             const Divider(height: 1, indent: RythoSpace.lg),
@@ -273,6 +321,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               value: signInMethodsSummary(user, l10n),
               onTap: () => _ac(const SignInMethodsScreen()),
             ),
+            const Divider(height: 1, indent: RythoSpace.lg),
+            // Oturumu kapat (D5): eskiden ekranın dibinde, dock'un hemen
+            // üstünde, ONAYSIZ ve ekranın TEK dolu CTA'sı olan bir
+            // `GoldButton` idi — sekme değiştirmek isteyen başparmak bir
+            // dokunuşla oturumu kapatıyordu (ölçüldü 2026-10-10). Çıkış bir
+            // "hesap" eylemi; hesap satırlarının yanında, onayla ve
+            // tek yoldan (`onayliCikis` → `signOutEverywhere`: KT4 — satır
+            // içi çıkış cihaz devralma bayrağını sıfırlamıyordu).
+            SettingsRow(
+              icon: Icons.logout_rounded,
+              title: l10n.signOut,
+              onTap: () => onayliCikis(context),
+            ),
           ]),
         ),
         _grupBaslik(l10n.profileSectionPrefs),
@@ -296,6 +357,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               title: l10n.languageAndSounds,
               onTap: () => _ac(const AppearanceSettingsScreen()),
             ),
+          ]),
+        ),
+        // Dördüncü grup markanın kendisi (D5): abonelik, geri bildirim ve
+        // hakkında kullanıcının tercihi değil, Rytho ile ilişkisi. Eskiden
+        // "Hakkında" Rytho+ plakasının içindeydi — ücretsiz kullanıcı
+        // uygulamanın künyesini abonelik başlığı altında arıyordu.
+        _grupBaslik(kMarka),
+        Plaque(
+          padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
+          child: Column(children: [
+            // Abonelik + kredi bilgisi (A1): plan, yenilenme, bakiye —
+            // hepsi tek ekranda.
+            SettingsRow(
+              icon: Icons.workspace_premium_outlined,
+              title: l10n.profileSubscriptionRow,
+              value: abonelikOzetiMetni(
+                ref.watch(subscriptionProvider),
+                ref.watch(walletProvider),
+                l10n,
+              ),
+              onTap: () => _ac(const SubscriptionScreen()),
+            ),
             const Divider(height: 1, indent: RythoSpace.lg),
             // GB-turu: uygulama içi geri bildirim kanalı. Mağaza yorumu
             // ve e-posta dışında, kullanıcının bize tek dokunuşla
@@ -305,20 +388,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               title: l10n.profileFeedback,
               onTap: () => _ac(const FeedbackScreen()),
             ),
-          ]),
-        ),
-        _grupBaslik('Rytho+'),
-        Plaque(
-          padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
-          child: Column(children: [
-            // Abonelik + kredi bilgisi (A1): plan, yenilenme, bakiye —
-            // hepsi tek ekranda.
-            SettingsRow(
-              icon: Icons.workspace_premium_outlined,
-              title: l10n.profileSubscriptionRow,
-              value: _abonelikOzeti(ref, l10n),
-              onTap: () => _ac(const SubscriptionScreen()),
-            ),
             const Divider(height: 1, indent: RythoSpace.lg),
             SettingsRow(
               icon: Icons.info_outline_rounded,
@@ -326,16 +395,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               onTap: () => _ac(const AboutScreen()),
             ),
           ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: GoldButton(
-            text: l10n.signOut,
-            // KT4: satır içi çıkış signOutEverywhere'i atlıyordu — cihaz
-            // devralma sorusu bayrağı sıfırlanmıyor, aynı süreçte yeniden
-            // giren kullanıcı soru yerine doğrudan 409 duvarı görüyordu.
-            onPressed: signOutEverywhere,
-          ),
         ),
         // "Gönderilerin" bölümü kaldırıldı: kullanıcı üretimi serbest metin
         // v1 kapsamı dışında. Yerine Faz 5'te arkadaş katmanı (seri, hazır
@@ -348,11 +407,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void _ac(Widget sayfa) =>
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => sayfa));
 
-  /// Grup başlığı (R3-5): plakaların üstünde küçük mono etiket.
+  /// Grup başlığı (R3-5): plakaların üstünde küçük etiket.
+  ///
+  /// Büyük harf dönüşümü KALKTI (D2 Türkçe harf): `toUpperCase()` Türkçe
+  /// bilmez ("Tercihler" → "TERCIHLER", noktasız I) ve rol tipografisi
+  /// (`RythoType.label`: w600 + harf aralığı) zaten etiket ağırlığını
+  /// taşıyor; bağırmaya gerek yok.
   Widget _grupBaslik(String metin) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 10, 24, 2),
-        child: Text(metin.toUpperCase(),
-            style: RythoText.mono(10.5, color: RythoColors.parchmentDim)),
+        padding: const EdgeInsets.fromLTRB(
+            RythoSpace.xl, RythoSpace.sm, RythoSpace.xl, RythoSpace.xxs),
+        child: Text(metin, style: RythoType.label),
       );
 
   Future<void> _fotoDegistir() async {
@@ -371,21 +435,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             SnackBar(content: Text(l10n.avatarChangeFailed)));
       }
     }
-  }
-
-  /// Satır değeri: "Rytho+ · 320 🪙" / "Ücretsiz · 12 🪙".
-  ///
-  /// İki sağlayıcı da hata durumunda sessiz varsayılana düşer
-  /// (SubscriptionStatus.none / WalletStatus.none) — satır hiçbir zaman
-  /// patlamaz, en kötü "Ücretsiz · 0 🪙" görünür.
-  String _abonelikOzeti(WidgetRef ref, AppLocalizations l10n) {
-    final abonelik =
-        ref.watch(subscriptionProvider).value ?? SubscriptionStatus.none;
-    final cuzdan = ref.watch(walletProvider).value ?? WalletStatus.none;
-    final plan = abonelik.active ? 'Rytho+' : l10n.subPlanFree;
-    // Okunamadıysa sayı yerine "—" (WalletStatus.bilinmiyor).
-    final bakiye = cuzdan.bilinmiyor ? '—' : '${cuzdan.total}';
-    return '$plan · $bakiye 🪙';
   }
 }
 

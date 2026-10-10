@@ -353,34 +353,45 @@ class _DockItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    // Ekran okuyucu her sekmeyi "düğme, seçili" diye duymalı (GlassSegments
+    // ile aynı gerekçe): çıplak `GestureDetector` rol vermiyordu, TalkBack
+    // dock'u dört etiketsiz ikon olarak okuyordu. Alt ağaç dışlanır ki
+    // etiket iki kez okunmasın.
+    return Semantics(
+      button: true,
+      selected: active,
+      label: item.label,
+      excludeSemantics: true,
       onTap: onTap,
-      child: AnimatedScale(
-        scale: active ? 1.0 : 0.92,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutBack,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ShaderMask(
-              shaderCallback: (bounds) => (active
-                      ? RythoColors.primaryGradient
-                      : const LinearGradient(colors: [
-                          RythoColors.parchmentDim,
-                          RythoColors.parchmentDim,
-                        ]))
-                  .createShader(bounds),
-              child: Icon(active ? item.activeIcon : item.icon,
-                  size: 23, color: Colors.white),
-            ),
-            const SizedBox(height: 3),
-            Text(item.label,
-                style: RythoText.label(9.5,
-                    color: active
-                        ? RythoColors.parchment
-                        : RythoColors.parchmentDim)),
-          ],
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedScale(
+          scale: active ? 1.0 : 0.92,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutBack,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ShaderMask(
+                shaderCallback: (bounds) => (active
+                        ? RythoColors.primaryGradient
+                        : const LinearGradient(colors: [
+                            RythoColors.parchmentDim,
+                            RythoColors.parchmentDim,
+                          ]))
+                    .createShader(bounds),
+                child: Icon(active ? item.activeIcon : item.icon,
+                    size: 23, color: Colors.white),
+              ),
+              const SizedBox(height: 3),
+              Text(item.label,
+                  style: RythoText.label(9.5,
+                      color: active
+                          ? RythoColors.parchment
+                          : RythoColors.parchmentDim)),
+            ],
+          ),
         ),
       ),
     );

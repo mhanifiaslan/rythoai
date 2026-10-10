@@ -180,7 +180,7 @@
   "baZiSubtitle": "Dört Sütun",
   "personalReadingLocked": "Sana özel günlük okuma",
   "personalReadingLockedBody": "Rytho+ ile yorumlar senin haritanla üretilir.",
-  "personalReadingLockedBodyWithSign": "Yukarısı tüm {sign} burçları için. Rytho+ ile bu yorum senin Ay ve yükselenini de hesaba katar.",
+  "personalReadingLockedBodyWithSign": "Genel {sign} yorumu hikâye halkasında. Rytho+ ile bu okuma senin Ay’ını ve Yükselen’ini de hesaba katar.",
   "@personalReadingLockedBodyWithSign": {
     "placeholders": {
       "sign": {
@@ -337,6 +337,7 @@
   "privacyPolicy": "Gizlilik Politikası",
   "termsOfUse": "Kullanım Şartları",
   "signOut": "Oturumu kapat",
+  "signOutConfirmBody": "Bildirimler bu cihazda durur; yeniden girdiğinde kaldığın yerden devam edersin.",
   "dailyStreak": "Günlük Seri",
   "streakDays": "{count, plural, =1{1 gün} other{{count} gün}}",
   "@streakDays": {
@@ -722,6 +723,10 @@
     }
   },
   "quietHoursOff": "Kapalı",
+  "quietHoursFrom": "Başlangıç",
+  "quietHoursTo": "Bitiş",
+  "quietHoursRoundedNote": "Sessiz saatler tam saate yuvarlandı: {range}",
+  "@quietHoursRoundedNote": {"placeholders": {"range": {"type": "String"}}},
   "notificationsDisabledHint": "Bildirimler cihaz ayarlarından kapalı. Açmak için sistem ayarlarına git.",
   "enableNotifications": "Bildirimleri aç",
   "deleteAccount": "Hesabı sil",
@@ -993,6 +998,7 @@
   "birthCityEmpty": "Doğum şehri boş olamaz.",
   "birthRecordSaved": "Doğum kaydın güncellendi. Okumaların yeni haritana göre hesaplanacak.",
   "birthRecordSavedNoChart": "Doğum kaydın güncellendi ama haritan şu an hesaplanamadı. Burç rozetlerin bağlantı gelince geri dönecek.",
+  "onboardingSavedNoChart": "Doğum bilgin kaydedildi ama haritan şu an hesaplanamadı. Burç rozetlerin bağlantı gelince gelecek.",
   "accountSection": "Hesap",
   "accountSaved": "Hesap bilgilerin güncellendi.",
   "displayNameEmpty": "Adın boş olamaz.",
@@ -1011,18 +1017,15 @@
   "signalsSection": "Bugün gökyüzünde senin için",
   "signalWhy": "Neye dayanıyor?",
   "signalAsk": "Rytho'ya sor",
-  "signalAskPrefill": "Bugün ana ekranımda şu sinyal var: \"{card}\" Dayanağı: {technical} Bunu benim için biraz açar mısın?",
+  "signalAskPrefill": "Bugün ana ekranımda şu sinyal var: \"{card}\" Bunu benim için biraz açar mısın?",
   "@signalAskPrefill": {
     "placeholders": {
       "card": {
         "type": "String"
-      },
-      "technical": {
-        "type": "String"
       }
     }
   },
-  "signalUpcoming": "En yakın kesinleşme: {date}",
+  "signalUpcoming": "Önemli gün: {date}",
   "@signalUpcoming": {
     "placeholders": {
       "date": {
@@ -1112,6 +1115,11 @@
     }
   },
   "diaryQuickEmpty": "Yaşadıklarını tek cümleyle bırak; Rytho yorumlarını sana göre derinleştirsin.",
+  "diaryRowSubtitle": "Bugünü not et",
+  "diaryThemeCareer": "Kariyer",
+  "diaryThemeRelationships": "İlişkiler",
+  "diaryThemeInner": "İç dünya",
+  "diaryThemeFinance": "Para",
   "reactionHug": "Sarıldım",
   "reactionLuck": "Bol şans",
   "reactionCoffee": "Kahve içelim",
@@ -1261,6 +1269,8 @@
   "calendarLockedReading": "Bu günün okuması Rytho+ ile açılır",
   "calendarOtherEvents": "Diğer hareketler",
   "calendarStripTitle": "Önündeki 30 gün",
+  "storyPause": "Duraklat",
+  "storyPlay": "Oynat",
   "relationshipReadingTitle": "Rytho'nun ilişki okuması",
   "relationshipReadingLocked": "Ölçülen eksenler ve dayanak açılar herkese açık. Bu ölçümün sizin ikinize özel yorumu Rytho+ ile açılır.",
   "moonUncertainNote": "Doğum saatin kayıtlı olmadığı için Ay'ın burcu bir burç şaşabilir — Ay günde yaklaşık 13° yol alır.",

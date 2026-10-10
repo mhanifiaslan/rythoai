@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
 import '../../core/api.dart' show apiProvider;
 import '../../core/consent.dart' show ensureConsentRecorded;
@@ -14,6 +15,8 @@ import '../../core/notifications.dart'
         pendingNotificationProvider,
         resolveNotificationRoute;
 import '../../core/people.dart' show peopleProvider;
+import '../../theme/rytho_tokens.dart' show RythoMotion;
+import '../../widgets/motion.dart' show kapili;
 import '../../widgets/nebula_widgets.dart' show signIndexOf;
 import '../friends/relationship_screen.dart' show RelationshipScreen;
 import '../sky/sign_story_screen.dart' show SignStoryScreen;
@@ -29,6 +32,41 @@ import '../chat/conversation_list_screen.dart';
 import '../friends/friends_screen.dart';
 import '../profile/profile_screen.dart';
 import '../sky/sky_screen.dart';
+
+/// Bildirim niyeti ŞİMDİ tüketilebilir mi — saf karar (D5).
+///
+/// Ölçülen kusur: `_niyetIsle` niyeti önce temizleyip SONRA listeyi
+/// `provider.value ?? const []` ile okuyordu. Soğuk açılışta (bildirime
+/// dokunup uygulamayı açmak) arkadaş akışı henüz ilk değerini vermemiş
+/// oluyor, liste boş geliyor, döngü hiçbir şeyi eşlemiyor — ve niyet
+/// TÜKETİLMİŞ olduğu için bir daha denenmiyordu. Kullanıcı öğle
+/// bildirimine dokunuyor, yalnız Çevrem sekmesi açılıyordu.
+///
+/// Karar burada, veriyle ilgisi olmayan rotalar (sekme, sohbet) hemen
+/// tüketilir; veri isteyen rotalar o veri HAZIR olana kadar bekler
+/// (`AppShell` hazır olunca yeniden dener). "Hazır" = sağlayıcı bir değer
+/// yaydı (`hasValue`); boş liste de bir değerdir ve o zaman eşleşmeyen
+/// niyet dürüstçe düşer.
+///
+/// `signalSheet` burada ASLA tüketilmez: onu SkyScreen tüketir (sinyaller
+/// yüklü olmalı ve dayanak sayfası orada açılır).
+bool niyetTuketilebilir(
+  NotificationRoute rota, {
+  required bool profilHazir,
+  required bool arkadaslarHazir,
+  bool kisilerHazir = true,
+}) =>
+    switch (rota.kind) {
+      NotificationRouteKind.signalSheet => false,
+      NotificationRouteKind.dailyStory => profilHazir,
+      NotificationRouteKind.friendRelation => arkadaslarHazir,
+      NotificationRouteKind.personRelation => kisilerHazir,
+      NotificationRouteKind.rythoAsks ||
+      NotificationRouteKind.checkinChat ||
+      NotificationRouteKind.circleTab ||
+      NotificationRouteKind.homeTab =>
+        true,
+    };
 
 /// Aktif sekme — ekranlar (örn. promo banner) sekme değiştirebilsin diye
 /// Riverpod üzerinden paylaşılır. 0: Gökyüzü, 1: Atlas, 2: Arkadaşlar, 3: Profil.
@@ -51,6 +89,20 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   /// Şimdiye kadar açılmış sekmeler (tembel kurulum — bkz. build).
   final Set<int> _gorulen = {};
+
+  /// Veri bekleyen niyetin tek seferlik dinleyicisi (bkz.
+  /// [niyetTuketilebilir]). `build`de sürekli `ref.listen` DEĞİL: arkadaş
+  /// ve kişi akışlarını her açılışta kurmak, kullanıcı o sekmeye hiç
+  /// girmese de iki Firestore dinleyicisi demek — tembel sekme kurulumunun
+  /// (bkz. build) tam tersi. Dinleyici yalnız bekleyen bir niyet varken
+  /// yaşar ve ilk değerde kendini kapatır.
+  ProviderSubscription<AsyncValue<Object?>>? _bekleyenNiyet;
+
+  @override
+  void dispose() {
+    _bekleyenNiyet?.close();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -112,8 +164,34 @@ class _AppShellState extends ConsumerState<AppShell> {
   void _niyetIsle(PendingNotification niyet) {
     final rota = resolveNotificationRoute(niyet.data);
     if (rota.kind == NotificationRouteKind.signalSheet) return;
-    ref.read(pendingNotificationProvider.notifier).clear();
     if (!mounted) return;
+
+    // Veri isteyen rota, verisi gelmeden TÜKETİLMEZ (ölçülmüş kusur, bkz.
+    // niyetTuketilebilir): niyet yerinde kalır, ilgili akış ilk değerini
+    // verince buraya yeniden gelinir.
+    //
+    // Yalnız GEREKEN akış okunur: `ref.read` sağlayıcıyı kurar ve arkadaş /
+    // kişi akışları Firestore dinleyicisi demek. Her bildirim dokunuşunda
+    // ikisini birden kurmak, tembel sekme kurulumunun (bkz. build) tam
+    // tersi olurdu; kısa devre `||` yalnız rotanın istediği akışa dokunur.
+    final arkadasGerek = rota.kind == NotificationRouteKind.friendRelation;
+    final kisiGerek = rota.kind == NotificationRouteKind.personRelation;
+    if (!niyetTuketilebilir(
+      rota,
+      profilHazir: ref.read(profileProvider).hasValue,
+      arkadaslarHazir: !arkadasGerek || ref.read(friendsProvider).hasValue,
+      kisilerHazir: !kisiGerek || ref.read(peopleProvider).hasValue,
+    )) {
+      _veriGelinceYenidenDene(switch (rota.kind) {
+        NotificationRouteKind.friendRelation => friendsProvider,
+        NotificationRouteKind.personRelation => peopleProvider,
+        _ => profileProvider,
+      });
+      return;
+    }
+    _bekleyenNiyet?.close();
+    _bekleyenNiyet = null;
+    ref.read(pendingNotificationProvider.notifier).clear();
 
     switch (rota.kind) {
       case NotificationRouteKind.rythoAsks:
@@ -134,10 +212,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         ));
       case NotificationRouteKind.friendRelation:
         // Öğle çift ânı / kabul: o ilişkinin ekranı ("Bugün aranıza
-        // dokunan gökyüzü" tam bildirimin içeriği). Arkadaş listesi henüz
-        // yüklenmediyse Çevrem sekmesi zaten seçili — sessizce orada kal.
-        final arkadaslar = ref.read(friendsProvider).value ?? const [];
-        for (final f in arkadaslar) {
+        // dokunan gökyüzü" tam bildirimin içeriği). Liste HAZIR (yukarıdaki
+        // kapı); eşleşme yoksa (arkadaşlık bitmiş) Çevrem sekmesi zaten
+        // seçili — orada kal.
+        for (final f in ref.read(friendsProvider).requireValue) {
           if (f.uid == rota.friendUid && f.status == FriendStatus.accepted) {
             Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => RelationshipScreen(friend: f)));
@@ -145,8 +223,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           }
         }
       case NotificationRouteKind.personRelation:
-        final kisiler = ref.read(peopleProvider).value ?? const [];
-        for (final k in kisiler) {
+        for (final k in ref.read(peopleProvider).requireValue) {
           if (k.id == rota.personId) {
             Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => RelationshipScreen.forPerson(person: k)));
@@ -161,6 +238,31 @@ class _AppShellState extends ConsumerState<AppShell> {
       case NotificationRouteKind.signalSheet:
         break; // yukarıda elendi
     }
+  }
+
+  /// Bekleyen niyeti, [kaynak] ilk değerini verince yeniden dener.
+  ///
+  /// Tek seferlik: ilk değerde (ya da değersiz hatada) kendini kapatır.
+  /// Hata hâlinde niyet DÜŞÜRÜLÜR — liste hiç gelmeyecekse "sessizce o
+  /// sekmede kal" en dürüst sonuç; bekleyen niyeti sonsuza dek tutmak, bir
+  /// sonraki bildirim dokunuşunu bugünkü yükle karıştırırdı.
+  void _veriGelinceYenidenDene(
+      ProviderListenable<AsyncValue<Object?>> kaynak) {
+    _bekleyenNiyet?.close();
+    _bekleyenNiyet = ref.listenManual<AsyncValue<Object?>>(kaynak,
+        (onceki, sonraki) {
+      if (!sonraki.hasValue && !sonraki.hasError) return;
+      _bekleyenNiyet?.close();
+      _bekleyenNiyet = null;
+      if (!mounted) return;
+      final niyet = ref.read(pendingNotificationProvider);
+      if (niyet == null) return;
+      if (sonraki.hasValue) {
+        _niyetIsle(niyet);
+      } else {
+        ref.read(pendingNotificationProvider.notifier).clear();
+      }
+    });
   }
 
   /// RYTHO SORDU (SS-turu): soru zaten sohbette Rytho'nun mesajı olarak
@@ -230,13 +332,16 @@ class _AppShellState extends ConsumerState<AppShell> {
           if (_gorulen.contains(i))
             IgnorePointer(
               ignoring: index != i,
+              // Sekme geçişi örtük animatör: `reduceMotion` yalnız
+              // `.animate()` zincirlerini kapatıyordu, bu 280 ms kapısız
+              // oynuyordu (ölçüldü, motion.dart). Süre token'dan, kapıdan.
               child: AnimatedOpacity(
                 opacity: index == i ? 1 : 0,
-                duration: const Duration(milliseconds: 280),
+                duration: kapili(context, RythoMotion.route),
                 curve: Curves.easeOutCubic,
                 child: AnimatedSlide(
                   offset: index == i ? Offset.zero : const Offset(0, 0.012),
-                  duration: const Duration(milliseconds: 280),
+                  duration: kapili(context, RythoMotion.route),
                   curve: Curves.easeOutCubic,
                   child: const [
                     SkyScreen(),

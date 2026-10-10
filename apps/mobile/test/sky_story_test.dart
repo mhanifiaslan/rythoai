@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,7 +53,8 @@ Widget _sarKisa(Widget child) => _sarGenel(child, _kisaYorum);
 Widget _sar(Widget child) => _sarGenel(child, _yorum);
 
 Widget _sarGenel(
-        Widget child, Map<String, dynamic> Function(String) uretici) =>
+        Widget child, Map<String, dynamic> Function(String) uretici,
+        {bool hareketAzalt = false}) =>
     ProviderScope(
       overrides: [
         signHoroscopeProvider.overrideWith((ref, key) async => uretici(key)),
@@ -65,9 +68,18 @@ Widget _sarGenel(
         ],
         supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('tr'),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(disableAnimations: hareketAzalt),
+          child: child!,
+        ),
         home: Scaffold(body: child),
       ),
     );
+
+/// Hareket azaltma AÇIK, kısa metin.
+Widget _sarKisaAzaltilmis(Widget child) =>
+    _sarGenel(child, _kisaYorum, hareketAzalt: true);
 
 /// `AstrolabeSpinner` surekli doner — `pumpAndSettle` hicbir zaman donmez.
 Future<void> _bekle(WidgetTester tester) async {
@@ -238,6 +250,97 @@ void main() {
       await _bekle(tester);
 
       expect(find.textContaining('Dolunay'), findsOneWidget);
+    });
+  });
+  group('hareket azaltma ve görünür düğme (D5)', () {
+    // Kendiliğinden kayan metin, "animasyonları azalt" diyen kullanıcı için
+    // tam da rahatsız eden hareket sınıfı; eski hâl kapıyı okumuyordu.
+    // Görünür Oynat/Duraklat de yoktu: "dokununca durur" gizli bir jestti
+    // ve TalkBack kullanıcısı için hiç yoktu.
+    testWidgets('reduceMotion: sayaç BAŞLAMAZ, sayfa kendiliğinden geçmez',
+        (tester) async {
+      await tester.pumpWidget(_sarKisaAzaltilmis(
+          const SignStoryScreen(order: [5, 0, 1], initialIndex: 0)));
+      await _bekle(tester);
+      expect(find.textContaining('virgo:'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 7));
+      await _bekle(tester);
+      expect(find.textContaining('virgo:'), findsOneWidget,
+          reason: 'hareket azaltmada hikâye kendiliğinden akmamalı');
+      expect(find.textContaining('aries:'), findsNothing);
+      // Durmuş hâlin düğmesi "Oynat".
+      expect(find.bySemanticsLabel('Oynat'), findsOneWidget);
+      expect(find.bySemanticsLabel('Duraklat'), findsNothing);
+    });
+
+    testWidgets('reduceMotion: Oynat\'a basınca akar (istenen hareket)',
+        (tester) async {
+      await tester.pumpWidget(_sarKisaAzaltilmis(
+          const SignStoryScreen(order: [5, 0, 1], initialIndex: 0)));
+      await _bekle(tester);
+
+      await tester.tap(find.bySemanticsLabel('Oynat'));
+      await tester.pump();
+      expect(find.bySemanticsLabel('Duraklat'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 7));
+      await _bekle(tester);
+      expect(find.textContaining('aries:'), findsOneWidget,
+          reason: 'kullanıcının kendi Oynat kararı kapıya takılmamalı');
+    });
+
+    testWidgets('normalde Duraklat görünür; basınca sayaç durur',
+        (tester) async {
+      await tester.pumpWidget(
+          _sarKisa(const SignStoryScreen(order: [5, 0, 1], initialIndex: 0)));
+      await _bekle(tester);
+      final duraklat = find.bySemanticsLabel('Duraklat');
+      expect(duraklat, findsOneWidget);
+
+      await tester.tap(duraklat);
+      await tester.pump();
+      expect(find.bySemanticsLabel('Oynat'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 12));
+      await _bekle(tester);
+      expect(find.textContaining('virgo:'), findsOneWidget,
+          reason: 'duraklatılmış hikâye kaymamalı');
+    });
+
+    testWidgets('bölme dokunma hedefi ≥ 24 dp ve düğme rolünde',
+        (tester) async {
+      final semantik = tester.ensureSemantics();
+      await tester.pumpWidget(_sar(const SignStoryScreen(
+          order: [5, 0, 1, 2], initialIndex: 0)));
+      await _bekle(tester);
+
+      // 3 px'lik çubuk 3 px'lik hedef demekti; parmakla atlamak şansa
+      // kalıyordu.
+      final bolme = find.bySemanticsLabel('2/4');
+      expect(bolme, findsOneWidget);
+      expect(tester.getSize(bolme).height, greaterThanOrEqualTo(kBolmeHedefi));
+      expect(kBolmeHedefi, greaterThanOrEqualTo(24));
+      expect(tester.getSemantics(bolme), isSemantics(isButton: true));
+      semantik.dispose();
+    });
+
+    test('kaynak: hata düğmesi retry anahtarı; sayfa geçişi motion.sayfayaGit',
+        () {
+      final k = File('lib/features/sky/sign_story_screen.dart')
+          .readAsStringSync()
+          .replaceAll('\r\n', '\n')
+          .split('\n')
+          .where((s) => !s.trimLeft().startsWith('//'))
+          .join('\n');
+      // Yüz okumanın "Ayarları aç" anahtarı iki dilde tesadüfen "Tekrar
+      // dene" okunuyordu; yüz metnini değiştiren ilk tur burayı sessizce
+      // yanlış adlandırırdı.
+      expect(k, isNot(contains('faceOpenSettings')));
+      expect(k, contains('text: l10n.retry'));
+      // Çıplak animateToPage sıfır süreyi assert ile reddeder.
+      expect(k, isNot(contains('animateToPage(')));
+      expect(k, contains('sayfayaGit(_sayfa, context, hedef'));
+      expect(k, isNot(contains('Duration(seconds:')),
+          reason: 'sayaç yer tutucusu çıplak sayı olmasın');
     });
   });
 }

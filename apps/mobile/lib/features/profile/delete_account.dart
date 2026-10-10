@@ -5,9 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/analytics.dart';
 import '../../core/auth_service.dart' show signOutEverywhere;
 import '../../core/api.dart';
+import '../../core/tr_metin.dart' show onayKelimesiEslesiyor;
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
+import '../../widgets/alt_sayfa.dart' show showRythoSheet;
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/onay.dart' show onayliCikis;
 
 /// Hesap silme akışı.
 ///
@@ -24,7 +27,13 @@ import '../../widgets/atlas_widgets.dart';
 ///   bunu söylememek kullanıcıya para kaybettirir.
 /// - **Yazarak onay.** Tek dokunuşla geri alınamaz bir işlem yaptırmak yanlış.
 class DeleteAccountSheet extends ConsumerStatefulWidget {
-  const DeleteAccountSheet({super.key});
+  const DeleteAccountSheet({super.key, this.cikis = signOutEverywhere});
+
+  /// Oturum kapatma yolu — TEST DİKİŞİ (`onayliCikis` ile aynı gerekçe).
+  /// Üretimde `signOutEverywhere`: cihaz kilidi, push jetonu ve çakışma
+  /// bayrağı orada sırayla iner, buradan tek tek çağrılmaz.
+  @visibleForTesting
+  final Future<void> Function() cikis;
 
   @override
   ConsumerState<DeleteAccountSheet> createState() => _DeleteAccountSheetState();
@@ -34,6 +43,12 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
   final _controller = TextEditingController();
   bool _busy = false;
   String? _error;
+
+  /// 401: Firebase, kimliği silmek için yakın zamanda giriş ister. Bu hâlde
+  /// metin tek başına yetmiyordu (ölçüldü 2026-10-10): "çıkış yapıp yeniden
+  /// gir" diyordu ama çıkışın kapısı bu sayfada yoktu — kullanıcı sayfayı
+  /// kapatıp profilde o satırı aramak zorundaydı. Eylem metnin yanında.
+  bool _yenidenGiris = false;
 
   @override
   void dispose() {
@@ -56,18 +71,17 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
       // Sunucu kimliği de sildi; yerel oturumu temizle. Sıra önemli:
       // Firebase oturumu açık kalırsa uygulama silinmiş bir hesapla
       // açılmaya çalışır. (KT4: ortak yol — devralma bayrağı da sıfırlanır.)
-      await signOutEverywhere();
+      await widget.cikis();
 
       if (mounted) Navigator.of(context).pop();
     } on DioException catch (e) {
-      // Firebase kimliği silmek için yakın zamanda giriş yapılmış olmasını
-      // isteyebiliyor; bu durumda kullanıcıyı ne yapacağını bilir hâlde
-      // bırakmalıyız.
       final yeniden = e.response?.statusCode == 401;
       if (mounted) {
-        setState(() => _error = yeniden
-            ? l10n.deleteAccountReauth
-            : l10n.deleteAccountFailed);
+        setState(() {
+          _yenidenGiris = yeniden;
+          _error =
+              yeniden ? l10n.deleteAccountReauth : l10n.deleteAccountFailed;
+        });
       }
     } catch (_) {
       if (mounted) setState(() => _error = l10n.deleteAccountFailed);
@@ -76,54 +90,86 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
     }
   }
 
+  /// 401 sonrası çıkış — ONAYSIZ. Kullanıcı bu sayfada hesabını silmek için
+  /// onay sözcüğünü yazdı ve ekrandaki metin çıkışı zaten söylüyor; ikinci
+  /// bir soru eylemi geciktirir, korumaz (cihaz çakışma ekranıyla aynı
+  /// kural: `onayliCikis(onay: false)`).
+  Future<void> _cikisYap() async {
+    final gezgin = Navigator.of(context);
+    setState(() => _busy = true);
+    try {
+      await onayliCikis(context, onay: false, cikis: widget.cikis);
+      // Çıkış kök ekranı giriş sayfasına çevirir; bu sayfa onun üstünde
+      // kalmasın.
+      if (mounted) gezgin.pop();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final onayli = _controller.text.trim().toUpperCase() ==
-        l10n.deleteAccountConfirmWord.toUpperCase();
+    // `onayKelimesiEslesiyor`: eski karşılaştırma `toUpperCase()` idi ve
+    // Türkçe bilmiyordu — "sil" → "SIL" ≠ "SİL", onay düğmesi açıklamasız
+    // kapalı kalıyordu (ölçüldü; D2 Türkçe harf).
+    final onayli = onayKelimesiEslesiyor(
+        _controller.text, l10n.deleteAccountConfirmWord);
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-            20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(l10n.deleteAccountTitle,
-              style: RythoText.display(20), textAlign: TextAlign.center),
-          const SizedBox(height: 14),
-          _Paragraph(l10n.deleteAccountBody),
-          const SizedBox(height: 10),
-          _Paragraph(l10n.deleteAccountKeeps),
-          const SizedBox(height: 10),
-          _Paragraph(l10n.deleteAccountSubscription, vurgu: true),
-          const SizedBox(height: 18),
-          TextField(
-            controller: _controller,
-            autocorrect: false,
-            enableSuggestions: false,
-            textCapitalization: TextCapitalization.characters,
-            style: RythoText.body(15),
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText: l10n.deleteAccountConfirmHint,
-              errorText: _error,
-              hintStyle:
-                  RythoText.body(14, color: RythoColors.parchmentDim),
-            ),
+    // Kaydırma, güvenli alan ve klavye dolgusu KABUKTAN (`showRythoSheet`)
+    // gelir; burada ikinci bir kaydırıcı kurulmaz — iç içe iki kaydırıcı
+    // dıştakini kilitler.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(l10n.deleteAccountTitle,
+            style: RythoText.display(20), textAlign: TextAlign.center),
+        const SizedBox(height: 14),
+        _Paragraph(l10n.deleteAccountBody),
+        const SizedBox(height: 10),
+        _Paragraph(l10n.deleteAccountKeeps),
+        const SizedBox(height: 10),
+        _Paragraph(l10n.deleteAccountSubscription, vurgu: true),
+        const SizedBox(height: 18),
+        TextField(
+          controller: _controller,
+          autocorrect: false,
+          enableSuggestions: false,
+          textCapitalization: TextCapitalization.characters,
+          style: RythoText.body(15),
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: l10n.deleteAccountConfirmHint,
+            errorText: _error,
+            hintStyle:
+                RythoText.body(14, color: RythoColors.parchmentDim),
           ),
-          const SizedBox(height: 16),
+        ),
+        const SizedBox(height: 16),
+        if (_yenidenGiris)
+          // Silme düğmesi bu hâlde anlamsız (ikinci deneme yine 401 alır);
+          // yerini tek işe yarar eylem alır.
+          GoldButton(
+            text: l10n.signOut,
+            busy: _busy,
+            onPressed: _busy ? null : _cikisYap,
+          )
+        else
           GoldButton(
             text: l10n.deleteAccountAction,
             busy: _busy,
+            // Yıkıcı: düz madder, degrade ve glow YOK — parıltı davet eder,
+            // bu eylem davet edilmez (gold_button_test).
+            destructive: true,
             // Onay yazılmadan düğme çalışmaz.
             onPressed: onayli ? () => _delete(l10n) : null,
           ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: _busy ? null : () => Navigator.of(context).pop(),
-            child: Text(l10n.cancel, style: RythoText.label(12)),
-          ),
-        ]),
-      ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          child: Text(l10n.cancel, style: RythoText.label(12)),
+        ),
+      ]),
     );
   }
 }
@@ -146,16 +192,12 @@ class _Paragraph extends StatelessWidget {
 }
 
 Future<void> showDeleteAccountSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    // Yanlışlıkla kapanmasın diye dışarı dokunmayla kapanma açık bırakıldı
-    // ama işlem yazarak onay istediği için kaza riski yok.
-    backgroundColor: RythoColors.inkLight,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      side: BorderSide(color: RythoColors.glassStroke),
-    ),
+  // Dışarı dokunmayla kapanma açık (kabuk varsayılanı): işlem yazarak onay
+  // istediği için kaza riski yok. Kabuk tek (`showRythoSheet`, D3): zemin,
+  // köşe, tutamak, kaydırma ve klavye dolgusu burada yeniden yazılmaz.
+  return showRythoSheet<void>(
+    context,
+    klavyeyeUy: true,
     builder: (_) => const DeleteAccountSheet(),
   );
 }

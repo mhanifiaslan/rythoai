@@ -24,6 +24,16 @@
 /// ortasında sayfa kayardı. Bu yüzden süre **kelime sayısından** hesaplanıyor
 /// (bkz. [okumaSuresi]) ve ekrana parmak değdiği an duruyor — kaydırmak,
 /// basılı tutmak, seçmek: hepsi okuma sayılır.
+///
+/// ## Hareket azaltma ve görünür düğme (D5)
+///
+/// Sistem "animasyonları azalt" diyorsa sayfa KENDİLİĞİNDEN akmaz: metnin
+/// altından kayması tam da rahatsız eden türden kendiliğinden harekettir
+/// (motion.dart doktrini). Kullanıcı yine de akıtmak isterse başlıktaki
+/// Oynat düğmesine basar — kendi eylemine verilen cevap kapı dışında kalır.
+/// Düğme hareket azaltmada da, normalde de görünür: "ekrana dokununca
+/// durur" kuralı keşfedilmesi gereken gizli bir jestti; TalkBack
+/// kullanıcısı için hiç yoktu.
 library;
 
 import 'package:flutter/material.dart';
@@ -36,8 +46,16 @@ import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart';
 import '../share/share_card.dart';
+
+/// İlerleme bölmesinin dokunma hedefi yüksekliği. Çubuk 3 px kalınlığında
+/// çiziliyordu ve dokunma hedefi de 3 px'ti — parmakla bölme atlamak
+/// şansa kalıyordu. Çubuk aynı kalınlıkta, hedef Material tabanının
+/// yarısında (24 dp): tam 48 başlığı aşağı iterdi, 24 ise şeridin ritmini
+/// bozmadan vurulabilir.
+const double kBolmeHedefi = 24;
 
 /// Dakikada okunan kelime — Türkçe için ölçülen aralığın alt ucu (200-250).
 /// Alt uç bilinçli: hızlı okuyan zaten kaydırır, yavaş okuyanın metni
@@ -78,8 +96,11 @@ class _SignStoryScreenState extends ConsumerState<SignStoryScreen>
     with SingleTickerProviderStateMixin {
   late final PageController _sayfa =
       PageController(initialPage: widget.initialIndex);
+
+  /// Süre yer tutucu: gerçek süre metin gelince [okumaSuresi]nden kurulur.
+  /// Boş metnin süresi (taban) seçildi ki çıplak bir sayı yaşamasın.
   late final AnimationController _sure =
-      AnimationController(vsync: this, duration: const Duration(seconds: 10))
+      AnimationController(vsync: this, duration: okumaSuresi(''))
         ..addStatusListener(_bittiMi);
 
   late int _konum = widget.initialIndex;
@@ -90,6 +111,11 @@ class _SignStoryScreenState extends ConsumerState<SignStoryScreen>
 
   /// Parmak ekrandayken ilerleme durur.
   bool _elde = false;
+
+  /// Kullanıcının oynat/duraklat kararı. İlk değer BUILD'de verilir çünkü
+  /// hareket azaltma `MediaQuery`den okunur: azaltma açıksa hikâye
+  /// durmuş başlar, kullanıcı isterse Oynat'a basar.
+  bool? _oynuyor;
 
   void _bittiMi(AnimationStatus durum) {
     if (durum != AnimationStatus.completed) return;
@@ -110,11 +136,15 @@ class _SignStoryScreenState extends ConsumerState<SignStoryScreen>
 
   void _gec(int hedef) {
     if (hedef < 0 || hedef >= widget.order.length) return;
-    _sayfa.animateToPage(hedef,
-        duration: RythoMotion.base, curve: Curves.easeOutCubic);
+    // Sıfır süre `jumpToPage`e düşer (motion.sayfayaGit): çıplak
+    // `animateToPage` hareket azaltmada assert ile fırlıyordu.
+    sayfayaGit(_sayfa, context, hedef, sure: RythoMotion.base);
   }
 
-  /// Metin geldiğinde bu sayfanın sayacını kurar ve başlatır.
+  /// Sayaç ilerleyebilir mi: parmak ekranda değil VE kullanıcı oynat dedi.
+  bool get _akabilir => !_elde && _oynuyor == true;
+
+  /// Metin geldiğinde bu sayfanın sayacını kurar ve (akabiliyorsa) başlatır.
   void _sayaciKur(String metin) {
     if (_kurulanKonum == _konum) return;
     _kurulanKonum = _konum;
@@ -122,7 +152,7 @@ class _SignStoryScreenState extends ConsumerState<SignStoryScreen>
       ..stop()
       ..duration = okumaSuresi(metin)
       ..value = 0;
-    if (!_elde) _sure.forward();
+    if (_akabilir) _sure.forward();
   }
 
   void _duraklat(bool duruyor) {
@@ -130,8 +160,20 @@ class _SignStoryScreenState extends ConsumerState<SignStoryScreen>
     _elde = duruyor;
     if (duruyor) {
       _sure.stop();
-    } else if (_kurulanKonum == _konum) {
+    } else if (_akabilir && _kurulanKonum == _konum) {
       _sure.forward();
+    }
+  }
+
+  /// Görünür Oynat/Duraklat: kullanıcının açık kararı. Oynat'a basmak
+  /// hareket azaltmada da akıtır — kapı kendiliğinden hareketi tutar,
+  /// istenen hareketi değil.
+  void _oynatDegistir() {
+    setState(() => _oynuyor = !(_oynuyor ?? false));
+    if (_akabilir && _kurulanKonum == _konum) {
+      _sure.forward();
+    } else {
+      _sure.stop();
     }
   }
 
@@ -139,6 +181,8 @@ class _SignStoryScreenState extends ConsumerState<SignStoryScreen>
   Widget build(BuildContext context) {
     final burc = widget.order[_konum];
     final renk = RythoColors.signColors[burc % 12];
+    // İlk karar burada: azaltma açıksa durmuş başlar (bkz. kütüphane notu).
+    _oynuyor ??= !reduceMotion(context);
 
     // Aktif sayfanın metni gelir gelmez sayaç kurulur. Sayacı sayfanın
     // içinden kurmak, PageView komşu sayfaları da inşa ettiği için yanlış
@@ -192,6 +236,8 @@ class _SignStoryScreenState extends ConsumerState<SignStoryScreen>
                   ),
                   _Baslik(
                     signIndex: burc,
+                    oynuyor: _oynuyor == true,
+                    onOynat: _oynatDegistir,
                     onClose: () => Navigator.of(context).pop(),
                   ),
                   Expanded(
@@ -241,30 +287,46 @@ class _IlerlemeCubugu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Dikey dolgu bölme hedefinin İÇİNE alındı: hedef 3 → 24 dp büyüdü,
+    // çubuk aynı yerde kalsın diye dıştaki üst/alt nefes düştü.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          RythoSpace.md, RythoSpace.md, RythoSpace.md, RythoSpace.xs),
+      padding: const EdgeInsets.symmetric(horizontal: RythoSpace.md),
       child: Row(
         children: [
           for (var i = 0; i < adet; i++)
             Expanded(
-              child: GestureDetector(
+              // Bölme dekoratif değil, atlama düğmesi: TalkBack "i/adet"
+              // duymalı. Çıplak `GestureDetector` rol vermiyordu.
+              child: Semantics(
+                button: true,
+                label: '${i + 1}/$adet',
+                excludeSemantics: true,
                 onTap: () => onTap(i),
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(RythoRadius.pill),
-                    child: LinearProgressIndicator(
-                      value: i < konum
-                          ? 1
-                          : i == konum
-                              ? oran
-                              : 0,
-                      minHeight: 3,
-                      backgroundColor:
-                          RythoColors.parchment.withValues(alpha: 0.22),
-                      valueColor: AlwaysStoppedAnimation(renk),
+                child: GestureDetector(
+                  onTap: () => onTap(i),
+                  behavior: HitTestBehavior.opaque,
+                  child: SizedBox(
+                    height: kBolmeHedefi,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: RythoSpace.xxs),
+                        child: ClipRRect(
+                          borderRadius:
+                              BorderRadius.circular(RythoRadius.pill),
+                          child: LinearProgressIndicator(
+                            value: i < konum
+                                ? 1
+                                : i == konum
+                                    ? oran
+                                    : 0,
+                            minHeight: 3,
+                            backgroundColor: RythoColors.parchment
+                                .withValues(alpha: 0.22),
+                            valueColor: AlwaysStoppedAnimation(renk),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -282,9 +344,18 @@ class _IlerlemeCubugu extends StatelessWidget {
 /// minimal durabilir" dedi. Doğrusu da bu: sayfanın işi metni okutmak,
 /// başlık kimlik bildirir, gösteri yapmaz.
 class _Baslik extends StatelessWidget {
-  const _Baslik({required this.signIndex, required this.onClose});
+  const _Baslik({
+    required this.signIndex,
+    required this.oynuyor,
+    required this.onOynat,
+    required this.onClose,
+  });
 
   final int signIndex;
+
+  /// Hikâye akıyor mu — düğmenin ikonu ve etiketi buna göre.
+  final bool oynuyor;
+  final VoidCallback onOynat;
   final VoidCallback onClose;
 
   @override
@@ -324,6 +395,21 @@ class _Baslik extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          // Oynat/Duraklat: ikon-tek düğme, adı iki yoldan — `tooltip`
+          // uzun basışta görünen ipucu (ve semantik `tooltip` alanı),
+          // ikonun `semanticLabel`i ekran okuyucunun duyduğu AD. Tooltip tek
+          // başına yetmez: Flutter onu `label`a değil `tooltip` alanına
+          // yazar, TalkBack düğmeyi adsız okur (ölçüldü: bySemanticsLabel
+          // boş döndü). Etiket DURUMU değil EYLEMİ söyler: akarken
+          // "Duraklat", durmuşken "Oynat".
+          IconButton(
+            tooltip: oynuyor ? l10n.storyPause : l10n.storyPlay,
+            icon: Icon(
+                oynuyor ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                semanticLabel: oynuyor ? l10n.storyPause : l10n.storyPlay,
+                color: RythoColors.parchment),
+            onPressed: onOynat,
           ),
           IconButton(
             tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
@@ -381,8 +467,13 @@ class _BurcSayfasi extends ConsumerWidget {
               Text(friendlyError(e, l10n),
                   style: RythoType.bodyDim, textAlign: TextAlign.center),
               const SizedBox(height: RythoSpace.lg),
+              // Düğme sağlayıcıyı geçersiz kılıp yeniden ister; adı da
+              // bunu söylemeli. Eski anahtar yüz okumanın "Ayarları aç"
+              // metniydi — iki dilde tesadüfen "Tekrar dene" okunuyordu,
+              // yüz okuma metnini değiştiren ilk tur burayı sessizce
+              // yanlış adlandırırdı.
               GoldButton(
-                text: l10n.faceOpenSettings,
+                text: l10n.retry,
                 filled: false,
                 onPressed: () => ref
                     .invalidate(signHoroscopeProvider(kSignKeys[signIndex])),

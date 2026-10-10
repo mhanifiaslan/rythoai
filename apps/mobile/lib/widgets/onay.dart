@@ -67,9 +67,15 @@ Future<bool> onayla(
 /// [cikis] test dikişi; üretimde `signOutEverywhere` (core/auth_service.dart)
 /// — cihaz kilidi, push jetonu ve çakışma bayrağı orada sırayla iner,
 /// buradan tek tek çağrılmaz.
+///
+/// [body] sorunun gövdesi; verilmezse `signOutConfirmBody` (bildirimler
+/// bu cihazda durur, yeniden girince kaldığın yerden). Gövde ŞART çünkü
+/// "Oturumu kapat?" tek başına çıkışın bedelini söylemiyor; kullanıcı
+/// "verim gider mi?" sorusuyla ya vazgeçiyor ya korkarak basıyordu.
 Future<void> onayliCikis(
   BuildContext context, {
   bool onay = true,
+  String? body,
   Future<void> Function() cikis = signOutEverywhere,
 }) async {
   if (onay) {
@@ -80,6 +86,7 @@ Future<void> onayliCikis(
     final tamam = await onayla(
       context,
       title: l10n.signOut,
+      body: body ?? l10n.signOutConfirmBody,
       confirmLabel: l10n.signOut,
     );
     if (!tamam) return;

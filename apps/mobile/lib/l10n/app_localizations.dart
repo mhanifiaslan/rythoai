@@ -761,7 +761,7 @@ abstract class AppLocalizations {
   /// No description provided for @personalReadingLockedBodyWithSign.
   ///
   /// In tr, this message translates to:
-  /// **'Yukarısı tüm {sign} burçları için. Rytho+ ile bu yorum senin Ay ve yükselenini de hesaba katar.'**
+  /// **'Genel {sign} yorumu hikâye halkasında. Rytho+ ile bu okuma senin Ay’ını ve Yükselen’ini de hesaba katar.'**
   String personalReadingLockedBodyWithSign(String sign);
 
   /// No description provided for @personalReadingTitle.
@@ -1453,6 +1453,12 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Oturumu kapat'**
   String get signOut;
+
+  /// No description provided for @signOutConfirmBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bildirimler bu cihazda durur; yeniden girdiğinde kaldığın yerden devam edersin.'**
+  String get signOutConfirmBody;
 
   /// No description provided for @dailyStreak.
   ///
@@ -2545,6 +2551,24 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Kapalı'**
   String get quietHoursOff;
+
+  /// No description provided for @quietHoursFrom.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başlangıç'**
+  String get quietHoursFrom;
+
+  /// No description provided for @quietHoursTo.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bitiş'**
+  String get quietHoursTo;
+
+  /// No description provided for @quietHoursRoundedNote.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sessiz saatler tam saate yuvarlandı: {range}'**
+  String quietHoursRoundedNote(String range);
 
   /// No description provided for @notificationsDisabledHint.
   ///
@@ -3662,6 +3686,12 @@ abstract class AppLocalizations {
   /// **'Doğum kaydın güncellendi ama haritan şu an hesaplanamadı. Burç rozetlerin bağlantı gelince geri dönecek.'**
   String get birthRecordSavedNoChart;
 
+  /// No description provided for @onboardingSavedNoChart.
+  ///
+  /// In tr, this message translates to:
+  /// **'Doğum bilgin kaydedildi ama haritan şu an hesaplanamadı. Burç rozetlerin bağlantı gelince gelecek.'**
+  String get onboardingSavedNoChart;
+
   /// No description provided for @accountSection.
   ///
   /// In tr, this message translates to:
@@ -3743,13 +3773,13 @@ abstract class AppLocalizations {
   /// No description provided for @signalAskPrefill.
   ///
   /// In tr, this message translates to:
-  /// **'Bugün ana ekranımda şu sinyal var: \"{card}\" Dayanağı: {technical} Bunu benim için biraz açar mısın?'**
-  String signalAskPrefill(String card, String technical);
+  /// **'Bugün ana ekranımda şu sinyal var: \"{card}\" Bunu benim için biraz açar mısın?'**
+  String signalAskPrefill(String card);
 
   /// No description provided for @signalUpcoming.
   ///
   /// In tr, this message translates to:
-  /// **'En yakın kesinleşme: {date}'**
+  /// **'Önemli gün: {date}'**
   String signalUpcoming(String date);
 
   /// No description provided for @basisSheetTitle.
@@ -4075,6 +4105,36 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Yaşadıklarını tek cümleyle bırak; Rytho yorumlarını sana göre derinleştirsin.'**
   String get diaryQuickEmpty;
+
+  /// No description provided for @diaryRowSubtitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bugünü not et'**
+  String get diaryRowSubtitle;
+
+  /// No description provided for @diaryThemeCareer.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kariyer'**
+  String get diaryThemeCareer;
+
+  /// No description provided for @diaryThemeRelationships.
+  ///
+  /// In tr, this message translates to:
+  /// **'İlişkiler'**
+  String get diaryThemeRelationships;
+
+  /// No description provided for @diaryThemeInner.
+  ///
+  /// In tr, this message translates to:
+  /// **'İç dünya'**
+  String get diaryThemeInner;
+
+  /// No description provided for @diaryThemeFinance.
+  ///
+  /// In tr, this message translates to:
+  /// **'Para'**
+  String get diaryThemeFinance;
 
   /// No description provided for @reactionHug.
   ///
@@ -4681,6 +4741,18 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Önündeki 30 gün'**
   String get calendarStripTitle;
+
+  /// No description provided for @storyPause.
+  ///
+  /// In tr, this message translates to:
+  /// **'Duraklat'**
+  String get storyPause;
+
+  /// No description provided for @storyPlay.
+  ///
+  /// In tr, this message translates to:
+  /// **'Oynat'**
+  String get storyPlay;
 
   /// No description provided for @relationshipReadingTitle.
   ///

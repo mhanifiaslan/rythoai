@@ -9,7 +9,9 @@
 /// verisiyle üretilen her yorum yanlış.
 ///
 /// Ekran bilerek sade: tek iş yapar, değişikliğin neyi etkileyeceğini söyler,
-/// bir şey değişmediyse kaydetmez.
+/// bir şey değişmediyse kaydetmez. Form parçaları sihirbazla TEK dil
+/// (`widgets/dogum_formu.dart`): satır, cinsiyet seçici ve saat kutusu
+/// burada ikinci kez yazılmaz.
 library;
 
 import 'package:flutter/material.dart';
@@ -20,11 +22,11 @@ import '../../core/api.dart';
 import '../../core/birth_record.dart';
 import '../../core/providers.dart';
 import '../../l10n/app_localizations.dart';
-import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/city_search_field.dart';
 import '../../widgets/cosmic_scaffold.dart';
+import '../../widgets/dogum_formu.dart';
 
 class BirthRecordScreen extends ConsumerStatefulWidget {
   const BirthRecordScreen({super.key});
@@ -36,7 +38,12 @@ class BirthRecordScreen extends ConsumerStatefulWidget {
 class _BirthRecordScreenState extends ConsumerState<BirthRecordScreen> {
   BirthRecord? _baslangic;
   late DateTime _tarih;
-  late TimeOfDay _saat;
+
+  /// Seçilmiş saat; null = seçilmedi. 12:00 UYDURULMAZ: eski hâl saati
+  /// bilinmeyen kaydı açarken `12:00` yazıyor, kullanıcı kutuyu kaldırıp
+  /// saat seçmeden kaydedince o uydurma saat gerçek gibi gidiyordu
+  /// (ölçüldü; `dogumSaatiGecerli` gerekçesi).
+  TimeOfDay? _saat;
 
   /// Doğum saati biliniyor mu (Revize B1) — bilinmiyorsa null gönderilir
   /// ve BaZi saat sütununu hiç kurmaz.
@@ -57,11 +64,7 @@ class _BirthRecordScreenState extends ConsumerState<BirthRecordScreen> {
     _baslangic = kayit;
     _tarih = kayit.date;
     _saatBiliniyor = kayit.time != null;
-    final parcalar = (kayit.time ?? '12:00').split(':');
-    _saat = TimeOfDay(
-      hour: int.tryParse(parcalar.first) ?? 12,
-      minute: int.tryParse(parcalar.last) ?? 0,
-    );
+    _saat = saatAyristir(kayit.time);
     _sehir.text = kayit.city;
     _ulke = kayit.nation;
     _cinsiyet = kayit.gender;
@@ -69,10 +72,7 @@ class _BirthRecordScreenState extends ConsumerState<BirthRecordScreen> {
 
   BirthRecord get _guncel => BirthRecord(
         date: _tarih,
-        time: !_saatBiliniyor
-            ? null
-            : '${_saat.hour.toString().padLeft(2, '0')}:'
-                '${_saat.minute.toString().padLeft(2, '0')}',
+        time: _saatBiliniyor ? saatMetni(_saat) : null,
         city: _sehir.text,
         gender: _cinsiyet,
         nation: _ulke,
@@ -92,6 +92,14 @@ class _BirthRecordScreenState extends ConsumerState<BirthRecordScreen> {
 
   bool get _degisti => _baslangic != null && !_baslangic!.sameAs(_guncel);
 
+  /// Kaydet açık mı: bir şey değişmiş VE saat girişi tutarlı olmalı.
+  ///
+  /// "Biliyorum" deyip saat seçmeyen kullanıcı kaydedemez — eskiden kutu
+  /// kaldırılınca Kaydet açılıyor ve uydurma 12:00 gidiyordu. Sihirbazla
+  /// aynı kapı (`sihirbazIlerleyebilir` da `dogumSaatiGecerli`ye bakar).
+  bool get _kaydedilebilir =>
+      _degisti && dogumSaatiGecerli(biliniyor: _saatBiliniyor, saat: _saat);
+
   @override
   void dispose() {
     _sehir.dispose();
@@ -109,7 +117,13 @@ class _BirthRecordScreenState extends ConsumerState<BirthRecordScreen> {
   }
 
   Future<void> _saatSec() async {
-    final secilen = await showTimePicker(context: context, initialTime: _saat);
+    final secilen = await showTimePicker(
+      context: context,
+      // 12:00 yalnız seçicinin AÇILIŞ konumu, değer değil: kullanıcı
+      // seçmeden kapatırsa `_saat` null kalır ve satır "—" gösterir
+      // (sihirbazla aynı kural).
+      initialTime: _saat ?? const TimeOfDay(hour: 12, minute: 0),
+    );
     if (secilen != null) {
       setState(() {
         _saat = secilen;
@@ -150,8 +164,19 @@ class _BirthRecordScreenState extends ConsumerState<BirthRecordScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final profil = ref.watch(profileProvider).value;
-    _ilkDoldur(profil);
+    final profilAsync = ref.watch(profileProvider);
+    // Profil gelmeden form DOLDURULMAZ (ölçüldü, D5 testi): eski hâl ilk
+    // karede null profille varsayılanları (2000-01-01, İstanbul, saatsiz)
+    // yazıp bir daha dokunmuyordu — kullanıcı kendi kaydı yerine uydurma
+    // değerleri görür, "değişmedi" diye kaydedemezdi. Uygulamada akış
+    // genelde sıcak (kabuk izliyor); soğuk yolda usturlap, uydurma değil.
+    if (_baslangic == null && profilAsync.isLoading) {
+      return CosmicScaffold(
+        appBar: AppBar(title: Text(l10n.birthRecord)),
+        body: const Center(child: AstrolabeSpinner()),
+      );
+    }
+    _ilkDoldur(profilAsync.value);
 
     final dil = Localizations.localeOf(context).toLanguageTag();
     return CosmicScaffold(
@@ -163,79 +188,37 @@ class _BirthRecordScreenState extends ConsumerState<BirthRecordScreen> {
           children: [
             Text(l10n.birthRecordEditBody, style: RythoType.bodyDim),
             const SizedBox(height: RythoSpace.xl),
-            _AlanSatiri(
+            SecimSatiri(
               label: l10n.birthDate,
               value: DateFormat('d MMMM yyyy', dil).format(_tarih),
               onTap: _tarihSec,
             ),
             const SizedBox(height: RythoSpace.md),
-            _AlanSatiri(
+            SecimSatiri(
               label: l10n.birthTime,
-              value: !_saatBiliniyor
-                  ? '—'
-                  : '${_saat.hour.toString().padLeft(2, '0')}:'
-                      '${_saat.minute.toString().padLeft(2, '0')}',
+              // Seçilmemiş saat "—": 12:00 görünseydi kullanıcı seçildi
+              // sanıp geçerdi; kapı zaten geçirmez ama ekran kapıyla aynı
+              // şeyi söylemeli.
+              value: !_saatBiliniyor ? '—' : (saatMetni(_saat) ?? '—'),
               onTap: _saatSec,
             ),
-            CheckboxListTile(
-              value: !_saatBiliniyor,
-              onChanged: (v) =>
-                  setState(() => _saatBiliniyor = !(v ?? false)),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: Text(l10n.birthTimeUnknown,
-                  style: RythoText.body(13, color: RythoColors.parchmentDim)),
+            const SizedBox(height: RythoSpace.md),
+            SaatBilinmiyorKutusu(
+              bilinmiyor: !_saatBiliniyor,
+              onChanged: (v) => setState(() => _saatBiliniyor = !v),
             ),
             const SizedBox(height: RythoSpace.md),
             // Serbest TextField'ın yerini aranabilir seçici aldı (O2):
             // yanlış yazım kaynağında biter, ülke kodu da kaydedilir.
-            _AlanSatiri(
+            SecimSatiri(
               label: l10n.onboardingCity,
-              value: _sehir.text.isEmpty ? '—' : _sehir.text,
+              value: sehirEtiketi(_sehir.text, _ulke),
               onTap: _sehirSec,
             ),
             const SizedBox(height: RythoSpace.lg),
-            Row(
-              children: [
-                for (final g in [
-                  ('female', l10n.genderFemale),
-                  ('male', l10n.genderMale),
-                  ('other', l10n.genderOther),
-                ]) ...[
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _cinsiyet = g.$1),
-                      child: AnimatedContainer(
-                        duration: RythoMotion.base,
-                        curve: Curves.easeOutCubic,
-                        height: 46,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          gradient: _cinsiyet == g.$1
-                              ? RythoColors.primaryGradient
-                              : null,
-                          color:
-                              _cinsiyet == g.$1 ? null : RythoColors.inkLight,
-                          border: Border.all(
-                              color: _cinsiyet == g.$1
-                                  ? Colors.white.withValues(alpha: 0.2)
-                                  : RythoColors.glassStroke),
-                          borderRadius:
-                              BorderRadius.circular(RythoRadius.md),
-                        ),
-                        child: Text(g.$2,
-                            style: RythoText.body(14,
-                                w: FontWeight.w600,
-                                color: _cinsiyet == g.$1
-                                    ? Colors.white
-                                    : RythoColors.parchmentDim)),
-                      ),
-                    ),
-                  ),
-                  if (g.$1 != 'other') const SizedBox(width: RythoSpace.sm),
-                ],
-              ],
+            CinsiyetSecici(
+              secili: _cinsiyet,
+              onSec: (g) => setState(() => _cinsiyet = g),
             ),
             const SizedBox(height: RythoSpace.xxl),
             GoldButton(
@@ -243,57 +226,8 @@ class _BirthRecordScreenState extends ConsumerState<BirthRecordScreen> {
               busy: _mesgul,
               // Değişiklik yoksa kaydetmek anlamsız bir ağ çağrısı ve
               // gereksiz bir "kaydedildi" mesajı olurdu.
-              onPressed: _degisti ? _kaydet : null,
+              onPressed: _kaydedilebilir ? _kaydet : null,
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AlanSatiri extends StatelessWidget {
-  const _AlanSatiri(
-      {required this.label, required this.value, required this.onTap});
-
-  final String label;
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(RythoRadius.md),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: RythoSpace.lg, vertical: 14),
-        decoration: BoxDecoration(
-          color: RythoColors.inkLighter,
-          border: Border.all(color: RythoColors.glassStroke),
-          borderRadius: BorderRadius.circular(RythoRadius.md),
-        ),
-        child: Row(
-          children: [
-            // Etiket + değer `Row` + `Spacer` ile esnemiyordu: uzun etiket
-            // ("Doğum yeri") + uzun değer ("İstanbul, Türkiye") dar ekranda
-            // kalemi dışarı itiyordu. `Expanded` içindeki `Wrap` sığdığında
-            // eski görünümü verir, sığmadığında değeri alt satıra indirir.
-            Expanded(
-              child: Wrap(
-                spacing: RythoSpace.md,
-                runSpacing: 2,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.end,
-                children: [
-                  Text(label, style: RythoType.label),
-                  Text(value, style: RythoText.mono(14)),
-                ],
-              ),
-            ),
-            const SizedBox(width: RythoSpace.sm),
-            const Icon(Icons.edit_outlined,
-                size: 15, color: RythoColors.lilac),
           ],
         ),
       ),

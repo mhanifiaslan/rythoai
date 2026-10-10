@@ -7,11 +7,12 @@ import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
-import '../../widgets/basis_sheet.dart' show kThemeIcons;
+import '../../widgets/basis_sheet.dart' show kThemeIcons, kThemeLabel;
 import '../../widgets/common.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/nebula_widgets.dart';
+import '../../widgets/onay.dart' show onayla;
 
 /// GÜNLÜĞÜM (R2-G1): tek satırlık, tarih damgalı kayıtlar.
 ///
@@ -38,6 +39,9 @@ class _DiaryScreenState extends ConsumerState<DiaryScreen> {
   @override
   void initState() {
     super.initState();
+    // Kaydet düğmesi metne göre açılıp kapanır; dinleyici olmadan boş
+    // metinde "açık ama basınca hiçbir şey olmayan" bir düğme kalıyordu.
+    _controller.addListener(() => setState(() {}));
     _load();
   }
 
@@ -99,22 +103,15 @@ class _DiaryScreenState extends ConsumerState<DiaryScreen> {
 
   Future<void> _delete(Map<String, dynamic> giris) async {
     final l10n = AppLocalizations.of(context);
-    final onay = await showDialog<bool>(
-      context: context,
-      builder: (dctx) => AlertDialog(
-        backgroundColor: RythoColors.inkLight,
-        title: Text(l10n.diaryDeleteTitle, style: RythoText.body(15)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(dctx).pop(false),
-              child: Text(MaterialLocalizations.of(dctx).cancelButtonLabel)),
-          TextButton(
-              onPressed: () => Navigator.of(dctx).pop(true),
-              child: Text(MaterialLocalizations.of(dctx).okButtonLabel)),
-        ],
-      ),
+    // Onay sorusu TEK kalıp (`onayla`): buradaki elle kurulmuş `AlertDialog`
+    // kopyası kalktı. Onay etiketi Material'ın "Tamam"ı: silmeye özel bir
+    // ARB anahtarı yok (ARB bu dalgada kilitli), eski hâl de onu kullanıyordu.
+    final onay = await onayla(
+      context,
+      title: l10n.diaryDeleteTitle,
+      confirmLabel: MaterialLocalizations.of(context).okButtonLabel,
     );
-    if (onay != true || !mounted) return;
+    if (!onay || !mounted) return;
     try {
       final dio = ref.read(apiProvider);
       await dio.delete('/api/v1/account/diary/${giris['id']}');
@@ -143,6 +140,7 @@ class _DiaryScreenState extends ConsumerState<DiaryScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final yazilabilir = _controller.text.trim().isNotEmpty && !_saving;
 
     return CosmicScaffold(
       appBar: AppBar(title: Text(l10n.diaryTitle)),
@@ -166,48 +164,29 @@ class _DiaryScreenState extends ConsumerState<DiaryScreen> {
               ),
               onSubmitted: (_) => _save(),
             ),
-            const SizedBox(height: 6),
-            // Tema çipleri + kaydet düğmesi esnemeyen bir `Row`daydı:
-            // çiplerin sayısı artınca (ve büyük yazı ölçeğinde) kaydet
-            // düğmesi ekran dışına taşıyordu. Dıştaki `Wrap` çip kümesini
-            // solda, düğmeyi sağda tutar; sığmazsa düğme alt satıra iner.
-            // `SizedBox`: Wrap gevşek kısıtta büzülür, `spaceBetween`
-            // yayacak boşluk bulamaz.
-            SizedBox(
-              width: double.infinity,
-              child: Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  runSpacing: 6,
-                  children: [
-                    Wrap(spacing: 6, runSpacing: 6, children: [
-                      for (final tema in kThemeIcons.keys)
-                        Pressable(
-                          onTap: () => setState(
-                              () => _theme = _theme == tema ? null : tema),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: _theme == tema
-                                  ? RythoColors.lilac.withValues(alpha: 0.18)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                  color: _theme == tema
-                                      ? RythoColors.lilac
-                                      : RythoColors.glassStroke),
-                            ),
-                            child: Text(kThemeIcons[tema]!,
-                                style: const TextStyle(fontSize: 13)),
-                          ),
-                        ),
-                    ]),
-                    FilledButton(
-                      onPressed: _saving ? null : _save,
-                      child: Text(l10n.diarySave),
-                    ),
-                  ]),
+            const SizedBox(height: RythoSpace.sm),
+            // Tema çipleri `Wrap` içinde: sayıları artınca ya da büyük yazı
+            // ölçeğinde alt satıra inerler. Çip TEK bileşen
+            // (`SuggestionChip.selected`) ve ETİKETLİ: yalnız emoji taşıyan
+            // eski çipte 🪙 üç anlama geliyordu (kredi / İ Ching / finans).
+            Wrap(spacing: RythoSpace.sm, runSpacing: RythoSpace.sm, children: [
+              for (final tema in kThemeIcons.keys)
+                SuggestionChip(
+                  text: '${kThemeIcons[tema]} ${kThemeLabel(l10n, tema)}',
+                  selected: _theme == tema,
+                  onTap: () => setState(
+                      () => _theme = _theme == tema ? null : tema),
+                ),
+            ]),
+            const SizedBox(height: RythoSpace.md),
+            // Kaydet çiplerin ALTINDA, tam genişlik: eski Material
+            // `FilledButton` çiplerle aynı satırı paylaşıyor, dar ekranda
+            // taşıyor ve uygulamanın tek CTA dilinin (`GoldButton`, K5)
+            // dışındaydı.
+            GoldButton(
+              text: l10n.diarySave,
+              busy: _saving,
+              onPressed: yazilabilir ? _save : null,
             ),
           ]),
         ),
@@ -289,6 +268,7 @@ class _GirisSatiri extends StatelessWidget {
         Expanded(child: Text(metin, style: RythoText.body(13.5))),
         Pressable(
           onTap: onDelete,
+          semanticLabel: MaterialLocalizations.of(context).deleteButtonTooltip,
           child: const Padding(
             padding: EdgeInsets.only(left: 8),
             child: Icon(Icons.close,

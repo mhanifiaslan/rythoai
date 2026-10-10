@@ -17,8 +17,21 @@ import 'package:rytho/core/api.dart' show apiProvider;
 import 'package:rytho/core/notifications.dart';
 import 'package:rytho/features/profile/feedback_screen.dart';
 import 'package:rytho/l10n/app_localizations.dart';
+import 'package:rytho/l10n/app_localizations_tr.dart';
+import 'package:rytho/theme/rytho_tokens.dart';
 import 'package:rytho/widgets/atlas_widgets.dart' show GoldButton;
 import 'package:rytho/widgets/common.dart' show ErrorCard;
+import 'package:rytho/widgets/nebula_widgets.dart' show SuggestionChip;
+
+final _tr = AppLocalizationsTr();
+
+/// Kaynak bekçisi kendi açıklama yorumuna takılmasın.
+String _yorumsuz(String yol) => File(yol)
+    .readAsStringSync()
+    .replaceAll('\r\n', '\n')
+    .split('\n')
+    .where((s) => !s.trimLeft().startsWith('//'))
+    .join('\n');
 
 /// Her isteği kaydeden, sabit yanıt veren sahte sunucu
 /// (device_session_test.dart ile aynı desen).
@@ -251,6 +264,98 @@ void main() {
       await _bekle(tester); // sarsıntı animasyonu (400 ms) bitsin
       // Çıplak MaterialApp'in dili en_US → İngilizce yedek metin.
       expect(find.text('Report this screen'), findsOneWidget);
+    });
+  });
+
+  group('D5 — ayar sayfası disiplini', () {
+    testWidgets('çip etiketi sekme adı (Arkadaşlar), "Çevrem" değil; '
+        'çipler SuggestionChip', (tester) async {
+      // Çip "Çevrem" derken dock sekmesi "Arkadaşlar" yazıyordu; kullanıcı
+      // hangi ekranı seçtiğini sekmeden doğrulayamıyordu.
+      await tester.pumpWidget(
+          _sar(const FeedbackScreen(screen: 'circle'), _SahteAdapter()));
+      await _bekle(tester);
+      expect(find.text(_tr.tabFriends), findsOneWidget);
+      expect(find.text(_tr.circleTitle), findsNothing);
+      expect(find.byType(SuggestionChip), findsNWidgets(kFeedbackScreens.length));
+      expect(
+          tester
+              .widget<SuggestionChip>(
+                  find.widgetWithText(SuggestionChip, _tr.tabFriends))
+              .selected,
+          isTrue);
+    });
+
+    test('kaynak: RythoReveal ve _EkranCipi yok (ayar sayfası, sahne değil)',
+        () {
+      final k = _yorumsuz('lib/features/profile/feedback_screen.dart');
+      expect(k, isNot(contains('RythoReveal(')));
+      expect(k, isNot(contains('_EkranCipi')));
+      expect(k, isNot(contains('circleTitle')));
+      expect(k, contains('PopScope('));
+    });
+
+    Future<void> ekranaGit(WidgetTester tester) async {
+      // Geri tuşunun bir yere dönebilmesi için ekran İTİLİR (home değil).
+      await tester.pumpWidget(_sar(
+          Builder(
+              builder: (context) => Scaffold(
+                    body: Center(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const FeedbackScreen())),
+                        child: const Text('aç'),
+                      ),
+                    ),
+                  )),
+          _SahteAdapter()));
+      await tester.tap(find.text('aç'));
+      await _bekle(tester);
+      expect(find.byType(FeedbackScreen), findsOneWidget);
+    }
+
+    testWidgets('metin yazılmışken geri → onay; vazgeç kalır, onay çıkar',
+        (tester) async {
+      await ekranaGit(tester);
+      await tester.enterText(find.byType(TextField), 'Yarım kalan tarif.');
+      // Seçim temizlenir — bkz. `_yazVeGonder` notu (test ortamı kusuru).
+      tester.widget<TextField>(find.byType(TextField)).controller?.selection =
+          const TextSelection.collapsed(offset: -1);
+      await tester.pump();
+
+      // `pageBack` İngilizce "Back" tooltip'ini arar; ekran Türkçe.
+      await tester.tap(find.byType(BackButton));
+      await tester.pump();
+      await tester.pump(RythoMotion.base);
+      expect(find.byType(AlertDialog), findsOneWidget,
+          reason: 'yazılmış metin sorulmadan atılmaz');
+      expect(find.byType(FeedbackScreen), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, _tr.cancel));
+      await tester.pump();
+      await tester.pump(RythoMotion.base);
+      expect(find.byType(FeedbackScreen), findsOneWidget, reason: 'kaldı');
+      expect(find.text('Yarım kalan tarif.'), findsOneWidget);
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pump();
+      await tester.pump(RythoMotion.base);
+      await tester.tap(find.widgetWithText(TextButton, _tr.feedbackClose));
+      await tester.pump();
+      await tester.pump(RythoMotion.base);
+      await tester.pump(RythoMotion.route);
+      expect(find.byType(FeedbackScreen), findsNothing, reason: 'çıkıldı');
+    });
+
+    testWidgets('boş formda geri → sorulmaz, doğrudan çıkar', (tester) async {
+      await ekranaGit(tester);
+      await tester.tap(find.byType(BackButton));
+      await tester.pump();
+      await tester.pump(RythoMotion.base);
+      await tester.pump(RythoMotion.route);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(FeedbackScreen), findsNothing);
     });
   });
 

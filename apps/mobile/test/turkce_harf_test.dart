@@ -85,9 +85,9 @@ void main() {
       'lib/features/friends/friends_screen.dart',
       'lib/features/friends/relationship_screen.dart',
       'lib/features/oracle/iching_tab.dart',
-      'lib/features/profile/delete_account.dart',
+      // delete_account.dart ve profile_screen.dart D5'te temizlendi
+      // (onayKelimesiEslesiyor; grup başlığı rol tipografisine geçti).
       'lib/features/profile/legal_page.dart',
-      'lib/features/profile/profile_screen.dart',
       // basis_sheet.dart D5'te temizlendi (OlcumSatiri etiketi birebir).
       'lib/widgets/city_search_field.dart',
     };

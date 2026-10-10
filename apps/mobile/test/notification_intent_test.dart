@@ -3,10 +3,17 @@
 // Kusurların kaynağı cihaz turu: bildirime dokunmak yalnız sekme açıyordu
 // (R2-S4'ün derin bağlantı vaadi hiç yazılmamıştı) ve sohbet, ana sekmeden
 // sorulan "eşimle aram nasıl?" sorusuna bağlamsız gidiyordu.
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/core/notifications.dart';
 import 'package:rytho/core/people.dart';
+import 'package:rytho/features/shell/app_shell.dart' show niyetTuketilebilir;
+import 'package:rytho/l10n/app_localizations.dart';
+import 'package:rytho/widgets/glass.dart';
 
 void main() {
   group('yük kodlama', () {
@@ -188,6 +195,132 @@ void main() {
       final kisiler = [kisi('p1', null)];
       expect(matchPersonIdByLabel('Ayşe nasıl?', kisiler), isNull);
       expect(matchPersonIdByLabel('bugün nasılım?', const []), isNull);
+    });
+  });
+  group('niyetTuketilebilir (D5 — veri gelmeden tüketilmez)', () {
+    // Ölçülen kusur: `_niyetIsle` niyeti önce temizleyip SONRA listeyi
+    // `provider.value ?? const []` okuyordu. Soğuk açılışta arkadaş akışı
+    // ilk değerini vermemiş oluyor, liste boş, döngü eşleşmiyor ve niyet
+    // tüketildiği için bir daha denenmiyordu: kullanıcı öğle bildirimine
+    // dokunuyor, yalnız Çevrem sekmesi açılıyordu.
+    const arkadas = NotificationRoute(NotificationRouteKind.friendRelation,
+        friendUid: 'f1');
+    const okuma = NotificationRoute(NotificationRouteKind.dailyStory);
+    const kisi = NotificationRoute(NotificationRouteKind.personRelation,
+        personId: 'p1');
+
+    test('arkadaş ilişkisi: liste yükleniyorken TÜKETİLMEZ, hazırken tüketilir',
+        () {
+      expect(
+          niyetTuketilebilir(arkadas,
+              profilHazir: true, arkadaslarHazir: false),
+          isFalse);
+      expect(
+          niyetTuketilebilir(arkadas,
+              profilHazir: true, arkadaslarHazir: true),
+          isTrue);
+    });
+
+    test('günlük okuma profili bekler; kişi ilişkisi kişileri bekler', () {
+      expect(
+          niyetTuketilebilir(okuma, profilHazir: false, arkadaslarHazir: true),
+          isFalse);
+      expect(
+          niyetTuketilebilir(okuma, profilHazir: true, arkadaslarHazir: false),
+          isTrue);
+      expect(
+          niyetTuketilebilir(kisi,
+              profilHazir: true, arkadaslarHazir: true, kisilerHazir: false),
+          isFalse);
+    });
+
+    test('veri istemeyen rotalar hemen tüketilir; signalSheet ASLA (SkyScreen işi)',
+        () {
+      for (final tur in [
+        NotificationRouteKind.rythoAsks,
+        NotificationRouteKind.checkinChat,
+        NotificationRouteKind.circleTab,
+        NotificationRouteKind.homeTab,
+      ]) {
+        expect(
+            niyetTuketilebilir(NotificationRoute(tur),
+                profilHazir: false, arkadaslarHazir: false),
+            isTrue,
+            reason: '$tur veri istemez');
+      }
+      expect(
+          niyetTuketilebilir(
+              const NotificationRoute(NotificationRouteKind.signalSheet),
+              profilHazir: true,
+              arkadaslarHazir: true),
+          isFalse);
+    });
+
+    test('kaynak: kabuk listeyi `?? const []` ile okumuyor; kapıdan geçiyor',
+        () {
+      final k = File('lib/features/shell/app_shell.dart')
+          .readAsStringSync()
+          .replaceAll('\r\n', '\n')
+          .split('\n')
+          .where((s) => !s.trimLeft().startsWith('//'))
+          .join('\n');
+      expect(k, isNot(contains('friendsProvider).value ?? const []')),
+          reason: 'yüklenmemiş liste boş liste gibi okunuyor');
+      expect(k, isNot(contains('peopleProvider).value ?? const []')));
+      expect(k, contains('if (!niyetTuketilebilir('));
+      // Temizleme kapıdan SONRA: kapıdan geçmeyen niyet yerinde kalır.
+      final kapi = k.indexOf('if (!niyetTuketilebilir(');
+      final temizle = k.indexOf(
+          'ref.read(pendingNotificationProvider.notifier).clear();', kapi);
+      expect(temizle, greaterThan(kapi));
+      // Sekme geçişi kapılı, çıplak süre yok.
+      expect(k, isNot(contains('Duration(milliseconds:')));
+      expect('kapili(context, RythoMotion.route)'.allMatches(k), hasLength(2));
+    });
+  });
+
+  group('dock erişilebilirliği (kabuk)', () {
+    Widget dock(int index) => MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('tr'),
+          home: MediaQuery(
+            data: const MediaQueryData(disableAnimations: true),
+            child: Scaffold(
+              bottomNavigationBar: CosmicDock(
+                items: const [
+                  (icon: Icons.sunny, activeIcon: Icons.sunny, label: 'Gökyüzü'),
+                  (icon: Icons.map, activeIcon: Icons.map, label: 'Atlas'),
+                  (icon: Icons.people, activeIcon: Icons.people, label: 'Çevrem'),
+                  (icon: Icons.person, activeIcon: Icons.person, label: 'Profil'),
+                ],
+                index: index,
+                onChanged: (_) {},
+                onCenterTap: () {},
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('her sekme DÜĞME, etiketli; aktif olan SEÇİLİ', (tester) async {
+      // Çıplak GestureDetector rol vermiyordu: TalkBack dock'u dört
+      // etiketsiz ikon olarak okuyordu.
+      final semantik = tester.ensureSemantics();
+      await tester.pumpWidget(dock(2));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(tester.getSemantics(find.bySemanticsLabel('Çevrem')),
+          isSemantics(isButton: true, isSelected: true, hasTapAction: true));
+      expect(tester.getSemantics(find.bySemanticsLabel('Atlas')),
+          isSemantics(isButton: true, isSelected: false));
+      // Etiket iki kez okunmaz (Semantics + Text): tek düğüm.
+      expect(find.bySemanticsLabel('Profil'), findsOneWidget);
+      semantik.dispose();
     });
   });
 }

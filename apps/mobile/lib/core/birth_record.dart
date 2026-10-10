@@ -33,9 +33,9 @@ import 'friends.dart';
 ///
 /// NEDEN (ölçüldü): profil düzeltme ekranı saati bilinmeyen kaydı açarken
 /// `12:00` uyduruyor, kullanıcı "biliyorum" deyip saat seçmeden kaydedince
-/// o uydurma saat gerçek gibi yazılıyordu. Sihirbazdaki `_saatSecildi`
-/// korumasının karşılığı orada yoktu. İki ekran da kaydet düğmesini bu
-/// kapıdan geçirir; saf olduğu için test edilebilir.
+/// o uydurma saat gerçek gibi yazılıyordu. Kapı tek yerde: sihirbaz
+/// `sihirbazIlerleyebilir` içinden, profil düzeltme ekranı Kaydet düğmesinin
+/// etkinliğinden buraya gelir (D5). Saf olduğu için test edilebilir.
 bool dogumSaatiGecerli({required bool biliniyor, required TimeOfDay? saat}) =>
     !biliniyor || saat != null;
 
@@ -46,6 +46,22 @@ String? saatMetni(TimeOfDay? saat) => saat == null
     ? null
     : '${saat.hour.toString().padLeft(2, '0')}:'
         '${saat.minute.toString().padLeft(2, '0')}';
+
+/// `HH:mm` → `TimeOfDay`; null ya da bozuk → null ([saatMetni]nin tersi).
+///
+/// Bozuk değere `12:00` DEĞİL null: profil düzeltme ekranı eskiden
+/// `int.tryParse(...) ?? 12` ile okunamayan saati öğleye çeviriyordu —
+/// aynı uydurma, başka kapıdan.
+TimeOfDay? saatAyristir(String? hhmm) {
+  if (hhmm == null) return null;
+  final parcalar = hhmm.split(':');
+  if (parcalar.length != 2) return null;
+  final saat = int.tryParse(parcalar[0]);
+  final dakika = int.tryParse(parcalar[1]);
+  if (saat == null || dakika == null) return null;
+  if (saat < 0 || saat > 23 || dakika < 0 || dakika > 59) return null;
+  return TimeOfDay(hour: saat, minute: dakika);
+}
 
 /// Kullanıcının girdiği doğum anı.
 class BirthRecord {
@@ -69,7 +85,11 @@ class BirthRecord {
 
   final String city;
 
-  /// `female` | `male` | `other`.
+  /// `female` | `male` | `other` | `unspecified`.
+  ///
+  /// `unspecified` bilinçli seçim: sunucu BaZi şans dönemlerini cinsiyetsiz
+  /// hesaplamaz ve bunu okumada beyan eder (D0). İstemci yerine değer
+  /// uydurmaz.
   final String gender;
 
   /// ISO-2 ülke kodu (`TR`, `DE`...) — şehir seçiciden gelir (O2).
@@ -99,7 +119,11 @@ class BirthRecord {
       // Varsayılan YOK: alan hiç yazılmamışsa saat bilinmiyor demektir.
       time: profile?['birthTime'] as String?,
       city: (profile?['birthCity'] as String?) ?? 'Istanbul',
-      gender: (profile?['gender'] as String?) ?? 'female',
+      // Alan yoksa `unspecified`: eski varsayılan `female` idi ve cinsiyet
+      // yazmamış kullanıcı profili düzenlerken "kadın" seçili görüyor,
+      // kaydedince o beyan Firestore'a gidiyordu (D0: sunucu uydurmuyor,
+      // istemci uyduruyordu). Ölçülmeyen söylenmez — seçilmeyen de.
+      gender: (profile?['gender'] as String?) ?? 'unspecified',
       nation: profile?['birthNation'] as String?,
     );
   }

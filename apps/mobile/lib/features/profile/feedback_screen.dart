@@ -12,6 +12,9 @@
 ///    açar (bkz. core/notifications.dart).
 /// 3. Hata metni sunucunun `detail`'idir (429 günlük tavan dahil) —
 ///    `friendlyError` ile; ham DioException hiç ekrana çıkmaz.
+///
+/// Giriş animasyonu YOK (D5): bu bir ayar sayfası, sahne değil — kademeli
+/// belirme burada kullanıcıyı formun gelmesini bekletiyordu.
 library;
 
 import 'package:flutter/material.dart';
@@ -25,8 +28,8 @@ import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
-import '../../widgets/motion.dart';
-import '../../widgets/nebula_widgets.dart' show Pressable;
+import '../../widgets/nebula_widgets.dart' show SuggestionChip;
+import '../../widgets/onay.dart' show onayla;
 
 /// Sunucu sözleşmesindeki tür kodları — segment sırasıyla aynı.
 const List<String> kFeedbackTypes = ['bug', 'suggestion', 'other'];
@@ -87,6 +90,11 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
   bool get _gonderilebilir =>
       _temiz.length >= kFeedbackMinChars && _temiz.length <= kFeedbackMaxChars;
 
+  /// Yazılmış ama gönderilmemiş metin var mı. Geri tuşu bunu sormadan
+  /// atmaz: uzun bir hata tarifi yazan kullanıcı yanlışlıkla geri basınca
+  /// hepsini kaybediyordu (plan §6). Gönderildiyse form zaten yok.
+  bool get _kirli => !_gonderildi && _temiz.isNotEmpty;
+
   Future<void> _gonder() async {
     if (!_gonderilebilir || _mesgul) return;
     final l10n = AppLocalizations.of(context);
@@ -116,16 +124,37 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
     }
   }
 
+  /// Geri tuşu kirli formda önce sorar; onaylanırsa çıkar.
+  ///
+  /// Soru metni `feedbackClose` ("Kapat"): bu durum için ayrı bir ARB
+  /// anahtarı yok (ARB bu dalgada kilitli); "Kapat?" + Vazgeç/Kapat yine
+  /// de metni sormadan atmaz.
+  Future<void> _geriSoruldu(bool didPop, Object? _) async {
+    if (didPop) return;
+    final gezgin = Navigator.of(context);
+    final l10n = AppLocalizations.of(context);
+    final tamam = await onayla(
+      context,
+      title: l10n.feedbackClose,
+      confirmLabel: l10n.feedbackClose,
+    );
+    if (tamam) gezgin.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return CosmicScaffold(
-      appBar: AppBar(title: Text(l10n.feedbackTitle)),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.only(
-              top: RythoSpace.md, bottom: RythoSpace.xxl),
-          children: _gonderildi ? _tesekkur(l10n) : _form(l10n),
+    return PopScope(
+      canPop: !_kirli,
+      onPopInvokedWithResult: _geriSoruldu,
+      child: CosmicScaffold(
+        appBar: AppBar(title: Text(l10n.feedbackTitle)),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.only(
+                top: RythoSpace.md, bottom: RythoSpace.xxl),
+            children: _gonderildi ? _tesekkur(l10n) : _form(l10n),
+          ),
         ),
       ),
     );
@@ -135,83 +164,74 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
     final uzunluk = _temiz.length;
     final kisa = uzunluk > 0 && uzunluk < kFeedbackMinChars;
     return [
-      RythoReveal(
-        index: 0,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-              RythoSpace.xl, 0, RythoSpace.xl, RythoSpace.lg),
-          child: Text(l10n.feedbackLead, style: RythoType.bodyDim),
-        ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+            RythoSpace.xl, 0, RythoSpace.xl, RythoSpace.lg),
+        child: Text(l10n.feedbackLead, style: RythoType.bodyDim),
       ),
-      RythoReveal(
-        index: 1,
-        child: GlassSegments(
-          labels: [
-            l10n.feedbackTypeBug,
-            l10n.feedbackTypeSuggestion,
-            l10n.feedbackTypeOther,
+      GlassSegments(
+        labels: [
+          l10n.feedbackTypeBug,
+          l10n.feedbackTypeSuggestion,
+          l10n.feedbackTypeOther,
+        ],
+        index: _tur,
+        onChanged: (i) => setState(() => _tur = i),
+      ),
+      GlassPanel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.feedbackScreenLabel, style: RythoType.label),
+            const SizedBox(height: RythoSpace.sm),
+            Wrap(
+              spacing: RythoSpace.sm,
+              runSpacing: RythoSpace.sm,
+              children: [
+                // Seçilebilir çip TEK bileşen (`SuggestionChip.selected`):
+                // buradaki `_EkranCipi` kopyası ve günlüğün çipleri aynı
+                // görünümü ayrı ayrı elle yazıyordu.
+                for (final kod in kFeedbackScreens)
+                  SuggestionChip(
+                    text: _ekranAdi(l10n, kod),
+                    selected: _ekran == kod,
+                    // Aynı çipe ikinci dokunuş seçimi kaldırır: alan
+                    // isteğe bağlı, "hiçbiri" de geçerli bir cevap.
+                    onTap: () => setState(
+                        () => _ekran = _ekran == kod ? null : kod),
+                  ),
+              ],
+            ),
+            const SizedBox(height: RythoSpace.lg),
+            TextField(
+              controller: _metin,
+              minLines: 4,
+              maxLines: 8,
+              maxLength: kFeedbackMaxChars,
+              textCapitalization: TextCapitalization.sentences,
+              style: RythoText.body(15),
+              decoration: InputDecoration(
+                hintText: l10n.feedbackHint,
+                hintStyle:
+                    RythoText.body(15, color: RythoColors.parchmentDim),
+                helperText: kisa ? l10n.feedbackTooShort : null,
+                helperStyle: RythoText.body(12, color: RythoColors.madder),
+                counterStyle:
+                    RythoText.mono(10.5, color: RythoColors.parchmentDim),
+              ),
+            ),
+            const SizedBox(height: RythoSpace.sm),
+            Text(l10n.feedbackPrivacy, style: RythoType.caption),
           ],
-          index: _tur,
-          onChanged: (i) => setState(() => _tur = i),
         ),
       ),
-      RythoReveal(
-        index: 2,
-        child: GlassPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(l10n.feedbackScreenLabel, style: RythoType.label),
-              const SizedBox(height: RythoSpace.sm),
-              Wrap(
-                spacing: RythoSpace.sm,
-                runSpacing: RythoSpace.sm,
-                children: [
-                  for (final kod in kFeedbackScreens)
-                    _EkranCipi(
-                      text: _ekranAdi(l10n, kod),
-                      selected: _ekran == kod,
-                      // Aynı çipe ikinci dokunuş seçimi kaldırır: alan
-                      // isteğe bağlı, "hiçbiri" de geçerli bir cevap.
-                      onTap: () => setState(
-                          () => _ekran = _ekran == kod ? null : kod),
-                    ),
-                ],
-              ),
-              const SizedBox(height: RythoSpace.lg),
-              TextField(
-                controller: _metin,
-                minLines: 4,
-                maxLines: 8,
-                maxLength: kFeedbackMaxChars,
-                textCapitalization: TextCapitalization.sentences,
-                style: RythoText.body(15),
-                decoration: InputDecoration(
-                  hintText: l10n.feedbackHint,
-                  hintStyle:
-                      RythoText.body(15, color: RythoColors.parchmentDim),
-                  helperText: kisa ? l10n.feedbackTooShort : null,
-                  helperStyle: RythoText.body(12, color: RythoColors.madder),
-                  counterStyle:
-                      RythoText.mono(10.5, color: RythoColors.parchmentDim),
-                ),
-              ),
-              const SizedBox(height: RythoSpace.sm),
-              Text(l10n.feedbackPrivacy, style: RythoType.caption),
-            ],
-          ),
-        ),
-      ),
-      RythoReveal(
-        index: 3,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-              RythoSpace.lg, RythoSpace.md, RythoSpace.lg, 0),
-          child: GoldButton(
-            text: l10n.feedbackSend,
-            busy: _mesgul,
-            onPressed: _gonderilebilir ? _gonder : null,
-          ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+            RythoSpace.lg, RythoSpace.md, RythoSpace.lg, 0),
+        child: GoldButton(
+          text: l10n.feedbackSend,
+          busy: _mesgul,
+          onPressed: _gonderilebilir ? _gonder : null,
         ),
       ),
     ];
@@ -219,92 +239,45 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
 
   List<Widget> _tesekkur(AppLocalizations l10n) {
     return [
-      RythoReveal(
-        index: 0,
-        child: GlassPanel(
-          glow: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Text('✦',
-                    style:
-                        RythoText.display(22, color: RythoColors.goldBright)),
-                const SizedBox(width: RythoSpace.sm),
-                Expanded(
-                  child: Text(l10n.feedbackThanksTitle,
-                      style: RythoText.display(17)),
-                ),
-              ]),
-              const SizedBox(height: RythoSpace.md),
-              Text(l10n.feedbackThanksBody, style: RythoType.bodyDim),
-              const SizedBox(height: RythoSpace.xl),
-              GoldButton(
-                text: l10n.feedbackClose,
-                filled: false,
-                onPressed: () => Navigator.of(context).maybePop(),
+      GlassPanel(
+        glow: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Text('✦',
+                  style:
+                      RythoText.display(22, color: RythoColors.goldBright)),
+              const SizedBox(width: RythoSpace.sm),
+              Expanded(
+                child: Text(l10n.feedbackThanksTitle,
+                    style: RythoText.display(17)),
               ),
-            ],
-          ),
+            ]),
+            const SizedBox(height: RythoSpace.md),
+            Text(l10n.feedbackThanksBody, style: RythoType.bodyDim),
+            const SizedBox(height: RythoSpace.xl),
+            GoldButton(
+              text: l10n.feedbackClose,
+              filled: false,
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+          ],
         ),
       ),
     ];
   }
 
+  /// Ekran kodu → sekmenin kendi adı. `circle` için `tabFriends`: çip
+  /// "Çevrem" derken dock sekmesi "Arkadaşlar" yazıyordu ve kullanıcı
+  /// hangi ekranı seçtiğini sekmeden doğrulayamıyordu (ölçüldü).
   String _ekranAdi(AppLocalizations l10n, String kod) => switch (kod) {
         'sky' => l10n.tabSky,
         'atlas' => l10n.tabAtlas,
         'chat' => l10n.feedbackScreenChat,
-        'circle' => l10n.circleTitle,
+        'circle' => l10n.tabFriends,
         'oracle' => l10n.feedbackScreenOracle,
         'profile' => l10n.tabProfile,
         _ => l10n.feedbackScreenOther,
       };
-}
-
-/// Seçilebilir çip — `SuggestionChip` görünümü + seçili durum. Seçili olan
-/// degrade DEĞİL, ince altın kontur alır: bu bir durum göstergesi, eylem
-/// değil (bkz. GlassSegments açıklaması).
-class _EkranCipi extends StatelessWidget {
-  const _EkranCipi({
-    required this.text,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String text;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: Pressable(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected
-                ? RythoColors.goldBright.withValues(alpha: 0.14)
-                : RythoColors.inkLight,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-                color: selected
-                    ? RythoColors.goldBright.withValues(alpha: 0.7)
-                    : RythoColors.lilac.withValues(alpha: 0.30)),
-          ),
-          child: Text(text,
-              style: RythoText.body(12.5,
-                  w: FontWeight.w600,
-                  color: selected
-                      ? RythoColors.parchment
-                      : RythoColors.parchmentDim)),
-        ),
-      ),
-    );
-  }
 }

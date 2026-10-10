@@ -1,15 +1,47 @@
-// Önekli: firebase_messaging'in `NotificationSettings` tipi bu ekranın
-// kendi sınıf adıyla çakışıyor.
-import 'package:firebase_messaging/firebase_messaging.dart' as fm;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/notifications.dart';
 import '../../l10n/app_localizations.dart';
-import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/common.dart';
+import '../../widgets/izin_kapisi.dart' show IzinKapaliBandi;
 
-/// Bildirim tercihleri bölümü (Profil ekranı).
+/// Sessiz saat ucu: `TimeOfDay` → sunucunun saat çözünürlüğü (dakika atılır).
+///
+/// Saf ve ADLANDIRILMIŞ: dakika eskiden `_pick` içinde sessizce düşüyordu —
+/// 21:40 seçen kullanıcı 21:00 yazıldığını hiçbir yerde görmüyordu.
+/// Yuvarlama tek yerde; dakika varsa çağıran bunu SÖYLER ([sessizSaatNotu]).
+int sessizSaatYuvarla(TimeOfDay saat) => saat.hour;
+
+/// "22:00 – 08:00" — sunucudaki tam saat çiftinin ekrandaki yazımı.
+String sessizSaatAraligi(AppLocalizations l10n, int from, int to) =>
+    l10n.quietHoursRange(
+        from.toString().padLeft(2, '0'), to.toString().padLeft(2, '0'));
+
+/// Yuvarlama notu: iki uçtan biri tam saat değilse YAZILAN aralığı söyler;
+/// ikisi de tam saatse null (söylenecek fark yok). Yuvarlama iki ucu
+/// eşitlerse sessiz saat kapalı sayılır (sunucu kuralı) ve not bunu söyler.
+String? sessizSaatNotu(
+    AppLocalizations l10n, TimeOfDay baslangic, TimeOfDay bitis) {
+  if (baslangic.minute == 0 && bitis.minute == 0) return null;
+  final from = sessizSaatYuvarla(baslangic);
+  final to = sessizSaatYuvarla(bitis);
+  return l10n.quietHoursRoundedNote(
+      from == to ? l10n.quietHoursOff : sessizSaatAraligi(l10n, from, to));
+}
+
+/// Saat seçici — TEST DİKİŞİ (sihirbazın `SihirbazSeciciler`i ile aynı
+/// gerekçe): `showTimePicker` testte kadranla sürülemez, `helpText` ise
+/// ölçülmesi gereken şey (iki seçici iki ayrı başlık taşımalı).
+typedef SessizSaatSecici = Future<TimeOfDay?> Function(
+    BuildContext context, TimeOfDay baslangic, String helpText);
+
+/// Tercih yazıcı — TEST DİKİŞİ; üretimde `setNotificationPref` (Firestore).
+typedef TercihYazici = Future<void> Function(String alan, Object? deger);
+
+/// Bildirim tercihleri bölümü (Profil → Bildirimler).
 ///
 /// Üç anahtar ve bir sessiz saat aralığı. Hepsi `users/{uid}` dokümanına
 /// yazılır; toplu gönderimi yapan sunucu tam olarak aynı alanları okur
@@ -18,8 +50,28 @@ import '../../widgets/atlas_widgets.dart';
 /// Varsayılan AÇIK: kullanıcı sistem iznini zaten verdiyse günlük okumanın
 /// bildirimini istiyor demektir. Sessiz saat varsayılanı 22:00–08:00 —
 /// bu kategoride gece bildirimi, uygulamanın silinmesinin en hızlı yolu.
+///
+/// Plakanın ETİKETİ YOK: sayfanın AppBar'ı zaten "Bildirimler" diyor ve
+/// aynı sözcük plakanın üstünde ikinci kez duruyordu (ölçüldü 2026-10-10,
+/// çift başlık). Satırlar `SettingsRow` — profil ve gizlilik sayfasıyla
+/// aynı dil; buradaki `_Toggle` kopyası kalktı.
 class NotificationSettings extends ConsumerWidget {
-  const NotificationSettings({super.key});
+  const NotificationSettings({
+    super.key,
+    this.saatSec = _saatSec,
+    this.yaz = setNotificationPref,
+  });
+
+  @visibleForTesting
+  final SessizSaatSecici saatSec;
+
+  @visibleForTesting
+  final TercihYazici yaz;
+
+  static Future<TimeOfDay?> _saatSec(
+          BuildContext context, TimeOfDay baslangic, String helpText) =>
+      showTimePicker(
+          context: context, initialTime: baslangic, helpText: helpText);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,128 +79,45 @@ class NotificationSettings extends ConsumerWidget {
     final prefs = ref.watch(notificationPrefsProvider);
 
     return Plaque(
-      label: l10n.notifications,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
       child: Column(children: [
-        const _PermissionBanner(),
-        _Toggle(
+        // OS izni reddedilmişse dürüst band + ayarlara giden düğme (D3
+        // `IzinKapaliBandi`); eski `_PermissionBanner` yol tarifi veriyordu.
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: RythoSpace.lg),
+          child: IzinKapaliBandi(),
+        ),
+        SettingsRow(
           icon: Icons.wb_twilight_rounded,
           title: l10n.notifyDaily,
-          body: l10n.notifyDailyBody,
-          value: prefs.daily,
-          onChanged: (v) => setNotificationPref('notifyDaily', v),
+          subtitle: l10n.notifyDailyBody,
+          trailing: Switch(
+            value: prefs.daily,
+            onChanged: (v) => yaz('notifyDaily', v),
+          ),
         ),
-        _Toggle(
+        const Divider(height: 1, indent: RythoSpace.lg),
+        SettingsRow(
           icon: Icons.local_fire_department_outlined,
           title: l10n.notifyStreak,
-          body: l10n.notifyStreakBody,
-          value: prefs.streak,
-          onChanged: (v) => setNotificationPref('notifyStreak', v),
+          subtitle: l10n.notifyStreakBody,
+          trailing: Switch(
+            value: prefs.streak,
+            onChanged: (v) => yaz('notifyStreak', v),
+          ),
         ),
-        _Toggle(
+        const Divider(height: 1, indent: RythoSpace.lg),
+        SettingsRow(
           icon: Icons.favorite_outline_rounded,
           title: l10n.notifyFriends,
-          body: l10n.notifyFriendsBody,
-          value: prefs.friends,
-          onChanged: (v) => setNotificationPref('notifyFriends', v),
-        ),
-        const Divider(height: 20),
-        _QuietHours(prefs: prefs),
-      ]),
-    );
-  }
-}
-
-/// OS izni kapalıysa dürüst uyarı (OT3).
-///
-/// Android'de izin yokken bile `getToken()` başarılı olduğu için sunucu
-/// gönderiyor, sistem sessizce düşürüyor — kullanıcı buradaki anahtarları
-/// açık görüp "bildirim gelmiyor" diyordu. Ayar ekranındaki bant, sorunun
-/// UYGULAMADA değil sistem ayarında olduğunu söyler (yeni bağımlılık yok;
-/// derin bağlantı yerine yol tarifi).
-class _PermissionBanner extends StatelessWidget {
-  const _PermissionBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return FutureBuilder<fm.NotificationSettings>(
-      future: fm.FirebaseMessaging.instance.getNotificationSettings(),
-      builder: (context, snap) {
-        if (snap.data?.authorizationStatus !=
-            fm.AuthorizationStatus.denied) {
-          return const SizedBox.shrink();
-        }
-        return Container(
-          margin: const EdgeInsets.only(top: 6, bottom: 8),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: RythoColors.madder.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color: RythoColors.madder.withValues(alpha: 0.35)),
+          subtitle: l10n.notifyFriendsBody,
+          trailing: Switch(
+            value: prefs.friends,
+            onChanged: (v) => yaz('notifyFriends', v),
           ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.notifications_off_outlined,
-                size: 18, color: RythoColors.madder),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.notifPermissionOffTitle,
-                        style: RythoText.body(13.5)),
-                    const SizedBox(height: 2),
-                    Text(l10n.notifPermissionOffBody,
-                        style: RythoText.body(11.5,
-                            color: RythoColors.parchmentDim)),
-                  ]),
-            ),
-          ]),
-        );
-      },
-    );
-  }
-}
-
-class _Toggle extends StatelessWidget {
-  const _Toggle({
-    required this.icon,
-    required this.title,
-    required this.body,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(children: [
-        Icon(icon, size: 18, color: RythoColors.lilac),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: RythoText.body(14)),
-                Text(body,
-                    style:
-                        RythoText.body(11.5, color: RythoColors.parchmentDim)),
-              ]),
         ),
-        Switch(
-          value: value,
-          activeThumbColor: RythoColors.magenta,
-          activeTrackColor: RythoColors.violet.withValues(alpha: 0.5),
-          onChanged: onChanged,
-        ),
+        const Divider(height: 1, indent: RythoSpace.lg),
+        _QuietHours(prefs: prefs, saatSec: saatSec, yaz: yaz),
       ]),
     );
   }
@@ -159,63 +128,57 @@ class _Toggle extends StatelessWidget {
 /// Başlangıç ve bitiş eşitse sessiz saat KAPALI sayılır — sunucu da aynı
 /// kuralı uyguluyor. Eşitliği "24 saat sessiz" saymak, kullanıcının hiç
 /// bildirim almaması demek olurdu ve bunu fark etmesi imkânsız olurdu.
+///
+/// Satır dokunulur, değer sağda (`SettingsRow.value`): eski hâl aynı
+/// satıra altın bir `TextButton` koyuyordu ve dar ekranda taşıyordu;
+/// profil satırlarıyla aynı dil hem taşmayı hem ikinci düğme stilini
+/// kaldırır.
 class _QuietHours extends StatelessWidget {
-  const _QuietHours({required this.prefs});
+  const _QuietHours({
+    required this.prefs,
+    required this.saatSec,
+    required this.yaz,
+  });
 
   final NotificationPrefs prefs;
+  final SessizSaatSecici saatSec;
+  final TercihYazici yaz;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Row(children: [
-      const Icon(Icons.bedtime_outlined, size: 18, color: RythoColors.lilac),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(l10n.quietHours, style: RythoText.body(14)),
-          Text(l10n.quietHoursBody,
-              style: RythoText.body(11.5, color: RythoColors.parchmentDim)),
-        ]),
-      ),
-      // Düğme esnemiyordu: soldaki açıklama `Expanded` içinde sıfıra inse
-      // bile "22:00 – 08:00" / "Kapalı" + iç dolgu dar ekranda satırı
-      // taşırıyordu.
-      Flexible(
-        child: TextButton(
-          onPressed: () => _pick(context),
-          child: Text(
-            prefs.quietDisabled
-                ? l10n.quietHoursOff
-                : l10n.quietHoursRange(
-                    prefs.quietFrom.toString().padLeft(2, '0'),
-                    prefs.quietTo.toString().padLeft(2, '0')),
-            style: RythoText.label(12, color: RythoColors.goldBright),
-          ),
-        ),
-      ),
-    ]);
+    return SettingsRow(
+      icon: Icons.bedtime_outlined,
+      title: l10n.quietHours,
+      subtitle: l10n.quietHoursBody,
+      value: prefs.quietDisabled
+          ? l10n.quietHoursOff
+          : sessizSaatAraligi(l10n, prefs.quietFrom, prefs.quietTo),
+      onTap: () => _sec(context),
+    );
   }
 
-  Future<void> _pick(BuildContext context) async {
+  Future<void> _sec(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
+    final mesajci = ScaffoldMessenger.of(context);
 
-    final baslangic = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(hour: prefs.quietFrom, minute: 0),
-      helpText: l10n.quietHours,
-    );
+    // İki seçici iki ayrı başlık: eskiden ikisi de "Sessiz saatler" diyordu
+    // ve kullanıcı ikinci kadranın bitişi mi yoksa aynı sorunun tekrarı mı
+    // olduğunu bilemiyordu.
+    final baslangic = await saatSec(context,
+        TimeOfDay(hour: prefs.quietFrom, minute: 0), l10n.quietHoursFrom);
     if (baslangic == null || !context.mounted) return;
 
-    final bitis = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(hour: prefs.quietTo, minute: 0),
-      helpText: l10n.quietHours,
-    );
+    final bitis = await saatSec(
+        context, TimeOfDay(hour: prefs.quietTo, minute: 0), l10n.quietHoursTo);
     if (bitis == null) return;
 
-    // Dakika yok sayılır: sunucu saat çözünürlüğünde çalışıyor ve dakika
-    // hassasiyeti sözü vermek yanıltıcı olurdu.
-    await setNotificationPref('quietFrom', baslangic.hour);
-    await setNotificationPref('quietTo', bitis.hour);
+    // Sunucu saat çözünürlüğünde çalışıyor; dakika yuvarlanır ve yuvarlama
+    // SÖYLENİR — sessizce atılan dakika, kullanıcının "21:40 dedim"
+    // hatırasıyla sunucunun 21:00'ini ayrıştırıyordu.
+    await yaz('quietFrom', sessizSaatYuvarla(baslangic));
+    await yaz('quietTo', sessizSaatYuvarla(bitis));
+    final not = sessizSaatNotu(l10n, baslangic, bitis);
+    if (not != null) mesajci.showSnackBar(SnackBar(content: Text(not)));
   }
 }

@@ -25,15 +25,42 @@ bool reduceMotion(BuildContext context) =>
     MediaQuery.of(context).disableAnimations;
 
 /// Örtük animatörler için kapı: `AnimatedScale`, `AnimatedOpacity`,
-/// `AnimatedCrossFade`, `animateToPage` gibi süre alan her çağrı süresini
-/// buradan alır — hareket azaltma açıkken `Duration.zero` (anında).
+/// `AnimatedCrossFade` gibi süre alan her çağrı süresini buradan alır —
+/// hareket azaltma açıkken `Duration.zero` (anında).
 ///
 /// NEDEN: [reduceMotion] yalnız `.animate()` zincirlerini kapatıyordu;
 /// örtük animatörler çıplak süreyle kapısız çalışıyordu (ölçüldü: dock
 /// ölçeği 320 ms, sekme geçişi 280 ms, hikâye sayfa kaydırması). Kapı tek
 /// satır olunca çağrı yerinde gerekçe aramak gerekmiyor.
+///
+/// ⚠️ `animateToPage` BU KAPIYLA DOĞRUDAN BESLENMEZ: sıfır süreyi assert ile
+/// reddeder (`DrivenScrollActivity`, `duration > Duration.zero`) — hareket
+/// azaltan kullanıcı ilk sayfa geçişinde takılırdı (ölçüldü 2026-10-10,
+/// sihirbaz_adimlar_test). Sayfa geçişi için [sayfayaGit] kullanılır; o,
+/// sıfırda doğru fiile (`jumpToPage`) düşer.
 Duration kapili(BuildContext context, Duration sure) =>
     reduceMotion(context) ? Duration.zero : sure;
+
+/// Sayfa geçişi: hareket açıkken kaydırma, azaltılmışken anında atlama.
+///
+/// NEDEN iki fiil: `animateToPage` sıfır süreyi KABUL ETMEZ (bkz. [kapili]).
+/// İki ekran (onboarding sihirbazı, burç hikâyesi) aynı kararı ayrı ayrı
+/// veriyordu ve hikâye vermiyordu — çıplak `animateToPage` hareket
+/// azaltmada fırlardı. Karar tek yerde; çağıran yalnız hedefi söyler.
+void sayfayaGit(
+  PageController sayfa,
+  BuildContext context,
+  int hedef, {
+  Duration? sure,
+  Curve curve = Curves.easeOutCubic,
+}) {
+  final s = kapili(context, sure ?? RythoMotion.route);
+  if (s == Duration.zero) {
+    sayfa.jumpToPage(hedef);
+  } else {
+    sayfa.animateToPage(hedef, duration: s, curve: curve);
+  }
+}
 
 /// Kademeli giriş — kopyala-yapıştır stagger sayaçlarının tek varisi.
 ///

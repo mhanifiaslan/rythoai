@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/widgets/atlas_widgets.dart' show AstrolabeSpinner;
 import 'package:rytho/widgets/motion.dart';
+import 'package:rytho/theme/rytho_tokens.dart';
 
 /// R12-A0 hareket altyapısının değişmezleri.
 ///
@@ -89,4 +90,63 @@ void main() {
       expect(find.text('bekle'), findsOneWidget);
     });
   });
+  group('sayfayaGit', () {
+    // `animateToPage` sıfır süreyi assert ile reddeder
+    // (`DrivenScrollActivity`): `kapili` hareket azaltmada sıfır döndürünce
+    // ilk sayfa geçişi fırlıyordu (ölçüldü D4, sihirbaz_adimlar_test).
+    // Karar tek yerde: sıfırda `jumpToPage`, aksi hâlde `animateToPage`.
+    // Denetleyici SAHTE: hangi fiilin çağrıldığı sayılır, kaydırma değil.
+    testWidgets('hareket azaltmada jumpToPage, normalde animateToPage',
+        (tester) async {
+      Future<_SahteSayfa> kos({required bool azalt}) async {
+        final sayfa = _SahteSayfa();
+        addTearDown(sayfa.dispose);
+        await tester.pumpWidget(_sar(
+          Builder(builder: (context) {
+            sayfayaGit(sayfa, context, 3);
+            return const SizedBox.shrink();
+          }),
+          azalt: azalt,
+        ));
+        return sayfa;
+      }
+
+      final azaltilmis = await kos(azalt: true);
+      expect(azaltilmis.atlanan, 3);
+      expect(azaltilmis.canlandirilan, isNull,
+          reason: 'sıfır süreyle animateToPage assert ile fırlar');
+
+      final normal = await kos(azalt: false);
+      expect(normal.canlandirilan, 3);
+      expect(normal.sure, RythoMotion.route, reason: 'varsayılan süre rota');
+      expect(normal.atlanan, isNull);
+    });
+
+    testWidgets('süre verilirse o süre, kapıdan geçer', (tester) async {
+      final sayfa = _SahteSayfa();
+      addTearDown(sayfa.dispose);
+      await tester.pumpWidget(_sar(Builder(builder: (context) {
+        sayfayaGit(sayfa, context, 1, sure: RythoMotion.base);
+        return const SizedBox.shrink();
+      })));
+      expect(sayfa.sure, RythoMotion.base);
+    });
+  });
+}
+
+/// Fiili kaydeden PageController: bağlı bir PageView gerekmez.
+class _SahteSayfa extends PageController {
+  int? atlanan;
+  int? canlandirilan;
+  Duration? sure;
+
+  @override
+  void jumpToPage(int page) => atlanan = page;
+
+  @override
+  Future<void> animateToPage(int page,
+      {required Duration duration, required Curve curve}) async {
+    canlandirilan = page;
+    sure = duration;
+  }
 }

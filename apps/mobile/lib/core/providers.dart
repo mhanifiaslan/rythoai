@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,11 +68,77 @@ bool profileSnapshotIsAuthoritative({
 }) =>
     exists || !isFromCache;
 
+/// Profil akışının İLK yayını için üst sınır.
+///
+/// NEDEN: yukarıdaki süzgeç güvenilmez anlık görüntüyü yutuyor ve bu
+/// doğru — ama çevrimdışı TAZE kurulumda (önbellek boş, ağ yok) sunucudan
+/// hiçbir şey gelmiyor, süzgeç hiçbir şey geçirmiyor ve sağlayıcı sonsuza
+/// dek `loading` kalıyor: `_Gate` açılış sahnesini sonsuz döndürüyor,
+/// kullanıcı ne hata görüyor ne "tekrar dene" alıyor. 12 sn: Firestore'un
+/// kendi çevrimdışı tespitinin (10 sn civarı) üstünde, kullanıcının "takıldı"
+/// deyip uygulamayı kapatmasının altında.
+const Duration kProfilAkisiZamanAsimi = Duration(seconds: 12);
+
+/// [kaynak] ilk olayını [sure] içinde vermezse akışa bir
+/// [TimeoutException] EKLER — akışı KAPATMAZ.
+///
+/// `Stream.timeout` bilerek kullanılmadı: onun sayacı HER olay arası
+/// boşluğu ölçer. Profil dokümanı günlerce değişmez; ilk yayından sonra
+/// her 12 saniyede bir hata üretir, `_Gate` sağlıklı oturumu hata
+/// sahnesine düşürürdü. Buradaki sayaç yalnız ilk olaya kadar yaşar.
+///
+/// Akış kapanmıyor çünkü hata kalıcı değil: ağ gelince Firestore aynı
+/// dinleyiciye sunucu görüntüsünü yayar ve sağlayıcı kendiliğinden
+/// toparlanır. `StreamProvider` hata olayından sonra dinlemeyi sürdürür;
+/// bu yüzden "Tekrar dene" (sağlayıcıyı geçersiz kılar) ve kendiliğinden
+/// iyileşme ikisi de çalışır.
+Stream<T> ilkYayinZamanAsimi<T>(Stream<T> kaynak, Duration sure) {
+  late final StreamController<T> kontrol;
+  StreamSubscription<T>? abonelik;
+  Timer? sayac;
+  kontrol = StreamController<T>(
+    // İç iptalin Future'ı BİLEREK döndürülmüyor: Firestore dinleyicisinin
+    // kapanışı beklenecek bir şey değil, ve döndürülünce dış akışın `done`
+    // olayı o Future'ın `whenComplete` zincirine bağlanıyor — zincir kök
+    // bölgede (zone) kuruluyor, sahte-zamanlı testte hiç gelmiyor ve
+    // `cancel()` askıda kalıyordu (ölçüldü: splash_sabri_test 9 dk hang).
+    onCancel: () {
+      sayac?.cancel();
+      abonelik?.cancel();
+    },
+    onListen: () {
+      sayac = Timer(sure, () {
+        if (!kontrol.isClosed) {
+          kontrol.addError(TimeoutException(
+              'profil akışı ilk yayını vermedi', sure));
+        }
+      });
+      abonelik = kaynak.listen(
+        (deger) {
+          sayac?.cancel();
+          kontrol.add(deger);
+        },
+        onError: (Object hata, StackTrace iz) {
+          sayac?.cancel();
+          kontrol.addError(hata, iz);
+        },
+        onDone: () {
+          sayac?.cancel();
+          kontrol.close();
+        },
+      );
+    },
+    onPause: () => abonelik?.pause(),
+    onResume: () => abonelik?.resume(),
+  );
+  return kontrol.stream;
+}
+
 /// Firestore'daki kullanıcı profili (users/{uid}).
 final profileProvider = StreamProvider<Map<String, dynamic>?>((ref) {
   final user = ref.watch(authStateProvider).value;
   if (user == null) return Stream.value(null);
-  return FirebaseFirestore.instance
+  final akis = FirebaseFirestore.instance
       .collection('users')
       .doc(user.uid)
       .snapshots()
@@ -89,6 +157,9 @@ final profileProvider = StreamProvider<Map<String, dynamic>?>((ref) {
       // `POST /reports/daily` ve `/reports/natal` — içerik hiç
       // değişmeden yeniden koşuyordu. Kotayı besleyen üçüncü döngü buydu.
       .distinct(ayniProfil);
+  // Süzgecin bedeli: çevrimdışı taze kurulumda hiç yayın yok → sonsuz
+  // açılış. İlk yayın için üst sınır (bkz. ilkYayinZamanAsimi).
+  return ilkYayinZamanAsimi(akis, kProfilAkisiZamanAsimi);
 });
 
 /// İki profil anlık görüntüsü içerikçe aynı mı?

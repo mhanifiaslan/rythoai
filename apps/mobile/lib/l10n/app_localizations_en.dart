@@ -388,7 +388,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String personalReadingLockedBodyWithSign(String sign) {
-    return 'The reading above is for every $sign. With Rytho+ it also accounts for your Moon and Rising.';
+    return 'The general $sign reading lives in the story ring. With Rytho+ this one also accounts for your Moon and Rising.';
   }
 
   @override
@@ -767,6 +767,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get signOut => 'Sign out';
+
+  @override
+  String get signOutConfirmBody =>
+      'Notifications stop on this device; sign back in to pick up where you left off.';
 
   @override
   String get dailyStreak => 'Daily Streak';
@@ -1385,6 +1389,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get quietHoursOff => 'Off';
+
+  @override
+  String get quietHoursFrom => 'From';
+
+  @override
+  String get quietHoursTo => 'To';
+
+  @override
+  String quietHoursRoundedNote(String range) {
+    return 'Quiet hours rounded to the hour: $range';
+  }
 
   @override
   String get notificationsDisabledHint =>
@@ -2041,6 +2056,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your birth record is saved, but your chart couldn\'t be calculated right now. Your sign badges will come back once you\'re online.';
 
   @override
+  String get onboardingSavedNoChart =>
+      'Your birth details are saved, but your chart could not be calculated right now. Your sign badges will appear once the connection is back.';
+
+  @override
   String get accountSection => 'Account';
 
   @override
@@ -2085,13 +2104,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signalAsk => 'Ask Rytho';
 
   @override
-  String signalAskPrefill(String card, String technical) {
-    return 'My home screen shows this signal today: \"$card\" Its basis: $technical Can you unpack it for me?';
+  String signalAskPrefill(String card) {
+    return 'My home screen shows this signal today: \"$card\" Can you unpack it for me?';
   }
 
   @override
   String signalUpcoming(String date) {
-    return 'Nearest exactness: $date';
+    return 'Key day: $date';
   }
 
   @override
@@ -2272,6 +2291,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get diaryQuickEmpty =>
       'Leave what you live as one-liners; Rytho deepens its readings around you.';
+
+  @override
+  String get diaryRowSubtitle => 'Note today';
+
+  @override
+  String get diaryThemeCareer => 'Career';
+
+  @override
+  String get diaryThemeRelationships => 'Relationships';
+
+  @override
+  String get diaryThemeInner => 'Inner life';
+
+  @override
+  String get diaryThemeFinance => 'Money';
 
   @override
   String get reactionHug => 'A hug';
@@ -2637,6 +2671,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarStripTitle => 'The next 30 days';
+
+  @override
+  String get storyPause => 'Pause';
+
+  @override
+  String get storyPlay => 'Play';
 
   @override
   String get relationshipReadingTitle => 'Rytho\'s reading of this bond';

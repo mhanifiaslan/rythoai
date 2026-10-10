@@ -226,16 +226,18 @@ void main() {
 
     test('sayfa geçişi hareket kapılı; çıplak süre yok; tek giriş yolu '
         'RythoReveal', () {
-      // Tek geçiş yolu `_sayfayaGit`: ileri ve geri onu çağırır; süre bir
-      // kez `kapili`den alınır ve SIFIRSA `jumpToPage` — `animateToPage`
-      // sıfır süreyi assert ile reddeder, hareket azaltan kullanıcı ilk
-      // "Devam"da takılırdı (ölçüldü: sihirbaz_adimlar_test tamamı kırmızıydı).
-      expect('kapili(context, RythoMotion.route)'.allMatches(k), hasLength(1));
-      expect('_sayfayaGit(_adim)'.allMatches(k), hasLength(2),
+      // Tek geçiş yolu `motion.sayfayaGit`: ileri ve geri onu çağırır;
+      // sıfır süre / `jumpToPage` kararı ARTIK BURADA DEĞİL, motion.dart'ta
+      // (D5: hikâye ekranıyla ortak). Yerel bir kopya geri gelirse iki ekran
+      // yeniden ayrışır — `animateToPage` sıfır süreyi assert ile reddeder,
+      // hareket azaltan kullanıcı ilk "Devam"da takılırdı (ölçüldü:
+      // sihirbaz_adimlar_test tamamı kırmızıydı).
+      expect('sayfayaGit(_sayfa, context, _adim'.allMatches(k), hasLength(2),
           reason: 'ileri ve geri');
-      expect(k, contains('if (sure == Duration.zero) {\n'
-          '      _sayfa.jumpToPage(hedef);'));
-      expect('animateToPage('.allMatches(k), hasLength(1));
+      expect(k, isNot(contains('void _sayfayaGit(')),
+          reason: 'yerel kopya motion.sayfayaGit ile tekleşti');
+      expect(k, isNot(contains('jumpToPage(')));
+      expect(k, isNot(contains('animateToPage(')));
       // Adlandırılmış iki sabit dışında Duration( literali yok.
       expect(RegExp(r'Duration\((milliseconds|seconds):').allMatches(k),
           hasLength(2));

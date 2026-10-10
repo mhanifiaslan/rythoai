@@ -16,6 +16,22 @@ const kThemeIcons = {
   'finance': '🪙',
 };
 
+/// Tema anahtarı -> kullanıcı dilinde ad; [kThemeIcons] ile aynı küme.
+///
+/// NEDEN: günlüğün tema çipleri yalnız ikon taşıyordu ve 🪙 uygulamada
+/// üç anlamda kullanılıyordu (kredi / İ Ching / finans — plan §3, ölçüldü);
+/// ikonun tek başına hangi temayı söylediği okunmuyordu. Bilinmeyen
+/// anahtar olduğu gibi döner: sunucu yeni tema eklerse boş çip yerine
+/// anahtar görünür ve bu tablo güncellenir — sessiz boşluk yerine
+/// görünür eksik.
+String kThemeLabel(AppLocalizations l10n, String tema) => switch (tema) {
+      'career' => l10n.diaryThemeCareer,
+      'relationships' => l10n.diaryThemeRelationships,
+      'inner' => l10n.diaryThemeInner,
+      'finance' => l10n.diaryThemeFinance,
+      _ => tema,
+    };
+
 /// "Neden?" alt-sayfası (R2-S2): bir sinyalin DAYANAĞI.
 ///
 /// Sıra ÖNCE ANLAM: yorum → geldiği yerin tek satırlık ifadesi → katlanmış

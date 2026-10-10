@@ -20,18 +20,18 @@ import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/common.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/liste_satiri.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart';
 import '../../widgets/reading_card.dart';
 import '../../widgets/star_burst.dart';
 import '../../widgets/token_chip.dart';
 import '../shell/app_shell.dart' show shellTabProvider;
-import '../paywall/paywall_screen.dart';
+import '../paywall/paywall_acilis.dart';
 import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 import 'calendar_strip.dart';
 import 'sign_story_screen.dart';
-import 'sky_now_screen.dart';
 import '../../widgets/basis_sheet.dart';
 import '../chat/chat_screen.dart';
 import '../../core/api.dart' show friendlyError;
@@ -60,24 +60,41 @@ List<String> onCekilecekBurclar(int kullaniciBurcIndeksi) =>
         ? const []
         : [kSignKeys[kullaniciBurcIndeksi]];
 
+/// Keşif halkasındaki dilim sayısı — "1/3" etiketinin paydası.
+const int kKesifDilimi = 3;
+
 /// GÖKYÜZÜ — **bugün** ekranı.
 ///
-/// ## Yeniden kurgulandı
+/// ## Omurga (D5, yukarıdan aşağıya)
 ///
-/// Önceki hâli ~1500 px uzunluğundaydı ve kullanıcı tarifi şuydu: "tamamen
-/// karışık bir yer". Sebebi, bir bakışta görülecek şeyle üç dakika okunacak
-/// şeyin aynı seviyede, tek kaydırma sütununda durmasıydı.
+/// 1. Başlık: avatar · selam + ad · bakiye hapı.
+/// 2. Burç şeridi — hikâye halkası, dokunma tam ekran okuyucu açar.
+/// 3. TEK "Bugün" başlığı: tarih · keşif halkası (n/3) · seri rozeti.
+/// 4. Takvim şeridi (önündeki 30 gün).
+/// 5. Sinyaller — alt etiket, bölüm başlığı DEĞİL.
+/// 6. Kişiye özel okuma ya da kilit kartı.
+/// 7. "Günlüğüm · Bugünü not et" satırı.
 ///
-/// Üç şey akıştan çıktı:
+/// ## Neden bu sıra
 ///
-/// * **Burç yorumu** → hikâye okuyucusu ([SignStoryScreen]). Şerit zaten
-///   hikâye halkası gibi görünüyordu; artık öyle davranıyor.
-/// * **Gökyüzü çarkı** → [SkyNowScreen]. Akışta tek satırlık özet kaldı.
-/// * **Tanıtım bandı** → silindi. Satış mesajı [PlusLockedCard]'da, yani
-///   kullanıcının kilitli içeriğe baktığı yerde duruyor.
+/// Önceki hâlde "bugün" ÜÇ kez başlık oluyordu: sinyaller bölümünün kendi
+/// `SectionHeader`ı ("Bugün gökyüzünde senin için"), içgörü başlığı
+/// ("Bugünün İçgörüsü") ve her ikisinin sağındaki tarih. Aynı sayfada üç
+/// "bugün" okuyan kullanıcı sayfayı üç ayrı bölüm sanıyordu; oysa hepsi
+/// aynı günün anlatısı. Artık tek başlık var ve altındaki her şey (takvim,
+/// sinyaller, okuma) onun gövdesi. Sinyallerin kendi etiketi kaldı ama
+/// başlık rolünden alt etiket rolüne indi.
 ///
-/// Kalan yapı iki bölüm: bugün senin için · şu an. (Araçlar Atlas'a
-/// taşındı — Revize R6, madde 11.)
+/// Günlük düğmesi başlıktan okumanın ALTINA indi (sahip kararı K7):
+/// başlıkta ikon-tek bir düğme olarak neye gittiği belli olmuyordu;
+/// okumanın altında "Günlüğüm · Bugünü not et" satırı hem adını hem
+/// eylemini söylüyor ve okuduktan sonra not etme ritüeline denk geliyor.
+///
+/// ## Önceki yeniden kurgu (R3)
+///
+/// * **Burç yorumu** → hikâye okuyucusu ([SignStoryScreen]).
+/// * **Gökyüzü çarkı** → Atlas. Akışta tek satırlık özet kaldı.
+/// * **Tanıtım bandı** → silindi. Satış mesajı [PlusLockedCard]'da.
 class SkyScreen extends ConsumerStatefulWidget {
   const SkyScreen({super.key});
 
@@ -210,10 +227,9 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
       if (paywallGosterilecek) {
         await markIntroPaywallShown();
         if (!mounted) return;
-        await Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => const PaywallScreen(),
-          fullscreenDialog: true,
-        ));
+        // Kesinti sınıfı (kullanıcı istemedi, ekran ona geldi): rota türünü
+        // ve analitik etiketini tek kapı seçer.
+        await acPaywall(context, kaynak: PaywallKaynak.tanitim);
         return;
       }
 
@@ -260,9 +276,6 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
         if (i != userSignIndex) i,
     ];
 
-    var stagger = 0;
-    Duration next() => Duration(milliseconds: 70 * stagger++);
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -292,14 +305,20 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
             padding: const EdgeInsets.only(bottom: RythoSpace.dockClearance),
             children: [
               const SizedBox(height: RythoSpace.sm),
-              _Header(
-                greeting: _greeting(l10n),
-                name: profile['displayName'] ?? l10n.defaultUserName,
-                photoUrl: profile['photoUrl'],
-                onAvatarTap: () =>
-                    ref.read(shellTabProvider.notifier).state = 3,
-              ).animate(delay: next()).fadeIn(duration: 360.ms).slideY(
-                  begin: 0.08, curve: Curves.easeOutCubic),
+              // Kademeli giriş tek yoldan: `RythoReveal(index:)`. Eski
+              // `next()` sayacı yedi kopyanın yedincisiydi ve hareket
+              // azaltmayı okumuyordu.
+              RythoReveal(
+                index: 0,
+                slide: 0.08,
+                child: _Header(
+                  greeting: _greeting(l10n),
+                  name: profile['displayName'] ?? l10n.defaultUserName,
+                  photoUrl: profile['photoUrl'],
+                  onAvatarTap: () =>
+                      ref.read(shellTabProvider.notifier).state = 3,
+                ),
+              ),
               const SizedBox(height: RythoSpace.lg),
 
               // Burç şeridi — HİKÂYE halkası. Dokunma tam ekran okuyucu açar.
@@ -310,72 +329,80 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
               // Eskiden bu şerit bir "seçici"ydi: dokunulunca 200 px aşağıdaki
               // bölümün metni değişiyordu, arada da alakasız bir tanıtım bandı
               // duruyordu. Görünüşü hikâye, davranışı sekme filtresiydi.
-              SizedBox(
-                height: 78,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: RythoSpace.lg),
-                  itemCount: signOrder.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(width: RythoSpace.md),
-                  itemBuilder: (_, i) => ZodiacChip(
-                    signIndex: signOrder[i],
-                    selected: signOrder[i] == selected,
-                    onTap: () => _openStory(signOrder, i),
+              RythoReveal(
+                index: 1,
+                slide: 0.08,
+                child: SizedBox(
+                  height: 78,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: RythoSpace.lg),
+                    itemCount: signOrder.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(width: RythoSpace.md),
+                    itemBuilder: (_, i) => ZodiacChip(
+                      signIndex: signOrder[i],
+                      selected: signOrder[i] == selected,
+                      onTap: () => _openStory(signOrder, i),
+                    ),
                   ),
                 ),
-              ).animate(delay: next()).fadeIn(duration: 360.ms).slideY(
-                  begin: 0.08, curve: Curves.easeOutCubic),
+              ),
 
-              // Takvim şeridi (R5-6) — burç şeridinin HEMEN ALTINDA, aynı
-              // ölçü diliyle. "Önündeki 30 gün" artık Atlas'ın içinde
-              // aranan bir liste değil, ana ekranda duran bir zaman
-              // çizgisi. Ücretsiz hesapta da görünür: tarih ve tema
-              // gerçek, kilitli olan yalnız okuma.
-              const SizedBox(height: RythoSpace.sm),
-              const CalendarStrip()
-                  .animate(delay: next())
-                  .fadeIn(duration: 360.ms)
-                  .slideY(begin: 0.08, curve: Curves.easeOutCubic),
+              // ---------- TEK "BUGÜN" BAŞLIĞI ----------
+              // Altındaki takvim, sinyaller ve okuma bu başlığın gövdesi.
+              // Seri rozeti ve keşif halkası burada: motivasyon sinyaller,
+              // seri yan ürün — "neden her gün açayım"ın cevabı artık rozet
+              // değil, gökyüzünün bugün söyledikleri.
+              RythoReveal(
+                index: 2,
+                slide: 0,
+                child: SectionHeader(
+                  l10n.todaysInsight,
+                  // `SectionHeader`'ın ek bilgisi kendi içinde de esnemeliydi:
+                  // tarih + keşif halkası + seri rozeti esnemeyen bir `Row`du
+                  // ve üçü birden dar ekranda kendi satırından taşıyordu.
+                  // `Wrap` gerektiğinde rozetleri alt satıra indirir.
+                  trailing: Wrap(
+                      spacing: RythoSpace.sm,
+                      runSpacing: RythoSpace.xs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          // Tarih biçimi de dile bağlı: sabit 'tr_TR'
+                          // İngilizce arayüzde Türkçe ay adı gösteriyordu.
+                          // Mono değil caption: bu bir tarih cümlesi, bir
+                          // derece değeri değil.
+                          DateFormat(
+                                  'd MMMM',
+                                  Localizations.localeOf(context)
+                                      .toLanguageTag())
+                              .format(DateTime.now()),
+                          style: RythoType.caption,
+                        ),
+                        _DiscoveryRing(state: kesif, celebrate: _kesifKutlama),
+                        _StreakRozet(streak: streak, celebrate: _streakYeni),
+                      ]),
+                ),
+              ),
+
+              // Takvim şeridi (R5-6) — "Önündeki 30 gün". Ücretsiz hesapta
+              // da görünür: tarih ve tema gerçek, kilitli olan yalnız okuma.
+              // Yükleme/hata/boş hâllerini kendi içinde ayırır (AsyncBolum).
+              const RythoReveal(
+                index: 3,
+                slide: 0.08,
+                child: CalendarStrip(),
+              ),
 
               // ---------- SİNYALLER (R2-S3) ----------
               // "Rytho bugün senin için fark etti": sorulmadan konuşan
-              // astrolog. Bölüm kendi kendini gizler (veri yok / hata /
-              // doğum kaydı eksik) — ana ekran sinyalsiz de ayakta durur.
-              const _SignalsSection()
-                  .animate(delay: next())
-                  .fadeIn(duration: 360.ms)
-                  .slideY(begin: 0.06, curve: Curves.easeOutCubic),
+              // astrolog. Boş veri bölümü gizler; hata ARTIK gizlenmez —
+              // kart + tekrar dene (G1).
+              const RythoReveal(index: 4, child: _SignalsSection()),
 
-              // ---------- BUGÜN SENİN İÇİN ----------
-              // Seri rozeti başlıktan buraya indi (R2-S3): motivasyon
-              // sinyaller, seri yan ürün — "neden her gün açayım"ın cevabı
-              // artık rozet değil, gökyüzünün bugün söyledikleri.
-              SectionHeader(
-                l10n.todaysInsight,
-                // `SectionHeader`'ın ek bilgisi kendi içinde de esnemeliydi:
-                // tarih + keşif halkası + seri rozeti esnemeyen bir `Row`du
-                // ve üçü birden dar ekranda kendi satırından taşıyordu.
-                // `Wrap` gerektiğinde rozetleri alt satıra indirir.
-                trailing: Wrap(
-                    spacing: RythoSpace.sm,
-                    runSpacing: RythoSpace.xs,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                  Text(
-                    // Tarih biçimi de dile bağlı: sabit 'tr_TR' İngilizce
-                    // arayüzde Türkçe ay adı gösteriyordu.
-                    DateFormat('d MMMM',
-                            Localizations.localeOf(context).toLanguageTag())
-                        .format(DateTime.now()),
-                    style: RythoType.dataSmall,
-                  ),
-                  _DiscoveryRing(state: kesif, celebrate: _kesifKutlama),
-                  _StreakRozet(streak: streak, celebrate: _streakYeni),
-                ]),
-              ).animate(delay: next()).fadeIn(duration: 360.ms),
-
+              // ---------- KİŞİYE ÖZEL OKUMA ----------
               // Genel burç kartı BURADAN KALKTI (R3-2, cihaz bulgusu):
               // hikâye halkasındaki metnin aynısıydı — aynı sayfada iki kez
               // durması "tekrarlı bilgi" şikayetinin kaynağıydı. Genel yorum
@@ -421,48 +448,28 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
                                 : l10n.personalReadingLockedBodyWithSign(
                                     signDisplayName(l10n, userSignIndex)),
                           )
-                        : ReadingCard(
-                            label: () {
-                              // Sunucu burç adını Türkçe döndürüyor; ekrana
-                              // ham basmak İngilizce arayüzde "Oğlak" yazdırıyordu.
-                              final gunes =
-                                  localizedSignName(l10n, data['sun_sign'] as String?);
-                              final ay =
-                                  localizedSignName(l10n, data['moon_sign'] as String?);
-                              final yukselen =
-                                  localizedSignName(l10n, data['ascendant'] as String?);
-                              final parcalar = <String>[
-                                if (gunes.isNotEmpty) '☀️ $gunes',
-                                if (ay.isNotEmpty) '🌙 $ay',
-                                if (yukselen.isNotEmpty) '⬆️ $yukselen',
-                              ];
-                              return parcalar.join(' · ');
-                            }(),
-                            title: l10n.personalReadingTitle,
-                            body: data['reading'] ?? '',
-                            glow: true,
-                          )
-                            .animate(delay: next())
-                            .fadeIn(duration: 380.ms)
-                            .slideY(begin: 0.06, curve: Curves.easeOutCubic)
-                            .then()
-                            .shimmer(
-                                duration: 900.ms,
-                                color: RythoColors.gold
-                                    .withValues(alpha: 0.12));
+                        : _KisiselOkuma(data: data);
                   },
                 ),
 
-              // "ŞU AN" bölümü Atlas'a taşındı (R3-2): gökyüzü durumu
-              // haritanın yanında yaşar; bu ekran "bugün senin için"
-              // anlatısına odaklandı.
-
-              // GÜNLÜĞÜM kartı BURADAN KALKTI (1.5.1+18 cihaz turu): akışın
-              // en dibinde, kaydırılmadan görünmeyen bir yerde duruyordu —
-              // "yeri olmamış". Günlük artık başlığın sağ üst köşesinde
-              // sabit bir düğme (bkz. _Header): ekranın en görünür, hiç
-              // kaymayan noktası. Sohbet oraya ikinci bir kapıya ihtiyaç
-              // duymuyordu, dock'un merkezinde zaten duruyor.
+              // ---------- GÜNLÜĞÜM (K7) ----------
+              // Okumanın ALTINDA: başlıktaki ikon-tek düğme neye gittiğini
+              // söylemiyordu; bu satır adını ve eylemini söylüyor ve
+              // "okudum, şimdi not edeyim" anına denk geliyor. Sohbet ayrı
+              // bir kapı istemiyor — dock'un merkezinde duruyor.
+              RythoReveal(
+                index: 5,
+                child: ListeSatiri(
+                  margin: const EdgeInsets.symmetric(
+                      horizontal: RythoSpace.lg, vertical: RythoSpace.sm),
+                  leading: const Icon(Icons.auto_stories_rounded,
+                      size: 22, color: RythoColors.lilac),
+                  title: l10n.diaryTitle,
+                  subtitle: l10n.diaryRowSubtitle,
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const DiaryScreen())),
+                ),
+              ),
             ],
           ),
         ),
@@ -480,11 +487,53 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
   }
 }
 
+/// Abonenin kişiye özel okuması: giriş + tek atış altın parıltı.
+///
+/// Parıltı DÖNGÜ DEĞİL (bir kez süpürür) ve hareket azaltmada hiç
+/// kurulmaz; giriş `RythoReveal`den gelir — eski zincir çıplak süreli ve
+/// kapısızdı.
+class _KisiselOkuma extends StatelessWidget {
+  const _KisiselOkuma({required this.data});
+
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    // Sunucu burç adını Türkçe döndürüyor; ekrana ham basmak İngilizce
+    // arayüzde "Oğlak" yazdırıyordu.
+    final gunes = localizedSignName(l10n, data['sun_sign'] as String?);
+    final ay = localizedSignName(l10n, data['moon_sign'] as String?);
+    final yukselen = localizedSignName(l10n, data['ascendant'] as String?);
+    final parcalar = <String>[
+      if (gunes.isNotEmpty) '☀️ $gunes',
+      if (ay.isNotEmpty) '🌙 $ay',
+      if (yukselen.isNotEmpty) '⬆️ $yukselen',
+    ];
+    final kart = ReadingCard(
+      label: parcalar.join(' · '),
+      title: l10n.personalReadingTitle,
+      body: data['reading'] ?? '',
+      glow: true,
+    );
+    return RythoReveal(
+      index: 0,
+      child: reduceMotion(context)
+          ? kart
+          : kart.animate().shimmer(
+              delay: RythoMotion.slow,
+              duration: RythoMotion.sweep,
+              color: RythoColors.gold.withValues(alpha: 0.12)),
+    );
+  }
+}
+
 /// Seri rozeti + kutlama (R12-C1, R2-S3'te başlıktan bölüm başlığına indi).
 ///
-/// Kutlama: rozet 1→1.25→1 şişer (pop), arkasında 12 kıvılcımlık mini
-/// patlama. Profildeki sayı Firestore turundan henüz dönmediyse yeni sayı
-/// [celebrate]'ten gösterilir; kullanıcı artışı ANINDA görür.
+/// Kutlama sahnesi `Kutlama`da (tek tanım); profildeki sayı Firestore
+/// turundan henüz dönmediyse yeni sayı [celebrate]'ten gösterilir —
+/// kullanıcı artışı ANINDA görür. Anahtar yeni sayıyı taşır: aynı oturumda
+/// ikinci artış da kutlanır.
 class _StreakRozet extends StatelessWidget {
   const _StreakRozet({required this.streak, this.celebrate});
 
@@ -495,43 +544,21 @@ class _StreakRozet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rozet = StreakBadge(count: celebrate ?? streak);
-    if (celebrate == null || reduceMotion(context)) return rozet;
-    return Stack(
-      alignment: Alignment.center,
-      clipBehavior: Clip.none,
-      children: [
-        Positioned.fill(
-          child: OverflowBox(
-            maxWidth: 100,
-            maxHeight: 100,
-            child: const StarBurst(size: 100, particles: 12),
-          ),
-        ),
-        rozet
-            .animate(key: ValueKey('seri-$celebrate'))
-            .scale(
-                begin: const Offset(1, 1),
-                end: const Offset(1.25, 1.25),
-                duration: const Duration(milliseconds: 250),
-                curve: RythoMotion.pop)
-            .then()
-            .scale(
-                begin: const Offset(1, 1),
-                end: const Offset(0.8, 0.8),
-                duration: const Duration(milliseconds: 250),
-                curve: RythoMotion.settle),
-      ],
+    return Kutlama(
+      key: ValueKey('seri-${celebrate ?? 0}'),
+      celebrate: celebrate != null,
+      child: StreakBadge(count: celebrate ?? streak),
     );
   }
 }
 
 /// Günlük keşif halkası (OB4) — üç dilim: gökyüzü · sohbet · çevre.
 ///
-/// Dolmuş dilim altın, boş dilim cam çizgisi. 3/3'te bir kez yıldız
-/// patlamasıyla kutlanır ([celebrate]; ses ve snackbar SkyScreen'de).
-/// Cihaz-yerel bir ritüel göstergesidir; dokunulmaz, yalnız anlatır
-/// (Tooltip). [reduceMotion] kutlama animasyonunu kapatır.
+/// Dolmuş dilim altın, boş dilim cam çizgisi; yanında "n/3" sayacı —
+/// halka tek başına "kaçta kaç" sorusunu yalnız gören göze cevaplıyordu,
+/// sayı ekran okuyucuya da söylüyor. 3/3'te bir kez yıldız patlamasıyla
+/// kutlanır ([celebrate]; ses ve snackbar SkyScreen'de). Cihaz-yerel bir
+/// ritüel göstergesidir; dokunulmaz, yalnız anlatır (Tooltip).
 class _DiscoveryRing extends StatelessWidget {
   const _DiscoveryRing({required this.state, this.celebrate = false});
 
@@ -541,52 +568,37 @@ class _DiscoveryRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final halka = Tooltip(
-      message: l10n.discoveryRingTooltip,
-      child: SizedBox(
-        width: 26,
-        height: 26,
-        child: CustomPaint(
-          painter: _DiscoveryRingPainter(
-            mask: state.mask,
-            done: RythoColors.goldBright,
-            empty: RythoColors.glassStroke,
-          ),
-          child: state.complete
-              ? const Center(
-                  child: Text('✦',
-                      style:
-                          TextStyle(fontSize: 9, color: RythoColors.goldBright)))
-              : null,
+    final dolu = [
+      for (var i = 0; i < kKesifDilimi; i++)
+        if (state.mask & (1 << i) != 0) i,
+    ].length;
+    final halka = SizedBox(
+      width: 26,
+      height: 26,
+      child: CustomPaint(
+        painter: _DiscoveryRingPainter(
+          mask: state.mask,
+          done: RythoColors.goldBright,
+          empty: RythoColors.glassStroke,
         ),
+        child: state.complete
+            ? Center(
+                child: Text('✦',
+                    style: RythoText.glyph(9, color: RythoColors.goldBright)))
+            : null,
       ),
     );
-    if (!celebrate || reduceMotion(context)) return halka;
-    return Stack(
-      alignment: Alignment.center,
-      clipBehavior: Clip.none,
-      children: [
-        const Positioned.fill(
-          child: OverflowBox(
-            maxWidth: 100,
-            maxHeight: 100,
-            child: StarBurst(size: 100, particles: 12),
-          ),
+    return Tooltip(
+      message: l10n.discoveryRingTooltip,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Kutlama(
+          key: const ValueKey('kesif-33'),
+          celebrate: celebrate,
+          child: halka,
         ),
-        halka
-            .animate(key: const ValueKey('kesif-33'))
-            .scale(
-                begin: const Offset(1, 1),
-                end: const Offset(1.25, 1.25),
-                duration: const Duration(milliseconds: 250),
-                curve: RythoMotion.pop)
-            .then()
-            .scale(
-                begin: const Offset(1, 1),
-                end: const Offset(0.8, 0.8),
-                duration: const Duration(milliseconds: 250),
-                curve: RythoMotion.settle),
-      ],
+        const SizedBox(width: RythoSpace.xs),
+        Text('$dolu/$kKesifDilimi', style: RythoType.caption),
+      ]),
     );
   }
 }
@@ -626,7 +638,11 @@ class _DiscoveryRingPainter extends CustomPainter {
       old.mask != mask || old.done != done || old.empty != empty;
 }
 
-/// Üst şerit: degrade halkalı avatar + selamlama + jeton hapı + sohbet ikonu.
+/// Üst şerit: degrade halkalı avatar + selamlama + bakiye hapı.
+///
+/// Günlük düğmesi buradan KALKTI (K7): ikon-tek bir degrade kare, neye
+/// gittiği okunmadan "bir şey" vaat ediyordu. Günlük artık okumanın
+/// altında adıyla duruyor.
 class _Header extends StatelessWidget {
   const _Header({
     required this.greeting,
@@ -644,13 +660,16 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
       child: Row(children: [
         // Avatar dokunulabilir (U1): Profil sekmesine götürür — en
-        // tanıdık desen (üstteki avatar = profil kapısı).
+        // tanıdık desen (üstteki avatar = profil kapısı). İkon-tek yüzey:
+        // ekran okuyucu sekmenin adını duyar.
         Pressable(
           onTap: onAvatarTap,
+          semanticLabel: l10n.tabProfile,
           child: Container(
             padding: const EdgeInsets.all(2.5),
             decoration: const BoxDecoration(
@@ -668,63 +687,23 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: RythoSpace.md),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(greeting,
-                style: RythoText.body(12.5, color: RythoColors.parchmentDim)),
+            Text(greeting, style: RythoType.caption),
             Text(name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: RythoText.display(18, w: FontWeight.w600)),
           ]),
         ),
-        // Jeton hapı (U1): ekonomi ana ekranda her an görünür; dokununca
-        // Abonelik ve Jetonlar açılır (Duolingo mücevher sayacı modeli).
+        // Bakiye hapı (U1): ekonomi ana ekranda her an görünür; dokununca
+        // mağaza açılır (Duolingo mücevher sayacı modeli).
         const TokenChip(),
-        const SizedBox(width: 10),
-        // GÜNLÜĞÜM. Buradaki düğme eskiden sohbete gidiyordu — ama sohbet
-        // dock'un MERKEZİNDE zaten duruyor; aynı hedefe ikinci bir kapı
-        // başlıkta yer harcıyordu. Günlüğün ise sabit bir kapısı yoktu:
-        // akışın içinde bir karttı ve kaydırılmadan görünmüyordu.
-        //
-        // Günlük stratejik: kullanıcı yaşantısını not ettikçe okumalar
-        // kişiselleşiyor. O yüzden ekranın en sabit, en görünür köşesini
-        // o alıyor (cihaz turu kararı, 1.5.1+18).
-        Pressable(
-          onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const DiaryScreen())),
-          child: Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: RythoColors.primaryGradient,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(15),
-                topRight: Radius.circular(15),
-                bottomRight: Radius.circular(15),
-                bottomLeft: Radius.circular(5),
-              ),
-              border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.22)),
-              boxShadow: const [
-                BoxShadow(color: RythoColors.magentaGlow, blurRadius: 14),
-              ],
-            ),
-            child: const Icon(Icons.auto_stories_rounded,
-                size: 19, color: Colors.white),
-          ),
-        ),
       ]),
     );
   }
 }
-
-// `_DiaryQuickCard` KALDIRILDI (1.5.1+18): günlük girişi akıştaki bir
-// karttan başlığın sağ üst köşesindeki sabit düğmeye taşındı. Kart
-// ekranın dibinde kalıyor ve kaydırılmadan görünmüyordu; günlük gibi
-// her gün tekrarlanacak bir ritüelin kapısı kaymayan bir yerde durmalı.
 
 class _SignalsSection extends ConsumerStatefulWidget {
   const _SignalsSection();
@@ -765,26 +744,61 @@ class _SignalsSectionState extends ConsumerState<_SignalsSection> {
     });
   }
 
+  /// HAZIR sinyaller — yalnız veri hâlinde; yükleniyor ve hata boş sayılır.
+  /// Niyet tüketimi içindir: hata ile boş aynı görünsün diye DEĞİL (o kusur
+  /// G1'di ve çizim artık `AsyncBolum`dan geçiyor), yalnız "bildirimin
+  /// kartı var mı" sorusu için.
+  static List<Map<String, dynamic>> _hazirSinyaller(
+          AsyncValue<List<Map<String, dynamic>>> durum) =>
+      switch (durum) {
+        AsyncData(:final value) => value,
+        _ => const [],
+      };
+
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final sinyaller = ref.watch(signalsProvider).value ?? const [];
+    final durum = ref.watch(signalsProvider);
     // Niyet dinleyicisi sinyaller HAZIRKEN tetiklenmeli; hem ilk yükleme
     // (bildirimle soğuk açılış) hem sıcak dokunma bu yoldan geçer.
     ref.listen(pendingNotificationProvider, (previous, next) {
       if (next != null && next.type == 'daily') {
-        final guncel = ref.read(signalsProvider).value ?? const [];
+        final guncel = _hazirSinyaller(ref.read(signalsProvider));
         if (guncel.isNotEmpty) _dailyNiyetiIsle(guncel);
       }
     });
+    final sinyaller = _hazirSinyaller(durum);
     if (sinyaller.isNotEmpty &&
         ref.read(pendingNotificationProvider)?.type == 'daily') {
       _dailyNiyetiIsle(sinyaller);
     }
-    if (sinyaller.isEmpty) return const SizedBox.shrink();
 
-    // En yakın kesinleşme: kartlarda tarih zaten geçiyor; bu satır güne
-    // tek bakışta çapa atar ("bu hafta ne zaman önemli").
+    // Üç hâl ayrı (G1): iskelet / hata kartı + tekrar dene / veri. Tekrar
+    // dene KAYNAĞI geçersiz kılar — sinyaller `signalsDataProvider`dan
+    // türetiliyor, türevi tek başına tazelemek aynı düşmüş cevabı okurdu.
+    return AsyncBolum<List<Map<String, dynamic>>>(
+      durum: durum,
+      onRetry: () => ref.invalidate(signalsDataProvider),
+      iskeletYuksekligi: 118,
+      bosMu: (s) => s.isEmpty,
+      veri: (s) => _SinyalListesi(sinyaller: s),
+    );
+  }
+}
+
+/// Sinyal kartları ve üstlerindeki alt etiket.
+///
+/// Etiket `SectionHeader` DEĞİL: sayfanın tek başlığı "Bugün" (bkz.
+/// [SkyScreen]); bu satır onun altındaki bir alt bölümün adı ve etiket
+/// rolünde çizilir. Sağında en yakın önemli gün: kartlarda tarih zaten
+/// geçiyor, bu satır güne tek bakışta çapa atar.
+class _SinyalListesi extends StatelessWidget {
+  const _SinyalListesi({required this.sinyaller});
+
+  final List<Map<String, dynamic>> sinyaller;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final tarihler = [
       for (final s in sinyaller)
         if (s['exact_on_local'] is String &&
@@ -796,13 +810,27 @@ class _SignalsSectionState extends ConsumerState<_SignalsSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(
-          l10n.signalsSection,
-          trailing: tarihler.isEmpty
-              ? null
-              : Text('✦ ${l10n.signalUpcoming(tarihler.first.local)}',
-                  style: RythoType.dataSmall
-                      .copyWith(color: RythoColors.gold)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              RythoSpace.xl, RythoSpace.md, RythoSpace.xl, RythoSpace.xs),
+          // `Wrap` + tam genişlik: dar ekranda önemli gün alt satıra iner,
+          // kısaltılmaz (SectionHeader ile aynı gerekçe).
+          child: SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              spacing: RythoSpace.md,
+              runSpacing: RythoSpace.xs,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.end,
+              children: [
+                Text(l10n.signalsSection, style: RythoType.label),
+                if (tarihler.isNotEmpty)
+                  Text('✦ ${l10n.signalUpcoming(tarihler.first.local)}',
+                      style: RythoType.caption
+                          .copyWith(color: RythoColors.gold)),
+              ],
+            ),
+          ),
         ),
         for (final sinyal in sinyaller) _SignalCard(sinyal: sinyal),
         const SizedBox(height: RythoSpace.sm),
@@ -832,13 +860,13 @@ void _sinyalDayanaginiAc(BuildContext context, Map<String, dynamic> sinyal) {
     {...sinyal, 'card_text': kartCumlesi},
     onAsk: () {
       Navigator.of(context).pop();
-      // R4-1 / K2: soru O SİNYALE ÖZELDİR — karttaki cümle + dayanağı
-      // birlikte gider, model kullanıcının okuduğu cümleyi açar ve
-      // "başka konu" hissi oluşmaz.
+      // R4-1 / K2: soru O SİNYALE ÖZELDİR — karttaki cümle gider, model
+      // kullanıcının okuduğu cümleyi açar ve "başka konu" hissi oluşmaz.
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => ChatScreen(
-            initialText: l10n.signalAskPrefill(
-                kartCumlesi, (sinyal['technical'] as String?) ?? '')),
+            // {technical} tohumdan düştü (D5): kullanıcının ağzına "orb 0.4°"
+            // konuyordu; dayanak dayanak sayfasında, sohbet tohumunda değil.
+            initialText: l10n.signalAskPrefill(kartCumlesi)),
       ));
     },
   );
@@ -868,16 +896,15 @@ class _SignalCard extends StatelessWidget {
 
     return GlassPanel(
       margin: const EdgeInsets.symmetric(
-          horizontal: RythoSpace.lg, vertical: 5),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 11),
+          horizontal: RythoSpace.lg, vertical: RythoSpace.xs),
+      padding: const EdgeInsets.all(RythoSpace.md),
       onTap: () => _sinyalDayanaginiAc(context, sinyal),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Tema başlığı: kullanıcı bir bakışta "bu kariyer mi ilişki mi"
         // sorusunu cevaplayabilmeli — ikon + büyük ad, silik değil.
         Row(children: [
-          Text(kThemeIcons[tema] ?? '✦',
-              style: const TextStyle(fontSize: 15)),
-          const SizedBox(width: 7),
+          Text(kThemeIcons[tema] ?? '✦', style: RythoText.emoji(15)),
+          const SizedBox(width: RythoSpace.sm),
           Expanded(
             child: Text(sinyal['theme_local'] as String? ?? '',
                 style: RythoText.display(13.5,
@@ -887,23 +914,22 @@ class _SignalCard extends StatelessWidget {
             // Zamanlama etiketi ("15 Eylül günü netleşiyor") uzun ve dile
             // bağlı: dar ekranda tema adıyla birlikte satırı taşırıyordu.
             // Flexible + sağa hizalı iki satır: tema adı da etiketi de
-            // okunur kalır, kart genişlemez.
+            // okunur kalır, kart genişlemez. Caption, mono değil: bir
+            // tarih cümlesi, ölçüm değeri değil.
             Flexible(
               child: Text(zaman,
                   textAlign: TextAlign.end,
                   maxLines: 2,
-                  style: RythoType.dataSmall
-                      .copyWith(color: RythoColors.gold)),
+                  style: RythoType.caption.copyWith(color: RythoColors.gold)),
             ),
         ]),
-        const SizedBox(height: 7),
-        Text(metin, style: RythoText.body(13.5, height: 1.45)),
-        const SizedBox(height: 8),
+        const SizedBox(height: RythoSpace.sm),
+        Text(metin, style: RythoType.body),
+        const SizedBox(height: RythoSpace.sm),
+        // Oklu davet: takvim gün kartıyla AYNI yazım ve ölçü.
         Text('${l10n.signalWhy} →',
-            style: RythoText.body(11.5,
-                color: RythoColors.parchmentDim, w: FontWeight.w600)),
+            style: RythoType.caption.copyWith(fontWeight: FontWeight.w600)),
       ]),
     );
   }
 }
-

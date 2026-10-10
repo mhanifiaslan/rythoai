@@ -6,11 +6,18 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
+import 'dart:io';
+
 import 'package:rytho/core/providers.dart';
+import 'package:rytho/features/paywall/kilit_rozeti.dart';
 import 'package:rytho/features/sky/calendar_strip.dart';
 import 'package:rytho/l10n/app_localizations.dart';
 import 'package:rytho/main.dart' show kMaxTextScale;
 import 'package:rytho/theme/rytho_tokens.dart';
+import 'package:rytho/widgets/common.dart';
+import 'package:rytho/widgets/glass.dart';
+import 'package:rytho/widgets/nebula_widgets.dart' show Pressable;
 
 /// R5-6'nin degismezleri: ana ekrandaki 30 gunluk takvim seridi ve
 /// ucretsiz katmanin DURUST teaser'i.
@@ -78,7 +85,8 @@ Map<String, dynamic> _kilitliOlay({int gunSonra = 2}) {
 
 Widget _sar(Widget child,
         {List<Override> overrides = const [],
-        Locale locale = const Locale('tr')}) =>
+        Locale locale = const Locale('tr'),
+        bool hareketAzalt = false}) =>
     ProviderScope(
       overrides: overrides,
       child: MaterialApp(
@@ -90,6 +98,13 @@ Widget _sar(Widget child,
         ],
         supportedLocales: AppLocalizations.supportedLocales,
         locale: locale,
+        // Iskelet shimmer'i sonsuz dongu: hareket azaltma onu hic kurmaz,
+        // test zamanlayici birakmaz (olculen sey yer tutma, parilti degil).
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(disableAnimations: hareketAzalt),
+          child: child!,
+        ),
         home: child,
       ),
     );
@@ -442,6 +457,131 @@ void main() {
       await _gunKartiniAc(tester, [istasyon]);
 
       expect(find.text('Diğer hareketler'), findsOneWidget);
+    });
+  });
+  group('üç hâl ve erişilebilirlik (D5)', () {
+    // G2: `takvim.value == null` tek kapıydı — "yükleniyor", "istek düştü"
+    // ve "doğum kaydı yok" aynı boşluğa düşüyordu; kullanıcı düşen isteği
+    // yeniden deneyemiyordu.
+    testWidgets('hata → ErrorCard + Tekrar dene; tekrar dene yeniden ister',
+        (tester) async {
+      var cagri = 0;
+      await tester.pumpWidget(_sar(
+        const Scaffold(body: CalendarStrip()),
+        overrides: [
+          transitCalendarProvider.overrideWith((ref) async {
+            cagri++;
+            if (cagri == 1) throw StateError('ağ düştü');
+            return {'events': [_acikOlay()]};
+          }),
+        ],
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(ErrorCard), findsOneWidget,
+          reason: 'takvim hatası boş bölüm gibi gizleniyor (G2)');
+      expect(find.byType(ListView), findsNothing);
+
+      await tester.tap(find.text('Tekrar dene'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(cagri, 2);
+      expect(find.byType(ErrorCard), findsNothing);
+      expect(find.byType(ListView), findsOneWidget);
+    });
+
+    testWidgets('yüklenirken iskelet yer tutar (şerit boyunda)',
+        (tester) async {
+      await tester.pumpWidget(_sar(
+        const Scaffold(body: CalendarStrip()),
+        hareketAzalt: true,
+        overrides: [
+          transitCalendarProvider.overrideWith(
+              (ref) => Completer<Map<String, dynamic>?>().future),
+        ],
+      ));
+      await tester.pump();
+      final iskelet = find.byType(SkeletonPanel);
+      expect(iskelet, findsOneWidget);
+      expect(tester.widget<SkeletonPanel>(iskelet).height,
+          CalendarStrip.yukseklik);
+    });
+
+    testWidgets('boş gün DÜĞME DEĞİL (enabled:false); dolu gün '
+        '"{tarih}, {tema}" düğmesi', (tester) async {
+      final semantik = tester.ensureSemantics();
+      await tester.pumpWidget(_sar(
+        const Scaffold(body: CalendarStrip()),
+        overrides: [
+          transitCalendarProvider.overrideWith((ref) async => {
+                'events': [_acikOlay(gunSonra: 1)],
+              }),
+        ],
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Şeridin kabı adını taşır (anahtar bir tur hiç okunmamıştı).
+      expect(find.bySemanticsLabel('Önündeki 30 gün'), findsOneWidget);
+
+      // Dolu gün: tek Pressable (bugün değil, yarın) — adı tarih + tema.
+      final dolu = find.byType(Pressable);
+      expect(dolu, findsOneWidget);
+      final yarin = DateFormat('d MMMM', 'tr')
+          .format(DateTime.now().add(const Duration(days: 1)));
+      expect(
+          tester.getSemantics(dolu),
+          isSemantics(
+              isButton: true, isEnabled: true, label: '$yarin, İlişkiler'));
+
+      // Boş gün (bugün): düğme değil, etkin değil — TalkBack çift dokunup
+      // hiçbir şey olmadığını görmemeli.
+      final bugun = DateFormat('d MMMM', 'tr').format(DateTime.now());
+      final bos = find.bySemanticsLabel(bugun);
+      expect(bos, findsOneWidget);
+      expect(tester.getSemantics(bos),
+          isSemantics(isButton: false, isEnabled: false, hasEnabledState: true));
+      semantik.dispose();
+    });
+
+    testWidgets('kilit satırı: KilitRozeti + Pressable (gri ikon kopyası yok)',
+        (tester) async {
+      await _gunKartiniAc(tester, [_kilitliOlay()]);
+      final satir = find.ancestor(
+          of: find.textContaining('Rytho+'), matching: find.byType(Pressable));
+      expect(satir, findsOneWidget);
+      expect(find.descendant(of: satir, matching: find.byType(KilitRozeti)),
+          findsOneWidget);
+      expect(find.byIcon(Icons.lock_outline_rounded), findsNothing);
+    });
+
+    group('kaynak bekçisi', () {
+      final k = File('lib/features/sky/calendar_strip.dart')
+          .readAsStringSync()
+          .replaceAll('\r\n', '\n')
+          .split('\n')
+          .where((s) => !s.trimLeft().startsWith('//'))
+          .join('\n');
+
+      test('paywall tek kapıdan (acPaywall takvimGunu); PaywallScreen( yok',
+          () {
+        expect(k, isNot(contains('PaywallScreen(')));
+        expect(k,
+            contains('acPaywall(context, kaynak: PaywallKaynak.takvimGunu)'));
+      });
+
+      test('üç hâl AsyncBolum ile; `takvim.value` kapısı yok', () {
+        expect(k, contains('AsyncBolum<Map<String, dynamic>?>('));
+        expect(k, isNot(contains('takvim.value')));
+        expect(k, contains('onRetry: () => ref.invalidate(transitCalendarProvider)'));
+      });
+
+      test('alt sayfa kabuğu tek (showRythoSheet); ham showModalBottomSheet yok',
+          () {
+        expect(k, contains('showRythoSheet<void>('));
+        expect(k, isNot(contains('showModalBottomSheet')));
+      });
     });
   });
 }

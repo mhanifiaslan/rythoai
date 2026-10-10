@@ -388,7 +388,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String personalReadingLockedBodyWithSign(String sign) {
-    return 'Yukarısı tüm $sign burçları için. Rytho+ ile bu yorum senin Ay ve yükselenini de hesaba katar.';
+    return 'Genel $sign yorumu hikâye halkasında. Rytho+ ile bu okuma senin Ay’ını ve Yükselen’ini de hesaba katar.';
   }
 
   @override
@@ -767,6 +767,10 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get signOut => 'Oturumu kapat';
+
+  @override
+  String get signOutConfirmBody =>
+      'Bildirimler bu cihazda durur; yeniden girdiğinde kaldığın yerden devam edersin.';
 
   @override
   String get dailyStreak => 'Günlük Seri';
@@ -1384,6 +1388,17 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get quietHoursOff => 'Kapalı';
+
+  @override
+  String get quietHoursFrom => 'Başlangıç';
+
+  @override
+  String get quietHoursTo => 'Bitiş';
+
+  @override
+  String quietHoursRoundedNote(String range) {
+    return 'Sessiz saatler tam saate yuvarlandı: $range';
+  }
 
   @override
   String get notificationsDisabledHint =>
@@ -2038,6 +2053,10 @@ class AppLocalizationsTr extends AppLocalizations {
       'Doğum kaydın güncellendi ama haritan şu an hesaplanamadı. Burç rozetlerin bağlantı gelince geri dönecek.';
 
   @override
+  String get onboardingSavedNoChart =>
+      'Doğum bilgin kaydedildi ama haritan şu an hesaplanamadı. Burç rozetlerin bağlantı gelince gelecek.';
+
+  @override
   String get accountSection => 'Hesap';
 
   @override
@@ -2082,13 +2101,13 @@ class AppLocalizationsTr extends AppLocalizations {
   String get signalAsk => 'Rytho\'ya sor';
 
   @override
-  String signalAskPrefill(String card, String technical) {
-    return 'Bugün ana ekranımda şu sinyal var: \"$card\" Dayanağı: $technical Bunu benim için biraz açar mısın?';
+  String signalAskPrefill(String card) {
+    return 'Bugün ana ekranımda şu sinyal var: \"$card\" Bunu benim için biraz açar mısın?';
   }
 
   @override
   String signalUpcoming(String date) {
-    return 'En yakın kesinleşme: $date';
+    return 'Önemli gün: $date';
   }
 
   @override
@@ -2268,6 +2287,21 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get diaryQuickEmpty =>
       'Yaşadıklarını tek cümleyle bırak; Rytho yorumlarını sana göre derinleştirsin.';
+
+  @override
+  String get diaryRowSubtitle => 'Bugünü not et';
+
+  @override
+  String get diaryThemeCareer => 'Kariyer';
+
+  @override
+  String get diaryThemeRelationships => 'İlişkiler';
+
+  @override
+  String get diaryThemeInner => 'İç dünya';
+
+  @override
+  String get diaryThemeFinance => 'Para';
 
   @override
   String get reactionHug => 'Sarıldım';
@@ -2623,6 +2657,12 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get calendarStripTitle => 'Önündeki 30 gün';
+
+  @override
+  String get storyPause => 'Duraklat';
+
+  @override
+  String get storyPlay => 'Oynat';
 
   @override
   String get relationshipReadingTitle => 'Rytho\'nun ilişki okuması';
