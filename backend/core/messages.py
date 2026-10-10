@@ -127,27 +127,39 @@ _MESSAGES: dict[str, dict[str, str]] = {
               "one device at a time — tap 'Use on this device' to continue "
               "here.",
     },
-    # 402 + X-Paywall-Reason: tokens ile birlikte döner; istemci bu metni
-    # token mağazası ekranında gösterir.
+    # 402 + X-Paywall-Reason: tokens ile birlikte döner (başlık DEĞERİ
+    # istemci sözleşmesidir, adı değişmez). İstemci bu metni "Kredi
+    # Mağazası" başlığının altına basıyor (token_store_screen.dart); metin
+    # "token" derken iki ad aynı ekranda duruyordu. Kullanıcıya görünen
+    # sözlük tek: kredi.
     "tokens.empty": {
-        "tr": "Token bakiyen bitti. Aylık hakkın dönem başında yenilenir; "
-              "istersen şimdi token paketi alabilirsin.",
-        "en": "You're out of tokens. Your monthly allowance renews next "
-              "period, or you can top up with a token pack now.",
+        "tr": "Kredi bakiyen bitti. Aylık hakkın dönem başında yenilenir; "
+              "istersen şimdi kredi paketi alabilirsin.",
+        "en": "You're out of credits. Your monthly allowance renews at the "
+              "start of the period; you can top up with a credit pack now.",
     },
 
     # --- Günlük ücretsiz kota ---
+    #
+    # "Sınırsız" VAAT EDİLMEZ (ozellikler.md "İddia edilemeyecekler"):
+    # abone de aylık hakkıyla sınırlı ve her mesaj cüzdandan düşüyor
+    # (wallet.charge_metered). Sayılar yer tutucu — çağıran taraf
+    # `wallet.MONTHLY_TOKEN_ALLOWANCE` ve `wallet.TOKEN_COSTS`tan doldurur;
+    # bu modül wallet'ı İÇE ALAMAZ (wallet bu modülü alıyor, döngü olurdu).
+    # Elle yazılı sayı, tavan değiştiğinde sessizce bayatlardı.
     "quota.chat": {
         "tr": "Bugünlük ücretsiz sohbet hakkın doldu ({limit} mesaj). "
-              "Rytho+ ile sınırsız konuşabilirsin.",
+              "Rytho+ ayda {allowance} kredi verir; her mesaj {chat_cost} "
+              "kredi.",
         "en": "You've used today's free messages ({limit}). "
-              "Rytho+ removes the limit.",
+              "Rytho+ comes with {allowance} credits a month; a message "
+              "costs {chat_cost}.",
     },
     "quota.iching": {
         "tr": "Bugünlük çekilişini yaptın. Yarın yeni bir heksagram seni "
-              "bekliyor; Rytho+ ile istediğin kadar çekebilirsin.",
+              "bekliyor; Rytho+ ile çekim başına {cost} kredi.",
         "en": "You've cast today's hexagram. A new one waits tomorrow — "
-              "or cast as often as you like with Rytho+.",
+              "with Rytho+ each cast costs {cost} credits.",
     },
     "quota.default": {
         "tr": "Bugünlük ücretsiz hakkın doldu.",
@@ -257,7 +269,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
     },
 
     # --- Eklenen kişiler (P-turu) ---
-    # İkisi de 402 + X-Paywall-Reason: people ile döner (istemci jeton
+    # İkisi de 402 + X-Paywall-Reason: people ile döner (istemci kredi
     # mağazasını değil abonelik sayfasını açar). Metin ikiye ayrık, çünkü
     # kontenjanı dolan ABONEYE "Rytho+ al" demek saçmadır — ve sayı hem 1
     # hem 10 olabildiği için ifade tekil/çoğuldan bağımsız kuruldu.

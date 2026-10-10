@@ -161,7 +161,7 @@
     var e = EYLEM[a] || [a, 'denetim', ''];
     var p = k.params && typeof k.params === 'object' ? k.params : {};
     var baslik = e[0];
-    if (a === 'user.credit' && p.amount != null) baslik += ' · ' + b.sayi(Number(p.amount)) + ' jeton';
+    if (a === 'user.credit' && p.amount != null) baslik += ' · ' + b.sayi(Number(p.amount)) + ' kredi';
     if (a === 'notify.dry_run' || a === 'notify.test_send') baslik += p.type ? ' · ' + p.type : '';
     if (a === 'stats.recompute' && p.from) baslik += ' · ' + b.tarih(p.from) + '–' + b.tarih(p.to);
     if (a === 'config.min_build' && p.min_build != null) baslik += ' · ' + b.sayi(Number(p.min_build));
@@ -210,7 +210,7 @@
 
     var f = b.form({
       alanlar: [
-        { ad: 'amount', etiket: 'Jeton', tur: 'number', zorunlu: true, min: 1, max: 5000, adim: '1',
+        { ad: 'amount', etiket: 'Kredi', tur: 'number', zorunlu: true, min: 1, max: 5000, adim: '1',
           yardim: '1–5000 · yalnız pozitif (düşüm bilerek yok)',
           dogrula: function (v) {
             var n = Number(v);
@@ -228,7 +228,7 @@
         return RY.post('/api/v1/admin/users/' + encodeURIComponent(secili.uid) + '/credit',
           { amount: tutar, reason: d.reason.trim() }).then(function (res) {
           var c = (res && res.wallet) || null;
-          b.toast(b.sayi(tutar) + ' jeton verildi → ' + (secili.displayName || secili.email || secili.uid) +
+          b.toast(b.sayi(tutar) + ' kredi verildi → ' + (secili.displayName || secili.email || secili.uid) +
             (c ? ' · bakiye ' + b.sayi((Number(c.allowance) || 0) + (Number(c.purchased) || 0)) : ''),
             'basari', { eylem: { metin: '360', onTikla: function () { RY.rotaYaz('kullanicilar', [secili.uid]); } } });
           m.kapat();
@@ -312,7 +312,7 @@
 
     m.ac();
   }
-  RY.palet.eylemEkle({ ad: 'genel-hizli-kredi', etiket: 'Hızlı kredi ver', aciklama: 'kullanıcı ara → jeton yükle',
+  RY.palet.eylemEkle({ ad: 'genel-hizli-kredi', etiket: 'Hızlı kredi ver', aciklama: 'kullanıcı ara → kredi yükle',
     ikon: 'jeton', calistir: function () { hizliKrediAc(); } });
 
   /* ---------------- Topla (owner) ---------------- */

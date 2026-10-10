@@ -65,8 +65,118 @@ def test_bilinmeyen_anahtar_bos_donmez():
 
 
 def test_kota_metnine_limit_yerlesir():
-    assert "5" in text("quota.chat", "en", limit=5)
-    assert "5" in text("quota.chat", "tr", limit=5)
+    # Şablon artık aylık hak ve bedel yer tutucuları da taşıyor; `format`
+    # eksik anahtarda KeyError atar, o yüzden çağıranın tam kümesi geçilir
+    # (bkz. test_kota_cagiranlarinin_kwarg_kumesi_yer_tutuculari_kapsar).
+    assert "5" in text("quota.chat", "en", limit=5, allowance=100,
+                       chat_cost=1, cost=1)
+    assert "5" in text("quota.chat", "tr", limit=5, allowance=100,
+                       chat_cost=1, cost=1)
+
+
+# --------------------------------------------------------------------------
+# Kota metni: vaat değil SAYI — ve sayı çağırandan gelir
+# --------------------------------------------------------------------------
+#
+# `quota.chat` bir tur boyunca "Rytho+ ile sınırsız konuşabilirsin" /
+# "removes the limit", `quota.iching` "istediğin kadar çekebilirsin" diyordu
+# (ölçüldü 2026-10-10). Abone sınırsız DEĞİL: her mesaj cüzdandan düşer ve
+# aylık hak tavanlı (wallet.charge_metered). ozellikler.md "İddia
+# edilemeyecekler" tablosu "Sınırsız AI"yı yasaklıyor, doğrusu "Ayda N AI
+# kredisi". Yasak kelimenin YOKLUĞUNU test_honesty.py ölçüyor; burası
+# yerine gelen SAYININ doğru kaynaktan aktığını ölçüyor.
+
+def test_kota_sablonu_sayi_soyler_vaat_degil():
+    """`quota.chat` aylık hakkı ve mesaj bedelini, `quota.iching` çekim
+    bedelini YER TUTUCU olarak taşır.
+
+    Yer tutucu, elle yazılmış sayı DEĞİL: "Rytho+ ayda 100 kredi verir"
+    diye yazılsaydı tavan değiştiğinde (300→100 bir kez oldu, K1) metin
+    sessizce bayatlar ve kullanıcıya yanlış sayı söylenirdi. messages.py
+    wallet'ı içe alamaz (döngü), o yüzden sayı şablona değil çağrıya girer.
+    """
+    for dil in i18n.SUPPORTED:
+        sohbet = _MESSAGES["quota.chat"][dil]
+        assert "{allowance}" in sohbet, (
+            f"quota.chat/{dil} aylık hakkı yer tutucuyla söylemiyor")
+        assert "{chat_cost}" in sohbet, (
+            f"quota.chat/{dil} mesaj bedelini yer tutucuyla söylemiyor")
+        assert "{cost}" in _MESSAGES["quota.iching"][dil], (
+            f"quota.iching/{dil} çekim bedelini yer tutucuyla söylemiyor")
+
+
+def _kota_cagri_kwarglari() -> dict[str, set[str]]:
+    """`text(f"quota.{...}", ...)` çağrılarının kwarg adları — KAYNAKTAN.
+
+    AST ile okunur, regex ile değil: çağrı iki-üç satıra yayılmış ve bir
+    kwarg eklendiğinde/silindiğinde kalıp bakımı bekçiyi kör bırakırdı.
+    Hem wallet hem entitlements taranır: `enforce_daily_quota` bugün
+    çağrılmıyor ama `quota.chat` ile aynı şablona basıyor.
+    """
+    import ast
+    from pathlib import Path
+
+    kok = Path(__file__).resolve().parent.parent / "core"
+    bulunan: dict[str, set[str]] = {}
+    for dosya in ("wallet.py", "entitlements.py"):
+        agac = ast.parse((kok / dosya).read_text(encoding="utf-8"))
+        for dugum in ast.walk(agac):
+            if not (isinstance(dugum, ast.Call)
+                    and isinstance(dugum.func, ast.Name)
+                    and dugum.func.id == "text" and dugum.args):
+                continue
+            ilk = dugum.args[0]
+            if isinstance(ilk, ast.JoinedStr):
+                baslangic = ilk.values[0]
+                on_ek = (baslangic.value
+                         if isinstance(baslangic, ast.Constant) else "")
+            elif isinstance(ilk, ast.Constant):
+                on_ek = str(ilk.value)
+            else:
+                continue
+            if not str(on_ek).startswith("quota."):
+                continue
+            bulunan[f"{dosya}:{dugum.lineno}"] = {
+                k.arg for k in dugum.keywords if k.arg and k.arg != "fallback"}
+    return bulunan
+
+
+def test_kota_cagiranlarinin_kwarg_kumesi_yer_tutuculari_kapsar():
+    """Her `quota.*` şablonunun yer tutucuları ⊆ her çağıranın kwarg'ları.
+
+    `str.format` eksik anahtarda KeyError atar: bir yer tutucu eklenip
+    çağıranda unutulursa kullanıcı tam kotası dolduğu anda 402 yerine 500
+    görür. Fazla kwarg zararsız (`format` yok sayar), eksik olan ölümcül.
+    Kümeler KAYNAKTAN ölçülür; test kendi elle yazdığı kwarg listesiyle
+    yeşil kalamaz.
+    """
+    from string import Formatter
+
+    cagrilar = _kota_cagri_kwarglari()
+    assert cagrilar, "hiç quota.* text() çağrısı bulunamadı — tarama bozuk"
+
+    sablonlar = {anahtar: ceviriler for anahtar, ceviriler in _MESSAGES.items()
+                 if anahtar.startswith("quota.")}
+    assert "quota.chat" in sablonlar
+    for anahtar, ceviriler in sablonlar.items():
+        for dil, metin in ceviriler.items():
+            yer_tutucular = {alan for _, alan, _, _ in Formatter().parse(metin)
+                             if alan}
+            for yer, kwarglar in cagrilar.items():
+                eksik = yer_tutucular - kwarglar
+                assert not eksik, (
+                    f"{anahtar}/{dil} şablonu {sorted(eksik)} bekliyor ama "
+                    f"{yer} çağrısı geçmiyor — kota dolduğunda KeyError/500")
+
+    # Çalışma zamanı ikizi: sayılar GERÇEKTEN ürün sabitlerinden akıyor.
+    from core import wallet
+
+    sohbet = wallet.quota_detail("chat", 5, "en")
+    assert str(wallet.MONTHLY_TOKEN_ALLOWANCE) in sohbet
+    assert str(wallet.TOKEN_COSTS["chat"]) in sohbet
+    assert "5" in sohbet
+    cekim = wallet.quota_detail("iching", 1, "tr")
+    assert str(wallet.TOKEN_COSTS["iching"]) in cekim
 
 
 def test_her_ozellik_icin_paywall_metni_var():

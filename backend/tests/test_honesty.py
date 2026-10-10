@@ -175,6 +175,20 @@ class TestPazarlamaDili:
         "web/ortaklik.html": ('"şifa"', '"tedavi eder"', '"İyileştirir"'),
     }
 
+    #: "Sınırsız" SINIFI — hepsi aynı vaadin ayrı kılığı. ozellikler.md
+    #: "İddia edilemeyecekler" tablosu "Sınırsız AI"yı yasaklıyor; doğrusu
+    #: "Ayda N AI kredisi". Eski liste yalnız "sınırsız sohbet" / "unlimited
+    #: chat" diyordu ve vaat ÜÇ başka kılıkta yaşıyordu (ölçüldü
+    #: 2026-10-10, core/messages.py quota.*): "Rytho+ ile sınırsız
+    #: konuşabilirsin", "removes the limit", "istediğin kadar çekebilirsin"
+    #: / "as often as you like". Nesne kelimesi ("sohbet") eşleşmeyi
+    #: daraltıyordu; vaadin kendisi yasak, nesnesi değil. Bu demet
+    #: `test_yasak_gerekcesindeki_aylik_hak_SABITTEN_geliyor`un seçicisi:
+    #: sınıfın her üyesinin gerekçesi aylık hakkı sabitten söylemek zorunda.
+    _SINIRSIZ_SINIFI = ("sınırsız", "sinirsiz", "limitsiz", "unlimited",
+                        "istediğin kadar", "dilediğin kadar",
+                        "as often as you like", "removes the limit")
+
     #: (aranan, neden yasak)
     _YASAKLAR = (
         ("nasa", "ozellikler.md §12b: 'NASA' ASLA — doğrusu 'astronomik "
@@ -187,10 +201,28 @@ class TestPazarlamaDili:
         # kapatmak için vardı ve ayrışmanın son kopyası BEKÇİNİN KENDİ
         # gerekçesinde kalmıştı; `test_belge_tarifesi.py` yalnız
         # `docs/` tarıyor, test kaynağını kimse taramıyor.
-        ("sınırsız sohbet",
+        # Sınıfın HER üyesi burada ve gerekçesinde `_AYLIK_HAK`tan başka
+        # sayı YOK (§ işaretli madde numarası bile) — aşağıdaki bekçi onu
+        # sayıyor.
+        ("sınırsız",
          f"Rytho+ aylık {_AYLIK_HAK} kredidir; sınırsız değil"),
-        ("unlimited chat",
+        ("sinirsiz",
+         f"Rytho+ aylık {_AYLIK_HAK} kredidir; sınırsız değil (ASCII yazım)"),
+        ("limitsiz",
+         f"Rytho+ aylık {_AYLIK_HAK} kredidir; limitsiz değil"),
+        ("istediğin kadar",
+         f"'istediğin kadar' = sınırsız vaadi; Rytho+ aylık {_AYLIK_HAK} "
+         f"kredidir ve mesaj/çekim başına bedel düşer"),
+        ("dilediğin kadar",
+         f"'dilediğin kadar' = sınırsız vaadi; Rytho+ aylık {_AYLIK_HAK} "
+         f"kredidir ve mesaj/çekim başına bedel düşer"),
+        ("unlimited",
          f"Rytho+ is {_AYLIK_HAK} credits a month, not unlimited"),
+        ("as often as you like",
+         f"'as often as you like' = unlimited; Rytho+ is {_AYLIK_HAK} "
+         f"credits a month and each message/cast costs credits"),
+        ("removes the limit",
+         f"the limit is not removed: Rytho+ is {_AYLIK_HAK} credits a month"),
         ("iyileştirir", "sağlık iddiası — mağaza politikası"),
         ("tedavi eder", "sağlık iddiası — mağaza politikası"),
         ("şifa", "sağlık iddiası — mağaza politikası"),
@@ -230,14 +262,22 @@ class TestPazarlamaDili:
         kırmızı olur. İki yöne de çalışıyor — sayı GEÇMEK zorunda (gerekçe
         hakkı anmayı bırakırsa yasak kelimenin niçin yasak olduğu kaybolur)
         ve geçen sayı sabitle AYNI olmak zorunda.
+
+        Seçici `_SINIRSIZ_SINIFI`: eski hâli "sohbet/chat içeren aranan"
+        idi ve tam iki girdi sayıyordu; liste vaadin öbür kılıklarına
+        ("istediğin kadar", "removes the limit", …) genişleyince o seçici
+        yeni girdilerin gerekçesini HİÇ görmezdi — elle yazılmış bir "300"
+        yine bekçisiz kalırdı. Sınıfın her üyesi listede olmak VE aynı
+        sayıyı söylemek zorunda.
         """
         hak = str(_AYLIK_HAK)
-        gerekceler = [neden for aranan, neden in self._YASAKLAR
-                      if "sohbet" in aranan or "chat" in aranan]
-        assert len(gerekceler) == 2, (
-            "sohbet/chat yasağının gerekçesi kayboldu: aylık hak iddiası "
-            f"artık hiçbir gerekçede geçmiyor ({gerekceler!r})")
-        for neden in gerekceler:
+        gerekceler = {aranan: neden for aranan, neden in self._YASAKLAR
+                      if aranan in self._SINIRSIZ_SINIFI}
+        eksik = set(self._SINIRSIZ_SINIFI) - set(gerekceler)
+        assert not eksik, (
+            f"sınırsız sınıfının üyesi _YASAKLAR'da yok: {sorted(eksik)} — "
+            "vaat o kılıkta bekçisiz kalır")
+        for neden in gerekceler.values():
             assert hak in neden, (
                 f"gerekçe aylık hakkı {hak} demiyor: {neden!r} — "
                 f"`wallet.MONTHLY_TOKEN_ALLOWANCE` ile ayrışmış. Sayı elle "
@@ -251,6 +291,51 @@ class TestPazarlamaDili:
                 f"gerekçede aylık haktan BAŞKA sayı var ({oteki!r}): "
                 f"{neden!r} — bekçi kızdığında hangi sayının geçerli "
                 f"olduğu belirsiz kalır")
+
+    def test_arb_ve_sunucu_metinlerinde_yasak_vaat_yok(self):
+        """Yasak ifade yalnız web sayfalarında değil, UYGULAMANIN kendi
+        cümlelerinde de aranır: sunucunun 402/429 `detail` metinleri
+        (`core.messages._MESSAGES`) ve iki ARB sözlüğü.
+
+        Neden gerekti (ölçüldü 2026-10-10): web sayfaları temizken sunucu
+        kota metni "Rytho+ ile sınırsız konuşabilirsin" / "removes the
+        limit" / "istediğin kadar çekebilirsin" diyordu ve istemci `detail`i
+        olduğu gibi ekrana basıyor (friendlyError) — yani vaat, bekçinin
+        taramadığı bir yüzeyden kullanıcıya ulaşıyordu. Kota dolan kullanıcı
+        bu metni tam satın alma kararı anında okur.
+
+        Sunucu metinleri İÇE ALINARAK okunur, ham dosya DEĞİL: messages.py
+        yasak kelimeyi niçin yasakladığını yorumda anlatıyor ve yorumu
+        tarayan bekçi kendi gerekçesine takılır (bu depoda iki kez oldu).
+        ARB JSON olarak yüklenir, `@`-meta girdileri (dict/placeholder
+        açıklamaları) değer sayılmaz.
+        """
+        from core.messages import _MESSAGES
+
+        kaynaklar: dict[str, str] = {}
+        for anahtar, ceviriler in _MESSAGES.items():
+            for dil, metin in ceviriler.items():
+                kaynaklar[f"core/messages.py:{anahtar}/{dil}"] = metin
+        for dosya in ("app_tr.arb", "app_en.arb"):
+            yol = _KOK / "apps" / "mobile" / "lib" / "l10n" / dosya
+            sozluk = json.loads(yol.read_text(encoding="utf-8"))
+            for anahtar, deger in sozluk.items():
+                if anahtar.startswith("@") or not isinstance(deger, str):
+                    continue
+                kaynaklar[f"{dosya}:{anahtar}"] = deger
+
+        # Tarama BOŞ olmasın: kaynaklardan biri taşınırsa/boşalırsa bekçi
+        # "hiçbir şey bulamadım" diye yeşil kalmamalı.
+        assert any(k.startswith("core/messages.py:quota.") for k in kaynaklar)
+        assert sum(k.startswith("app_tr.arb:") for k in kaynaklar) > 100
+        assert sum(k.startswith("app_en.arb:") for k in kaynaklar) > 100
+
+        for yer, metin in kaynaklar.items():
+            kucuk = _turkce_kucult(metin)
+            for aranan, neden in self._YASAKLAR:
+                assert aranan not in kucuk, (
+                    f"{yer} içinde yasak ifade {aranan!r} — {neden}: "
+                    f"{metin!r}")
 
     def test_yayindaki_her_sayfa_listede(self):
         """Listeye YAZILMAYAN yeni bir sayfa, bekçinin hiç görmediği sayfadır.
@@ -789,8 +874,9 @@ class TestJetonIddialari:
         # ikinci bir okuyucu, gerekce metninin bayatlamasina giden yoldu.
         hak = _AYLIK_HAK
 
-        kaliplar = {"web/index.html": r"aylık (\d+) jeton",
-                    "web/en/index.html": r"(\d+) tokens every month"}
+        # Sözlük kararı (D0): kullanıcıya görünen tek kelime kredi/credit.
+        kaliplar = {"web/index.html": r"aylık (\d+) kredi",
+                    "web/en/index.html": r"(\d+) credits every month"}
         for yol, kalip in kaliplar.items():
             govde = self._govde(yol)
             bulunan = re.findall(kalip, govde)
@@ -810,8 +896,8 @@ class TestJetonIddialari:
         diyordu — ekran onu abone kapısının arkasına aldıktan sonra bu
         cümle satın alınamayan bir ürün vadediyordu.
         """
-        beklenen = {"web/index.html": ("jeton paketi", "abone"),
-                    "web/en/index.html": ("token packs", "subscriber")}
+        beklenen = {"web/index.html": ("kredi paketi", "abone"),
+                    "web/en/index.html": ("credit packs", "subscriber")}
         for yol, (urun, ozne) in beklenen.items():
             govde = self._govde(yol)
             cumleler = [c for c in govde.split(".") if urun in c]

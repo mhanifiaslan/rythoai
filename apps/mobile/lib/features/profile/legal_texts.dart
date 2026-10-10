@@ -361,7 +361,7 @@ const LegalSections kTermsOfUseTr = [
         'vermez. Ortağın paylaştığı bağlantı, bağlantıyı kullanan kişiye '
         'indirim veya ödül sağlamaz; fiyatlar herkes için aynıdır. Ortak, '
         'bağlantısı üzerinden gelen bir kullanıcının ilk Rytho+ aboneliği '
-        'başına ödül kazanır; tutar ortaklık anlaşmasında belirlenir. Jeton '
+        'başına ödül kazanır; tutar ortaklık anlaşmasında belirlenir. Kredi '
         'paketleri, ücretsiz deneme, abonelik yenilemeleri ve mağaza test '
         '(sandbox) alımları ödül doğurmaz.'
   ),
@@ -718,7 +718,7 @@ const LegalSections kTermsOfUseEn = [
         'person who uses it no discount and no reward; prices are the same '
         'for everyone. A partner earns a reward for each first Rytho+ '
         'subscription taken by a user who arrived through their link; the '
-        'amount is set in the partner agreement. Token packs, the free '
+        'amount is set in the partner agreement. Credit packs, the free '
         'trial, subscription renewals and store test (sandbox) purchases '
         'earn nothing.'
   ),

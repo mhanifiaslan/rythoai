@@ -53,7 +53,7 @@
    Dürüst model (OP-turu): ortak, getirdiği kullanıcının İLK aboneliği
    başına SABİT bir ₺ tutar kazanır. Kullanıcıya indirim ya da ödül YOK —
    Play Install Referrer sayesinde kullanıcı kod bile yazmıyor, yani
-   ödüllendirilecek bir eylemi yok. Jeton paketleri, denemeler, SANDBOX
+   ödüllendirilecek bir eylemi yok. Kredi paketleri, denemeler, SANDBOX
    alımları ve yenilemeler ödül üretmez.
 
    ⚠️ `sharePercent` alanı dokümanda DURUYOR ama KULLANILMIYOR — yüzde
@@ -460,7 +460,7 @@
     }) + b.modul('Ortak listesi', '<div id="ortak-liste"></div>', '',
       { alt: 'satıra git: huni, hakediş, kodlar, ödemeler' }) +
       '<p class="dipnot">Ortak, getirdiği kullanıcının <b>ilk aboneliği</b> başına sabit ' +
-      'bir ₺ tutar kazanır; kullanıcıya indirim verilmez. Jeton paketi, deneme, yenileme ve ' +
+      'bir ₺ tutar kazanır; kullanıcıya indirim verilmez. Kredi paketi, deneme, yenileme ve ' +
       'test alımları ödül ÜRETMEZ. Hakediş satın almadan 15 gün sonra kesinleşir (iade ' +
       'penceresi). Mağaza fiyat indirimi buradan yapılamaz — gerekiyorsa RevenueCat/Play ' +
       'konsolundan elle. <b>Tıklama kişi DEĞİL</b> (aynı kişinin iki cihazı iki ' +

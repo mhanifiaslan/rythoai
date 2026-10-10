@@ -57,7 +57,12 @@ class BirthData(BaseModel):
     minute: int = Field(default=0, ge=0, le=59)
     city: str = "Istanbul"
     nation: Optional[str] = None
-    gender: str = "female"
+    # "unspecified" = kullanıcı belirtmek istemedi. Varsayılan "female" idi
+    # ve BaZi şans sütunlarının YÖNÜNÜ sessizce kadın kuralıyla
+    # hesaplatıyordu — ölçülmemiş bir cinsiyetten ölçülmüş gibi yön
+    # çıkıyordu. ⚠️ Eski kayıtlarda duran "female" ile gerçekten kadın
+    # olan ayırt EDİLEMEZ; onlar bilinen cinsiyet sayılır.
+    gender: str = "unspecified"
 
     # Doğum saati gerçekten biliniyor mu (Revize B1). `hour`'ı Optional
     # yapmak yerine ayrı bayrak: bu şema natal/sinastri uçlarıyla PAYLAŞIMLI
@@ -131,6 +136,11 @@ def horoscope(
         "reading": report["text"],
         "cached": report.get("cached", False),
         "fallback": report.get("fallback", False),
+        # Burç yorumu jeton harcamaz, yani bu hep False gelir — yine de
+        # SABİT yazılmıyor, üretimden okunuyor: istemci "iade edildi"
+        # cümlesini her LLM ucunda aynı sözleşmeden kuruyor; tek bir uçta
+        # alanın yokluğu o sözleşmeyi istemcide özel dala böler.
+        "refunded": report.get("refunded", False),
         "generated_for": report.get("generated_for"),
         "moon_phase": sky["moon_phase"],
         "retrogrades": sky["retrogrades"],
@@ -346,6 +356,13 @@ def iching(req: IChingReportRequest,
                                                refund=refund_cb)
         return {"status": "success", "data": {
             "cast": prompts.localize_iching(lang, cast),
+            # Yedek metin okuma gibi DÖNMEZ (gz-2): bayrak düşerse istemci
+            # şablon paragrafı gerçek okuma sanır ve iade edilen jetonu
+            # öğrenmez (CLAUDE.md "kullanıcı farkı anlamayan yedekler").
+            # Ölçülen çekim (`cast`) yanıtta AYNEN kalır: zar atıldı, yalnız
+            # yorumu üretilemedi.
+            "fallback": report.get("fallback", False),
+            "refunded": report.get("refunded", False),
             "report": report["text"],
         }}
     except HTTPException:
@@ -386,6 +403,11 @@ def solar_return(data: SolarReturnRequest,
             refund=lambda: wallet.refund_spend(user.uid, "solar_return"))
         return {"status": "success", "data": {
             "solar_return": prompts.localize_chart(lang, sr),
+            # Yedek metin yıl okuması gibi DÖNMEZ (gz-2); bayrak düşerse
+            # istemci şablon metni rapor sanır ve iadeyi öğrenmez. Ölçülen
+            # yıl haritası (`solar_return`) yanıtta AYNEN kalır.
+            "fallback": report.get("fallback", False),
+            "refunded": report.get("refunded", False),
             "report": report["text"],
         }}
     except HTTPException:
@@ -415,6 +437,11 @@ def progressions(data: BirthData,
             refund=lambda: wallet.refund_spend(user.uid, "progressions"))
         return {"status": "success", "data": {
             "progressions": prompts.localize_progressions(lang, prog, hits),
+            # Yedek metin okuma gibi DÖNMEZ (gz-2); bayrak düşerse istemci
+            # şablon metni rapor sanır ve iadeyi öğrenmez. Ölçülen
+            # progresyon ve solar arc vuruşları yanıtta AYNEN kalır.
+            "fallback": report.get("fallback", False),
+            "refunded": report.get("refunded", False),
             "report": report["text"],
         }}
     except HTTPException:
@@ -473,6 +500,12 @@ def birth_hexagram(data: BirthData,
             # Kapı pasajı (İ8): ekran "Kapının Dokusu" kartını buradan kurar.
             "gate_text": (konum.get("gate_passage") or {}).get(
                 "gate_en" if lang == "en" else "gate_tr"),
+            # Yedek metin okuma gibi DÖNMEZ (gz-2); bayrak düşerse istemci
+            # şablon metni rapor sanır ve iadeyi öğrenmez. Ölçülen kapı,
+            # çizgi ve sabit kapı pasajı (`position`, `hexagram`,
+            # `gate_text`) yanıtta AYNEN kalır — düşen yalnız gün kesişimi.
+            "fallback": report.get("fallback", False),
+            "refunded": report.get("refunded", False),
             "report": report["text"],
         }}
     except HTTPException:
@@ -565,6 +598,11 @@ def dyad(req: RelationshipRequest,
         "reading": report["text"],
         "cached": report.get("cached", False),
         "fallback": report.get("fallback", False),
+        # İkili dinamik jeton harcar; yedekte iade edilir ve bu SÖYLENİR.
+        # `fallback` bir tur boyunca tek başına taşınıyordu: istemci
+        # "şimdi üretemedik" diyebiliyor ama bakiyenin neden yükseldiğini
+        # açıklayamıyordu (CLAUDE.md "kullanıcı farkı anlamayan yedekler").
+        "refunded": report.get("refunded", False),
         "generated_for": report.get("generated_for"),
         # Yalnızca türetilmiş, hassas olmayan alanlar döner — ham doğum verisi asla.
         "friend_sun_sign": prompts.sign_from_point(
@@ -685,6 +723,18 @@ def relationship(req: RelationshipRequest,
             # Ana tema ayrı; biçim tutmadıysa tam metin tek blok döner.
             veri["reading"] = okuma.get("theme") or (
                 "" if satirlar else okuma["text"])
+            # Yedek metin okuma gibi DÖNMEZ (gz-2): `okuma` sözlüğü bayrağı
+            # `_cached_generate`den taşıyordu ama uç onu atıyordu; istemci
+            # şablon paragrafı o çiftin okuması sanıyordu. Eksenler ve
+            # dayanak açılar ölçümdür, yanıtta AYNEN kalır.
+            #
+            # `refunded` SABİT False: bu uç JETONSUZ (çift başına tek
+            # üretim, 30 gün). Üretimden okumak da False verirdi; sabit
+            # olması, "jetonun iade edildi" cümlesinin burada HİÇ
+            # kurulamayacağını okuyana söyler (emsal:
+            # test_jeton_harcamayan_ucta_iade_CUMLESI_KURULMAZ).
+            veri["fallback"] = okuma.get("fallback", False)
+            veri["refunded"] = False
         else:
             veri = {**veri, "reading_locked": True}
         return {"status": "success", "data": veri}
@@ -706,7 +756,15 @@ def synastry(req: SynastryReportRequest,
             user.uid, result, lang=lang,
             spend=wallet.spender(user.uid, "synastry", lang=lang),
             refund=lambda: wallet.refund_spend(user.uid, "synastry"))
-        return {"status": "success", "data": {"synastry": result, "report": report["text"]}}
+        return {"status": "success", "data": {
+            "synastry": result,
+            # Yedek metin rapor gibi DÖNMEZ (gz-2); bayrak düşerse istemci
+            # şablon metni rapor sanır ve iadeyi öğrenmez. Ölçülen sinastri
+            # açıları (`synastry`) yanıtta AYNEN kalır.
+            "fallback": report.get("fallback", False),
+            "refunded": report.get("refunded", False),
+            "report": report["text"],
+        }}
     except HTTPException:
         # Cuzdan 402'si dahil kasitli HTTP hatalari 500'e sarilmasin.
         raise

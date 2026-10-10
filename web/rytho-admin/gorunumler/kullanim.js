@@ -135,15 +135,15 @@
         'class="grafik" aria-label="Model başına maliyet"></canvas></div></div>', '',
         { alt: 'tahmini maliyet payı' }) +
       '</div>' +
-      b.modul('Özellik başına token', '<div class="grafik-kap"><canvas id="g-kul-token" ' +
+      b.modul('Özellik başına girdi ve çıktı token', '<div class="grafik-kap"><canvas id="g-kul-token" ' +
         'class="grafik" aria-label="Özellik başına girdi ve çıktı token"></canvas></div>', '',
         { alt: 'girdi + çıktı' });
 
     var tablolar = '<div class="izgara-2">' +
       b.modul('En çok maliyet üreten kullanıcılar', '<div id="kul-top"></div>', '',
         { alt: 'son rollup günü · ilk 20 · 360\'a gider' }) +
-      b.modul('Jeton bedelleri', '<div id="kul-bedel"></div>', '',
-        { alt: 'sunucu gerçeği · özellik başına düşülen jeton' }) +
+      b.modul('Kredi bedelleri', '<div id="kul-bedel"></div>', '',
+        { alt: 'sunucu gerçeği · özellik başına düşülen kredi' }) +
       '</div>' +
       '<p class="dipnot">Tahmini maliyet = ölçülen token × sabit birim fiyat. Gerçek fatura ' +
       'için Cloud Console. Yalnız GERÇEK model çağrıları sayılır — önbellek isabetleri ' +
@@ -194,7 +194,7 @@
         { ad: 'Girdi', renk: 'lilac', veri: ozellikler.map(function (k) { return Number(byFeature[k].promptTokens) || 0; }) },
         { ad: 'Çıktı', renk: 'gold', veri: ozellikler.map(function (k) { return Number(byFeature[k].outputTokens) || 0; }) }
       ],
-      bicim: 'sayi', etiket: 'Özellik başına token',
+      bicim: 'sayi', etiket: 'Özellik başına girdi ve çıktı token',
       bosMetin: 'Token kırılımı rollup\'ta yok — ilk toplamayla dolar'
     });
 
@@ -223,11 +223,11 @@
                calls: Number(kova.calls) || 0 };
     });
     var bt = b.veriTablosu({
-      kimlik: 'kul-bedel-tablo', etiket: 'Jeton bedelleri', yogunluk: 'sik',
+      kimlik: 'kul-bedel-tablo', etiket: 'Kredi bedelleri', yogunluk: 'sik',
       sutunlar: [
         { ad: 'etiket', baslik: 'Özellik', siralanir: true,
           bicim: function (s) { return b.e(s.etiket) + ' <span class="mono dipnot">' + b.e(s.ad) + '</span>'; } },
-        { ad: 'jeton', baslik: 'Jeton', hizala: 'sag', siralanir: true },
+        { ad: 'jeton', baslik: 'Kredi', hizala: 'sag', siralanir: true },
         { ad: 'calls', baslik: 'Çağrı (' + gun + 'g)', hizala: 'sag', siralanir: true }
       ],
       anahtar: function (s) { return s.ad; },

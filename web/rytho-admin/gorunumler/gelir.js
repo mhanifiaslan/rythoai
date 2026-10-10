@@ -454,7 +454,7 @@
           ? '<dt>Marj (ortak öncesi)</dt><dd>' + b.e(olculmusPara(b, t.grossMarginUsd)) + '</dd>'
           : '') +
         '<dt>Tahmini marj</dt><dd>' + marjHucresi(b, t) + '</dd>' +
-        '<dt>Çağrı · harcanan jeton</dt><dd>' + b.e(b.sayi(t.calls)) + ' · ' + b.e(b.sayi(t.tokensSpent)) + '</dd>' +
+        '<dt>Çağrı · harcanan kredi</dt><dd>' + b.e(b.sayi(t.calls)) + ' · ' + b.e(b.sayi(t.tokensSpent)) + '</dd>' +
         '<dt>Sayılan kullanıcı</dt><dd>' + b.e(b.sayi(t.usersCounted)) + '</dd></dl>' +
         /* Formül cümlesi GÖSTERİLEN marjı tarif eder, sunucunun ideal
            formülünü değil: ortak maliyeti düşülmemişken "− ortak edinme

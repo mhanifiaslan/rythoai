@@ -567,15 +567,20 @@ TEN_GOD_MEANINGS = {
 
 POLARITY_NAMES = {"Yang": "Yang", "Yin": "Yin"}
 
-GENDER_NAMES = {"male": "Male", "female": "Female"}
+GENDER_NAMES = {"male": "Male", "female": "Female", "unspecified": "Unspecified"}
 
 #: Calculation-assumption disclosures (Revision B0). Keys must match the
 #: *_note_key values returned by bazi_service. No silent assumptions: if
 #: the engine had to pick a basis, the user gets to read it.
 BAZI_NOTES = {
-    "luck_direction_yin": (
-        "The direction of the luck periods was calculated using the yin "
-        "(female) convention, since no binary gender was selected."),
+    # "luck_direction_yin" is gone: the engine no longer invents a direction
+    # for an unspecified gender (it used to fall back to the female rule
+    # silently). The new key says the direction was NOT computed; both
+    # candidate sequences come back in `luck_pillar_candidates`.
+    "luck_direction_unknown": (
+        "No gender was given, so the direction of the luck periods was not "
+        "calculated; both possible sequences are shown. Pick a gender in "
+        "your profile to see a single sequence."),
     "hour_unknown": (
         "The birth hour is unknown, so no hour pillar was calculated; the "
         "reading rests on three pillars and the luck-period start may "

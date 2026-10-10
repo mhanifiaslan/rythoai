@@ -227,6 +227,13 @@ def get_wallet(uid: str) -> dict[str, Any]:
         "monthly_allowance": MONTHLY_TOKEN_ALLOWANCE,
         "allowance_resets_at": marker,
         "costs": dict(TOKEN_COSTS),
+        # Paket adetleri de SUNUCU gerçeğidir: istemci bunları kendi sabitinden
+        # (token_store_screen.dart `kPackDisplayAmounts`) çiziyordu, yani
+        # ekrandaki "300 kredi" ile webhook'un yüklediği sayı iki ayrı yerde
+        # yazılıydı ve biri değişince öteki sessizce yalan söylerdi. Aboneliğe
+        # bağlı DEĞİL (monthly_allowance gibi): abone olmayan da mağaza
+        # ekranını görüyor ve orada hangi paketin kaç kredi olduğu yazıyor.
+        "packs": dict(TOKEN_PACKS),
         # Yanıt katmanı bunu okur ve okunamadıysa 200 DÖNMEZ (bkz. yukarıdaki
         # gerekçe). Harcama yolundaki `charge_metered` fail-open davranışı
         # bilinçli olarak DEĞİŞMİYOR: o yolda bir okuma hatası kullanıcıyı
@@ -400,6 +407,26 @@ def spender(uid: str, feature: str, *, lang: str = DEFAULT_LANG) -> Callable[[],
 # Ücretsiz katman + cüzdan birleşik kapısı (sohbet / iching)
 # ---------------------------------------------------------------------------
 
+def quota_detail(feature: str, free_limit: int, lang: str) -> str:
+    """Dolu günlük kota 402'sinin ``detail`` metni — yer tutucular TEK yerden.
+
+    `quota.chat` artık "sınırsız" demiyor, SAYI söylüyor: aylık hak ve mesaj
+    bedeli (ozellikler.md "İddia edilemeyecekler" — "Sınırsız AI" yasak).
+    Sayılar şablona elle yazılmaz, buradan gider; `messages.py` bu modülü
+    içe ALAMAZ (döngü: wallet messages'ı alıyor), o yüzden doldurma
+    çağıran tarafta. Üç çağıran var (sohbet, önbellekli iching, dead-code
+    `entitlements.enforce_daily_quota`) ve `str.format` eksik anahtarda
+    KeyError atar — yani bir yer tutucu eklenip bir çağıranda unutulursa
+    kullanıcı tam kotası dolduğu anda 500 görür. Fazla anahtar zararsızdır
+    (`format` yok sayar), bu yüzden küme her özellik için AYNI ve geniş.
+    """
+    return text(f"quota.{feature}", lang, fallback="quota.default",
+                limit=free_limit,
+                allowance=MONTHLY_TOKEN_ALLOWANCE,
+                chat_cost=TOKEN_COSTS["chat"],
+                cost=TOKEN_COSTS.get(feature, 0))
+
+
 def charge_metered(user, feature: str, free_limit: int,
                    *, lang: str = DEFAULT_LANG) -> bool:
     """Günlük ücretsiz hak + cüzdanı tek kapıda birleştirir (ÖNBELLEKSİZ
@@ -437,8 +464,7 @@ def charge_metered(user, feature: str, free_limit: int,
 
     raise HTTPException(
         status_code=PAYWALL_STATUS,
-        detail=text(f"quota.{feature}", lang, fallback="quota.default",
-                    limit=free_limit),
+        detail=quota_detail(feature, free_limit, lang),
     )
 
 
@@ -482,8 +508,7 @@ def metered_callbacks(user, feature: str, free_limit: int,
 
     raise HTTPException(
         status_code=PAYWALL_STATUS,
-        detail=text(f"quota.{feature}", lang, fallback="quota.default",
-                    limit=free_limit),
+        detail=quota_detail(feature, free_limit, lang),
     )
 
 

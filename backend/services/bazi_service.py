@@ -292,7 +292,10 @@ def year_pillar_for_date(date: dt.date) -> dict[str, Any]:
 def get_bazi_chart(
     year: int, month: int, day: int, hour: int | None, minute: int,
     city: str = "Istanbul", nation: str | None = None,
-    gender: str = "female", name: str = "Gezgin",
+    # Varsayılan "female" idi: cinsiyet vermeyen çağıran sessizce kadın
+    # kuralıyla yön alıyordu. Motorun kendi varsayılanı da aynı sessiz
+    # varsayımdı; "unspecified" ile yön ölçülemez sayılır (aşağıda).
+    gender: str = "unspecified", name: str = "Gezgin",
 ) -> dict[str, Any]:
     # Saat bilinmiyorsa (hour=None) SAHTE bir saat üretilmez: saat sütunu
     # hiç kurulmaz, gün/yıl/ay üç sütunla devam edilir. 12:00 varsaymak
@@ -381,58 +384,103 @@ def get_bazi_chart(
 
     # --- Şans Sütunları (Da Yun) ---
     yang_year = STEMS[year_stem]["polarity"] == "Yang"
-    is_male = gender.lower() in ("male", "erkek", "m", "man")
-    is_female = gender.lower() in ("female", "kadin", "kadın", "f", "woman")
-    forward = yang_year == is_male  # yang+erkek veya yin+kadın -> ileri
+    cinsiyet = (gender or "").lower()
+    is_male = cinsiyet in ("male", "erkek", "m", "man")
+    is_female = cinsiyet in ("female", "kadin", "kadın", "f", "woman")
+    # Yön yalnız cinsiyet BİLİNİYORSA hesaplanır. "unspecified", "other",
+    # boş dize ve tanınmayan her değer aynı kapıdan geçer: eskiden bunlar
+    # sessizce `is_male=False` → yin (kadın) kuralına düşüyor ve kullanıcı
+    # "belirtmek istemiyorum" dediği hâlde yanıtta `gender: "female"` ve
+    # tek yönlü sekiz dönem görüyordu — ölçülmeyen şey ölçülmüş gibi
+    # sunuluyordu.
+    yon_biliniyor = is_male or is_female
 
     # --- Hesap varsayımı beyanları ---
     # Motor bir temel SEÇMEK zorunda kaldıysa bunu anahtar olarak söyler;
     # cümle localize_bazi'de isteğin dilinde kurulur, rapor ve ekranda
     # görünür. Sessiz varsayım bu motorda yasak.
     note_keys: list[str] = []
-    if not (is_male or is_female):
-        # İkili olmayan cinsiyette yön yin (kadın) kuralıyla hesaplanır.
-        note_keys.append("luck_direction_yin")
+    if not yon_biliniyor:
+        # Yön HESAPLANMADI (eski anahtar `luck_direction_yin` bir varsayımı
+        # beyan ediyordu; artık varsayım yok, yokluk beyan ediliyor).
+        note_keys.append("luck_direction_unknown")
     if not hour_known:
         note_keys.append("hour_unknown")
     if loc.fallback:
         # Şehir çözülemedi, İstanbul boylamıyla hesaplandı: TST düzeltmesi
         # yanlış boylamla hatayı büyütebilir — kullanıcı bilmeli.
         note_keys.append("tst_fallback_city")
-    boundary = _find_jie_boundary(utc, forward=forward)
-    days_to_boundary = abs((boundary - utc).total_seconds()) / 86400
 
-    # Klasik dönüşüm TAM çözünürlükle (B5): 3 gün = 1 yıl → 1 gün = 4 ay.
-    # Eski `round(days/3)` ay/gün bilgisini atıyordu ve geçiş tarihi ±6
-    # aya kadar kayıyordu; `max(1,...)` kelepçesi de 0-1 gün mesafeli
-    # doğumları gizliyordu — "0 yaş 4 ay" meşru bir sonuçtur.
-    toplam_ay = max(0, round(days_to_boundary * 4))
-    start_years, start_months = divmod(toplam_ay, 12)
-    ay_indeksi = local.month - 1 + toplam_ay
-    start_takvim_yili = local.year + ay_indeksi // 12
-    luck_start = {
-        "years": start_years,
-        "months": start_months,
-        # Ay çözünürlüğü bilinçli: gün bileşeni doğum saatine bağlı ve
-        # saatsiz haritada zaten ±4 ay belirsizlik var.
-        "date": f"{start_takvim_yili}-{ay_indeksi % 12 + 1:02d}",
-    }
+    def _sans_dizisi(ileri: bool) -> tuple[list[dict[str, Any]],
+                                           dict[str, Any]]:
+        """Verilen yön için sekiz dönem + başlangıç yaşı.
 
-    luck_pillars = []
-    for i in range(1, 9):
-        offset = i if forward else -i
-        lp = _pillar(month_stem + offset, month_branch + offset)
-        from_year = start_takvim_yili + (i - 1) * 10
-        luck_pillars.append({
-            "from_age": start_years + (i - 1) * 10,
-            "to_age": start_years + i * 10 - 1,
-            # Takvim yılları (B5): "3-13 yaş" tek başına kullanıcıya hesap
-            # yaptırıyordu; "1993-2003" yaptırmaz.
-            "from_year": from_year,
-            "to_year": from_year + 9,
-            **lp,
-            "ten_god": _ten_god(day_stem, (month_stem + offset) % 10),
-        })
+        "Yönsüz sütun" diye bir şey YOK, bu yüzden yön bilinmeyince
+        sütunlar tek listede verilemiyor: dönem sütunu ay sütunundan
+        ±i adımla kuruluyor (ileri 1. dönem = ay+1, geri = ay−1) VE
+        başlangıç yaşı yönün Jie sınırına olan mesafeden geliyor (ileri:
+        sonraki sınır, geri: önceki sınır; ikisi bir ay içinde toplanır,
+        yani yaşlar da ayrışır). İki yön iki ayrı dizidir.
+        """
+        boundary = _find_jie_boundary(utc, forward=ileri)
+        days_to_boundary = abs((boundary - utc).total_seconds()) / 86400
+
+        # Klasik dönüşüm TAM çözünürlükle (B5): 3 gün = 1 yıl → 1 gün = 4
+        # ay. Eski `round(days/3)` ay/gün bilgisini atıyordu ve geçiş
+        # tarihi ±6 aya kadar kayıyordu; `max(1,...)` kelepçesi de 0-1 gün
+        # mesafeli doğumları gizliyordu — "0 yaş 4 ay" meşru bir sonuçtur.
+        toplam_ay = max(0, round(days_to_boundary * 4))
+        start_years, start_months = divmod(toplam_ay, 12)
+        ay_indeksi = local.month - 1 + toplam_ay
+        start_takvim_yili = local.year + ay_indeksi // 12
+        baslangic = {
+            "years": start_years,
+            "months": start_months,
+            # Ay çözünürlüğü bilinçli: gün bileşeni doğum saatine bağlı ve
+            # saatsiz haritada zaten ±4 ay belirsizlik var.
+            "date": f"{start_takvim_yili}-{ay_indeksi % 12 + 1:02d}",
+        }
+
+        donemler = []
+        for i in range(1, 9):
+            offset = i if ileri else -i
+            lp = _pillar(month_stem + offset, month_branch + offset)
+            from_year = start_takvim_yili + (i - 1) * 10
+            donemler.append({
+                "from_age": start_years + (i - 1) * 10,
+                "to_age": start_years + i * 10 - 1,
+                # Takvim yılları (B5): "3-13 yaş" tek başına kullanıcıya
+                # hesap yaptırıyordu; "1993-2003" yaptırmaz.
+                "from_year": from_year,
+                "to_year": from_year + 9,
+                **lp,
+                "ten_god": _ten_god(day_stem, (month_stem + offset) % 10),
+            })
+        return donemler, baslangic
+
+    if yon_biliniyor:
+        forward = yang_year == is_male  # yang+erkek veya yin+kadın -> ileri
+        luck_pillars, luck_start = _sans_dizisi(forward)
+        luck_direction = "forward" if forward else "backward"
+        luck_pillar_candidates = None
+    else:
+        # Yön bilinmeyince `luck_pillars` BOŞ, iki yön de `candidates`
+        # altında: her okuyucu (`localize_bazi`, rapor prompt'u `[:4]`,
+        # mobil sekmenin yatay listesi, `chart_context` aktif dönem) düz
+        # listeyi "bu senin dönemlerin" diye sunuyor — içine iki diziyi
+        # art arda koymak, prompt'a ilk dördü (= tek yön) sokardı; tek
+        # yönü koymak eski kusurun ta kendisi. Boş liste bu okuyucuların
+        # hepsinde ölçüldü: prompt boş satır, sekme boş şerit, aktif
+        # dönem None — hiçbiri düşmüyor. Adaylar okuyucusu açıldığında
+        # "iki olası yol" diye gösterilsin diye taşınır; yorumlanmaz.
+        forward = None
+        luck_pillars, luck_start = [], None
+        luck_direction = None
+        luck_pillar_candidates = {
+            yon: dict(zip(("luck_pillars", "luck_start"),
+                          _sans_dizisi(yon == "forward")))
+            for yon in ("forward", "backward")
+        }
 
     # --- Liu Nian: içinde bulunulan yılın sütunu + aktif Da Yun (B5) ---
     bugun = dt.date.today()
@@ -448,7 +496,14 @@ def get_bazi_chart(
 
     return {
         "name": name,
-        "gender": "male" if is_male else "female",
+        # Üçüncü değer eskiden yoktu: ikili olmayan her şey "female"
+        # yazılıyordu ve rapor önbellek anahtarına da öyle giriyordu.
+        "gender": ("male" if is_male
+                   else "female" if is_female else "unspecified"),
+        # Şans sütunlarının yönü ÖLÇÜLDÜ mü — False ise `luck_direction`
+        # None, `luck_pillars` boş ve iki aday `luck_pillar_candidates`ta.
+        "luck_direction_known": yon_biliniyor,
+        "luck_pillar_candidates": luck_pillar_candidates,
         # Hesap sürümü: hesap davranışı değişen her fazda artar ve rapor
         # önbellek anahtarına girer — eski metinler kendiliğinden düşer,
         # "yeni harita + 30 günlük eski rapor" çelişkisi hiç yaşanmaz.
@@ -474,7 +529,7 @@ def get_bazi_chart(
         "shen_sha": shen_sha,
         "zodiac_animal": BRANCHES[year_branch]["animal"],
         "luck_pillars": luck_pillars,
-        "luck_direction": "forward" if forward else "backward",
+        "luck_direction": luck_direction,
         "luck_start": luck_start,
         # Saat bilinmeden Jie mesafesi gün ortasından hesaplanır; gün içi
         # ±12 saat, klasik dönüşümle (1 gün = 4 ay) ±4 ay eder.

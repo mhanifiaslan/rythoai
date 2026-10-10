@@ -196,9 +196,14 @@ def _dogrula(alanlar: dict[str, Any], lang: str) -> dict[str, Any]:
                             detail=text("people.invalid", lang))
 
     ulke = str(alanlar.get("birthNation") or "").strip().upper() or None
-    cinsiyet = str(alanlar.get("gender") or "female").strip()
-    if cinsiyet not in ("female", "male", "other"):
-        cinsiyet = "female"
+    # "unspecified" (belirtmek istemiyorum) kayda OLDUĞU GİBİ girer: BaZi
+    # motoru bu değerde şans dönemlerinin yönünü HESAPLAMAZ (ölçülmeyen
+    # söylenmez). Eski hâl beyaz liste dışını sessizce "female" yapıyordu —
+    # api/people.py varsayılanı değişince bile kayıt yine kadın çıkıyordu
+    # (D0'da ölçüldü; Pydantic varsayılanı kaydı korumuyor).
+    cinsiyet = str(alanlar.get("gender") or "unspecified").strip()
+    if cinsiyet not in ("female", "male", "other", "unspecified"):
+        cinsiyet = "unspecified"
 
     temiz: dict[str, Any] = {
         "relation": relation,

@@ -9,7 +9,11 @@ diyordu.
 Üç katman ayrı ayrı sınanır, çünkü üç ayrı kusur:
   1. ``_cached_generate`` ``refunded`` bayrağını ÜRETİYOR mu — ve jeton
      harcanmayan uçta (günlük okuma) YALAN SÖYLEMİYOR mu.
-  2. Uçlar bu iki bayrağı yanıt gövdesinde TAŞIYOR mu.
+  2. Uçlar bu iki bayrağı yanıt gövdesinde TAŞIYOR mu. İlk onarım dört ucu
+     kapattı; altı uç (iching, solar-return, progressions, birth-hexagram,
+     synastry, relationship) ve /dyad'ın ``refunded``ı bir tur daha
+     düşmeye devam etti — uç başına test yazmak yazılmayan ucu korumuyor,
+     o yüzden 2c'deki meta-bekçi kaynağı okuyor.
   3. Üretim hatası yığın izi ile mi loglanıyor — yedek metin artık kullanıcıya
      "ürünü göremedin" demek olduğu için kotayı (429) ağır hatadan ayırmak
      gerekiyor.
@@ -18,8 +22,10 @@ diyordu.
 """
 from __future__ import annotations
 
+import ast
 import datetime as dt
 import logging
+import pathlib
 
 import pytest
 from fastapi.testclient import TestClient
@@ -246,6 +252,293 @@ def test_gercek_rapor_bayraksiz_doner(abone, harita_sahte, monkeypatch):
     veri = yanit.json()["data"]
     assert veri["fallback"] is False
     assert veri["refunded"] is False
+
+
+# ---------------------------------------------------------------------------
+# 2b. Katman: altı uç bir tur boyunca bayrağı DÜŞÜRÜYORDU
+# ---------------------------------------------------------------------------
+#
+# Ölçüldü: `_cached_generate` her yedekte bayrağı üretiyor, ama /iching,
+# /solar-return, /progressions, /birth-hexagram, /synastry gövdeyi
+# `"report": report["text"]` ile kurup bayrağı atıyordu; /relationship
+# `okuma` sözlüğünde taşıyıp uçta atıyordu; /dyad `fallback` taşıyıp
+# `refunded`ı atıyordu. Jeton iade ediliyordu (para kaybı yok) ama bakiye
+# açıklamasız yükselirken ekranda "rapor" duruyordu (CLAUDE.md "kullanıcı
+# farkı anlamayan yedekler"). Her test ölçülmüş verinin de yanıtta
+# KALDIĞINI sabitler — bayrak haritayı götürmez, ona eşlik eder.
+
+@uygulama_gerekir
+def test_iching_ucu_bayraklari_TASIR(abone, harita_sahte, monkeypatch):
+    r = harita_sahte
+    monkeypatch.setattr(r, "cast_iching",
+                        lambda soru, method="coins": {"hexagram": {"n": 1}})
+    monkeypatch.setattr(r, "enrich_cast", lambda cast, **k: cast)
+    monkeypatch.setattr(r.profile_service, "get_profile", lambda uid: None)
+    monkeypatch.setattr(r.prompts, "localize_iching", lambda lang, c: c)
+    monkeypatch.setattr(r.report_service, "iching_reading",
+                        lambda *a, **k: YEDEK_YANIT)
+
+    with TestClient(app) as client:
+        # Soru verilmez: soru kapısı (LLM hükmü) bu testin konusu değil.
+        yanit = client.post("/api/v1/reports/iching", json={"method": "coins"})
+
+    assert yanit.status_code == 200, yanit.text
+    veri = yanit.json()["data"]
+    assert veri["fallback"] is True, "yedek metin okuma gibi döndü"
+    assert veri["refunded"] is True, "jeton iadesi söylenmedi"
+    assert veri["cast"] == {"hexagram": {"n": 1}}, "ölçülen çekim düştü"
+
+
+@uygulama_gerekir
+def test_solar_return_ucu_bayraklari_TASIR(abone, harita_sahte, monkeypatch):
+    from services import predict_service
+    r = harita_sahte
+    monkeypatch.setattr(predict_service, "solar_return",
+                        lambda *a, **k: {"sun_sign": "Leo"})
+    monkeypatch.setattr(r.profile_service, "get_profile", lambda uid: {})
+    monkeypatch.setattr(r.report_service, "solar_return_report",
+                        lambda *a, **k: YEDEK_YANIT)
+
+    with TestClient(app) as client:
+        yanit = client.post("/api/v1/reports/solar-return", json=DOGUM)
+
+    assert yanit.status_code == 200, yanit.text
+    veri = yanit.json()["data"]
+    assert veri["fallback"] is True
+    assert veri["refunded"] is True
+    assert veri["solar_return"] == {"sun_sign": "Leo"}, "yıl haritası düştü"
+
+
+@uygulama_gerekir
+def test_progressions_ucu_bayraklari_TASIR(abone, harita_sahte, monkeypatch):
+    from services import predict_service
+    r = harita_sahte
+    monkeypatch.setattr(predict_service, "secondary_progressions",
+                        lambda *a, **k: {"moon": "Aries"})
+    monkeypatch.setattr(predict_service, "solar_arc_hits",
+                        lambda *a, **k: [])
+    monkeypatch.setattr(r.prompts, "localize_progressions",
+                        lambda lang, prog, hits: {"prog": prog, "hits": hits})
+    monkeypatch.setattr(r.report_service, "progressions_report",
+                        lambda *a, **k: YEDEK_YANIT)
+
+    with TestClient(app) as client:
+        yanit = client.post("/api/v1/reports/progressions", json=DOGUM)
+
+    assert yanit.status_code == 200, yanit.text
+    veri = yanit.json()["data"]
+    assert veri["fallback"] is True
+    assert veri["refunded"] is True
+    assert veri["progressions"]["prog"] == {"moon": "Aries"}
+
+
+@uygulama_gerekir
+def test_birth_hexagram_ucu_bayraklari_TASIR(abone, harita_sahte,
+                                             monkeypatch):
+    r = harita_sahte
+    konum = {"gate": 25, "line": 3, "longitude": 10.0, "hour_known": True,
+             "hexagram": {"number": 25}, "alternate_gate": None,
+             "alternate_hexagram": None,
+             "gate_passage": {"gate_tr": "Kapı dokusu", "gate_en": "Gate"}}
+    monkeypatch.setattr(r.birth_hexagram_service, "birth_hexagram",
+                        lambda **k: konum)
+    monkeypatch.setattr(r.prompts, "localize_hexagram", lambda lang, h: h)
+    monkeypatch.setattr(r.report_service, "birth_hexagram_report",
+                        lambda *a, **k: YEDEK_YANIT)
+
+    with TestClient(app) as client:
+        yanit = client.post("/api/v1/reports/birth-hexagram", json=DOGUM)
+
+    assert yanit.status_code == 200, yanit.text
+    veri = yanit.json()["data"]
+    assert veri["fallback"] is True
+    assert veri["refunded"] is True
+    # Kalıcı çekirdek (kapı + çizgi + sabit pasaj) yanıtta durur; düşen
+    # yalnız günün kesişimi.
+    assert veri["position"]["gate"] == 25
+    assert veri["position"]["line"] == 3
+    assert veri["gate_text"] == "Kapı dokusu"
+
+
+@uygulama_gerekir
+def test_synastry_ucu_bayraklari_TASIR(abone, harita_sahte, monkeypatch):
+    r = harita_sahte
+    monkeypatch.setattr(r.astro_service, "get_synastry",
+                        lambda a, b: {"aspects": [{"p1": "sun"}]})
+    monkeypatch.setattr(r.report_service, "synastry_report",
+                        lambda *a, **k: YEDEK_YANIT)
+
+    with TestClient(app) as client:
+        yanit = client.post("/api/v1/reports/synastry",
+                            json={"person1": DOGUM, "person2": DOGUM})
+
+    assert yanit.status_code == 200, yanit.text
+    veri = yanit.json()["data"]
+    assert veri["fallback"] is True
+    assert veri["refunded"] is True
+    assert veri["synastry"] == {"aspects": [{"p1": "sun"}]}
+
+
+@pytest.fixture()
+def karsi_taraf(harita_sahte, monkeypatch):
+    """Arkadaş yolu: iki profil de sunucuda, hesap sahte, ölçüm LLM'siz."""
+    from services import synastry_service
+    r = harita_sahte
+    karsi = synastry_service.Counterpart(key="gz2-dost", birth={},
+                                         label="Deniz")
+    monkeypatch.setattr(r.profile_service, "are_friends", lambda a, b: True)
+    monkeypatch.setattr(synastry_service, "friend_counterpart",
+                        lambda uid, dost: karsi)
+    monkeypatch.setattr(r.profile_service, "get_profile",
+                        lambda uid: {"displayName": "Ada"})
+    monkeypatch.setattr(r.profile_service, "birth_kwargs", lambda p: {})
+    monkeypatch.setattr(r.chart_context, "has_birth_data", lambda p: True)
+    monkeypatch.setattr(r.astro_service, "get_synastry",
+                        lambda a, b: {"person1": {}, "person2": {}})
+    monkeypatch.setattr(synastry_service, "pair_transits",
+                        lambda *a, **k: None)
+    return synastry_service
+
+
+@uygulama_gerekir
+def test_dyad_ucu_bayraklari_TASIR(abone, harita_sahte, karsi_taraf,
+                                   monkeypatch):
+    """/dyad `fallback` taşıyordu ama `refunded`ı değil — ikili dinamik
+    jeton harcar, iade söylenmeliydi."""
+    r = harita_sahte
+    monkeypatch.setattr(r.prompts, "sign_from_point", lambda lang, p: None)
+    monkeypatch.setattr(r.report_service, "dyad_reading",
+                        lambda *a, **k: YEDEK_YANIT)
+
+    with TestClient(app) as client:
+        yanit = client.post("/api/v1/reports/dyad", json={"friend_uid": "d"})
+
+    assert yanit.status_code == 200, yanit.text
+    veri = yanit.json()["data"]
+    assert veri["fallback"] is True
+    assert veri["refunded"] is True, "jeton iadesi söylenmedi"
+
+
+@uygulama_gerekir
+def test_relationship_ucu_bayragi_tasir_ama_IADE_YOK(abone, harita_sahte,
+                                                     karsi_taraf,
+                                                     monkeypatch):
+    """İlişki okuması JETONSUZ: bayrak taşınır, iade cümlesi KURULMAZ.
+
+    Abone dalında `okuma` sözlüğü bayrağı taşıyor ama uç atıyordu; ölçülen
+    eksenler (LLM'siz hesap) yanıtta kalmak zorunda — "hesap bedava,
+    yorum paralı" sözleşmesi.
+    """
+    r = harita_sahte
+    monkeypatch.setattr(karsi_taraf, "axes_for",
+                        lambda uid, o: {"calc_version": "1", "axes": []})
+    monkeypatch.setattr(r.prompts, "localize_relationship_axes",
+                        lambda lang, e, rel: {"axes": [
+                            {"axis": "communication", "level": "high"}]})
+    monkeypatch.setattr(r.report_service, "relationship_reading",
+                        lambda *a, **k: {**YEDEK_IADESIZ,
+                                         "axis_lines": {}, "theme": ""})
+
+    with TestClient(app) as client:
+        yanit = client.post("/api/v1/reports/relationship",
+                            json={"friend_uid": "d"})
+
+    assert yanit.status_code == 200, yanit.text
+    veri = yanit.json()["data"]
+    assert veri["fallback"] is True, "yedek metin ilişki okuması gibi döndü"
+    assert veri["refunded"] is False, "jetonsuz uçta iade cümlesi yalan olur"
+    assert veri["axes"][0]["axis"] == "communication", "ölçüm düştü"
+
+
+# ---------------------------------------------------------------------------
+# 2c. META-BEKÇİ: report_service çağıran HER uç iki bayrağı taşır
+# ---------------------------------------------------------------------------
+
+_UC_DOSYALARI = ("api/reports.py", "api/face_reading.py")
+
+#: Bugün bilinen uçlar: ölçümün BOŞ geçmediğinin kanıtı. Yeni uç listeye
+#: yazılmadan da denetlenir (küme kaynaktan türetilir); buradaki adlar
+#: yalnız "ağaç gezgini hiçbir şey bulamadı" hâlini kırmızıya çevirir.
+_BILINEN_UCLAR = {
+    "horoscope", "daily", "natal", "bazi", "iching", "solar_return",
+    "progressions", "birth_hexagram", "dyad", "relationship", "synastry",
+    "firasa_reading",
+}
+
+
+def _router_uclari(agac: "ast.Module"):
+    """`@router.<yöntem>(...)` ile süslenmiş fonksiyonlar."""
+    for dugum in ast.walk(agac):
+        if not isinstance(dugum, ast.FunctionDef):
+            continue
+        for dek in dugum.decorator_list:
+            hedef = dek.func if isinstance(dek, ast.Call) else dek
+            if (isinstance(hedef, ast.Attribute)
+                    and isinstance(hedef.value, ast.Name)
+                    and hedef.value.id == "router"):
+                yield dugum
+                break
+
+
+def _report_service_cagiriyor(fn: "ast.FunctionDef") -> bool:
+    return any(isinstance(d, ast.Attribute)
+               and isinstance(d.value, ast.Name)
+               and d.value.id == "report_service"
+               for d in ast.walk(fn))
+
+
+def _tasinan_anahtarlar(fn: "ast.FunctionDef") -> set[str]:
+    """Gövdede kurulan sözlük anahtarları + `veri["x"] = ...` atamaları."""
+    anahtarlar: set[str] = set()
+    for d in ast.walk(fn):
+        if isinstance(d, ast.Dict):
+            anahtarlar.update(k.value for k in d.keys
+                              if isinstance(k, ast.Constant)
+                              and isinstance(k.value, str))
+        elif isinstance(d, ast.Assign):
+            for hedef in d.targets:
+                if (isinstance(hedef, ast.Subscript)
+                        and isinstance(hedef.slice, ast.Constant)
+                        and isinstance(hedef.slice.value, str)):
+                    anahtarlar.add(hedef.slice.value)
+    return anahtarlar
+
+
+def test_report_service_cagiran_HER_uc_bayragi_tasir():
+    """Yeni bir LLM ucu eklenince kendiliğinden kırmızı.
+
+    Altı uç bir tur boyunca bayrağı düşürdü ve hiçbir test bunu
+    görmedi — uç başına test yazmak, yazılmayan ucu korumaz. Bu bekçi
+    kaynağın kendisini okur: `report_service.` çağıran her `@router`
+    bloğu yanıt gövdesinde `"fallback"` VE `"refunded"` anahtarlarını
+    kurmak zorunda.
+
+    Okuma AST ile, metin eşleşmesiyle DEĞİL: "bir şeyin yokluğunu arayan
+    bekçi onu anlatan yorumu görmemeli" (CLAUDE.md §5) ve burada yorumlar
+    tam da `fallback` kelimesini açıklıyor; `#` satırlarını atmak
+    docstring'leri ve satır sonu yorumlarını yine görürdü. Ağaçta yorum
+    yok, docstring ise anahtar OLARAK kullanılan bir sabit değil.
+    """
+    kok = pathlib.Path(__file__).resolve().parents[1]
+    eksik: list[str] = []
+    denetlenen: set[str] = set()
+    for dosya in _UC_DOSYALARI:
+        agac = ast.parse((kok / dosya).read_text(encoding="utf-8"),
+                         filename=dosya)
+        for uc in _router_uclari(agac):
+            if not _report_service_cagiriyor(uc):
+                continue
+            denetlenen.add(uc.name)
+            kayip = {"fallback", "refunded"} - _tasinan_anahtarlar(uc)
+            if kayip:
+                eksik.append(f"{dosya}::{uc.name} → {sorted(kayip)} yok")
+
+    assert _BILINEN_UCLAR <= denetlenen, (
+        f"ağaç gezgini bilinen uçları bulamadı: "
+        f"{sorted(_BILINEN_UCLAR - denetlenen)}")
+    assert not eksik, (
+        "report_service çağıran uç yedek bayrağını düşürüyor — istemci "
+        "şablon metni rapor sanır:\n  " + "\n  ".join(eksik))
 
 
 # ---------------------------------------------------------------------------

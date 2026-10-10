@@ -574,15 +574,20 @@ TEN_GOD_MEANINGS = {
 #: Yin/Yang. Terim evrensel ama cümle içinde dile uyması için tabloda.
 POLARITY_NAMES = {"Yang": "Yang", "Yin": "Yin"}
 
-GENDER_NAMES = {"male": "Erkek", "female": "Kadın"}
+GENDER_NAMES = {"male": "Erkek", "female": "Kadın", "unspecified": "Belirtilmedi"}
 
 #: Hesap varsayımı beyanları (Revize B0). Anahtarlar bazi_service'in
 #: döndürdüğü *_note_key değerleriyle aynı olmalı. Sessiz varsayım yok:
 #: motor bir temel seçmek zorunda kaldıysa kullanıcı bunu okur.
 BAZI_NOTES = {
-    "luck_direction_yin": (
-        "Şans dönemlerinin yönü, cinsiyet ikili seçilmediği için "
-        "yin (kadın) kuralıyla hesaplandı."),
+    # "luck_direction_yin" KALKTI: motor artık belirtilmeyen cinsiyette yön
+    # UYDURMUYOR (eski hâl sessizce kadın kuralıyla hesaplıyordu). Yeni
+    # anahtar yönün hesaplanmadığını söylüyor; iki olası dizi ayrıca
+    # `luck_pillar_candidates`ta döner.
+    "luck_direction_unknown": (
+        "Cinsiyet belirtilmediği için şans dönemlerinin yönü hesaplanmadı; "
+        "iki olası dizi birlikte verildi. Profilden cinsiyet seçersen tek "
+        "dizi görünür."),
     "hour_unknown": (
         "Doğum saati bilinmediği için saat sütunu hesaplanmadı; okuma üç "
         "sütuna dayanıyor ve şans dönemi başlangıcı ±4 ay oynayabilir."),

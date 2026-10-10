@@ -5,9 +5,11 @@ Calistirma:  .venv\\Scripts\\python.exe -m pytest tests/test_entitlements.py -q
 import datetime as dt
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from core import config, entitlements
+from core.messages import text
 
 try:
     from main import app
@@ -145,13 +147,14 @@ def test_consent_deneme_jetonunu_bir_kez_yazar(monkeypatch):
 # --------------------------------------------------------------------------
 
 @uygulama_gerekir
-@pytest.mark.parametrize("yol,govde", [
-    ("/api/v1/reports/daily", DOGUM),
-    ("/api/v1/reports/natal", DOGUM),
-    ("/api/v1/reports/bazi", DOGUM),
-    ("/api/v1/reports/dyad", {"friend_uid": "arkadas"}),
+@pytest.mark.parametrize("yol,govde,ozellik", [
+    ("/api/v1/reports/daily", DOGUM, "personal_daily"),
+    ("/api/v1/reports/natal", DOGUM, "natal_report"),
+    ("/api/v1/reports/bazi", DOGUM, "bazi"),
+    ("/api/v1/reports/dyad", {"friend_uid": "arkadas"}, "dyad"),
 ])
-def test_ucretsiz_kullanici_ucretli_uca_giremez(monkeypatch, yol, govde):
+def test_ucretsiz_kullanici_ucretli_uca_giremez(monkeypatch, yol, govde,
+                                                ozellik):
     monkeypatch.setattr(entitlements, "is_subscriber", lambda uid: False)
 
     with TestClient(app) as client:
@@ -159,6 +162,40 @@ def test_ucretsiz_kullanici_ucretli_uca_giremez(monkeypatch, yol, govde):
 
     assert response.status_code == entitlements.PAYWALL_STATUS
     assert "Rytho+" in response.json()["detail"]
+    # Kapiya carpan OZELLIK baslikta tasinir (`detail` duz kullanici metni,
+    # oraya gomulemez). Burada HTTP uzerinden olculuyor: FastAPI
+    # HTTPException.headers'i yaniti gercekten cikariyor mu?
+    assert response.headers.get("X-Paywall-Feature") == ozellik
+
+
+def test_require_plus_402_ozelligi_BASLIKTA_soyler(monkeypatch):
+    """`require_plus(ozellik)` 402'si `X-Paywall-Feature: <ozellik>` tasir.
+
+    Istemci 402'de yalniz `X-Paywall-Reason`a bakiyordu ve paywall hangi
+    ozellik icin acildigini bilmiyordu; `detail` duz kullanici metni oldugu
+    icin (friendlyError sozlesmesi) ayrim oraya gomulemez. Baslik
+    `X-Paywall-Reason` ile ayni yol — okumayan eski istemci etiketi cizmez,
+    bozulmaz.
+
+    Uygulamasiz, dogrudan bagimlilik cagrisi: `uygulama_gerekir` atlanirsa
+    HTTP testi susar, bu bekci susmaz.
+    """
+    monkeypatch.setattr(entitlements, "is_subscriber", lambda uid: False)
+
+    class _Kullanici:
+        uid = "u-kapi"
+        auth_time = None
+
+    bagimlilik = entitlements.require_plus("natal_report")
+    with pytest.raises(HTTPException) as hata:
+        bagimlilik(user=_Kullanici(), lang="tr",
+                   x_device_id=None, x_device_platform=None)
+
+    assert hata.value.status_code == entitlements.PAYWALL_STATUS
+    assert hata.value.headers["X-Paywall-Feature"] == "natal_report", (
+        "baslik ozelligin ADINI tasimali; sabit/yanlis deger istemcide "
+        "yanlis etiket cizer")
+    assert hata.value.detail == text("paywall.natal_report", "tr")
 
 
 @uygulama_gerekir

@@ -129,14 +129,20 @@ class WalletStatus(BaseModel):
     monthly_allowance: int
     allowance_resets_at: str | None = None
     costs: dict[str, int]
+    #: Ürün kimliği -> paket adedi (`wallet.TOKEN_PACKS`). İstemci bunu
+    #: kendi sabitinden çiziyordu; sayı burada ve webhook'ta tek kaynaktan
+    #: gelsin diye yanıta girdi. Abone olmayana da döner (monthly_allowance
+    #: gibi) — mağaza ekranı herkese görünüyor.
+    packs: dict[str, int]
 
 
 @router.get("/wallet", response_model=WalletStatus)
 def wallet_status(user: AuthUser = Depends(get_current_user)):
-    """İstemcinin bakiye göstergesi ve token mağazası için tek gerçek.
+    """İstemcinin bakiye göstergesi ve kredi mağazası için tek gerçek.
 
-    İstemci paket adetlerini de buradan öğrenmez — yalnızca bedel tablosunu
-    görür; paket içerikleri satın alma sonrası webhook'la sunucuda yüklenir.
+    Bedel tablosu VE paket adetleri buradan okunur; paket içerikleri satın
+    alma sonrası webhook'la sunucuda yüklenir (istemciden gelen hiçbir
+    sayıya güvenilmez — adet yalnız gösterim içindir).
     """
     # KT2: consent çağrısı düşmüşse deneme jetonunu ilk cüzdan okuması
     # tamamlar (defterle idempotent — çift yükleme imkânsız).
@@ -160,6 +166,7 @@ def wallet_status(user: AuthUser = Depends(get_current_user)):
         allowance_resets_at=(resets_at.isoformat()
                              if hasattr(resets_at, "isoformat") else None),
         costs=cuzdan["costs"],
+        packs=cuzdan["packs"],
     )
 
 

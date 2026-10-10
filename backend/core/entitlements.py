@@ -43,7 +43,11 @@ FORCE_PLUS: bool = os.getenv("RYTHO_FORCE_PLUS", "0") == "1"
 # Ucretsiz katman kotalari
 # ---------------------------------------------------------------------------
 
-#: Ucretsiz kullanicinin gunluk sohbet mesaji hakki. Abonede sinirsizdir.
+#: Ucretsiz kullanicinin gunluk sohbet mesaji hakki. Abonede GUNLUK KOTA
+#: YOK ama sinirsiz da DEGIL: her mesaj cuzdandan TOKEN_COSTS["chat"] = 1
+#: kredi duser (wallet.charge_metered -> spend) ve aylik hak
+#: MONTHLY_TOKEN_ALLOWANCE ile tavanli. Eski "sinirsizdir" gerekcesi
+#: ozellikler.md'nin yasakladigi vaadi kodun icine tasiyordu.
 FREE_CHAT_PER_DAY = 5
 
 #: I Ching "hafif gunluk ritual" olarak ucretsiz kalir ama gunde bir cekilis.
@@ -362,6 +366,12 @@ def require_plus(feature: str):
                 status_code=PAYWALL_STATUS,
                 detail=text(f"paywall.{feature}", lang,
                             fallback="paywall.default"),
+                # Hangi ozelligin kapisina carpildigi `detail`e GOMULEMEZ:
+                # o alan istemcide oldugu gibi basilan duz kullanici metni
+                # (friendlyError sozlesmesi). `X-Paywall-Reason` ile ayni
+                # yol — istemci basligi okumuyorsa etiket cizmez, yani eski
+                # surumler bozulmaz.
+                headers={"X-Paywall-Feature": feature},
             )
         # Tembel import: core.device -> core.entitlements yonu zaten var,
         # modul duzeyinde geri bag dongusel import olurdu.
@@ -376,7 +386,8 @@ def require_plus(feature: str):
 
 def enforce_daily_quota(user: AuthUser, key: str, limit: int,
                         lang: str = DEFAULT_LANG) -> None:
-    """Ucretsiz kullanici icin gunluk kotayi uygular; abone sinirsizdir.
+    """Ucretsiz kullanici icin gunluk kotayi uygular; abone kotaya
+    takilmaz (bedelini cuzdandan oder — sinirsiz degil).
 
     Kota dolduysa paywall koduyla (402) hata firlatir. ``lang`` yalnizca
     kullaniciya donen metni belirler; kotanin kendisi dilden bagimsizdir.
@@ -384,8 +395,12 @@ def enforce_daily_quota(user: AuthUser, key: str, limit: int,
     if is_subscriber(user.uid):
         return
     if not consume_quota(user.uid, key, limit):
+        # Metin wallet'in doldurucusundan: `quota.chat` artik aylik hak ve
+        # bedel yer tutuculari tasiyor ve yalniz `limit` gecen bir cagri
+        # KeyError ile 500 dondururdu. Tembel import — wallet bu modulu
+        # modul duzeyinde aliyor, ters yon dongu olurdu.
+        from core.wallet import quota_detail
         raise HTTPException(
             status_code=PAYWALL_STATUS,
-            detail=text(f"quota.{key}", lang, fallback="quota.default",
-                        limit=limit),
+            detail=quota_detail(key, limit, lang),
         )

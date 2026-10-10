@@ -254,9 +254,9 @@ Sayfa iki farklı nesne barındırıyor ve ikisi bilinçli olarak farklı
   gider; etiket cihazda yaşar ve Rytho kişiden "eşin", "çocuğun" diye söz
   eder. Rehber tarafındaki duruşun aynısı: üçüncü bir kişinin kimliği
   rızası alınmadan sunucuya yazılmaz.
-- **Kontenjan:** ücretsiz 1, Rytho+ 10. Sebep maliyet: jetonlu yüzeylerin
-  tavanını aylık jeton hakkı çiziyor ama ilişki AI okuması Plus'ta
-  jetonsuz — kontenjan onun matematiksel emniyeti
+- **Kontenjan:** ücretsiz 1, Rytho+ 10. Sebep maliyet: kredi harcayan yüzeylerin
+  tavanını aylık kredi hakkı çiziyor ama ilişki AI okuması Plus'ta
+  kredisiz — kontenjan onun matematiksel emniyeti
   (bkz. `docs/maliyet-calismasi.md` §6c).
 - **İlişki türü dekoratif değil.** "Çekim" ekseni Venüs/Mars/Plüton
   temaslarından hesaplanıyor ve bu temaslar aile haritalarında da var.
@@ -276,7 +276,7 @@ Doğum kaydı düzeltme · yaşanan şehir (Yıl Haritası için) · kullanıcı
 **giriş yöntemleri** (Google/Apple hesabına şifre ekleme, şifreli hesaba
 Google bağlama) · bildirimler (aşağıda) · gizlilik anahtarları · **dil
 (TR/EN)** — arayüz ve AI yorumlarının dili birlikte değişir · ses efektleri
-· abonelik ve jetonlar · avatar düzenleyici (sürükle-yakınlaştır) ·
+· abonelik ve krediler · avatar düzenleyici (sürükle-yakınlaştır) ·
 **hesap silme** (ne silinip ne silinmeyeceği tek tek yazılır, yazarak onay).
 
 ### Bildirimler — DÖRT zamanlı tür, ÜÇ anahtar
@@ -333,8 +333,8 @@ Sonunda "Büyük Üçlü" perdesi (Güneş/Ay/Yükselen açılışı).
 | Doğum haritası çarkı, yerleşimler, açılar (hesap) | Yıl Haritası (solar return) |
 | Günlük seri | İç Takvim (progresyon + transit) |
 | Arkadaş listesi, seri, hazır tepkiler, ilişki eksenlerinin ÖLÇÜMÜ | BaZi · İ Ching · Doğum Kapısı · Yüz Okuma (**BaZi, Doğum Kapısı ve Yüz Okuma GÜNLÜK** — §4; İ Ching çekim başına) |
-| Profil, doğum kaydı, avatar, bildirimler, dil, sohbet (jeton) | Arkadaşla günlük ikili okuma |
-| **1 kişi ekleme** — harita, Büyük Üçlü ve ilişki ÖLÇÜMÜ açık, yorum kilitli | **10 kişi kontenjanı** + ilişki AI yorumu (jetonsuz) |
+| Profil, doğum kaydı, avatar, bildirimler, dil, sohbet (kredi) | Arkadaşla günlük ikili okuma |
+| **1 kişi ekleme** — harita, Büyük Üçlü ve ilişki ÖLÇÜMÜ açık, yorum kilitli | **10 kişi kontenjanı** + ilişki AI yorumu (kredisiz) |
 
 > ⚠️ Sol kolon bir tur boyunca "arkadaşlar katmanının **tamamı**" diyordu ve
 > **aynı tablonun sağ kolonu** ikili okumayı Rytho+'a koyuyordu — tablo
@@ -345,24 +345,31 @@ Sonunda "Büyük Üçlü" perdesi (Güneş/Ay/Yükselen açılışı).
 > **ölçümü** ücretsiz.
 
 **3 günlük deneme (OT6):** yeni hesap ilk 3 gün TÜM Rytho+ yüzeylerini
-kartsız kullanır ve tek seferlik **30 karşılama jetonu** alır (kalan
+kartsız kullanır ve tek seferlik **30 karşılama kredisi** alır (kalan
 bakiye deneme bitince yanmaz). Deneme `is_subscriber`'ın İÇİNDEN geçtiği
 için `require_plus` dahil her kapı tek noktadan açılıyor
 (`entitlements.in_trial`, profil `createdAt`); paywall geri sayımı
 gösterir.
 
-**Jeton ekonomisi:** Rytho+ ayda **100 jeton** verir (devretmez); satın
+**Kredi ekonomisi:** Rytho+ ayda **100 kredi** verir (devretmez); satın
 alınan paketler (100/300/1000) **hiç yanmaz**.
 
-- **Hak 300'den 100'e indi** (K1, bu sürüm). Gerekçe ölçüldü: ~7 jeton/gün
+- **Hak 300'den 100'e indi** (K1, bu sürüm). Gerekçe ölçüldü: ~7 kredi/gün
   kullanımda 300 hiç bitmiyordu, yani parayla alınmış bakiyeye **sıra hiç
-  gelmiyordu** — harcama önce aylık haktan düşüyor. Değişen şey jeton
+  gelmiyordu** — harcama önce aylık haktan düşüyor. Değişen şey kredi
   bedelleri değil, **hakkın nerede bittiği**.
 - **K3: değişim yalnız BİR SONRAKİ dönemden.** Kimsenin elindeki hak geri
   alınmaz; mevcut dönemde 300 almış hesap dönem sonuna kadar 300'üyle
   kalır. Bekçisi var — bu sessizce bozulabilecek bir şey.
-- **K2: jeton paketleri yalnız ABONEYE satılır**; abone olmayana mağazada
+- **K2: kredi paketleri yalnız ABONEYE satılır**; abone olmayana mağazada
   hiç gösterilmez.
+- **Sözlük:** kullanıcıya görünen TEK kelime **kredi** (EN *credit*).
+  "Jeton"/"token" yalnız kod tanımlayıcılarında (`TOKEN_COSTS`,
+  `token_store_screen.dart`, ürün kimlikleri `rytho_tokens_*`) ve push/FCM/ID
+  jetonu anlamında kalır — orada standart Türkçe karşılık odur, kredi değil.
+  Bekçi: `backend/tests/test_sozluk.py` (ARB değerleri, `core.messages`,
+  yayındaki HTML'ler, admin paneli dize literalleri, `docs/store-launch.md`
+  mağaza metni blokları).
 - **Rapor başına bedeller burada TEKRARLANMIYOR.** Kanonik yer
   `wallet.TOKEN_COSTS`. Bedeli bu belgeye kopyalamak, iki yerden birinin
   sessizce bayatlaması demekti — nitekim §12b'deki pazarlama satırı tam bu
@@ -388,7 +395,7 @@ alınan paketler (100/300/1000) **hiç yanmaz**.
   `ichingBedeli()` alan yok/sıfır/yanlış türdeyse `null` dönüyor ve rozet
   hiç çizilmiyor — yani ekran susuyor, uydurmuyor. Derin
   raporlar, ikili okuma ve sohbet harcama anında bir bedel satırı
-  göstermiyor; bedel yalnız jeton mağazası ekranında yazılı — o satır artık
+  göstermiyor; bedel yalnız kredi mağazası ekranında yazılı — o satır artık
   sunucudan okuyor ama mağaza ekranı harcama NOKTASI değil.
   ⚠️ Bu yüzden "uygulama bir raporun kaça geldiğini harcamadan
   önce gösterir" cümlesi **pazarlama sayfalarına yazılamaz** — bir tur

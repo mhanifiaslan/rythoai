@@ -40,11 +40,11 @@ hesabın kapatılması yoluyla yaptırıma tabidir.
 
 ## 4. Abonelik ve satın almalar
 
-- **Rytho+** aylık bir aboneliktir; kişiye özel günlük okuma ve aylık jeton
+- **Rytho+** aylık bir aboneliktir; kişiye özel günlük okuma ve aylık kredi
   hakkı içerir. Ücretlendirme ve tahsilat Google Play / App Store üzerinden
   yapılır; iptal, mağaza hesabınızın abonelik ayarlarından her zaman
   mümkündür. İptal, mevcut dönemin sonuna kadar erişimi kapatmaz.
-- **Jeton paketleri** tek seferlik satın almalardır ve süresiz geçerlidir.
+- **Kredi paketleri** tek seferlik satın almalardır ve süresiz geçerlidir.
 - Ücretsiz deneme sunulduğunda, deneme bitiminde ücretlendirme mağaza
   tarafından otomatik başlar; denemeyi bitiş tarihinden önce iptal
   edebilirsiniz.
@@ -86,7 +86,7 @@ herkes için aynıdır.
 
 - **Ödül.** Ortak, bağlantısı üzerinden gelen bir kullanıcının **ilk Rytho+
   aboneliği** başına ödül kazanır. Tutar ortaklık anlaşmasında belirlenir ve
-  ortağa göre değişebilir. Jeton paketleri, ücretsiz deneme, abonelik
+  ortağa göre değişebilir. Kredi paketleri, ücretsiz deneme, abonelik
   yenilemeleri ve mağaza test (sandbox) alımları ödül doğurmaz.
 - **Kesinleşme.** Hakediş, satın almadan **15 gün** sonra kesinleşir. Bu süre
   içinde iade, ödemenin tahsil edilememesi veya aboneliğin erken sona ermesi

@@ -1080,7 +1080,8 @@ def test_okunamayan_cuzdan_UCTAN_200_DONMEZ(monkeypatch):
     monkeypatch.setattr(billing.wallet, "ensure_trial_tokens",
                         lambda uid: None)
     temel = {"allowance": 0, "purchased": 0, "monthly_allowance": 100,
-             "allowance_resets_at": None, "costs": {"chat": 1}}
+             "allowance_resets_at": None, "costs": {"chat": 1},
+             "packs": dict(wallet.TOKEN_PACKS)}
 
     monkeypatch.setattr(billing.wallet, "get_wallet",
                         lambda uid: {**temel, "okundu": False})
@@ -1094,3 +1095,50 @@ def test_okunamayan_cuzdan_UCTAN_200_DONMEZ(monkeypatch):
                                      "purchased": 1000, "okundu": True})
     yanit = billing.wallet_status(user=_Kullanici())
     assert (yanit.allowance, yanit.purchased, yanit.total) == (287, 1000, 1287)
+
+
+# ---------------------------------------------------------------------------
+# Paket adetleri TEK kaynaktan: sunucu
+# ---------------------------------------------------------------------------
+#
+# İstemci paket adetlerini kendi sabitinden çiziyordu
+# (`token_store_screen.dart` `kPackDisplayAmounts`); webhook ise
+# `wallet.TOKEN_PACKS`tan yüklüyor. İki yerde yazılı aynı sayı: biri
+# değişince ekran "300 kredi" derken cüzdana başka bir adet iner — ödemiş
+# kullanıcıya söylenen bir yalan. Adetler artık cüzdan yanıtında.
+
+def test_cuzdan_paket_adetlerini_TEK_KAYNAKTAN_doner(depo):
+    """`get_wallet` `packs` taşır ve değer `TOKEN_PACKS` ile BİREBİR.
+
+    `depo` fixture'ı abone DEĞİL: adetler aboneliğe bağlı olmamalı
+    (`monthly_allowance` gibi) — mağaza ekranını abone olmayan da görüyor.
+    Dönen şey KOPYA: çağıran yanıtı değiştirirse ürün sabiti bozulmaz.
+    """
+    cuzdan = wallet.get_wallet("u1")
+
+    assert cuzdan["allowance"] == 0, "fixture abone olmamalı; önkoşul bozuk"
+    assert cuzdan["packs"] == wallet.TOKEN_PACKS
+    assert cuzdan["packs"] is not wallet.TOKEN_PACKS
+
+
+def test_cuzdan_UCU_paket_adetlerini_tasir(depo, monkeypatch):
+    """`/billing/wallet` yanıt modeli `packs` alanını taşır ve doldurur.
+
+    `get_wallet` doğru dönse bile uç alanı modele koymazsa pydantic onu
+    sessizce DÜŞÜRÜR (response_model süzgeci) — istemci yine kendi
+    sabitine mahkûm kalır. Bu yüzden model alanı ve uç dönüşü birlikte.
+
+    ⚠️ `api/billing.py` burada SÖZLEŞMESİYLE ölçülüyor.
+    """
+    from api import billing
+
+    class _Kullanici:
+        uid = "u1"
+
+    monkeypatch.setattr(billing.wallet, "ensure_trial_tokens",
+                        lambda uid: None)
+
+    assert "packs" in billing.WalletStatus.model_fields, (
+        "WalletStatus.packs yok: response_model alanı yanıttan süzer")
+    yanit = billing.wallet_status(user=_Kullanici())
+    assert yanit.packs == wallet.TOKEN_PACKS

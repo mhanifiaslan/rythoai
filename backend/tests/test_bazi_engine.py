@@ -517,16 +517,20 @@ class TestDegismezler:
         for cinsiyet in ("male", "female"):
             chart = get_bazi_chart(1990, 5, 12, 14, 30, city="Istanbul",
                                    gender=cinsiyet)
-            assert "luck_direction_yin" not in chart["note_keys"]
+            assert "luck_direction_unknown" not in chart["note_keys"]
+            assert chart["luck_direction_known"] is True
 
-    def test_other_cinsiyet_beyanla_gelir(self):
-        # Sessiz varsayım yasak: ikili olmayan cinsiyette yön yin kuralıyla
-        # hesaplanır ve bu ANAHTAR olarak beyan edilir (cümle localize'da).
+    def test_other_cinsiyet_yon_HESAPLANMAZ_ve_beyanla_gelir(self):
+        # Bu test eskiden "other → yin kuralıyla GERİ" diye kilitliyordu:
+        # bir varsayımı beyan etmek onu ölçüm yapmaz. İkili olmayan
+        # cinsiyette yön ÖLÇÜLEMEZ; motor yön uydurmaz, yokluğu beyan eder
+        # (ayrıntı: tests/test_bazi_cinsiyet.py).
         chart = get_bazi_chart(1990, 5, 12, 14, 30, city="Istanbul",
                                gender="other")
-        assert "luck_direction_yin" in chart["note_keys"]
-        # 1990 = Geng (yang) yılı; yin kuralı → yön GERİ.
-        assert chart["luck_direction"] == "backward"
+        assert "luck_direction_unknown" in chart["note_keys"]
+        assert "luck_direction_yin" not in chart["note_keys"]
+        # 1990 = Geng (yang) yılı; eski kusur "backward" yazardı.
+        assert chart["luck_direction"] is None
 
     def test_taninmayan_sehir_beyanla_gelir(self):
         # Gazetteer + GeoNames çözemezse İstanbul boylamına düşülür; TST

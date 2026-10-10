@@ -427,7 +427,7 @@
     var b = RY.b;
     var f = b.form({
       alanlar: [
-        { ad: 'amount', etiket: 'Jeton', tur: 'number', zorunlu: true, min: 1, max: 5000, adim: '1',
+        { ad: 'amount', etiket: 'Kredi', tur: 'number', zorunlu: true, min: 1, max: 5000, adim: '1',
           yardim: '1–5000 · yalnız pozitif (düşüm bilerek yok)',
           dogrula: function (v) {
             var n = Number(v);
@@ -443,7 +443,7 @@
         var tutar = Math.round(Number(d.amount));
         return RY.post(kullaniciYolu(uid, '/credit'), { amount: tutar, reason: d.reason.trim() }).then(function (res) {
           var c = (res && res.wallet) || null;
-          b.toast(b.sayi(tutar) + ' jeton verildi' + (c ? ' · bakiye ' + b.sayi((Number(c.allowance) || 0) + (Number(c.purchased) || 0)) : ''), 'basari');
+          b.toast(b.sayi(tutar) + ' kredi verildi' + (c ? ' · bakiye ' + b.sayi((Number(c.allowance) || 0) + (Number(c.purchased) || 0)) : ''), 'basari');
           m.kapat();
           RY.rotaYenile();
         });
@@ -581,7 +581,7 @@
       var alt = k.feature ? ozellikAdi(k.feature) : (k.productId ? 'paket ' + k.productId : (k.code ? 'kod ' + k.code
         : (k.reason ? '"' + k.reason + '"' + (k.adminUid ? ' · ' + String(k.adminUid).slice(0, 8) : '') : '')));
       olaylar.push({ at: k.at, ts: ts(k.at), grup: 'cuzdan', sinif: t[0],
-        baslik: t[2] + ' · ' + b.sayi(miktar) + ' jeton', alt: alt,
+        baslik: t[2] + ' · ' + b.sayi(miktar) + ' kredi', alt: alt,
         tutar: t[1] ? t[1] + b.sayi(miktar) : b.sayi(miktar) });
     });
 
@@ -902,7 +902,7 @@
             '</div>' +
             '<div class="izgara-2">' +
             b.modul('Cüzdan', '<dl class="alan-liste">' +
-              '<dt>Toplam</dt><dd>' + b.e(b.sayi(cuzdanToplam)) + ' jeton</dd>' +
+              '<dt>Toplam</dt><dd>' + b.e(b.sayi(cuzdanToplam)) + ' kredi</dd>' +
               '<dt>Aylık hak</dt><dd>' + b.e(b.sayi(Number(w.allowance) || 0)) + ' / ' + b.e(b.sayi(Number(w.monthly_allowance) || 0)) + '</dd>' +
               '<dt>Satın alınan</dt><dd>' + b.e(b.sayi(Number(w.purchased) || 0)) + '</dd>' +
               '<dt>Hak sıfırlanır</dt><dd>' + b.e(b.tarih(w.allowance_resets_at)) + '</dd></dl>' +
@@ -925,7 +925,7 @@
                 var t = DEFTER[k.type] || ['', '', String(k.type || '?')];
                 return b.rozet(t[2], t[0] === 'madder' ? 'hata' : (t[0] === 'altin' ? 'altin' : 'notr'));
               } },
-              { ad: 'amount', baslik: 'Jeton', hizala: 'sag', siralanir: true, bicim: function (k) {
+              { ad: 'amount', baslik: 'Kredi', hizala: 'sag', siralanir: true, bicim: function (k) {
                 var t = DEFTER[k.type] || ['', '', ''];
                 return '<span class="mono">' + b.e((t[1] || '') + b.sayi(Number(k.amount) || 0)) + '</span>';
               } },

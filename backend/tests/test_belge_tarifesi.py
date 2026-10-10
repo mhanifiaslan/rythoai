@@ -72,10 +72,14 @@ _KOK = Path(__file__).resolve().parents[2]
 #: ("ayda" / "aylık ... hakkı" / "a month") kalıbın İÇİNDE — paket adları
 #: ("100 AI Kredisi", "300 AI Credits") bu yüzden eşleşmiyor.
 _KALIPLAR = {
-    # "ayda 100 AI kredisi" · "Ayda 100 AI kredisi" · "ayda **100 jeton**"
-    "tr_ayda": re.compile(r"(?:ayda|Ayda)\s+\*{0,2}(\d+)\s+(?:AI kredisi|jeton)"),
-    # "**aylık 100 token** hakkı"
-    "tr_aylik_hak": re.compile(r"aylık\s+\*{0,2}(\d+)\s+token\*{0,2}\s+hakkı"),
+    # "ayda 100 AI kredisi" · "Ayda 100 AI kredisi" · "ayda **100 kredi**".
+    # Kalıp BİLEREK yalnız "kredi" tanıyor: kullanıcıya görünen sözlük tek
+    # kelime (test_sozluk.py), "ayda 100 jeton" yazılırsa iddia kalıptan
+    # KAÇAR ve taban testi kırmızı olur — eski kelimeyi sessizce kabul
+    # etmek, sözlük bekçisinin yakaladığı sapmayı burada görünmez kılardı.
+    "tr_ayda": re.compile(r"(?:ayda|Ayda)\s+\*{0,2}(\d+)\s+(?:AI\s+)?kredi"),
+    # "**aylık 100 kredi** hakkı"
+    "tr_aylik_hak": re.compile(r"aylık\s+\*{0,2}(\d+)\s+kredi\*{0,2}\s+hakkı"),
     # "100 AI credits a month" — mağaza metninde satır başına sarılıyor,
     # bu yüzden araya \s+ konuyor (tek boşluk yazılsa EN iddiası GÖRÜNMEZDİ).
     "en_a_month": re.compile(r"(\d+)\s+AI\s+credits a month"),

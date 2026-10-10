@@ -359,18 +359,18 @@ Sonraki AAB bir cihaza kurulduğunda: `store/play/raw/` kareleri yeniden
 - Veri güvenliği formunda **hesap silmenin uygulama içinden yapılabildiğini**
   işaretle — Play bunu ayrıca soruyor.
 
-## 5. Monetizasyon (uygulandı — Revize R1: abonelik + token)
+## 5. Monetizasyon (uygulandı — Revize R1: abonelik + kredi)
 
 Altyapı **kodda mevcut**: RevenueCat (`purchases_flutter`) + webhook ile
-sunucu tarafı yetkilendirme + token cüzdanı (`backend/core/wallet.py`).
+sunucu tarafı yetkilendirme + kredi cüzdanı (`backend/core/wallet.py`).
 
 | Katman | İçerik |
 |---|---|
-| **Ücretsiz** | Burç yorumu (**yalnız günlük** — haftalık/aylık ucu istemciden erişilemiyor, bkz. not), gerçek gökyüzü, günde 5 sohbet mesajı, doğum haritası çarkı ve yerleşimleri, arkadaş listesi, seri ve hazır tepkiler, **1 kişi ekleme** (harita + ilişki ÖLÇÜMÜ; yorum kilitli). **Yeni hesap ilk 3 gün tüm Rytho+ özelliklerini kartsız dener** (+30 karşılama token'ı, tek sefer — OT6). |
-| **Rytho+** (yalnızca aylık) | Kişiye özel günlük okuma + **10 kişi kontenjanı** (eş, çocuk, yakın) + **aylık 100 token** hakkı. Token'la: sohbet (1), I Ching (2), ikili dinamik (3), natal/BaZi/sinastri/yüz okuma (5). Aylık hak dönem sonunda yenilenir, DEVRETMEZ. |
+| **Ücretsiz** | Burç yorumu (**yalnız günlük** — haftalık/aylık ucu istemciden erişilemiyor, bkz. not), gerçek gökyüzü, günde 5 sohbet mesajı, doğum haritası çarkı ve yerleşimleri, arkadaş listesi, seri ve hazır tepkiler, **1 kişi ekleme** (harita + ilişki ÖLÇÜMÜ; yorum kilitli). **Yeni hesap ilk 3 gün tüm Rytho+ özelliklerini kartsız dener** (+30 karşılama kredisi, tek sefer — OT6). |
+| **Rytho+** (yalnızca aylık) | Kişiye özel günlük okuma + **10 kişi kontenjanı** (eş, çocuk, yakın) + **aylık 100 kredi** hakkı. Krediyle: sohbet (1), I Ching (2), ikili dinamik (3), natal/BaZi/sinastri/yüz okuma (5). Aylık hak dönem sonunda yenilenir, DEVRETMEZ. |
 > **Not (1.7.0):** ücretsiz katmandan "günde 1 I Ching çekimi" SİLİNDİ — kod `require_plus("iching")` diyor, yani İ Ching Rytho+ içinde. Mağaza metninin koda uymayan tek satırı buydu.
 
-| **Token paketleri** (consumable) | `rytho_tokens_small` 100 · `rytho_tokens_medium` 300 · `rytho_tokens_large` 1000. Tekrar tekrar alınabilir, bakiye aya DEVREDER. ⚠️ **Yalnız aboneye satılır** (K2) — abone olmayana jeton mağazasında hiç gösterilmez (ölçüldü: `token_store_screen.dart` aboneliği ÜÇ hâlli okuyor ve `!abone` dalında paket listesi yerine `_PaketlerPlusaOzel` çiziliyor). Gerekçe: `charge_metered` tüm depoda tek yerden çağrılıyor (`api/chat.py`), yani abone olmayanın aldığı kredinin TEK kullanım yolu "günün 6. sohbet mesajı"; ekranın kendi bedel listesinde sayılan İ Ching, ikili dinamik ve derin raporlar `require_plus` arkasında. Mağaza, parasını alıp karşılığını büyük ölçüde vermediği bir ürün gösteriyordu. ⚠️ Denemedeki kullanıcı ABONE SAYILIR ve paket onun için ayrıca anlamlıdır: `get_wallet` denemeye `allowance: 0` veriyor, yani yalnız `purchased` bakiyesinden harcıyor. |
+| **Kredi paketleri** (consumable) | `rytho_tokens_small` 100 · `rytho_tokens_medium` 300 · `rytho_tokens_large` 1000. Tekrar tekrar alınabilir, bakiye aya DEVREDER. ⚠️ **Yalnız aboneye satılır** (K2) — abone olmayana kredi mağazasında hiç gösterilmez (ölçüldü: `token_store_screen.dart` aboneliği ÜÇ hâlli okuyor ve `!abone` dalında paket listesi yerine `_PaketlerPlusaOzel` çiziliyor). Gerekçe: `charge_metered` tüm depoda tek yerden çağrılıyor (`api/chat.py`), yani abone olmayanın aldığı kredinin TEK kullanım yolu "günün 6. sohbet mesajı"; ekranın kendi bedel listesinde sayılan İ Ching, ikili dinamik ve derin raporlar `require_plus` arkasında. Mağaza, parasını alıp karşılığını büyük ölçüde vermediği bir ürün gösteriyordu. ⚠️ Denemedeki kullanıcı ABONE SAYILIR ve paket onun için ayrıca anlamlıdır: `get_wallet` denemeye `allowance: 0` veriyor, yani yalnız `purchased` bakiyesinden harcıyor. |
 
 > ⚠️ **Yukarıdaki üç tablo satırı da koddan ölçüldü (2026-10-02), elle
 > yazılmadı.** Aylık hak sayısı ÜÇ yük taşıyan yerde birbirinden bağımsız
@@ -390,10 +390,10 @@ sunucu tarafı yetkilendirme + token cüzdanı (`backend/core/wallet.py`).
 > Hesap var, ona açılan kapı yok; ayrıntı `docs/ozellikler.md` §3.
 
 Kurallar:
-- Token yalnızca **yeni üretimde** düşer; önbellekten tekrar okuma ücretsiz.
+- Kredi yalnızca **yeni üretimde** düşer; önbellekten tekrar okuma ücretsiz.
 - LLM yanıt üretemezse bedel iade edilir.
-- Kilit sunucuda: 402 + (token bitiminde) `X-Paywall-Reason: tokens` başlığı;
-  istemci başlığa göre paywall ya da token mağazası açar.
+- Kilit sunucuda: 402 + (kredi bitiminde) `X-Paywall-Reason: tokens` başlığı;
+  istemci başlığa göre paywall ya da kredi mağazası açar.
 - `RYTHO_TOKENS_ENFORCE=1` — CANLI (K5 kapanışı; kuru çalışma dönemi
   bitti). Denemedeki kullanıcı günlük ücretsiz hakkını KORUR (KT2).
 
@@ -465,7 +465,7 @@ aynı sözlüğü konuşmalı.
    `rytho_plus_monthly` → teklifi **Current** yap. Gerekçe kodda:
    `apps/mobile/lib/core/subscription.dart:184` `Purchases.getOfferings()`
    → `offerings.current?.availablePackages` okuyor; teklif yoksa liste
-   boş döner. **Jeton paketleri için Offering GEREKMEZ** — onlar
+   boş döner. **Kredi paketleri için Offering GEREKMEZ** — onlar
    `wallet.dart:95-101`'de `Purchases.getProducts(kTokenPackIds,
    productCategory: nonSubscription)` ile doğrudan kimlikle çekiliyor.
 4. RevenueCat webhook'unu şu adrese kur:

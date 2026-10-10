@@ -40,7 +40,11 @@ class PersonRequest(BaseModel):
     birth_city: str = Field(min_length=1, max_length=120)
     #: ISO-2 ülke kodu (şehir seçiciden).
     birth_nation: str | None = Field(default=None, max_length=2)
-    gender: str = Field(default="female", max_length=16)
+    #: "unspecified" = belirtilmedi. Varsayılan "female" idi ve kişinin
+    #: BaZi şans sütunlarının yönü kadın kuralıyla hesaplanıyordu —
+    #: ölçülmemiş cinsiyetten ölçülmüş gibi yön. ⚠️ Eski kayıtlardaki
+    #: "female" ile gerçekten kadın olan ayırt EDİLEMEZ; bilinen sayılır.
+    gender: str = Field(default="unspecified", max_length=16)
 
     def to_fields(self) -> dict:
         """Firestore alan adlarına çevirir (doğrulama serviste)."""

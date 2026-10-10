@@ -195,13 +195,13 @@ Play'de kartsız deneme kullanıldığı için bu yol canlıda boş; Play'de bir
 hakka sıçrar (~$0,06 → ~$0,21/yeni kullanıcı) ve §6i'deki
 "~$0,10/yeni kullanıcı" edinim sayısı geçersiz kalır.
 
-## 3. Jeton paketleri
+## 3. Kredi paketleri
 
 | Paket | Tüketici (KDV dahil) | Net gelir | Gerçek maliyet aralığı | Marj |
 |---|---|---|---|---|
-| 100 jeton | ~₺59,99 | ~$1,0 | $0,07 (rapor ağırlıklı) – $0,21 (sohbet) | **%79-93** |
-| 300 jeton | ~₺155,99 | ~$2,6 | $0,20-0,63 | **%76-92** |
-| 1000 jeton | ~₺419,99 | ~$7,0 | $0,66-2,10 | **%70-91** |
+| 100 kredi | ~₺59,99 | ~$1,0 | $0,07 (rapor ağırlıklı) – $0,21 (sohbet) | **%79-93** |
+| 300 kredi | ~₺155,99 | ~$2,6 | $0,20-0,63 | **%76-92** |
+| 1000 kredi | ~₺419,99 | ~$7,0 | $0,66-2,10 | **%70-91** |
 
 Maliyet aralığının iki ucu: "rapor ağırlıklı" = jetonlar 5'lik raporlara
 gider (jeton başına $0,0033÷5 ≈ $0,00066), "sohbet" = jetonlar tek tek
