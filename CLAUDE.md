@@ -175,6 +175,17 @@ her testte, proje kodu sıfırken bile. SDK 3.44.7 kaynağında o getter yok.
 Çare: `rm -rf apps/mobile/build/test_cache`. Kural: **"SDK içinde eksik
 getter/method" hatası görülürse kod suçlanmadan önce önbellek silinir.**
 
+**`StreamController.onCancel`'dan iç `cancel()` Future'ını DÖNDÜRME**
+(ölçüldü D5, 9 dakikalık test askısı): Dart'ın kök bölgedeki `_nullFuture`'ına
+`whenComplete` zinciri kuruluyor, dış akışın `done`'u sahte-zamanlı testte
+hiç gelmiyor ve `cancel()` askıda kalıyor. Aynı sebeple `testWidgets`
+gövdesinde bitmiş aboneliğe `await cancel()` YAZMA (`unawaited`);
+`StreamController.close()` dinleyicisiz asla tamamlanmaz (tearDown'da kapat).
+
+**`Tooltip` semantik `label` DEĞİL `tooltip` alanıdır**: ikon-tek
+`IconButton`'a ekran okuyucu adı vermek için `Icon(semanticLabel:)` şart;
+`find.bySemanticsLabel` tooltip metnini BULMAZ (ölçüldü D5).
+
 **`animateToPage` sıfır süreyi REDDEDER** (`scroll_activity.dart:705`
 assert `duration > Duration.zero`): `kapili(context, …)` hareket azaltmada
 `Duration.zero` döndürdüğü için `animateToPage(duration: kapili(...))`
@@ -237,7 +248,8 @@ kavram için TEK bileşen kalır. Plan dosyası
 | D3 paylaşılan bileşenler (4 ajan paralel; `OkumaKabi`, `acPaywall`, `ozellik_katalogu`, `IzinKapisi`…) | ✅ Flutter 1033, 57/57 mutasyon | `b9b81c7` |
 | D8-web (App Store hapı, 4 sayfa rytho.css, yorum temizliği, WebP 11,7 MB→0,6 MB, ortak EN) | ✅ pytest 2541, 31+3 mutasyon | `2be3512` |
 | D4 giriş+onboarding (6 adım, önseçim yok, saat uydurulmaz, giriş sükûneti, iptal hata değil) | ✅ Flutter 1103, 48/48 mutasyon | `c16a99d` |
-| D5 ana ekran+profil · D6 derinlik · D7 para · D8 cırcır+l10n+belge | bekliyor | — |
+| D5 ana ekran+profil (tek "Bugün", AsyncBolum, günlük satırı altta, kabuk niyeti, hikâye sükûneti, çıkış onaylı, abonelik "—", saat uydurulmaz) | ✅ Flutter 1194, 70 mutasyon | `3dfe7a3` |
+| D6 derinlik · D7 para · D8 cırcır+l10n+belge | bekliyor | — |
 | **S1 sohbet personası** (plan dışı, sahip şikâyeti 2026-10-10; yalnız backend — kapı ``, yetki alanı, `persona_guard`, `tools/sohbet_olc.py`) | ✅ pytest 2750, 66+7 mutasyon · ✅ CANLI rev 00109 | `5da5ed2` |
 
 ### S1 — sohbet personası kayması (ölçüldü 2026-10-10, üretim Firestore salt okuma)
