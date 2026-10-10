@@ -25,8 +25,27 @@ import 'package:flutter/widgets.dart';
 
 import 'rytho_theme.dart';
 
+/// Marka sözcükleri — çevrilmez, tek yerden okunur.
+///
+/// Ölçüldü (2026-10-10): `'RYTHO'` 6 dosyada, `'Rytho+'` 4 dosyada,
+/// `'Rytho AI'` 1 dosyada literal olarak yazılıydı. Marka adı ARB'ye
+/// konmaz (çeviri konusu değil) ama literal de olmaz — beş kopyanın dördü
+/// ayrışır (CLAUDE.md §5).
+const kMarka = 'Rytho';
+
+/// Logo yazısı (büyük harf): giriş başlığı, paylaşım kartı, açılış.
+const kMarkaYazi = 'RYTHO';
+
+/// Abonelik ürününün adı — mağaza listelemesiyle aynı.
+const kPlusAdi = 'Rytho+';
+
 /// Boşluk ölçeği. Dörtün katları — ara değer yok.
 abstract final class RythoSpace {
+  /// Hairline ayrım: ikon ile metin arası, rozet iç dolgusu. Ölçüldü:
+  /// kodda 15 yerde `2` literali vardı ve hepsi bu anlamdaydı; ölçekte
+  /// karşılığı olmadığı için literal kalıyorlardı.
+  static const xxs = 2.0;
+
   /// Sıkı gruplama: bir etiketle değeri arası.
   static const xs = 4.0;
 
@@ -52,6 +71,10 @@ abstract final class RythoSpace {
 
 /// Köşe yarıçapları.
 abstract final class RythoRadius {
+  /// İlerleme çubukları, ince şeritler, tutamak. Ölçüldü: 2/4/5/6
+  /// literalleri hep bu anlamdaydı.
+  static const xs = 4.0;
+
   /// Küçük öğeler: çip, rozet, küçük buton.
   static const sm = 12.0;
 
@@ -85,6 +108,43 @@ abstract final class RythoMotion {
   /// Listede kademeli giriş için öğe başına gecikme.
   static const stagger = Duration(milliseconds: 70);
 
+  // --- Ölçülüp adlandırılan süreler (D2) ---
+  //
+  // Aşağıdakiler kodda zaten vardı ama çıplaktı (66 satır/36 dosya); kaynak
+  // bekçisi "çıplak süre sıfır" diyebilsin diye adlandırıldı. Değerler
+  // DEĞİŞTİRİLMEDİ — ölçüldüğü gibi.
+
+  /// Dokunma basma tepkisi: `Pressable`/`GoldButton` ölçek animasyonu.
+  static const press = Duration(milliseconds: 120);
+
+  /// Sayfa geçişi (`FadeThroughRoute`).
+  static const route = Duration(milliseconds: 350);
+
+  /// Sürekli nefes döngüsü (dock merkez düğmesi). Beyaz listedeki tek
+  /// sürekli döngülerden; `reduceMotion`'da durur.
+  static const breath = Duration(milliseconds: 3000);
+
+  /// Çark taraması (`ChartWheel` giriş süpürmesi).
+  static const sweep = Duration(milliseconds: 1400);
+
+  /// Yazıyor noktaları döngüsü (`TypingDots`).
+  static const typing = Duration(milliseconds: 900);
+
+  /// İskelet parıltısı (`SkeletonPanel`).
+  static const shimmer = Duration(milliseconds: 1200);
+
+  /// Kutlama/rozet belirmesi (`StreakBadge`, `PlusLockedCard` tek atış).
+  static const celebrate = Duration(milliseconds: 400);
+
+  /// Usturlap tam tur (`AstrolabeSpinner`).
+  static const spinnerTur = Duration(seconds: 4);
+
+  /// Yıldız alanı tam tur (`CosmicScaffold`).
+  static const yildizTur = Duration(seconds: 120);
+
+  /// Bekleme sahnesinde iki aşama metni arası (`StagedWaiting`).
+  static const asamaAraligi = Duration(milliseconds: 2600);
+
   // Eğriler (R12-A0): yeni eğri icat edilmedi — kod tabanında fiilen
   // kazanmış üç eğri adlandırıldı. Yeni kod eğriyi buradan alır.
 
@@ -114,6 +174,16 @@ abstract final class RythoType {
 
   /// Kart başlığı.
   static TextStyle get cardTitle => RythoText.display(16);
+
+  /// Alt sayfa başlığı (dayanak sayfası, kişi/açı sayfaları).
+  static TextStyle get sheetTitle => RythoText.display(17, w: FontWeight.w600);
+
+  /// Ekranın tek büyük değeri: dönüş tarihi, progres Ay burcu, heksagram
+  /// adı. Ölçüldü: 24/26/28/30/32 beş ayrı boyut aynı rolü taşıyordu.
+  static TextStyle get hero => RythoText.display(28);
+
+  /// Küçük kahraman: kart içi büyük değer.
+  static TextStyle get heroSmall => RythoText.display(24);
 
   // --- Gövde (Manrope) ---
 
@@ -149,4 +219,20 @@ abstract final class RythoType {
   /// Küçük veri.
   static TextStyle get dataSmall =>
       RythoText.mono(11, color: RythoColors.parchmentDim);
+
+  /// Büyük veri: dört sütun gövdesi, derece vurgusu.
+  static TextStyle get dataLarge => RythoText.mono(14);
+
+  // --- Çark ressamı (JetBrains Mono) ---
+  //
+  // Ölçüldü: ressam 6,5–8,5 px arası beş çıplak boyut kullanıyordu ve
+  // yakınlaştırılamayan 248 px çarkta derece etiketi 6,8 px çiziliyordu.
+  // İki taban: etiket ve mikro. Mikro bile 8'in altına inmez; çark küçük
+  // ve yakınlaştırma yokken derece etiketleri HİÇ çizilmez (gizlenir).
+
+  /// Ev numarası, AS/MC köşe adı.
+  static TextStyle get chartLabel => RythoText.mono(9);
+
+  /// Derece etiketi, retro işareti.
+  static TextStyle get chartMicro => RythoText.mono(8);
 }

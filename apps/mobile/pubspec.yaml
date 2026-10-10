@@ -126,6 +126,34 @@ flutter:
     # yuz-teni, giysi, aksesuar). Sac cizgisini bundan cikariyoruz.
     # Lisans: Apache 2.0 (model karti, Google, 10 Mayis 2023).
     - assets/models/selfie_multiclass_256x256.tflite
+    # Yazi tipleri PAKETTE (tools/font_paketi_uret.py uretir). Eskiden yalniz
+    # GoogleFonts.* ile acilista fonts.gstatic.com'dan iniyordu: agsiz
+    # acilista yedek font flasi, ilk acilista Google'a ag cagrisi. Dosya adi
+    # google_fonts paketinin aradigi `<Aile>-<Agirlik>.ttf` kalibinda OLMAK
+    # ZORUNDA (google_fonts_variant.dart:181-184); baska ad sessizce
+    # bulunamaz ve allowRuntimeFetching=false ile FIRLATIR. Agirlik kumesi
+    # olculdu (RythoText cagrilari, ucluler dahil): Sora 600/700,
+    # Manrope 400/500/600/700, JetBrains Mono 400/700. Dosyalar tek tek
+    # listelenir ki yanindaki .codepoints.txt (bekci kapsam listesi) pakete
+    # GIRMESIN. Lisans: OFL — docs/legal/fonts/. Butce <=1 MB
+    # (test/font_paketi_test.dart).
+    - assets/google_fonts/Sora-SemiBold.ttf
+    - assets/google_fonts/Sora-Bold.ttf
+    - assets/google_fonts/Manrope-Regular.ttf
+    - assets/google_fonts/Manrope-Medium.ttf
+    - assets/google_fonts/Manrope-SemiBold.ttf
+    - assets/google_fonts/Manrope-Bold.ttf
+    - assets/google_fonts/JetBrainsMono-Regular.ttf
+    - assets/google_fonts/JetBrainsMono-Bold.ttf
+
+  # Astrolojik glif fontu (lib/theme/rytho_glyphs.dart): Noto Sans Symbols +
+  # Symbols 2'den yalniz gereken kod noktalari (7 KB). Her RythoText stili bu
+  # aileyi fontFamilyFallback'te tasir; boylece ana fontta olmayan glif
+  # Android'in emoji fontuna degil buraya duser.
+  fonts:
+    - family: RythoGlyphs
+      fonts:
+        - asset: assets/fonts/RythoGlyphs.ttf
 
 # Uygulama ikonu (Revize R7). Kaynak PNG'ler assets/icon/ altinda; SVG asli
 # assets/brand/rytho_logo.svg. Zemin rengi RythoColors.ink (#0B0710).

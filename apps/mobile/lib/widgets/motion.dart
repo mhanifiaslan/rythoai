@@ -24,6 +24,17 @@ import 'atlas_widgets.dart' show AstrolabeSpinner;
 bool reduceMotion(BuildContext context) =>
     MediaQuery.of(context).disableAnimations;
 
+/// Örtük animatörler için kapı: `AnimatedScale`, `AnimatedOpacity`,
+/// `AnimatedCrossFade`, `animateToPage` gibi süre alan her çağrı süresini
+/// buradan alır — hareket azaltma açıkken `Duration.zero` (anında).
+///
+/// NEDEN: [reduceMotion] yalnız `.animate()` zincirlerini kapatıyordu;
+/// örtük animatörler çıplak süreyle kapısız çalışıyordu (ölçüldü: dock
+/// ölçeği 320 ms, sekme geçişi 280 ms, hikâye sayfa kaydırması). Kapı tek
+/// satır olunca çağrı yerinde gerekçe aramak gerekmiyor.
+Duration kapili(BuildContext context, Duration sure) =>
+    reduceMotion(context) ? Duration.zero : sure;
+
 /// Kademeli giriş — kopyala-yapıştır stagger sayaçlarının tek varisi.
 ///
 /// `RythoReveal(index: i, child: ...)`: öğe [index] sırasına göre
@@ -71,7 +82,7 @@ class StagedWaiting extends StatefulWidget {
   const StagedWaiting({
     super.key,
     required this.stages,
-    this.interval = const Duration(milliseconds: 2600),
+    this.interval = RythoMotion.asamaAraligi,
     this.spinnerSize = 44,
     this.visual,
   });

@@ -3,9 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../l10n/app_localizations.dart';
+import '../theme/rytho_glyphs.dart' show kSignGlyphs;
 import '../theme/rytho_theme.dart';
 import '../theme/rytho_tokens.dart';
 import 'motion.dart';
+
+// Eski çağıranlar `kSignGlyphs`i buradan alıyor; tablo tek kaynağa taşındı.
+export '../theme/rytho_glyphs.dart' show kSignGlyphs;
 
 /// Basınca 0.96'ya küçülen + hafif haptic veren sarmalayıcı — v3 hareket
 /// dilinin standart "dokunuş" tepkisi.
@@ -44,8 +48,8 @@ class _PressableState extends State<Pressable> {
   }
 }
 
-/// Burç glifleri (Koç→Balık).
-const kSignGlyphs = ['♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓'];
+// Burç glifleri artık `theme/rytho_glyphs.dart`'ta (TEK kaynak: glif fontunun
+// kapsam bekçisi o tabloyu okuyor); import/export dosyanın başında.
 
 /// Türkçe burç adları (Koç→Balık).
 ///

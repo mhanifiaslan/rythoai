@@ -7,8 +7,11 @@
 /// Path olarak çizilir (star_burst ressamı emsali) — cihazdan bağımsız,
 /// markaya uygun, degrade/kalınlık kontrolü ressamda.
 ///
-/// Gezegen glifleri GÜVENLİ metin kümesinden kalır (☉☽☿♀♂♃♄♅♆♇☊☋) —
-/// bunlar metin-varsayılanlıdır ve font kapsaması geniştir.
+/// ⚠️ Gezegen glifleri "güvenli metin kümesi" DEĞİLDİ — bu dosyanın eski
+/// gerekçesi yanlıştı ve mağaza karesiyle ölçüldü (shot-2-chart.png: ♀
+/// mor-pembe, ♂ turkuaz emoji). Manrope'ta ♀♂ yok; Skia emoji fontuna
+/// düşüyordu. Metin glifleri artık `theme/rytho_glyphs.dart`'ta ve her
+/// `RythoText` stili `RythoGlyphs` fontunu yedek zincirinde taşıyor.
 ///
 /// Tüm path'ler 1×1 birim karede, ÇİZGİ (stroke) olarak tasarlandı;
 /// [signGlyphPath] hedef boyuta ölçekleyip merkeze taşır.
@@ -17,20 +20,11 @@ library;
 import 'dart:typed_data';
 import 'dart:ui';
 
-/// Gezegen adı → güvenli metin glifi. Kiron/Lilith METİNDE YOK — onlar
-/// [specialGlyphPath] ile çizilir.
-const Map<String, String> kPlanetTextGlyphs = {
-  'Sun': '☉', 'Moon': '☽', 'Mercury': '☿', 'Venus': '♀', 'Mars': '♂',
-  'Jupiter': '♃', 'Saturn': '♄', 'Uranus': '♅', 'Neptune': '♆',
-  'Pluto': '♇', 'True_Node': '☊', 'True_South_Node': '☋',
-  'Mean_Node': '☊', 'Mean_South_Node': '☋',
-};
+import '../../theme/rytho_glyphs.dart' show kPlanetTextGlyphs;
 
-/// Aspectarian'da güvenli metin glifi olan açılar. Altmışlık (⚹) YOK —
-/// [aspectGlyphPath] çizer.
-const Map<String, String> kAspectTextGlyphs = {
-  'conjunction': '☌', 'opposition': '☍', 'trine': '△', 'square': '□',
-};
+// Tablolar tek kaynaktan; buradan dışa açılması eski çağıranlar için.
+export '../../theme/rytho_glyphs.dart'
+    show kPlanetTextGlyphs, kAspectTextGlyphs;
 
 Path _unit(void Function(Path p) cizim) {
   final p = Path();

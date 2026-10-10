@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart' show GoogleFonts;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -77,6 +78,18 @@ const kServerClientId =
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Yazı tipleri PAKETTE; ağdan çekme KAPALI.
+  //
+  // NEDEN: üç aile yalnız GoogleFonts.* ile kullanılıyordu → ilk açılışta
+  // fonts.gstatic.com'a istek (gizlilik etiketinde yazmayan bir Google
+  // çağrısı), ağsız açılışta yedek fontla çizim ve bir sonraki karede
+  // metin flaşı. Dosyalar pubspec'te (tools/font_paketi_uret.py üretir).
+  // Bu bayrak kapalıyken eksik bir ağırlık SESSİZCE ağa düşmez, FIRLATIR —
+  // iyi: sessiz bir sapma yerine testte görünen bir hata
+  // (test/font_paketi_test.dart her (aile, ağırlık) dosyasını bağlıyor).
+  GoogleFonts.config.allowRuntimeFetching = false;
+
   await Firebase.initializeApp();
 
   // App Check — İSTEĞİN GERÇEK UYGULAMADAN GELDİĞİNİ KANITLAR.
