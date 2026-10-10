@@ -211,6 +211,43 @@ if ($birlesmis) {
     Write-Warning "Birlesmis manifest bulunamadi; izin kapisi atlandi."
 }
 
+# R8 OPTIMIZASYON kapisi (Play "DEX kodu optimizasyonu esigin altinda",
+# 2026-10-10). Play bu olcumu AAB'deki BUNDLE-METADATA/com.android.tools/
+# r8.json'dan okuyor. Surum 48'de `isOptimizationsEnabled: false` ve
+# `noOptimizationPercentage: 100` idi: kucultme ve karartma ACIK, optimizasyon
+# KAPALI - derleme basarili, testler yesil, kusur yalniz Play'in ekraninda.
+# Kaynagi RevenueCat'in Amazon modulunun consumer kuralindaki -dontoptimize
+# idi (build.gradle.kts keepRules.ignoreFrom ile disarida). Kaynak kurali
+# dogru olsa da YARIN baska bir kutuphane ayni satiri getirebilir; R8'de tek
+# bir -dontoptimize butun uygulamayi kapatir ve bunu yalniz ARTEFAKT soyler.
+# Esik Play'in esigi: en az %25 optimize edilmis = en fazla %75 edilmemis.
+$r8Girdi = $null
+$zip = [System.IO.Compression.ZipFile]::OpenRead($aab)
+try {
+    $r8Girdi = $zip.Entries | Where-Object {
+        $_.FullName -eq "BUNDLE-METADATA/com.android.tools/r8.json" }
+    if (-not $r8Girdi) {
+        throw ("AAB'de r8.json yok - R8 hic kosmamis mi? Play bu paketi " +
+               "'optimize edilmemis' sayar.")
+    }
+    $okuyucu = New-Object System.IO.StreamReader($r8Girdi.Open())
+    try { $r8Metin = $okuyucu.ReadToEnd() } finally { $okuyucu.Dispose() }
+} finally { $zip.Dispose() }
+$r8 = $r8Metin | ConvertFrom-Json
+if (-not $r8.options.isOptimizationsEnabled) {
+    throw ("R8 optimizasyonu KAPALI (r8.json isOptimizationsEnabled=false). " +
+           "Bir kutuphanenin consumer kurali -dontoptimize getirmis olabilir: " +
+           "build/app/outputs/mapping/release/configuration.txt icinde " +
+           "'-dontoptimize' ara, kaynagi keepRules.ignoreFrom ile disarida birak.")
+}
+$edilmemis = [double]$r8.stats.noOptimizationPercentage
+if ($edilmemis -gt 75) {
+    throw ("DEX'in yuzde $edilmemis'i optimize edilmemis; Play esigi en az %25 " +
+           "optimize ister. r8.json stats.noOptimizationPercentage'a bak.")
+}
+Write-Host ("    OK: R8 optimizasyonu acik (optimize edilmemis DEX %" +
+            $edilmemis + ", esik %75).")
+
 $boyut = [math]::Round((Get-Item $aab).Length / 1MB, 1)
 Write-Host ""
 Write-Host "Tamamlandi: $aab ($boyut MiB, surum $surum)"

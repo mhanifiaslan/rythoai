@@ -7,6 +7,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show SystemChrome, SystemUiMode, SystemUiOverlayStyle;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart' show GoogleFonts;
@@ -89,6 +91,26 @@ Future<void> main() async {
   // iyi: sessiz bir sapma yerine testte görünen bir hata
   // (test/font_paketi_test.dart her (aile, ağırlık) dosyasını bağlıyor).
   GoogleFonts.config.allowRuntimeFetching = false;
+
+  // UÇTAN UCA (edge-to-edge) — AÇIKÇA ve HER Android sürümünde.
+  //
+  // NEDEN: targetSdk 36 (Flutter 3.44 varsayılanı); Android 15+ bunu zaten
+  // ZORLUYOR ve Play "uçtan uca ekran tüm kullanıcılara gösterilmeyebilir"
+  // uyarısı veriyor (2026-10-10). Ölçüldü: dock alt inset'i okuyor
+  // (glass.dart:207-254), AppBar üst inset'i Scaffold'dan alıyor, ekranlar
+  // SafeArea kullanıyor — yani içerik çubukların altında KALMIYOR. Eksik
+  // olan şey davranışın sürüme göre DEĞİŞMESİYDİ: Android 15+'ta uçtan uca,
+  // altında değil. Tek yol olsun ki cihaz testi tek davranışı ölçsün.
+  // Çubuklar saydam, ikonlar açık renk (zemin gece); nav çubuğuna kontrast
+  // zemini dayatılmıyor (dock zaten cam).
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.light,
+    systemNavigationBarContrastEnforced: false,
+  ));
 
   await Firebase.initializeApp();
 

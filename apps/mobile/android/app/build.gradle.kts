@@ -64,6 +64,26 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // R8 OPTIMIZASYONU (Play "DEX kodu optimizasyonu esigin altinda",
+            // 2026-10-10). Olculdu: AAB'deki r8.json
+            // `isOptimizationsEnabled: false`, `noOptimizationPercentage: 100`
+            // diyordu — Play'in "%0" dedigi sey bu. Kucultme ve karartma
+            // ACIKTI (Flutter eklentisi proguard-android-optimize.txt +
+            // minify'i zaten kuruyor); optimizasyonu kapatan tek sey
+            // RevenueCat'in Amazon Appstore modulunun consumer kurali
+            // (purchases-store-amazon/proguard.txt: `-dontoptimize`). R8'de
+            // TEK bir -dontoptimize butun uygulamanin optimizasyonunu kapatir.
+            // Uygulama Amazon'da satilmiyor; o modulun kurallari disarida
+            // birakilir, -dontoptimize HARIC uc kurali proguard-rules.pro'da
+            // geri verilir (Amazon kodu hic kosmaz ama keep kurali kalsin).
+            // Kapi: infra/build-aab.ps1 r8.json'u okur; test_android_build_config.py.
+            // Onarim SONRASI olculdu (2026-10-10, R8 9.0.32): optimizasyon acik,
+            // optimize edilmemis DEX %100 -> %37,53 (kalan -keep'li siniflar).
+            optimization {
+                keepRules {
+                    ignoreFrom("com.revenuecat.purchases:purchases-store-amazon")
+                }
+            }
         }
     }
 }
