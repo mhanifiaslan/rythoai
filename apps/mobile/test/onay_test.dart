@@ -97,13 +97,19 @@ void main() {
         onayliCikis(c, cikis: () async => cikis++))));
 
     await _ac(tester);
-    expect(find.text(_tr.signOut), findsOneWidget);
+    // Başlık VE onay düğmesi aynı anahtar (`signOut`, D4): düğme eskiden
+    // cihaz çakışma ekranının "Çıkış yap"ını ödünç alıyordu — aynı eylem
+    // iki ekranda iki adla anılıyordu.
+    expect(find.text(_tr.signOut), findsNWidgets(2),
+        reason: 'başlık + onay düğmesi, ikisi de signOut');
+    expect(find.widgetWithText(TextButton, _tr.signOut), findsOneWidget,
+        reason: 'onay düğmesinin etiketi signOut değil');
     await tester.tap(find.text(_tr.cancel));
     await tester.pump(RythoMotion.base);
     expect(cikis, 0, reason: 'vazgeçildi, çıkış çağrılmamalı');
 
     await _ac(tester);
-    await tester.tap(find.text(_tr.deviceConflictSignOut));
+    await tester.tap(find.widgetWithText(TextButton, _tr.signOut));
     await tester.pump(RythoMotion.base);
     expect(cikis, 1);
   });

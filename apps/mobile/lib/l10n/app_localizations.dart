@@ -185,13 +185,13 @@ abstract class AppLocalizations {
   /// No description provided for @wizardGenderTitle.
   ///
   /// In tr, this message translates to:
-  /// **'Son bir dokunuş'**
+  /// **'BaZi için bir ayrıntı'**
   String get wizardGenderTitle;
 
   /// No description provided for @wizardGenderBody.
   ///
   /// In tr, this message translates to:
-  /// **'BaZi (Dört Sütun) hesabı şans dönemlerini cinsiyete göre yönlendirir.'**
+  /// **'BaZi (Dört Sütun) şans dönemlerinin yönünü cinsiyetten alır. Belirtmezsen o yön hesaplanmaz; gerisi aynı.'**
   String get wizardGenderBody;
 
   /// No description provided for @wizardNext.
@@ -253,6 +253,36 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Haber ver 🔔'**
   String get wizardNotifyAllow;
+
+  /// No description provided for @genderUnspecified.
+  ///
+  /// In tr, this message translates to:
+  /// **'Belirtmedim'**
+  String get genderUnspecified;
+
+  /// No description provided for @wizardNotifyNotNow.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şimdi değil'**
+  String get wizardNotifyNotNow;
+
+  /// No description provided for @wizardStepOf.
+  ///
+  /// In tr, this message translates to:
+  /// **'Adım {current}/{total}'**
+  String wizardStepOf(int current, int total);
+
+  /// No description provided for @deviceConflictBodyUnknown.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başka bir cihazda giriş yapıldı. Rytho+ aynı anda tek cihazda kullanılabilir — burada devam etmek için \"Bu cihazda kullan\"a dokun.'**
+  String get deviceConflictBodyUnknown;
+
+  /// No description provided for @emailHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'ad@eposta.com'**
+  String get emailHint;
 
   /// No description provided for @countrySearchHint.
   ///

@@ -88,6 +88,9 @@ void main() {
 
       expect(CinsiyetSecici.degerler,
           ['female', 'male', 'other', 'unspecified']);
+      // Dördüncü etiket ARB'den (`genderUnspecified`): sabit metin köprüsü
+      // kalktı, dil dalı tek yerde (l10n).
+      expect(find.text(_tr.genderUnspecified), findsOneWidget);
       await tester.tap(find.text(_tr.genderMale));
       expect(secilen, 'male');
     });

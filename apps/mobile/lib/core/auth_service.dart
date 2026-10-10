@@ -52,6 +52,44 @@ PasswordIssue? validatePassword(String password) {
 
 enum PasswordIssue { tooShort, tooSimple }
 
+/// Kullanıcının KENDİ ELİYLE vazgeçtiği giriş denemesi mi?
+///
+/// Üç sağlayıcı üç ayrı istisna türüyle "vazgeçti" der ve hiçbiri hata
+/// değildir. Giriş ekranı eskiden hepsini genel `catch`e düşürüp "Bir şeyler
+/// ters gitti" basıyor ve Crashlytics'e yazıyordu — kullanıcı pencereyi
+/// kapattı diye hem azar işitiyor hem hata sayacı şişiyordu.
+///
+/// Kaynaklar kurulu paketlerden ÖLÇÜLDÜ (2026-10-10):
+/// * Google — `google_sign_in_platform_interface` 3.1.0 `types.dart:49`
+///   `GoogleSignInExceptionCode.canceled`.
+/// * Apple — `sign_in_with_apple_platform_interface` 2.0.0
+///   `exceptions.dart:116` `AuthorizationErrorCode.canceled`.
+/// * Firebase — Android SDK 24.1.0 AAR'ında (`~/.gradle` önbelleğinden
+///   açılıp arandı) `ERROR_WEB_CONTEXT_CANCELED` ve `ERROR_USER_CANCELLED`;
+///   iOS eklentisi (`firebase_auth` 6.5.6) `FLTFirebaseAuthPlugin.m:543`
+///   `canceled`. Dart tarafı (`firebase_auth_platform_interface` 9.0.5,
+///   `method_channel/utils/exception.dart:41-44`) `ERROR_` önekini atıp
+///   küçük harfe ve tireye çeviriyor: `web-context-canceled`,
+///   `user-cancelled`, `canceled`.
+///   İki yazım (canceled / cancelled) iki SDK'dan geliyor; literal liste
+///   yerine kodun tire ayrılmış parçalarından biri bu iki sözcükten biriyse
+///   iptal sayılır — yazımı bu makinede ölçülemeyen iOS SDK sabiti de aynı
+///   kurala düşer, uydurulmuş bir literal gerekmez.
+bool isAuthCancelled(Object e) {
+  if (e is GoogleSignInException) {
+    return e.code == GoogleSignInExceptionCode.canceled;
+  }
+  if (e is SignInWithAppleAuthorizationException) {
+    return e.code == AuthorizationErrorCode.canceled;
+  }
+  if (e is FirebaseAuthException) {
+    return e.code
+        .split('-')
+        .any((parca) => parca == 'canceled' || parca == 'cancelled');
+  }
+  return false;
+}
+
 /// Google ile giriş.
 Future<void> signInWithGoogle() async {
   if (kIsWeb) {

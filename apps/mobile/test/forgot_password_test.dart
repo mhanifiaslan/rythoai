@@ -70,6 +70,19 @@ void main() {
     expect(find.textContaining('Bağlantı kurulamadı'), findsOneWidget);
   });
 
+  testWidgets('e-posta ipucu sözlükten (emailHint) — sabit Türkçe adres değil',
+      (tester) async {
+    // 'ornek@eposta.com' sabitti: İngilizce arayüzde Türkçe örnek adres
+    // kalıyordu (D4). initialEmail dolu ki alan odak almasın — odaklı
+    // TextField bu makinede çizimde fırlatıyor (sifre_alanlari_test notu).
+    await tester.pumpWidget(_sar(const ForgotPasswordScreen(
+        initialEmail: 'aslan.mh@gmail.com', sender: _hicGonderme)));
+    final alan = tester.widget<TextField>(find.byType(TextField));
+    expect(alan.decoration?.hintText,
+        lookupAppLocalizations(const Locale('tr')).emailHint);
+    expect(alan.decoration?.hintText, isNot(contains('ornek')));
+  });
+
   testWidgets('geçersiz biçimli e-posta gönderim yapmadan uyarır',
       (tester) async {
     var cagri = 0;

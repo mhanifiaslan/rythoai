@@ -82,11 +82,11 @@ void main() {
       await tester.pump();
 
       expect(find.text(_tr.wizardNotifyAllow), findsOneWidget);
-      expect(find.text(_tr.wizardLater), findsOneWidget);
+      expect(find.text(_tr.wizardNotifyNotNow), findsOneWidget);
       expect(_dolguluSegment(tester), 0);
     });
 
-    testWidgets('"Sonra" → false, "Haber ver" → true; seçim dolgu alır',
+    testWidgets('"Şimdi değil" → false, "Haber ver" → true; seçim dolgu alır',
         (tester) async {
       bool? secim;
       await tester
@@ -94,7 +94,7 @@ void main() {
       await tester.pump();
 
       expect(_dolguluSegment(tester), 1);
-      await tester.tap(find.text(_tr.wizardLater));
+      await tester.tap(find.text(_tr.wizardNotifyNotNow));
       expect(secim, isFalse);
       await tester.tap(find.text(_tr.wizardNotifyAllow));
       expect(secim, isTrue);

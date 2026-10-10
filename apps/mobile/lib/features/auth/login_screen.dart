@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/auth_service.dart';
 import '../../l10n/app_localizations.dart';
@@ -11,8 +10,40 @@ import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/motion.dart';
+import '../../widgets/sifre_alanlari.dart';
 import '../profile/legal_page.dart';
 import 'forgot_password_screen.dart';
+
+/// Sosyal giriş hatasının üç sınıfı — [socialHataSonucu]nun dönüşü.
+enum AuthHataSonucu {
+  /// Kullanıcı pencereyi kendi kapattı: ne mesaj ne Crashlytics.
+  iptal,
+
+  /// GMS "[16] Account reauth failed": kullanıcının uygulama içinde
+  /// yapabileceği bir şey yok, yol gösteren mesaj gerekir.
+  reauth,
+
+  /// Geri kalan her şey.
+  genel,
+}
+
+/// `_runSocial`in karar veren SAF parçası — Firebase'siz test edilsin diye
+/// ekran durumundan ayrı.
+///
+/// İptal hata DEĞİLDİR (bkz. [isAuthCancelled]): eskiden genel `catch`e
+/// düşüp "Bir şeyler ters gitti" basıyor ve Crashlytics'e yazılıyordu.
+/// Reauth dalı aynen korunur (iç test bulgusu B1): cihazdaki Google oturumu
+/// bayatladığında düşer ve nötr mesaj kullanıcıyı çıkmaza sokar.
+AuthHataSonucu socialHataSonucu(Object e) {
+  if (isAuthCancelled(e)) return AuthHataSonucu.iptal;
+  // GMS mesajı ASCII; `toLowerCase` Türkçe harf görmez.
+  final metin = e.toString();
+  if (metin.toLowerCase().contains('reauth') || metin.contains('[16]')) {
+    return AuthHataSonucu.reauth;
+  }
+  return AuthHataSonucu.genel;
+}
 
 /// Giriş ve kayıt.
 ///
@@ -27,7 +58,12 @@ import 'forgot_password_screen.dart';
 /// - Kayıtta yaş beyanı: kullanım şartlarındaki 13 yaş sınırının arayüzdeki
 ///   karşılığı. Sözleşmede olup ekranda olmayan şart yok hükmündedir.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.googleSignIn, this.appleSignIn});
+
+  /// Test dikişleri; üretimde [signInWithGoogle] / [signInWithApple].
+  /// İptal/hata sınıflandırması Firebase ayakta olmadan sabitlenebilsin.
+  final Future<void> Function()? googleSignIn;
+  final Future<void> Function()? appleSignIn;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -52,13 +88,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final _pass2Ctrl = TextEditingController();
 
   // Klavyedeki "Sonraki" tuşunun çalışması için odak zinciri gerekiyor;
-  // Flutter alanlar arası geçişi kendiliğinden yapmaz.
+  // Flutter alanlar arası geçişi kendiliğinden yapmaz. Şifre → tekrar
+  // geçişi `SifreAlanlari`nin içinde.
   final _emailFocus = FocusNode();
   final _passFocus = FocusNode();
-  final _pass2Focus = FocusNode();
 
-  bool _obscurePass = true;
-  bool _obscurePass2 = true;
   bool _ageConfirmed = false;
   bool _ageError = false;
 
@@ -67,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
     for (final c in [_nameCtrl, _emailCtrl, _passCtrl, _pass2Ctrl]) {
       c.dispose();
     }
-    for (final f in [_emailFocus, _passFocus, _pass2Focus]) {
+    for (final f in [_emailFocus, _passFocus]) {
       f.dispose();
     }
     super.dispose();
@@ -105,25 +139,26 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => setBusy(true));
     try {
       await action();
-    } on FirebaseAuthException catch (e) {
-      _showSnack(_authErrorMessage(e));
     } catch (e) {
-      // Kullanıcı akışı iptal ettiyse de buraya düşüyor; sessiz kalmak
-      // yerine nötr bir mesaj göstermek "hiçbir şey olmadı" hissini önler.
-      //
-      // Tek istisna: GMS'in "[16] Account reauth failed" hatası. Cihazdaki
-      // Google oturumu bayatladığında düşer ve kullanıcının uygulama içinde
-      // yapabileceği hiçbir şey yoktur — nötr mesaj onu çıkmaza sokar,
-      // yol gösteren mesaj gerekir (iç test bulgusu B1).
-      final metin = e.toString();
-      final reauth = metin.toLowerCase().contains('reauth') ||
-          metin.contains('[16]');
-      if (!reauth && !kDebugMode) {
-        FirebaseCrashlytics.instance.recordError(
-            'social-signin: $metin', StackTrace.current,
-            fatal: false);
+      switch (socialHataSonucu(e)) {
+        case AuthHataSonucu.iptal:
+          // Kullanıcı vazgeçti: hiçbir şey olmadı ve bunu kendisi biliyor.
+          // Mesaj basmak azarlamak, Crashlytics'e yazmak sayacı şişirmek olur.
+          break;
+        case AuthHataSonucu.reauth:
+          _showSnack(l10n.authReauthNeeded);
+        case AuthHataSonucu.genel:
+          if (e is FirebaseAuthException) {
+            _showSnack(_authErrorMessage(e));
+            break;
+          }
+          if (!kDebugMode) {
+            FirebaseCrashlytics.instance.recordError(
+                'social-signin: $e', StackTrace.current,
+                fatal: false);
+          }
+          _showSnack(l10n.authFailed);
       }
-      _showSnack(reauth ? l10n.authReauthNeeded : l10n.authFailed);
     } finally {
       if (mounted) setState(() => setBusy(false));
     }
@@ -140,6 +175,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _showSnack(l10n.ageRequired);
       return;
     }
+    // Kayıt şifresi kuralı (`validatePassword`) `SifreAlanlari`nin
+    // doğrulayıcısında koşar; `validate()` onu da kapsar.
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _emailBusy = true);
@@ -183,27 +220,6 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => ForgotPasswordScreen(
             initialEmail: _emailCtrl.text.trim())));
-  }
-
-  void _openLegal(String title, LegalSections Function(String) sections) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => LegalPage(
-        title: title,
-        sections: sections(Localizations.localeOf(context).languageCode),
-      ),
-    ));
-  }
-
-  Widget _obscureToggle(bool obscure, VoidCallback onTap, String label) {
-    return IconButton(
-      onPressed: onTap,
-      tooltip: label,
-      icon: Icon(
-        obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-        size: 20,
-        color: RythoColors.parchmentDim,
-      ),
-    );
   }
 
   Widget _buildEmailForm() {
@@ -252,61 +268,19 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           ),
           const SizedBox(height: 12),
-          TextFormField(
-            controller: _passCtrl,
-            focusNode: _passFocus,
-            style: RythoText.body(15),
-            obscureText: _obscurePass,
-            textInputAction:
-                isRegister ? TextInputAction.next : TextInputAction.done,
-            autofillHints: [
-              isRegister ? AutofillHints.newPassword : AutofillHints.password,
-            ],
-            onFieldSubmitted: (_) =>
-                isRegister ? _pass2Focus.requestFocus() : _submitEmail(),
-            decoration: InputDecoration(
-              labelText: l10n.password,
-              helperText: isRegister ? l10n.passwordRuleHint : null,
-              helperStyle:
-                  RythoText.body(11, color: RythoColors.parchmentDim),
-              suffixIcon: _obscureToggle(_obscurePass,
-                  () => setState(() => _obscurePass = !_obscurePass),
-                  l10n.password),
-            ),
-            validator: (v) {
-              final value = v ?? '';
-              // Girişte kural uygulanmaz: eski hesapların şifresi daha zayıf
-              // olabilir ve kendi kuralımız yüzünden kimseyi kendi hesabından
-              // dışarıda bırakamayız.
-              if (!isRegister) {
-                return value.isEmpty ? l10n.passwordTooShort : null;
-              }
-              return switch (validatePassword(value)) {
-                PasswordIssue.tooShort => l10n.passwordTooShort,
-                PasswordIssue.tooSimple => l10n.passwordTooSimple,
-                null => null,
-              };
-            },
+          // Şifre alanları tek bileşenden (D3): kayıtta tekrar + kural,
+          // girişte TEK alan ve kural YOK — eski hesapların şifresi daha
+          // zayıf olabilir ve kendi kuralımız yüzünden kimseyi kendi
+          // hesabından dışarıda bırakamayız (sahip uyarısı, D3 kapanışı).
+          SifreAlanlari(
+            sifre: _passCtrl,
+            tekrar: _pass2Ctrl,
+            tekrarIste: isRegister,
+            kuralDayat: isRegister,
+            odak: _passFocus,
+            onSubmitted: _submitEmail,
           ),
           if (isRegister) ...[
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _pass2Ctrl,
-              focusNode: _pass2Focus,
-              style: RythoText.body(15),
-              obscureText: _obscurePass2,
-              textInputAction: TextInputAction.done,
-              autofillHints: const [AutofillHints.newPassword],
-              onFieldSubmitted: (_) => _submitEmail(),
-              decoration: InputDecoration(
-                labelText: l10n.passwordRepeat,
-                suffixIcon: _obscureToggle(_obscurePass2,
-                    () => setState(() => _obscurePass2 = !_obscurePass2),
-                    l10n.passwordRepeat),
-              ),
-              validator: (v) =>
-                  v != _passCtrl.text ? l10n.passwordsDoNotMatch : null,
-            ),
             const SizedBox(height: 6),
             // Yaş beyanı — kullanım şartlarındaki 13 yaş sınırının karşılığı.
             CheckboxListTile(
@@ -373,8 +347,9 @@ class _LoginScreenState extends State<LoginScreen> {
             alignment: PlaceholderAlignment.baseline,
             baseline: TextBaseline.alphabetic,
             child: GestureDetector(
-              onTap: () =>
-                  _openLegal(l10n.termsOfUse, termsOfUseSections),
+              // Hukuk sayfası tek kapıdan (D3 `openLegal`): bu ekran son
+              // kopyaydı, sihirbazla ayrı dil seçimi yapıyordu.
+              onTap: () => openLegal(context, LegalDoc.terms),
               child: Text(l10n.termsOfUse, style: link),
             ),
           ),
@@ -383,8 +358,7 @@ class _LoginScreenState extends State<LoginScreen> {
             alignment: PlaceholderAlignment.baseline,
             baseline: TextBaseline.alphabetic,
             child: GestureDetector(
-              onTap: () =>
-                  _openLegal(l10n.privacyPolicy, privacyPolicySections),
+              onTap: () => openLegal(context, LegalDoc.privacy),
               child: Text(l10n.privacyPolicy, style: link),
             ),
           ),
@@ -402,9 +376,12 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    var stagger = 0;
-    Duration next() => Duration(milliseconds: 70 * stagger++);
 
+    // Giriş hareketi tek yoldan (D2 hareket disiplini): beş blok
+    // `RythoReveal(index:)` ile tek stagger'da belirir. Eski yerel sayaç
+    // (`next()`) yedi ekranın kopyaladığı desendi; logonun "nefes"i ise
+    // kapısız sonsuz döngüydü ve beyaz listede değildi — kaldırıldı, logo
+    // sabit durur.
     return CosmicScaffold(
       body: SafeArea(
         // AutofillGroup olmadan şifre yöneticileri alanları tek bir form
@@ -422,68 +399,74 @@ class _LoginScreenState extends State<LoginScreen> {
               //
               // Rozet ve ad artık YAN YANA. Aynı bilgi, ~140 px daha az yer.
               // Gerçek logo (Revize R7): beyaz hilal + takımyıldız,
-              // assets/brand. ✦ rozeti + RYTHO yazısının yerini aldı;
-              // nefes animasyonu ve satır düzeni aynen korunuyor.
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    'assets/brand/rytho_logo_512.png',
-                    width: 56,
-                    height: 56,
-                    filterQuality: FilterQuality.medium,
-                  )
-                      .animate(onPlay: (c) => c.repeat(reverse: true))
-                      .scale(
-                          begin: const Offset(1, 1),
-                          end: const Offset(1.06, 1.06),
-                          duration: 1500.ms,
-                          curve: Curves.easeInOut),
-                  const SizedBox(width: RythoSpace.md),
-                  // Marka yazısı esnemiyordu: 22 punto + büyük yazı ölçeği
-                  // + 56 px logo dar ekranda satırı taşırıyordu.
-                  Flexible(
-                    child: Text('RYTHO',
-                        style: RythoText.label(22, color: RythoColors.lilac)),
-                  ),
-                ],
-              ).animate(delay: next()).fadeIn(duration: 500.ms),
-              const SizedBox(height: RythoSpace.lg),
-              Center(
-                child: Text(l10n.appHeadline,
-                    textAlign: TextAlign.center,
-                    style: RythoText.display(24)),
-              ).animate(delay: next()).fadeIn(duration: 400.ms).slideY(
-                  begin: 0.1, curve: Curves.easeOutCubic),
-              const SizedBox(height: RythoSpace.sm),
-              Text(
-                l10n.appTagline,
-                textAlign: TextAlign.center,
-                style: RythoType.bodyDim,
-              ).animate(delay: next()).fadeIn(duration: 400.ms),
-              const SizedBox(height: RythoSpace.xl),
-
-              // Form önce.
-              GlassPanel(
-                margin: EdgeInsets.zero,
-                padding: const EdgeInsets.fromLTRB(0, 16, 0, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+              // assets/brand.
+              RythoReveal(
+                index: 0,
+                slide: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    GlassSegments(
-                      labels: [l10n.signIn, l10n.signUp],
-                      index: _segment,
-                      onChanged: _changeSegment,
+                    Image.asset(
+                      'assets/brand/rytho_logo_512.png',
+                      width: 56,
+                      height: 56,
+                      filterQuality: FilterQuality.medium,
                     ),
-                    const SizedBox(height: 18),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: _buildEmailForm(),
+                    const SizedBox(width: RythoSpace.md),
+                    // Marka yazısı esnemiyordu: 22 punto + büyük yazı ölçeği
+                    // + 56 px logo dar ekranda satırı taşırıyordu.
+                    Flexible(
+                      child: Text('RYTHO',
+                          style:
+                              RythoText.label(22, color: RythoColors.lilac)),
                     ),
                   ],
                 ),
-              ).animate(delay: next()).fadeIn(duration: 400.ms).slideY(
-                  begin: 0.06, curve: Curves.easeOutCubic),
+              ),
+              const SizedBox(height: RythoSpace.lg),
+              RythoReveal(
+                index: 1,
+                child: Center(
+                  child: Text(l10n.appHeadline,
+                      textAlign: TextAlign.center,
+                      style: RythoText.display(24)),
+                ),
+              ),
+              const SizedBox(height: RythoSpace.sm),
+              RythoReveal(
+                index: 2,
+                slide: 0,
+                child: Text(
+                  l10n.appTagline,
+                  textAlign: TextAlign.center,
+                  style: RythoType.bodyDim,
+                ),
+              ),
+              const SizedBox(height: RythoSpace.xl),
+
+              // Form önce.
+              RythoReveal(
+                index: 3,
+                child: GlassPanel(
+                  margin: EdgeInsets.zero,
+                  padding: const EdgeInsets.fromLTRB(0, 16, 0, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      GlassSegments(
+                        labels: [l10n.signIn, l10n.signUp],
+                        index: _segment,
+                        onChanged: _changeSegment,
+                      ),
+                      const SizedBox(height: 18),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildEmailForm(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
               Padding(
                 padding:
@@ -523,7 +506,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   filled: false,
                   onPressed: _busy
                       ? null
-                      : () => _runSocial(signInWithApple,
+                      : () => _runSocial(
+                          widget.appleSignIn ?? signInWithApple,
                           (v) => _appleBusy = v),
                 ),
                 const SizedBox(height: RythoSpace.sm),
@@ -534,12 +518,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 filled: false,
                 onPressed: _busy
                     ? null
-                    : () => _runSocial(signInWithGoogle,
+                    : () => _runSocial(
+                        widget.googleSignIn ?? signInWithGoogle,
                         (v) => _googleBusy = v),
               ),
 
               const SizedBox(height: RythoSpace.lg),
-              _buildConsent().animate(delay: next()).fadeIn(duration: 400.ms),
+              RythoReveal(index: 4, slide: 0, child: _buildConsent()),
               const SizedBox(height: 8),
             ],
           ),

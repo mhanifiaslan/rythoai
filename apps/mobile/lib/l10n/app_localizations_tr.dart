@@ -57,11 +57,11 @@ class AppLocalizationsTr extends AppLocalizations {
       'Konum, gökyüzünün sana göre nasıl durduğunu belirler — ufkun neresinde ne yükseliyordu?';
 
   @override
-  String get wizardGenderTitle => 'Son bir dokunuş';
+  String get wizardGenderTitle => 'BaZi için bir ayrıntı';
 
   @override
   String get wizardGenderBody =>
-      'BaZi (Dört Sütun) hesabı şans dönemlerini cinsiyete göre yönlendirir.';
+      'BaZi (Dört Sütun) şans dönemlerinin yönünü cinsiyetten alır. Belirtmezsen o yön hesaplanmaz; gerisi aynı.';
 
   @override
   String get wizardNext => 'Devam ✦';
@@ -94,6 +94,24 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get wizardNotifyAllow => 'Haber ver 🔔';
+
+  @override
+  String get genderUnspecified => 'Belirtmedim';
+
+  @override
+  String get wizardNotifyNotNow => 'Şimdi değil';
+
+  @override
+  String wizardStepOf(int current, int total) {
+    return 'Adım $current/$total';
+  }
+
+  @override
+  String get deviceConflictBodyUnknown =>
+      'Başka bir cihazda giriş yapıldı. Rytho+ aynı anda tek cihazda kullanılabilir — burada devam etmek için \"Bu cihazda kullan\"a dokun.';
+
+  @override
+  String get emailHint => 'ad@eposta.com';
 
   @override
   String get countrySearchHint => 'Ülke ara…';

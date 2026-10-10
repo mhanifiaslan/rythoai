@@ -8,6 +8,13 @@
 /// Tamamen istemci tarafı: sağlayıcı listesi Firebase token'ında yaşar,
 /// sunucuda ayrıca tutulmaz. Hata eşlemesi phone_verify_screen desenini
 /// izler; bilinmeyen kodlar Crashlytics'e gider.
+///
+/// Hata YERLEŞİMİ (D4, ölçüldü 2026-10-10): eskiden tek bir `_hata` vardı
+/// ve şifre alanının `errorText`ine basılıyordu — Google bağlanamayınca
+/// kullanıcı ŞİFRE alanının kırmızı yandığını görüyordu. Şimdi iki yuva:
+/// Google hatası Google satırının altında, şifre hatası şifre bölümünün
+/// altında. Şifre belirleme de kayıt gibi: tekrar alanı + kural
+/// (`SifreAlanlari`), çünkü yanlış yazılan yeni şifre hesabı düşürüyordu.
 library;
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +28,7 @@ import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/common.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/sifre_alanlari.dart';
 import '../../l10n/app_localizations.dart';
 import 'phone_verify_screen.dart' show PhoneVerifyScreen;
 import 'profile_sections.dart' show SettingsPage;
@@ -45,36 +53,62 @@ String signInMethodsSummary(User? user, AppLocalizations l10n) {
 }
 
 class SignInMethodsScreen extends StatefulWidget {
-  const SignInMethodsScreen({super.key});
+  const SignInMethodsScreen({
+    super.key,
+    this.baglilar,
+    this.ilkEposta,
+    this.googleBagla,
+    this.sifreBagla,
+  });
+
+  /// Test dikişleri; üretimde Firebase'in sağlayıcı listesi ve e-postası,
+  /// [linkGoogle] ve [linkPassword]. Hata yerleşimi (Google hatası şifre
+  /// alanında DEĞİL) Firebase ayakta olmadan sabitlenebilsin. Testte
+  /// [ilkEposta] boş dize de olsa VERİLİR; null Firebase'e düşer.
+  final Set<String> Function()? baglilar;
+  final String? ilkEposta;
+  final Future<void> Function()? googleBagla;
+  final Future<void> Function(String email, String sifre)? sifreBagla;
 
   @override
   State<SignInMethodsScreen> createState() => _SignInMethodsScreenState();
 }
 
 class _SignInMethodsScreenState extends State<SignInMethodsScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _pass2Ctrl = TextEditingController();
   bool _busy = false;
-  String? _hata;
-  bool _sifreGizli = true;
+
+  /// İki hata yuvası — bkz. dosya başı. Aynı değişkene yazılsa Google
+  /// hatası yine şifre bölümünde belirir.
+  String? _googleHata;
+  String? _sifreHata;
 
   @override
   void initState() {
     super.initState();
-    _emailCtrl.text = FirebaseAuth.instance.currentUser?.email ?? '';
+    _emailCtrl.text =
+        widget.ilkEposta ?? FirebaseAuth.instance.currentUser?.email ?? '';
   }
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
+    _pass2Ctrl.dispose();
     super.dispose();
   }
 
-  bool _bagli(String providerId) =>
-      FirebaseAuth.instance.currentUser?.providerData
-          .any((p) => p.providerId == providerId) ??
-      false;
+  Set<String> _bagliSaglayicilar() =>
+      widget.baglilar?.call() ??
+      (FirebaseAuth.instance.currentUser?.providerData
+              .map((p) => p.providerId)
+              .toSet() ??
+          const <String>{});
+
+  bool _bagli(String providerId) => _bagliSaglayicilar().contains(providerId);
 
   String _baglamaHatasi(FirebaseAuthException e, AppLocalizations l10n) {
     switch (e.code) {
@@ -99,45 +133,59 @@ class _SignInMethodsScreenState extends State<SignInMethodsScreen> {
     }
   }
 
+  /// [hataya]: hatanın yazılacağı yuva — çağıran seçer, çünkü hangi işin
+  /// koştuğunu yalnız o bilir.
   Future<void> _calistir(Future<void> Function() is_,
-      {required String basarili}) async {
+      {required String basarili,
+      required void Function(String?) hataya}) async {
     final l10n = AppLocalizations.of(context);
     final mesajci = ScaffoldMessenger.of(context);
     setState(() {
       _busy = true;
-      _hata = null;
+      hataya(null);
     });
     try {
       await is_();
       if (!mounted) return;
       mesajci.showSnackBar(SnackBar(content: Text(basarili)));
       setState(() {}); // sağlayıcı listesi değişti; ✓ rozetleri tazelensin
-    } on FirebaseAuthException catch (e) {
-      if (mounted) setState(() => _hata = _baglamaHatasi(e, l10n));
     } catch (e) {
-      if (mounted) setState(() => _hata = l10n.authFailed);
+      if (!mounted) return;
+      // Google penceresini kullanıcı kendi kapattıysa hata değil
+      // (giriş ekranıyla aynı kural, bkz. isAuthCancelled).
+      if (isAuthCancelled(e)) return;
+      final metin = e is FirebaseAuthException
+          ? _baglamaHatasi(e, l10n)
+          : l10n.authFailed;
+      setState(() => hataya(metin));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  Future<void> _googleBaglaTikla() => _calistir(
+        widget.googleBagla ?? linkGoogle,
+        basarili: AppLocalizations.of(context).linkGoogleDone,
+        hataya: (m) => _googleHata = m,
+      );
+
   Future<void> _sifreKaydet() async {
+    if (_busy) return;
     final l10n = AppLocalizations.of(context);
-    final sorun = validatePassword(_passCtrl.text);
-    if (sorun != null) {
-      setState(() => _hata = sorun == PasswordIssue.tooShort
-          ? l10n.passwordTooShort
-          : l10n.passwordTooSimple);
-      return;
-    }
-    if (_emailCtrl.text.trim().isEmpty) {
-      setState(() => _hata = l10n.authInvalidEmail);
-      return;
-    }
+    // Kural (`validatePassword`), tekrar eşleşmesi ve e-posta biçimi
+    // `Form` doğrulayıcılarında — kayıt formuyla aynı yol, elle kopya yok.
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final email = _emailCtrl.text.trim();
+    final sifre = _passCtrl.text;
     await _calistir(
-        () => linkPassword(_emailCtrl.text, _passCtrl.text),
-        basarili: l10n.linkPasswordDone);
-    if (mounted && _hata == null) _passCtrl.clear();
+      () => (widget.sifreBagla ?? linkPassword)(email, sifre),
+      basarili: l10n.linkPasswordDone,
+      hataya: (m) => _sifreHata = m,
+    );
+    if (mounted && _sifreHata == null) {
+      _passCtrl.clear();
+      _pass2Ctrl.clear();
+    }
   }
 
   @override
@@ -158,8 +206,7 @@ class _SignInMethodsScreenState extends State<SignInMethodsScreen> {
       Padding(
         padding: const EdgeInsets.fromLTRB(
             RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.md),
-        child: Text(l10n.signInMethodsBody,
-            style: RythoText.body(12.5, color: RythoColors.parchmentDim)),
+        child: Text(l10n.signInMethodsBody, style: RythoType.caption),
       ),
       GlassPanel(
         child: Column(children: [
@@ -169,13 +216,14 @@ class _SignInMethodsScreenState extends State<SignInMethodsScreen> {
             trailing: googleBagli
                 ? rozet(true)
                 : TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => _calistir(linkGoogle,
-                            basarili: l10n.linkGoogleDone),
+                    onPressed: _busy ? null : _googleBaglaTikla,
                     child: Text(l10n.linkAction),
                   ),
           ),
+          // Google hatası Google satırının ALTINDA — şifre alanında değil.
+          _HataMetni(_googleHata,
+              padding: const EdgeInsets.fromLTRB(
+                  RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.md)),
           if (appleSignInAvailable || appleBagli) ...[
             const Divider(height: 1, indent: RythoSpace.lg),
             SettingsRow(
@@ -219,52 +267,72 @@ class _SignInMethodsScreenState extends State<SignInMethodsScreen> {
         label: sifreBagli
             ? l10n.changePasswordSection
             : l10n.setPasswordSection,
-        child:
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(
-            sifreBagli ? l10n.changePasswordBody : l10n.setPasswordBody,
-            style: RythoText.body(12.5, color: RythoColors.parchmentDim),
-          ),
-          const SizedBox(height: 12),
-          if (!sifreBagli) ...[
-            // Apple "Hide My Email" gerçeği: adres varsayılmaz, düzenlenir.
-            TextField(
-              controller: _emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              style: RythoText.body(15),
-              decoration: InputDecoration(hintText: l10n.email),
-            ),
-            const SizedBox(height: 10),
-          ],
-          TextField(
-            controller: _passCtrl,
-            obscureText: _sifreGizli,
-            style: RythoText.body(15),
-            decoration: InputDecoration(
-              hintText: l10n.password,
-              errorText: _hata,
-              suffixIcon: IconButton(
-                icon: Icon(
-                    _sifreGizli
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                    size: 18),
-                onPressed: () =>
-                    setState(() => _sifreGizli = !_sifreGizli),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          GoldButton(
-            text: sifreBagli
-                ? l10n.changePasswordAction
-                : l10n.setPasswordAction,
-            busy: _busy,
-            onPressed: _busy ? null : _sifreKaydet,
-          ),
-        ]),
+        child: Form(
+          key: _formKey,
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  sifreBagli ? l10n.changePasswordBody : l10n.setPasswordBody,
+                  style: RythoType.caption,
+                ),
+                const SizedBox(height: RythoSpace.md),
+                if (!sifreBagli) ...[
+                  // Apple "Hide My Email" gerçeği: adres varsayılmaz,
+                  // düzenlenir.
+                  TextFormField(
+                    controller: _emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    autofillHints: const [AutofillHints.email],
+                    style: RythoType.body,
+                    decoration: InputDecoration(labelText: l10n.email),
+                    validator: (v) {
+                      final deger = v?.trim() ?? '';
+                      return deger.isEmpty || !deger.contains('@')
+                          ? l10n.authInvalidEmail
+                          : null;
+                    },
+                  ),
+                  const SizedBox(height: RythoSpace.md),
+                ],
+                // Yeni şifre belirleme KAYIT gibidir: tekrar + kural.
+                SifreAlanlari(
+                  sifre: _passCtrl,
+                  tekrar: _pass2Ctrl,
+                  onSubmitted: _sifreKaydet,
+                ),
+                _HataMetni(_sifreHata,
+                    padding: const EdgeInsets.only(top: RythoSpace.sm)),
+                const SizedBox(height: RythoSpace.md),
+                GoldButton(
+                  text: sifreBagli
+                      ? l10n.changePasswordAction
+                      : l10n.setPasswordAction,
+                  busy: _busy,
+                  onPressed: _busy ? null : _sifreKaydet,
+                ),
+              ]),
+        ),
       ),
     ]);
+  }
+}
+
+/// Bölüm altı hata satırı; metin yoksa hiç yer kaplamaz.
+class _HataMetni extends StatelessWidget {
+  const _HataMetni(this.metin, {required this.padding});
+
+  final String? metin;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = metin;
+    if (m == null) return const SizedBox.shrink();
+    return Padding(
+      padding: padding,
+      child: Text(m, style: RythoType.caption.copyWith(color: RythoColors.madder)),
+    );
   }
 }

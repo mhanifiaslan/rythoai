@@ -95,15 +95,24 @@ class _BigThreeReveal extends StatelessWidget {
               children: [
                 baslik,
                 const SizedBox(height: 40),
+                // Üç mühür ESNEK: eski satır 92+20+92+20+92 = 316 px sabitti
+                // ve 320 dp'de 28 px kenar dolgusuyla taşıyordu (ölçüldü:
+                // 372 dp altında taşma, 320'de 52 px). Her mühür üçte bir
+                // pay alır, içinde `_Seal` üst sınırına kadar genişler.
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    muhur(0, l10n.bigThreeSun, sun),
-                    const SizedBox(width: 20),
-                    muhur(1, l10n.bigThreeMoon, moon),
-                    const SizedBox(width: 20),
-                    muhur(2, l10n.bigThreeAscendant, yukselenMetni),
+                    Expanded(
+                        child: Center(child: muhur(0, l10n.bigThreeSun, sun))),
+                    const SizedBox(width: RythoSpace.lg),
+                    Expanded(
+                        child:
+                            Center(child: muhur(1, l10n.bigThreeMoon, moon))),
+                    const SizedBox(width: RythoSpace.lg),
+                    Expanded(
+                        child: Center(
+                            child: muhur(
+                                2, l10n.bigThreeAscendant, yukselenMetni))),
                   ],
                 ),
                 const SizedBox(height: 48),
@@ -116,6 +125,11 @@ class _BigThreeReveal extends StatelessWidget {
     );
   }
 }
+
+/// Bir mührün ÜST genişlik sınırı. Sabit genişlik değil: dar ekranda
+/// `Expanded` payı bundan küçükse mühür paya sığar, geniş ekranda bu
+/// değerde durur (üç mühür yan yana 316 px'i geçmez, eski görünüm korunur).
+const double kMuhurGenisligi = 92;
 
 /// Tek mühür: burç renginde daire içinde glif + altta rol ve burç adı.
 class _Seal extends StatelessWidget {
@@ -134,8 +148,8 @@ class _Seal extends StatelessWidget {
     final glif = i >= 0 ? kSignGlyphs[i] : '✦';
     final ad = i >= 0 ? signDisplayName(l10n, i) : burc;
 
-    return SizedBox(
-      width: 92,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: kMuhurGenisligi),
       child: Column(children: [
         Container(
           width: 64,

@@ -67,10 +67,13 @@ void main() {
     expect(cagri, 0);
   });
 
-  test('sihirbaz adım sözleşmesi (OT4): telefon herkese, gender sonrası',
-      () {
+  // K6 (2026-10-10): telefon sihirbazdan çıktı — rehber eşleşmesi kurulumun
+  // işi değil, numara Çevrem'de ihtiyaç anında ve Giriş yöntemleri'nde
+  // doğrulanır. Altı adım, hiçbiri atlanamaz; bildirim son adım ve OS'a
+  // yalnız "Haber ver" seçilince sorulur.
+  test('sihirbaz adım sözleşmesi (K6): altı adım, telefon yok', () {
     expect(kOnboardingSteps, [
-      'welcome', 'date', 'time', 'place', 'gender', 'phone', 'notify',
+      'welcome', 'date', 'time', 'place', 'gender', 'notify',
     ]);
   });
 }

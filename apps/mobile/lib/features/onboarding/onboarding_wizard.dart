@@ -4,15 +4,25 @@
 ///
 /// * **Adım başına tek soru** — bilişsel yük düşük, tamamlama yüksek.
 /// * **Takımyıldız ilerleme** — her adım bir yıldız yakar; ilk yıldız
-///   yanmış başlar (endowed progress). Finalde takımyıldız tamamlanır.
+///   yanmış başlar (endowed progress). Son yıldız kayıt sahnesinde yanar:
+///   takımyıldız, harita gerçekten çizilirken tamamlanır.
 /// * **Anında mikro-ödül** — adım geçişinde yıldız pop'u + hafif haptik.
 /// * **Dürüst atlama** — "Bilmiyorum" utandırmayan birinci sınıf seçenek;
-///   neyin değişeceği bir cümleyle söylenir. Suçlayıcı dil yok.
+///   neyin değişeceği bir cümleyle söylenir. Suçlayıcı dil yok. Ama hiçbir
+///   ADIM atlanamaz: her adım bir karar ister ("bilmiyorum", "belirtmedim",
+///   "şimdi değil" de birer karardır) — seçilmeyen şey beyan edilmez,
+///   sessizce varsayılan da yazılmaz (eski akış cinsiyeti `female`
+///   önseçiyor, saatsiz doğumu 12:00 yazma riski taşıyordu).
 /// * **Rıza baştan** — Google/Apple girişlerinde bugüne dek hiçbir onay
 ///   kutusu yoktu; ilk adım açık kabul kutusuyla bu boşluğu kapatır ve
 ///   kabul sunucuda ispatlanabilir kayda geçer (POST /account/consent).
 /// * **Zirve sonda** — kayıt sırasında StagedWaiting (gerçek iş), sonra
 ///   mevcut Büyük Üçlü perdesi (AppShell köprüsü, R12-B1 düzeni korunur).
+///
+/// Telefon adımı sihirbazda DEĞİL (K6, 2026-10-10): OT4'te herkese
+/// açılmıştı ama rehber eşleşmesi kurulumun işi değil — numara, ihtiyaç
+/// anında Çevrem'de (`contacts_screen` JIT) ve Giriş yöntemleri'nde
+/// doğrulanır; sihirbaz yalnız haritayı çizmek için gerekeni sorar.
 ///
 /// Taslak KALICI DEĞİL (bilinçli): akış 60-90 saniye; bayat "rıza
 /// işaretliydi" taslağı rıza kanıtını zayıflatırdı.
@@ -28,7 +38,7 @@ import 'package:intl/intl.dart';
 import '../../core/analytics.dart';
 import '../../core/api.dart';
 import '../../core/birth_record.dart';
-import '../../core/auth_service.dart' show signOutEverywhere;
+import '../../core/city_directory.dart' show CityPick;
 import '../../core/consent.dart' show ensureConsentRecorded;
 // kTermsConsentVersion artık core/consent.dart'ta yaşıyor (KT2) — sürüm
 // tek yerden yönetilir, AppShell'deki tekrar deneme de aynı sabiti görür.
@@ -36,32 +46,135 @@ import '../../core/providers.dart'
     show OnboardOutcome, justOnboardedProvider;
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/city_search_field.dart';
 import '../../widgets/cosmic_scaffold.dart';
+import '../../widgets/dogum_formu.dart';
+import '../../widgets/izin_kapisi.dart';
 import '../../widgets/motion.dart';
+import '../../widgets/onay.dart';
 import '../../core/notifications.dart'
     show ensureNotificationPermissionAsked;
 import '../profile/legal_page.dart';
-import '../profile/legal_texts.dart';
-import '../profile/phone_verify_screen.dart';
 import 'constellation_progress.dart';
 
-// `kPhoneStepEnabled` bayrağı SİLİNDİ (OT4, kullanıcı kararı): SMS ucu
-// 2026-08-07'den beri canlı ve bu makinede üretilen yayın AAB'leri adımı
-// zaten taşıyordu — bayrak yalnız test/temiz-checkout'u üretimden
-// ayrıştıran ölü ağırlıktı. Adım artık herkese görünür ve "Sonra" ile
-// atlanabilir; kullanıcı özellikleri aramak zorunda kalmadan kayıtta
-// numarasını doğrular.
-
 /// Sihirbaz adımları — sırası ürün sözleşmesidir ve testle sabitlidir
-/// (OT4: `phone` artık bayraksız, herkese; `gender` sonrası, atlanabilir).
+/// (K6: telefon çıktı; altı adımın her biri karar ister, hiçbiri
+/// atlanamaz).
 const List<String> kOnboardingSteps = [
-  'welcome', 'date', 'time', 'place', 'gender', 'phone', 'notify',
+  'welcome', 'date', 'time', 'place', 'gender', 'notify',
 ];
 
+/// Profil dokümanının ilk yazımı için zaman aşımı.
+///
+/// NEDEN: Firestore `set()` çevrimdışı TAZE kurulumda (önbelleksiz, henüz
+/// hiç bağlanmamış istemci) sonsuza dek bekleyebiliyor — kayıt sahnesi
+/// döner, kullanıcı ne hata görür ne tekrar deneyebilir. 15 sn, zayıf
+/// bağlantıda gerçek yazıma yetecek kadar uzun; "takıldı" hissinden önce
+/// dürüst hatayı gösterecek kadar kısa.
+const Duration kYazmaZamanAsimi = Duration(seconds: 15);
+
+/// Kayıt sahnesinde iki aşama metni arası. Değer D2 öncesinden olduğu
+/// gibi (ölçüldüğü gibi); çıplak süre adlandırıldı. `RythoMotion
+/// .asamaAraligi` (2600 ms) uzun bekleyişler için — harita yazımı ondan
+/// kısa sürüyor, üç aşama o aralıkla işten uzun kalırdı.
+const Duration kKayitAsamaAraligi = Duration(milliseconds: 1600);
+
+/// Adım ilerleyebilir mi — düğme durumunun TEK kaynağı, saf ve test
+/// edilebilir.
+///
+/// Bilinmeyen adım `false`: yeni bir adım eklenip kuralı unutulursa düğme
+/// kapalı kalır ve eksik ilk denemede görünür; `true` olsaydı adım sessizce
+/// atlanabilir olurdu.
+bool sihirbazIlerleyebilir({
+  required String adim,
+  required bool riza,
+  DateTime? tarih,
+  required bool saatBiliniyor,
+  TimeOfDay? saat,
+  String? sehir,
+  String? cinsiyet,
+  bool? bildirimSecimi,
+}) =>
+    switch (adim) {
+      'welcome' => riza,
+      'date' => tarih != null,
+      'time' => dogumSaatiGecerli(biliniyor: saatBiliniyor, saat: saat),
+      'place' => sehir != null && sehir.trim().isNotEmpty,
+      'gender' => cinsiyet != null,
+      'notify' => bildirimSecimi != null,
+      _ => false,
+    };
+
+/// Bildirim izni OS'a sorulsun mu — yalnız "Haber ver" seçildiyse.
+///
+/// `null` (seçilmedi) ve `false` ("Şimdi değil") ikisi de sormaz: bayrak
+/// yazılmaz, ana ekrandaki ikinci şans yaşar. Eski akış seçim sormadan her
+/// bitişte OS diyaloğunu açıyordu.
+bool bildirimSorulmali(bool? secim) => secim == true;
+
+/// Kayıt sahnesinin aşama metinleri.
+///
+/// Saatsiz doğumda "Evler hesaplanıyor" YOK: sunucu saatsiz doğumda ev ve
+/// Yükselen hesaplamaz (`hour_known=false`), sahne hesaplanmayan bir şeyi
+/// hesaplanıyor gösteremez. Aşamalar süs değil, gerçek işin adı.
+List<String> onboardingStages(AppLocalizations l10n,
+        {required bool saatBiliniyor}) =>
+    [
+      l10n.onboardingStage1,
+      if (saatBiliniyor) l10n.onboardingStage2,
+      l10n.onboardingStage3,
+    ];
+
+/// Sihirbazın açtığı üç seçici — test dikişi; üretim varsayılanı gerçek
+/// seçiciler.
+///
+/// NEDEN: tarih ve saat Material diyaloğu, şehir ise tam ekran arama
+/// (34k kayıtlık dizin, isolate'ta ayrıştırılır) açar. Widget testi
+/// adımları gezerken o diyalogların KENDİ yerleşimi ölçüme karışır (dar
+/// ekran bekçisi diyalogdaki taşmayı sihirbazın sanır) ve dizin isolate'ı
+/// sahte-zamanda bitmez. Dikiş değeri döndürür, sihirbaz yine kendi
+/// durumuna yazar — ölçülen şey sihirbazın kuralı, seçicinin görünümü değil.
+class SihirbazSeciciler {
+  const SihirbazSeciciler({
+    this.tarih = _tarihSec,
+    this.saat = _saatSec,
+    this.sehir = _sehirSec,
+  });
+
+  final Future<DateTime?> Function(BuildContext context, DateTime baslangic)
+      tarih;
+  final Future<TimeOfDay?> Function(BuildContext context, TimeOfDay baslangic)
+      saat;
+  final Future<CityPick?> Function(BuildContext context, String? ilkSorgu)
+      sehir;
+
+  static Future<DateTime?> _tarihSec(
+          BuildContext context, DateTime baslangic) =>
+      showDatePicker(
+        context: context,
+        initialDate: baslangic,
+        firstDate: DateTime(1930),
+        lastDate: DateTime.now(),
+      );
+
+  static Future<TimeOfDay?> _saatSec(
+          BuildContext context, TimeOfDay baslangic) =>
+      showTimePicker(context: context, initialTime: baslangic);
+
+  static Future<CityPick?> _sehirSec(BuildContext context, String? ilkSorgu) =>
+      showCitySearch(context, initialQuery: ilkSorgu);
+}
+
 class OnboardingWizard extends ConsumerStatefulWidget {
-  const OnboardingWizard({super.key});
+  const OnboardingWizard({
+    super.key,
+    this.seciciler = const SihirbazSeciciler(),
+  });
+
+  @visibleForTesting
+  final SihirbazSeciciler seciciler;
 
   @override
   ConsumerState<OnboardingWizard> createState() =>
@@ -73,23 +186,23 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
   int _adim = 0;
 
   // ---- taslak ----
+  // Hiçbir alanın önseçili değeri yok: null = kullanıcı henüz karar
+  // vermedi. `_saat` için 12:00 YALNIZ seçicinin açılış konumu
+  // (`_saatSec`), değer değil; `_cinsiyet` için `female` önseçimi
+  // dokunmadan geçeni "kadın" beyan ediyordu.
   bool _riza = false;
   DateTime? _tarih;
-  TimeOfDay _saat = const TimeOfDay(hour: 12, minute: 0);
+  TimeOfDay? _saat;
   bool _saatBiliniyor = true;
-  bool _saatSecildi = false;
   String? _sehir;
   String? _ulke;
-  String _cinsiyet = 'female';
+  String? _cinsiyet;
+  bool? _bildirimSecimi;
   bool _busy = false;
 
   static const _adimAdlari = kOnboardingSteps;
 
   int get _toplamAdim => _adimAdlari.length;
-
-  /// Atlanabilir adımlar: zorunlu veri istemezler, alt düğme "Sonra" der.
-  bool get _atlanabilirAdim =>
-      _adimAdlari[_adim] == 'phone' || _adimAdlari[_adim] == 'notify';
 
   @override
   void initState() {
@@ -104,13 +217,16 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
   }
 
   /// Adım ilerleyebilir mi — düğme durumu buradan.
-  bool get _ilerleyebilir => switch (_adimAdlari[_adim]) {
-        'welcome' => _riza,
-        'date' => _tarih != null,
-        'time' => !_saatBiliniyor || _saatSecildi,
-        'place' => _sehir != null && _sehir!.trim().isNotEmpty,
-        _ => true,
-      };
+  bool get _ilerleyebilir => sihirbazIlerleyebilir(
+        adim: _adimAdlari[_adim],
+        riza: _riza,
+        tarih: _tarih,
+        saatBiliniyor: _saatBiliniyor,
+        saat: _saat,
+        sehir: _sehir,
+        cinsiyet: _cinsiyet,
+        bildirimSecimi: _bildirimSecimi,
+      );
 
   void _ileri() {
     if (!_ilerleyebilir || _busy) return;
@@ -121,35 +237,49 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
     }
     setState(() => _adim++);
     Analytics.onboardingStep(_adimAdlari[_adim]);
-    _sayfa.animateToPage(_adim,
-        duration: reduceMotion(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 380),
-        curve: Curves.easeOutCubic);
+    _sayfayaGit(_adim);
   }
 
   void _geri() {
     if (_adim == 0 || _busy) return;
     setState(() => _adim--);
-    _sayfa.animateToPage(_adim,
-        duration: reduceMotion(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic);
+    _sayfayaGit(_adim);
+  }
+
+  /// Sayfa geçişi: hareket açıkken kaydırma, azaltılmışken anında atlama.
+  ///
+  /// NEDEN iki fiil: `animateToPage` sıfır süreyi KABUL ETMEZ
+  /// (`DrivenScrollActivity` `duration > Duration.zero` assert'i) — `kapili`
+  /// hareket azaltmada sıfır döndürünce ilk "Devam" debug'da fırlıyordu
+  /// (ölçüldü 2026-10-10: sihirbaz_adimlar_test, disableAnimations ile;
+  /// cihazda "hareketi azalt" açan kullanıcı ilk adımda takılırdı). Sıfır
+  /// sürenin doğru fiili `jumpToPage`.
+  void _sayfayaGit(int hedef) {
+    final sure = kapili(context, RythoMotion.route);
+    if (sure == Duration.zero) {
+      _sayfa.jumpToPage(hedef);
+    } else {
+      _sayfa.animateToPage(hedef, duration: sure, curve: RythoMotion.enter);
+    }
   }
 
   Future<void> _bitir() async {
     final user = FirebaseAuth.instance.currentUser!;
+    final l10n = AppLocalizations.of(context);
     setState(() => _busy = true);
-    // OT3: "Haritamı çiz ✨" yolculuğu bitirirken BİLDİRİM İZNİNİ DE
-    // İSTER. Eski akışta izin yalnız adım içindeki düğmeye bağlıydı;
-    // kullanıcı doğrudan bitir'e basınca hiç sorulmuyor, ikinci şans da
-    // tanıtım paywall'ına yeniliyordu — "yeni kullanıcıya bildirim
-    // gitmiyor"un kökü. Sonuç yolculuğu ASLA engellemez.
-    try {
-      await ensureNotificationPermissionAsked();
-    } catch (e) {
-      debugPrint('Onboarding bildirim izni istenemedi: $e');
+    // Bildirim izni YALNIZ "Haber ver" seçildiyse OS'a sorulur. "Şimdi
+    // değil" de bir karar ama OS'a değil bize verilmiş bir karar: bayrak
+    // yazılmaz, ana ekrandaki ikinci şans (sky_screen, ilk değer
+    // görüldükten sonra) gerçekten yaşar. Eski akış seçim sormadan her
+    // bitişte diyaloğu açıyordu — "hayır" diyecek kullanıcı da OS'a
+    // "hayır" diyor ve bir daha hiç sorulamıyordu. Sonuç yolculuğu ASLA
+    // engellemez.
+    if (bildirimSorulmali(_bildirimSecimi)) {
+      try {
+        await ensureNotificationPermissionAsked();
+      } catch (e) {
+        debugPrint('Onboarding bildirim izni istenemedi: $e');
+      }
     }
     // Büyük Üçlü perdesinin bayrağı yazım ÖNCESİ konur (R12-B1):
     // onboardingCompleted iner inmez _Gate bu ekranı söküp AppShell'i
@@ -164,7 +294,7 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
           .doc(user.uid)
           .set({
         'uid': user.uid,
-        'displayName': user.displayName ?? 'Gezgin',
+        'displayName': user.displayName ?? l10n.defaultUserName,
         'photoUrl': user.photoURL,
         'email': user.email,
         // Kayıt damgası BURADA YOK (core/language_sync.dart `kayitDamgasi` +
@@ -174,7 +304,7 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
         // `order_by("createdAt")` listesinden düşerdi; ayrıca bu blok
         // yeniden koşarsa (kurulum tekrarı) damga ileri kayıp 3 günlük
         // denemeyi yenilerdi.
-      }, SetOptions(merge: true));
+      }, SetOptions(merge: true)).timeout(kYazmaZamanAsimi);
 
       // Kabul kaydı — düşerse kurulum DÜŞMEZ ama kayıp da KALICI değil:
       // başarı bayrakla işaretlenir, bayrak yoksa AppShell her açılışta
@@ -184,12 +314,12 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
       final sonuc = await saveBirthRecord(
         BirthRecord(
           date: _tarih!,
-          time: !_saatBiliniyor
-              ? null
-              : '${_saat.hour.toString().padLeft(2, '0')}:'
-                  '${_saat.minute.toString().padLeft(2, '0')}',
+          // Saat yalnız "biliyorum" + gerçekten seçilmişse yazılır; aksi
+          // hâlde null = bilinmiyor. 12:00 uydurması bu depoda bir kez
+          // zarar verdi (birth_record.dart).
+          time: _saatBiliniyor && _saat != null ? saatMetni(_saat) : null,
           city: _sehir!.trim(),
-          gender: _cinsiyet,
+          gender: _cinsiyet!,
           nation: _ulke,
         ),
         dio: ref.read(apiProvider),
@@ -203,8 +333,13 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
     } catch (e) {
       ref.read(justOnboardedProvider.notifier).state = null;
       if (mounted) {
+        // Sebepli hata + aynı yerden tekrar: "Kayıt başarısız." tek başına
+        // kullanıcıya ne olduğunu da ne yapacağını da söylemiyordu;
+        // bağlantı hatası ile sunucu hatası aynı görünüyordu.
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(AppLocalizations.of(context).onboardingFailed)));
+          content: Text(friendlyError(e, l10n)),
+          action: SnackBarAction(label: l10n.retry, onPressed: _bitir),
+        ));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -212,29 +347,27 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
   }
 
   Future<void> _tarihSec() async {
-    final secilen = await showDatePicker(
-      context: context,
-      initialDate: _tarih ?? DateTime(2000, 1, 1),
-      firstDate: DateTime(1930),
-      lastDate: DateTime.now(),
-    );
+    final secilen = await widget.seciciler
+        .tarih(context, _tarih ?? DateTime(2000, 1, 1));
     if (secilen != null) setState(() => _tarih = secilen);
   }
 
   Future<void> _saatSec() async {
-    final secilen =
-        await showTimePicker(context: context, initialTime: _saat);
+    // 12:00 yalnız seçicinin AÇILIŞ konumu: kullanıcı seçmeden kapatırsa
+    // `_saat` null kalır ve "Saat" satırı "—" gösterir. Değere dönüşmesi
+    // için seçicinin bir saat DÖNDÜRMESİ gerekir.
+    final baslangic = _saat ?? const TimeOfDay(hour: 12, minute: 0);
+    final secilen = await widget.seciciler.saat(context, baslangic);
     if (secilen != null) {
       setState(() {
         _saat = secilen;
-        _saatSecildi = true;
         _saatBiliniyor = true;
       });
     }
   }
 
   Future<void> _sehirSec() async {
-    final secim = await showCitySearch(context, initialQuery: _sehir);
+    final secim = await widget.seciciler.sehir(context, _sehir);
     if (secim == null) return;
     setState(() {
       _sehir = secim.name;
@@ -267,9 +400,19 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
                       : null,
                 ),
                 Expanded(
-                  // İlk yıldız yanmış başlar: hesabını açtın bile.
-                  child: ConstellationProgress(
-                      total: _toplamAdim + 1, lit: _adim + 1),
+                  // Takımyıldız bir resim; ekran okuyucu ilerlemeyi
+                  // "Adım 2/6" diye duymalı, yoksa kullanıcı yolun
+                  // neresinde olduğunu bilemez.
+                  child: Semantics(
+                    container: true,
+                    label: l10n.wizardStepOf(_adim + 1, _toplamAdim),
+                    // İlk yıldız yanmış başlar: hesabını açtın bile.
+                    // Sonuncusu kayıt sahnesinde yanar — takımyıldız,
+                    // harita gerçekten çizilirken tamamlanır.
+                    child: ConstellationProgress(
+                        total: _toplamAdim + 1,
+                        lit: _busy ? _toplamAdim + 1 : _adim + 1),
+                  ),
                 ),
                 const SizedBox(width: 40),
               ]),
@@ -289,7 +432,7 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
                     emoji: '🌌',
                     baslik: l10n.wizardDateTitle,
                     govde: l10n.wizardDateBody,
-                    child: _SecimSatiri(
+                    child: SecimSatiri(
                       label: l10n.birthDate,
                       value: _tarih == null
                           ? '—'
@@ -305,33 +448,18 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
                     baslik: l10n.wizardTimeTitle,
                     govde: l10n.wizardTimeBody,
                     child: Column(children: [
-                      _SecimSatiri(
+                      SecimSatiri(
                         label: l10n.birthTime,
-                        value: !_saatBiliniyor
-                            ? '—'
-                            : (_saatSecildi
-                                ? '${_saat.hour.toString().padLeft(2, '0')}:'
-                                    '${_saat.minute.toString().padLeft(2, '0')}'
-                                : '—'),
+                        // Seçilmemiş saat "—": 12:00 görünseydi kullanıcı
+                        // seçildi sanıp geçerdi (kapı zaten geçirmez ama
+                        // ekran kapıyla aynı şeyi söylemeli).
+                        value: !_saatBiliniyor ? '—' : (saatMetni(_saat) ?? '—'),
                         onTap: _saatSec,
                       ),
-                      const SizedBox(height: 12),
-                      // "Bilmiyorum" birinci sınıf, utandırmayan seçenek.
-                      // Neyin değişeceği dürüstçe söylenir; sunucu saatsiz
-                      // doğumda ev/Yükselen üretmez ve bunu beyan eder.
-                      CheckboxListTile(
-                        value: !_saatBiliniyor,
-                        onChanged: (v) => setState(
-                            () => _saatBiliniyor = !(v ?? false)),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        title: Text(l10n.birthTimeUnknown,
-                            style: RythoText.body(13.5,
-                                color: RythoColors.parchment)),
-                        subtitle: Text(l10n.wizardTimeUnknownNote,
-                            style: RythoText.body(11.5,
-                                color: RythoColors.copper)),
+                      const SizedBox(height: RythoSpace.md),
+                      SaatBilinmiyorKutusu(
+                        bilinmiyor: !_saatBiliniyor,
+                        onChanged: (v) => setState(() => _saatBiliniyor = !v),
                       ),
                     ]),
                   ),
@@ -339,12 +467,9 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
                     emoji: '🗺️',
                     baslik: l10n.wizardPlaceTitle,
                     govde: l10n.wizardPlaceBody,
-                    child: _SecimSatiri(
+                    child: SecimSatiri(
                       label: l10n.onboardingCity,
-                      value: _sehir == null
-                          ? '—'
-                          : '${_ulke == null ? '' : '${flagEmoji(_ulke!)} '}'
-                              '$_sehir',
+                      value: sehirEtiketi(_sehir, _ulke),
                       onTap: _sehirSec,
                     ),
                   ),
@@ -352,33 +477,22 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
                     emoji: '🌗',
                     baslik: l10n.wizardGenderTitle,
                     govde: l10n.wizardGenderBody,
-                    child: _CinsiyetSecimi(
+                    child: CinsiyetSecici(
                       secili: _cinsiyet,
                       onSec: (g) => setState(() => _cinsiyet = g),
                     ),
                   ),
-                  // Telefon (O4 → OT4: artık herkese): rehber
-                  // eşleşmesinin kapısı — atlanabilir, hiçbir çekirdek
-                  // özellik buna kilitlenmez (mağaza kuralı). Mevcut
-                  // PhoneVerifyScreen olduğu gibi yeniden kullanılır.
-                  _AdimSayfasi(
-                    emoji: '🤝',
-                    baslik: l10n.wizardPhoneTitle,
-                    govde: l10n.wizardPhoneBody,
-                    child: _TelefonAdimi(onVerified: () {
-                      if (mounted) setState(() {});
-                    }),
-                  ),
-                  // Bildirim izni: sürpriz sistem dialogu yerine önce
-                  // değer önerisi (kabul oranını artıran sıra). İzin
-                  // verilirse sky_screen'deki eski istem kendiliğinden
-                  // devre dışı kalır; atlanırsa oradaki tek seferlik
-                  // istem ikinci şans olarak yaşamaya devam eder.
+                  // Bildirim: sürpriz sistem diyaloğu yerine önce değer
+                  // önerisi, sonra GÖRÜNÜR karar ("Haber ver" / "Şimdi
+                  // değil"). OS'a yalnız evet'te sorulur (`_bitir`).
                   _AdimSayfasi(
                     emoji: '🔔',
                     baslik: l10n.wizardNotifyTitle,
                     govde: l10n.wizardNotifyBody,
-                    child: _BildirimAdimi(onDone: _ileri),
+                    child: IzinKapisi(
+                      secim: _bildirimSecimi,
+                      onSec: (v) => setState(() => _bildirimSecimi = v),
+                    ),
                   ),
                 ],
               ),
@@ -389,22 +503,17 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
                   // Kayıt sırasında sahne (R12-B1): harita bu esnada
                   // GERÇEKTEN hesaplanıyor — aşamalar süs değil.
                   ? StagedWaiting(
-                      stages: [
-                        l10n.onboardingStage1,
-                        l10n.onboardingStage2,
-                        l10n.onboardingStage3,
-                      ],
-                      interval: const Duration(milliseconds: 1600),
+                      stages: onboardingStages(l10n,
+                          saatBiliniyor: _saatBiliniyor),
+                      interval: kKayitAsamaAraligi,
                     )
                   : GoldButton(
-                      // Atlanabilir adımda alt düğme DÜRÜST "Sonra"dır —
-                      // asıl eylem adımın içindeki düğmede. Son adımda
-                      // yolculuk "Haritamı çiz"le biter.
+                      // Son adımda yolculuk "Haritamı çiz"le biter; diğer
+                      // adımlarda tek düğme "Devam" — "Sonra" yok, çünkü
+                      // hiçbir adım atlanmaz.
                       text: _adim == _toplamAdim - 1
                           ? l10n.wizardFinish
-                          : (_atlanabilirAdim
-                              ? l10n.wizardLater
-                              : l10n.wizardNext),
+                          : l10n.wizardNext,
                       onPressed: _ilerleyebilir ? _ileri : null,
                     ),
             ),
@@ -421,15 +530,6 @@ class _KarsilamaAdimi extends StatelessWidget {
 
   final bool riza;
   final ValueChanged<bool> onRiza;
-
-  void _ac(BuildContext context, String title, LegalSections tr,
-      LegalSections en) {
-    final ingilizce =
-        Localizations.localeOf(context).languageCode == 'en';
-    Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) =>
-            LegalPage(title: title, sections: ingilizce ? en : tr)));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -496,15 +596,13 @@ class _KarsilamaAdimi extends StatelessWidget {
                 Wrap(
                   children: [
                     TextButton(
-                      onPressed: () => _ac(context, l10n.termsOfUse,
-                          kTermsOfUseTr, kTermsOfUseEn),
+                      onPressed: () => openLegal(context, LegalDoc.terms),
                       child: Text(l10n.termsOfUse,
                           style: RythoText.body(12,
                               color: RythoColors.lilac)),
                     ),
                     TextButton(
-                      onPressed: () => _ac(context, l10n.privacyPolicy,
-                          kPrivacyPolicyTr, kPrivacyPolicyEn),
+                      onPressed: () => openLegal(context, LegalDoc.privacy),
                       child: Text(l10n.privacyPolicy,
                           style: RythoText.body(12,
                               color: RythoColors.lilac)),
@@ -527,13 +625,17 @@ class _KarsilamaAdimi extends StatelessWidget {
         // KT4: sihirbaz PopScope ile kapalı ve 0. adımda geri de yok —
         // yanlış hesapla giren kullanıcı (test cihazında sık) uygulamayı
         // silmeden çıkamıyordu. Tek çıkış kapısı burada, küçük ve sakin.
+        // Onaylı: tek dokunuş oturumu kapatıyordu; `onayliCikis`in
+        // varsayılan çıkışı `signOutEverywhere` — eski düğmenin doğrudan
+        // çağırdığı fonksiyon (cihaz kilidi, push jetonu, çakışma bayrağı
+        // orada sırayla iner).
         const SizedBox(height: 16),
         RythoReveal(
           index: sira++,
           slide: 0,
           child: Center(
             child: TextButton(
-              onPressed: signOutEverywhere,
+              onPressed: () => onayliCikis(context),
               child: Text(l10n.onboardingSwitchAccount,
                   style: RythoText.body(12.5,
                       color: RythoColors.parchmentDim)),
@@ -588,182 +690,6 @@ class _AdimSayfasi extends StatelessWidget {
         const SizedBox(height: 24),
         RythoReveal(index: sira++, slide: 0.08, child: child),
       ],
-    );
-  }
-}
-
-class _SecimSatiri extends StatelessWidget {
-  const _SecimSatiri(
-      {required this.label, required this.value, required this.onTap});
-
-  final String label;
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: RythoColors.inkLighter,
-          border: Border.all(color: RythoColors.glassStroke),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(children: [
-          // Etiket + değer `Row` + `Spacer` ile esnemiyordu: uzun etiket
-          // ("Doğum yeri") + uzun değer ("İstanbul, Türkiye") dar ekranda
-          // kalemi dışarı itiyordu. `Expanded` içindeki `Wrap` sığdığında
-          // eski görünümü verir (etiket solda, değer sağda), sığmadığında
-          // değeri alt satıra indirir; kalem satırda kalır.
-          Expanded(
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 2,
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.end,
-              children: [
-                Text(label,
-                    style:
-                        RythoText.label(12, color: RythoColors.parchmentDim)),
-                Text(value,
-                    style: RythoText.mono(15, color: RythoColors.parchment)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          const Icon(Icons.edit_outlined,
-              size: 15, color: RythoColors.lilac),
-        ]),
-      ),
-    );
-  }
-}
-
-class _CinsiyetSecimi extends StatelessWidget {
-  const _CinsiyetSecimi({required this.secili, required this.onSec});
-
-  final String secili;
-  final ValueChanged<String> onSec;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Row(children: [
-      for (final g in [
-        ('female', l10n.genderFemale),
-        ('male', l10n.genderMale),
-        ('other', l10n.genderOther),
-      ]) ...[
-        Expanded(
-          child: GestureDetector(
-            onTap: () => onSec(g.$1),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeOutCubic,
-              height: 48,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                gradient:
-                    secili == g.$1 ? RythoColors.primaryGradient : null,
-                color: secili == g.$1 ? null : RythoColors.inkLight,
-                border: Border.all(
-                    color: secili == g.$1
-                        ? Colors.white.withValues(alpha: 0.2)
-                        : RythoColors.glassStroke),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(g.$2,
-                  style: RythoText.body(14,
-                      w: FontWeight.w600,
-                      color: secili == g.$1
-                          ? Colors.white
-                          : RythoColors.parchmentDim)),
-            ),
-          ),
-        ),
-        if (g.$1 != 'other') const SizedBox(width: 8),
-      ],
-    ]);
-  }
-}
-
-/// Telefon adımı içeriği (O4): mevcut PhoneVerifyScreen'i olduğu gibi
-/// açar — doğrulama akışı TEK yerde kalır. Dönüşte durum tazelenir;
-/// doğrulanmışsa yeşil onay görünür.
-class _TelefonAdimi extends StatelessWidget {
-  const _TelefonAdimi({required this.onVerified});
-
-  final VoidCallback onVerified;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final dogrulandi =
-        FirebaseAuth.instance.currentUser?.phoneNumber != null;
-    if (dogrulandi) {
-      return Row(children: [
-        const Icon(Icons.check_circle_rounded,
-            size: 20, color: RythoColors.goldBright),
-        const SizedBox(width: 8),
-        // Onay cümlesi esnemiyordu ("Telefon numaran doğrulandı"); dar
-        // ekranda satırı taşırıyordu. `Expanded` sarmasına izin verir.
-        Expanded(
-          child: Text(l10n.wizardPhoneDone,
-              style: RythoText.body(14, w: FontWeight.w600)),
-        ),
-      ]);
-    }
-    return GoldButton(
-      text: l10n.wizardPhoneVerify,
-      onPressed: () async {
-        await Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => const PhoneVerifyScreen()));
-        onVerified();
-      },
-    );
-  }
-}
-
-/// Bildirim izni adımı içeriği (O4): sistem dialogu ancak kullanıcı
-/// değer önerisini okuyup istediğinde açılır. İzin istendiyse (sonuç ne
-/// olursa olsun) tek seferlik bayrak işaretlenir — sky_screen bir daha
-/// sormaz. Adım atlanırsa bayrak DOKUNULMAZ: oradaki istem ikinci şans.
-class _BildirimAdimi extends StatefulWidget {
-  const _BildirimAdimi({required this.onDone});
-
-  final VoidCallback onDone;
-
-  @override
-  State<_BildirimAdimi> createState() => _BildirimAdimiState();
-}
-
-class _BildirimAdimiState extends State<_BildirimAdimi> {
-  bool _busy = false;
-
-  Future<void> _izinIste() async {
-    setState(() => _busy = true);
-    try {
-      // OT3: ortak yardımcı — önce iste, bayrağı SONRA yaz (sıra tek
-      // yerde). Bitir düğmesi de aynı yardımcıyı çağırdığı için hangi
-      // yoldan çıkılırsa çıkılsın izin bir kez istenmiş olur.
-      await ensureNotificationPermissionAsked();
-    } catch (_) {
-      // İzin akışı düşerse yolculuk düşmez; sky_screen ikinci şansı verir.
-    }
-    if (mounted) widget.onDone();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return GoldButton(
-      text: l10n.wizardNotifyAllow,
-      busy: _busy,
-      onPressed: _busy ? null : _izinIste,
     );
   }
 }

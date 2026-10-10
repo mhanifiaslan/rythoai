@@ -5,8 +5,10 @@
 // sıfırlamadan çıkarıyordu. Yeni sözleşme: (1) geri tuşu geçmez; (2) metinler
 // l10n'dan, diğer cihazın platformu ve YEREL saati gövdede; (3) "Bu cihazda
 // kullan" kimlikli claim → başarıda kapı açılır ve 409'la düşmüş Rytho+
-// sağlayıcıları tazelenir, başarısızlıkta SÖYLENİR; (4) "Çıkış yap" çıkış
-// yoluna gider, claim atmaz.
+// sağlayıcıları tazelenir, başarısızlıkta SÖYLENİR; (4) "Oturumu kapat"
+// (profildeki çıkışla AYNI anahtar `signOut`, D4) çıkış yoluna gider, claim
+// atmaz; (5) diğer cihaz bilgisi hiç yoksa gövde "—" tireleriyle değil
+// bilgisiz cümleyle (`deviceConflictBodyUnknown`) kurulur.
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -164,16 +166,35 @@ void main() {
     expect(find.text(l10n.deviceConflictBody('Android', saat)), findsOneWidget,
         reason: 'kullanıcı hangi cihazın ne zaman aldığını görmeli');
     expect(find.text(l10n.deviceConflictUseHere), findsOneWidget);
-    expect(find.text(l10n.deviceConflictSignOut), findsOneWidget);
+    expect(find.text(l10n.signOut), findsOneWidget,
+        reason: 'profildeki çıkışla AYNI anahtar; "Çıkış yap" ikiliği bitti');
     expect(find.byType(SnackBar), findsNothing);
   });
 
-  testWidgets('diğer cihaz bilgisi yoksa "—" — kapı yine kapalı',
-      (tester) async {
+  testWidgets('diğer cihaz bilgisi yoksa gövde BİLGİSİZ cümle, "—" tireleri '
+      'yok — kapı yine kapalı', (tester) async {
     await tester.pumpWidget(_sar(
         _kap(_SahteAdapter(), _Sayac(), cakisma: const DeviceConflict()),
         const DeviceConflictScreen()));
-    expect(find.text(_tr().deviceConflictBody('—', '—')), findsOneWidget);
+    final l10n = _tr();
+    expect(find.text(l10n.deviceConflictBodyUnknown), findsOneWidget,
+        reason: '"— cihazında — saatinde" diye okunuyordu; bilinmeyen '
+            'söylenmez');
+    expect(find.text(l10n.deviceConflictBody('—', '—')), findsNothing);
+    expect(find.text(l10n.deviceConflictUseHere), findsOneWidget,
+        reason: 'bilgi yok diye kapı açılmaz');
+  });
+
+  testWidgets('yalnız saat bilinmiyorsa ÖLÇÜLEN platform atılmaz',
+      (tester) async {
+    await tester.pumpWidget(_sar(
+        _kap(_SahteAdapter(), _Sayac(),
+            cakisma: const DeviceConflict(platform: 'android')),
+        const DeviceConflictScreen()));
+    final l10n = _tr();
+    expect(find.text(l10n.deviceConflictBody('Android', '—')), findsOneWidget,
+        reason: 'bilgisiz cümleye düşmek eldeki platformu atardı');
+    expect(find.text(l10n.deviceConflictBodyUnknown), findsNothing);
   });
 
   testWidgets('"Bu cihazda kullan": kimlikli POST /device/claim → kapı açılır, '
@@ -228,14 +249,15 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('"Çıkış yap" → çıkış kancası; claim atılmaz', (tester) async {
+  testWidgets('"Oturumu kapat" → çıkış kancası; claim atılmaz',
+      (tester) async {
     var cikis = 0;
     final adapter = _SahteAdapter();
     final kap = _kap(adapter, _Sayac());
     await tester.pumpWidget(
         _sar(kap, DeviceConflictScreen(signOut: () async => cikis++)));
 
-    await _dokun(tester, _tr().deviceConflictSignOut);
+    await _dokun(tester, _tr().signOut);
 
     expect(cikis, 1);
     expect(adapter.istekler, isEmpty);

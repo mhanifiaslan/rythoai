@@ -10,7 +10,10 @@
 ///   409 ile düşmüş Rytho+ sağlayıcıları tazelenir (eski hata önbellekte
 ///   kalmasın). Eski ekranın tek eylemi "giriş ekranına dön"dü ve devralma
 ///   oturum kapalı olduğu için 401'e çarpıyordu (B4).
-/// * **Çıkış yap** → [signOutEverywhere]: kilit bırakılır, oturum kapanır.
+/// * **Oturumu kapat** → [signOutEverywhere]: kilit bırakılır, oturum
+///   kapanır. Etiket profildeki çıkışla AYNI anahtar (`signOut`): eskiden
+///   burada "Çıkış yap", profilde "Oturumu kapat" yazıyordu — aynı eylem,
+///   iki ad (D4).
 ///
 /// Geri tuşu geçmez ([PopScope] `canPop: false`): kök rotada geri tuşu
 /// uygulamayı arka plana atıp "kapı geçildi" hissi verirdi.
@@ -99,6 +102,20 @@ class _DeviceConflictScreenState extends ConsumerState<DeviceConflictScreen> {
     return DateFormat('d MMMM HH:mm', dil).format(t.toLocal());
   }
 
+  /// Gövde cümlesi. İki başlık da (platform + saat) gelmediyse boşlukları
+  /// "—" ile doldurmak "— cihazında — saatinde" gibi okunuyordu; bilinmeyen
+  /// şey söylenmez, cümle bilgisiz hâline düşer. Yalnız biri biliniyorsa
+  /// ölçülen bilgi atılmaz, eksik olan "—" kalır.
+  String _govde(BuildContext context, AppLocalizations l10n,
+      DeviceConflict? cakisma) {
+    final platform = cakisma?.platform;
+    final saat = _yerelSaat(context, cakisma?.claimedAt);
+    if ((platform == null || platform.isEmpty) && saat == null) {
+      return l10n.deviceConflictBodyUnknown;
+    }
+    return l10n.deviceConflictBody(platformEtiketi(platform), saat ?? '—');
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -131,11 +148,7 @@ class _DeviceConflictScreenState extends ConsumerState<DeviceConflictScreen> {
                 const SizedBox(height: RythoSpace.md),
                 RythoReveal(
                   index: 2,
-                  child: Text(
-                      l10n.deviceConflictBody(
-                        platformEtiketi(cakisma?.platform),
-                        _yerelSaat(context, cakisma?.claimedAt) ?? '—',
-                      ),
+                  child: Text(_govde(context, l10n, cakisma),
                       style: RythoType.bodyDim,
                       textAlign: TextAlign.center),
                 ),
@@ -154,7 +167,7 @@ class _DeviceConflictScreenState extends ConsumerState<DeviceConflictScreen> {
                   child: Center(
                     child: TextButton(
                       onPressed: _mesgul ? null : _cikisYap,
-                      child: Text(l10n.deviceConflictSignOut,
+                      child: Text(l10n.signOut,
                           style: RythoText.body(13,
                               color: RythoColors.parchmentDim)),
                     ),

@@ -74,10 +74,13 @@ Future<void> onayliCikis(
 }) async {
   if (onay) {
     final l10n = AppLocalizations.of(context);
+    // Başlık ve onay düğmesi aynı sözcük: "Oturumu kapat". Eskiden düğme
+    // cihaz çakışma ekranının "Çıkış yap"ını ödünç alıyordu — aynı eylem
+    // iki ekranda iki adla anılıyordu (D4: TEK anahtar `signOut`).
     final tamam = await onayla(
       context,
       title: l10n.signOut,
-      confirmLabel: l10n.deviceConflictSignOut,
+      confirmLabel: l10n.signOut,
     );
     if (!tamam) return;
   }

@@ -112,21 +112,12 @@ class CinsiyetSecici extends StatelessWidget {
         l10n.genderFemale,
         l10n.genderMale,
         l10n.genderOther,
-        _belirtilmedi(context),
+        l10n.genderUnspecified,
       ],
       index: i < 0 ? null : i,
       onChanged: (j) => onSec(degerler[j]),
     );
   }
-
-  /// ARB'de `unspecified` için anahtar yok (ölçüldü 2026-10-10:
-  /// genderFemale/Male/Other var, dördüncüsü yok). ARB bu turun dosyası
-  /// değil; `ErrorCard`ın dil dalı emsaliyle köprülendi — anahtar gelince
-  /// bu fonksiyon silinir.
-  static String _belirtilmedi(BuildContext context) =>
-      Localizations.localeOf(context).languageCode == 'en'
-          ? 'Not specified'
-          : 'Belirtmedim';
 }
 
 /// "Doğum saatimi bilmiyorum" kutusu; işaretliyken sonucu söyler.

@@ -24,11 +24,12 @@ import '../theme/rytho_theme.dart';
 import '../theme/rytho_tokens.dart';
 import 'glass.dart' show GlassSegments;
 
-/// İki seçenekli izin sorusu: "Haber ver" / "Sonra".
+/// İki seçenekli izin sorusu: "Haber ver" / "Şimdi değil".
 ///
-/// Etiketler mevcut ARB anahtarlarından (`wizardNotifyAllow`,
-/// `wizardLater`); "Şimdi değil" için ayrı anahtar yok (ölçüldü
-/// 2026-10-10) ve ARB bu turun dosyası değil.
+/// İkinci etiket "Sonra" DEĞİL: "Sonra" alt düğmenin, yani adımı ATLAMANIN
+/// diliydi. Burada atlama yok, görünür bir karar var — "şimdi değil"
+/// kullanıcının kendi kararı; OS'a sorulmaz, bayrak yazılmaz ve ana
+/// ekrandaki ikinci şans yaşar (`wizardNotifyNotNow`, D4).
 class IzinKapisi extends StatelessWidget {
   const IzinKapisi({
     super.key,
@@ -57,7 +58,7 @@ class IzinKapisi extends StatelessWidget {
         Text(aciklama ?? l10n.notifyDailyBody, style: RythoType.bodyDim),
         const SizedBox(height: RythoSpace.md),
         GlassSegments(
-          labels: [l10n.wizardNotifyAllow, l10n.wizardLater],
+          labels: [l10n.wizardNotifyAllow, l10n.wizardNotifyNotNow],
           index: s == null ? null : (s ? 0 : 1),
           onChanged: (i) => onSec(i == 0),
         ),

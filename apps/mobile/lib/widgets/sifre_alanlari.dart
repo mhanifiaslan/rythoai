@@ -9,6 +9,11 @@
 /// yakalanmıyordu — kullanıcı yeni şifresini bir kez yanlış yazınca
 /// hesabından düşüyordu. Kural `validatePassword` (core/auth_service.dart)
 /// ile tek yerde; burada yalnız görünümü var.
+///
+/// GİRİŞ alanı da bu bileşenden ama [SifreAlanlari.kuralDayat] kapalı:
+/// eski hesapların şifresi bugünkü kurala uymayabilir ve kendi kuralımız
+/// yüzünden kimseyi kendi hesabından dışarıda bırakamayız (sahip uyarısı,
+/// D4). Kural yalnız YENİ şifre belirlenen yerlerde (kayıt, değiştirme).
 library;
 
 import 'package:flutter/material.dart';
@@ -24,6 +29,8 @@ class SifreAlanlari extends StatefulWidget {
     required this.sifre,
     this.tekrar,
     this.tekrarIste = true,
+    this.kuralDayat = true,
+    this.odak,
     this.onSubmitted,
   });
 
@@ -35,6 +42,16 @@ class SifreAlanlari extends StatefulWidget {
 
   /// `false` → yalnız tek alan (giriş gibi tekrar istemeyen yerler).
   final bool tekrarIste;
+
+  /// `false` → GİRİŞ alanı: kural ipucu yok, `validatePassword` koşmaz,
+  /// yalnız boş alan reddedilir; otomatik doldurma ipucu da "mevcut şifre"
+  /// olur (yeni şifre ipucu şifre yöneticisine "güçlü şifre öner" dedirtir
+  /// ve giriş yapmak isteyeni yanıltır).
+  final bool kuralDayat;
+
+  /// Şifre alanının odağı — e-posta alanından klavye "Sonraki" ile buraya
+  /// atlanabilsin diye dışarıdan verilir; verilmezse Flutter kendi kurar.
+  final FocusNode? odak;
 
   /// Son alanda klavyeden "bitti" basılınca.
   final VoidCallback? onSubmitted;
@@ -67,19 +84,24 @@ class _SifreAlanlariState extends State<SifreAlanlari> {
       children: [
         TextFormField(
           controller: widget.sifre,
+          focusNode: widget.odak,
           style: RythoType.body,
           obscureText: _gizli,
           autocorrect: false,
           enableSuggestions: false,
           textInputAction:
               widget.tekrarIste ? TextInputAction.next : TextInputAction.done,
-          autofillHints: const [AutofillHints.newPassword],
+          autofillHints: [
+            widget.kuralDayat
+                ? AutofillHints.newPassword
+                : AutofillHints.password,
+          ],
           onFieldSubmitted: (_) => widget.tekrarIste
               ? _tekrarOdak.requestFocus()
               : widget.onSubmitted?.call(),
           decoration: InputDecoration(
             labelText: l10n.password,
-            helperText: l10n.passwordRuleHint,
+            helperText: widget.kuralDayat ? l10n.passwordRuleHint : null,
             helperStyle: RythoType.caption,
             suffixIcon: _GozDugmesi(
               gizli: _gizli,
@@ -87,10 +109,16 @@ class _SifreAlanlariState extends State<SifreAlanlari> {
               onTap: () => setState(() => _gizli = !_gizli),
             ),
           ),
-          validator: (v) => switch (validatePassword(v ?? '')) {
-            PasswordIssue.tooShort => l10n.passwordTooShort,
-            PasswordIssue.tooSimple => l10n.passwordTooSimple,
-            null => null,
+          validator: (v) {
+            final deger = v ?? '';
+            if (!widget.kuralDayat) {
+              return deger.isEmpty ? l10n.passwordTooShort : null;
+            }
+            return switch (validatePassword(deger)) {
+              PasswordIssue.tooShort => l10n.passwordTooShort,
+              PasswordIssue.tooSimple => l10n.passwordTooSimple,
+              null => null,
+            };
           },
         ),
         if (widget.tekrarIste) ...[

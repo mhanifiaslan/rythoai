@@ -137,7 +137,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         style: RythoText.body(15),
         onSubmitted: (_) => _busy ? null : _send(),
         decoration: InputDecoration(
-          hintText: 'ornek@eposta.com',
+          // Sabit 'ornek@eposta.com' İngilizce arayüzde Türkçe kalıyordu;
+          // örnek adres de kullanıcıya görünen metin, sözlükten gelir.
+          hintText: l10n.emailHint,
           errorText: _error,
           hintStyle: RythoText.body(15, color: RythoColors.parchmentDim),
         ),

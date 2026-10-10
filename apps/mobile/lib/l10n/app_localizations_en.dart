@@ -57,11 +57,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Place decides how the sky stood from where you were — what was rising on your horizon?';
 
   @override
-  String get wizardGenderTitle => 'One last touch';
+  String get wizardGenderTitle => 'One detail for BaZi';
 
   @override
   String get wizardGenderBody =>
-      'BaZi (Four Pillars) directs its luck cycles by gender.';
+      'BaZi (Four Pillars) takes the direction of its luck cycles from gender. If you don’t specify, that direction isn’t computed; everything else stays the same.';
 
   @override
   String get wizardNext => 'Continue ✦';
@@ -94,6 +94,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wizardNotifyAllow => 'Notify me 🔔';
+
+  @override
+  String get genderUnspecified => 'Not specified';
+
+  @override
+  String get wizardNotifyNotNow => 'Not now';
+
+  @override
+  String wizardStepOf(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
+  String get deviceConflictBodyUnknown =>
+      'You signed in on another device. Rytho+ works on one device at a time — tap \"Use on this device\" to continue here.';
+
+  @override
+  String get emailHint => 'name@example.com';
 
   @override
   String get countrySearchHint => 'Search for a country…';

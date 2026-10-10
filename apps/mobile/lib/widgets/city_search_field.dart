@@ -11,10 +11,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/api.dart' show friendlyError;
 import '../core/city_directory.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
 import '../theme/rytho_tokens.dart';
+import '../widgets/common.dart' show ErrorCard;
 import '../widgets/fade_through_route.dart';
 
 /// ISO-2 ülke kodundan bayrak emojisi ("TR" → 🇹🇷) — asset yok.
@@ -30,17 +32,27 @@ String flagEmoji(String iso2) {
 ///
 /// Serbest metin kaçışında `CityPick(nation: '', admin1: '')` döner —
 /// çağıran boş nation'ı "bilinmiyor" diye yazar (birthNation silinir).
-Future<CityPick?> showCitySearch(BuildContext context,
-    {String? initialQuery}) {
+///
+/// [yukle] test dikişi; üretimde [CityDirectory.load]. NEDEN: dizinin
+/// düşmesi (varlık okunamadı, ayrıştırma hatası) ancak yükleyici
+/// düşürülebilirse ölçülür; gerçek yükleyici isolate'ta koşar ve testte
+/// düşürülemez.
+Future<CityPick?> showCitySearch(
+  BuildContext context, {
+  String? initialQuery,
+  @visibleForTesting Future<CityDirectory> Function() yukle = CityDirectory.load,
+}) {
   return Navigator.of(context).push<CityPick>(FadeThroughRoute(
-    builder: (_) => _CitySearchScreen(initialQuery: initialQuery ?? ''),
+    builder: (_) =>
+        _CitySearchScreen(initialQuery: initialQuery ?? '', yukle: yukle),
   ));
 }
 
 class _CitySearchScreen extends StatefulWidget {
-  const _CitySearchScreen({required this.initialQuery});
+  const _CitySearchScreen({required this.initialQuery, required this.yukle});
 
   final String initialQuery;
+  final Future<CityDirectory> Function() yukle;
 
   @override
   State<_CitySearchScreen> createState() => _CitySearchScreenState();
@@ -50,17 +62,38 @@ class _CitySearchScreenState extends State<_CitySearchScreen> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.initialQuery);
   CityDirectory? _dizin;
+
+  /// Dizin yüklemesi düştüyse sebebi; null = düşmedi (ya da henüz
+  /// yükleniyor — ikisini `_dizin` ayırır).
+  Object? _hata;
   List<CityPick> _sonuclar = const [];
   Timer? _bekletme;
 
   @override
   void initState() {
     super.initState();
-    CityDirectory.load().then((d) {
+    _yukle();
+  }
+
+  /// Dizini yükler; düşerse hata kartı, kart "Tekrar dene" ile buraya
+  /// döner.
+  ///
+  /// NEDEN: eski kod yalnız `then` bağlıyordu — yükleme düşünce `_dizin`
+  /// sonsuza dek null kalıyor, ekran sonsuz spinner gösteriyordu ve
+  /// kullanıcının ne hatayı görmesi ne de yeniden denemesi mümkündü.
+  /// Sihirbazın şehir adımı bu ekrana kilitli: spinner "takıldı" demek,
+  /// kurulum yarım demek.
+  Future<void> _yukle() async {
+    if (_hata != null) setState(() => _hata = null);
+    try {
+      final d = await widget.yukle();
       if (!mounted) return;
       setState(() => _dizin = d);
       _ara(_controller.text);
-    });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _hata = e);
+    }
   }
 
   @override
@@ -100,7 +133,18 @@ class _CitySearchScreenState extends State<_CitySearchScreen> {
           ),
         ),
       ),
-      body: _dizin == null
+      // Üç hâl: hata → kart (sebep + tekrar dene), yükleniyor → spinner,
+      // hazır → liste. Spinner YALNIZ yüklenirken: hata hâlinde dönmeye
+      // devam etseydi kullanıcı beklemeye devam ederdi.
+      body: _hata != null
+          ? Padding(
+              padding: const EdgeInsets.all(RythoSpace.lg),
+              child: ErrorCard(
+                message: friendlyError(_hata!, l10n),
+                onRetry: _yukle,
+              ),
+            )
+          : _dizin == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               keyboardDismissBehavior:

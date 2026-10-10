@@ -294,7 +294,7 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
               const SizedBox(height: RythoSpace.sm),
               _Header(
                 greeting: _greeting(l10n),
-                name: profile['displayName'] ?? 'Gezgin',
+                name: profile['displayName'] ?? l10n.defaultUserName,
                 photoUrl: profile['photoUrl'],
                 onAvatarTap: () =>
                     ref.read(shellTabProvider.notifier).state = 3,

@@ -97,4 +97,61 @@ void main() {
     expect(find.byType(TextFormField), findsOneWidget);
     expect(find.text(_tr.passwordRepeat), findsNothing);
   });
+
+  group('kuralDayat: false — GİRİŞ alanı (D4, sahip uyarısı)', () {
+    testWidgets('kural ipucu YOK; zayıf şifre GEÇER; boş şifre geçmez',
+        (tester) async {
+      // Eski hesapların şifresi bugünkü kurala uymayabilir; girişte kural
+      // dayatmak kullanıcıyı kendi hesabından dışarıda bırakır.
+      final form = GlobalKey<FormState>();
+      final sifre = TextEditingController(text: '1234');
+      await tester.pumpWidget(_sar(Form(
+          key: form,
+          child: SifreAlanlari(
+              sifre: sifre, tekrarIste: false, kuralDayat: false))));
+
+      expect(find.text(_tr.passwordRuleHint), findsNothing,
+          reason: 'girişte kural metni basılmaz');
+      expect(form.currentState!.validate(), isTrue,
+          reason: 'girişte validatePassword çağrılmamalı');
+      await tester.pump();
+      expect(find.text(_tr.passwordTooShort), findsNothing);
+      expect(find.text(_tr.passwordTooSimple), findsNothing);
+
+      sifre.text = '';
+      await tester.pump();
+      expect(form.currentState!.validate(), isFalse,
+          reason: 'boş alan yine reddedilir');
+    });
+
+    testWidgets('otomatik doldurma: girişte MEVCUT şifre, kayıtta YENİ şifre',
+        (tester) async {
+      // Yeni-şifre ipucu şifre yöneticisine "güçlü şifre öner" dedirtir ve
+      // giriş yapmak isteyeni yanıltır.
+      await tester.pumpWidget(_sar(SifreAlanlari(
+          sifre: TextEditingController(),
+          tekrarIste: false,
+          kuralDayat: false)));
+      expect(tester.widget<TextField>(find.byType(TextField)).autofillHints,
+          [AutofillHints.password]);
+
+      await tester.pumpWidget(_sar(
+          SifreAlanlari(sifre: TextEditingController(), tekrarIste: false)));
+      expect(tester.widget<TextField>(find.byType(TextField)).autofillHints,
+          [AutofillHints.newPassword]);
+    });
+
+    testWidgets('odak dışarıdan verilir: e-posta → "Sonraki" zinciri için',
+        (tester) async {
+      final odak = FocusNode();
+      addTearDown(odak.dispose);
+      await tester.pumpWidget(_sar(SifreAlanlari(
+          sifre: TextEditingController(),
+          tekrarIste: false,
+          kuralDayat: false,
+          odak: odak)));
+      expect(tester.widget<TextField>(find.byType(TextField)).focusNode,
+          same(odak));
+    });
+  });
 }
