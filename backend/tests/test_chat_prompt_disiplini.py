@@ -696,3 +696,81 @@ def test_tr_ve_en_ayni_disiplinde():
         for ad in ("CHAT_SYSTEM_INSTRUCTION", "WHISPER_MEMORY",
                    "WHISPER_RELATIONSHIP", "WHISPER_CHART", "SYNASTRY"):
             assert getattr(p, ad, "").strip(), f"{dil}: {ad} boş"
+# ---------------------------------------------------------------------------
+# 9. Yetki alanı (P-turu): Rytho astrolog-yoldaş, genel asistan DEĞİL
+# ---------------------------------------------------------------------------
+#
+# Üretimde ölçüldü (2026-10-10, konuşma ssFpW7dgpeHkD37GGLwj): model
+# kullanıcının sunumunu tasarlamayı KENDİLİĞİNDEN teklif etti, istenince
+# "taslak hazırlayabilirim, hangi konuda … anlatman yeterli" dedi.
+# Persona'da yetki alanını sınırlayan tek cümle yoktu. Blok "ASLA
+# YAPMA"dan önce durur; her çapa diyakritik katlanmış ve birden çok
+# bağımsız işaret istiyor.
+
+def _yetki_blogu(dil: str) -> str:
+    """YETKİ ALANI bloğunun kendisi (başlıktan yasak listesine kadar)."""
+    # Satır kırılımları boşluğa iner: çapalar cümle, satır değil.
+    ham = re.sub(r"\s+", " ", _katla(_sohbet(dil)))
+    baslik = "YETKI ALANIN" if dil == "tr" else "YOUR DOMAIN"
+    yasak = "ASLA YAPMA:" if dil == "tr" else "NEVER:"
+    bas, son = ham.find(baslik), ham.find(yasak)
+    assert bas >= 0, f"{dil}: yetki alanı bloğu yok"
+    assert son > bas, f"{dil}: yetki alanı bloğu yasak listesinden ÖNCE olmalı"
+    return ham[bas:son]
+
+
+@pytest.mark.parametrize("dil", DILLER)
+def test_yetki_alani_blogu_var(dil):
+    blok = _yetki_blogu(dil)
+    if dil == "tr":
+        assert "genel amacli asistan" in blok
+        assert re.search(r"\bDEGILSIN\b", blok)
+    else:
+        assert "NOT a general assistant" in blok
+
+
+@pytest.mark.parametrize("dil", DILLER)
+def test_gorev_listesi_sunum_odev_kod(dil):
+    blok = _yetki_blogu(dil)
+    kelimeler = (("sunum", "odev", "kod") if dil == "tr"
+                 else ("presentation", "homework", "code"))
+    for k in kelimeler:
+        assert re.search(rf"\b{k}\b", blok), f"{dil}: görev listesinde {k} yok"
+
+
+@pytest.mark.parametrize("dil", DILLER)
+def test_kendiliginden_teklif_yasak(dil):
+    blok = _yetki_blogu(dil)
+    if dil == "tr":
+        assert "KENDILIGINDEN TEKLIF ETME" in blok
+        assert "YASAK" in blok
+    else:
+        assert "never OFFER them unprompted" in blok
+        assert "FORBIDDEN" in blok
+
+
+@pytest.mark.parametrize("dil", DILLER)
+def test_ucuncu_kisi_cevreme_yonlendirir(dil):
+    """Sohbet hesaplamaz; sohbete yazılan doğum tarihinden harita çıkmaz."""
+    blok = _yetki_blogu(dil)
+    if dil == "tr":
+        assert "Cevrem'e ekle" in blok
+        assert "hesaplamaz" in blok
+    else:
+        assert "add them in Circle" in blok
+        assert "calculates nothing" in blok
+
+
+@pytest.mark.parametrize("dil", DILLER)
+def test_cekince_yalniz_sorulunca_tek_cumle(dil):
+    """Sorulmadan "tavsiye veremem" demek kusur; sınır eylemde, cümlede
+    değil."""
+    blok = _yetki_blogu(dil)
+    if dil == "tr":
+        assert "yalniz dogrudan sorulunca" in blok
+        assert "tek cumle" in blok
+        assert re.search(r'"tavsiye veremem" cumlesi KURMA', blok)
+    else:
+        assert "only when asked directly" in blok
+        assert "one sentence" in blok
+        assert re.search(r"no \"I can't advise\" sentence", blok)

@@ -14,6 +14,26 @@ soruyu cevaplamaktan daha büyük bir hata olur.
 İki işaret ayrı ayrı arandığı için sıraları önemli değil: "hastalığım geçecek
 mi" ile "geçecek mi acaba hastalığım" aynı şekilde yakalanır.
 
+**Konu kalıpları KELİME SINIRINA bağlıdır, alt dize eşleşmesi DEĞİL.** Kapı
+bir tur boyunca alt dizeyle çalıştı ve bedeli ölçüldü (2026-10-10): "Bugün
+çok kötü **hisse**diyorum, geçecek mi?" finans reddi yedi; "Bu transitin
+**altın**da ne zaman rahatlarım?" finans; "Sunumu yetiştirirsem mutlu
+**olurum**, ne yapmalıyım?" ölüm; "I'm **sick** of my job, will it change?"
+sağlık. Dördü de sıradan sohbet cümlesi ve dördü de kullanıcıya "bu konuda
+konuşamam" dedi — yani SORULMAMIŞ bir çekince. Sahibin "alakasız yere maddi
+konularda tavsiye veremem diyor" şikâyetinin kaynağı buydu. Engellenen
+turlar arşive yazılmadığı için 498 mesajlık korpusta kayıtlı engel SIFIRDI;
+kusur yalnız ekranda görüldü. Türkçe ek aldığı için `\\b` tek başına yetmez:
+her kalıp KAPALI bir ek listesiyle yazılır (`hisse` + ler/si/yi… ama
+`hisse` + `diyorum` DEĞİL). Bekçisi
+`test_safety_rules.py::test_kaliplar_tuzak_kelimelere_takilmaz`.
+
+**Katlamanın sakladığı bir çakışma:** "ölür müyüm" ASCII'ye katlanınca "olur
+muyum" ("will I become") ile AYNI dizeye düşer ve "zengin olur muyum" bir
+ölüm sorusu değildir. Bu yüzden o kalıp katlanMAMIŞ (aksanlı) metinde aranır
+(`konu_aksanli`). Aksansız yazan kullanıcı için cümle gerçekten belirsizdir
+ve kapı belirsizlikte GEÇİRİR — ikinci hat persona talimatıdır.
+
 **Kapı her dilde kurulur ve mesaj TÜM dillerin kalıplarına karşı sınanır.**
 Kalıplar yalnızca Türkçe olsaydı, uygulamayı İngilizce kullanan biri için
 kapı hiç var olmazdı ("will my cancer get better?" doğrudan modele giderdi) —
@@ -23,6 +43,12 @@ bağımsızdır; kullanıcıya dönen yanıt onun dilindedir.
 Konu ile talep işaretinin **aynı dilden** olması gerekir: diller arası eşleşme
 (Türkçe konu + İngilizce talep) gerçek bir cümlede neredeyse hiç oluşmaz ama
 yanlış pozitif üretebilir.
+
+**Ret metni bir sınır beyanıdır, "tavsiye veremem" refleksi değil.** Ürün bir
+lifestyle uygulaması ve Rytho bilge, dost canlısı bir astrolog: yetkin
+olduğu alanı söyler ("benim alanım haritan") ve haritaya köprü kurar
+("istersen bu dönemin temalarına bakalım"). Kapı DAR kaldığı için bu metin
+yalnız gerçekten sorulduğunda görünür.
 
 İkinci savunma hattı persona talimatıdır (gemini_service); bu kapı yalnızca en
 maliyetli hataları keser.
@@ -36,7 +62,11 @@ from core.i18n import DEFAULT, SUPPORTED
 #: Türkçe soru eki, çekimli biçimleriyle: mı, mıyım, mısın, mıyız, mısınız...
 #: Sadece "mı" aramak yetmiyor ("bırakmalı mıyım" yakalanmıyordu); sonuna
 #: `\w{0,4}` koymak da "mimar" gibi kelimeleri yanlışlıkla yakalıyor.
-_SORU_TR = r"m[iuü](?:y[iuü]m|s[iuü]n(?:[iuü]z)?|y[iuü]z)?\b"
+#: BAŞTAKİ `\b` şart: ek ayrı yazılır ("geçecek mi") ve sınırsız hâli
+#: "kendi**mi**", "is**mi**", "res**mi**", "eli**mi**" gibi kelimelerin
+#: sonuna takılıyordu — "Kendimi hasta hissediyorum" bir talep değil, duygu
+#: paylaşımı; ölçüldü, kapı onu talep sayıp engelliyordu.
+_SORU_TR = r"\bm[iuü](?:y[iuü]m|s[iuü]n(?:[iuü]z)?|y[iuü]z)?\b"
 
 #: Cevap/öngörü talebi işaretleri, dile göre. Biri YOKSA mesaj engellenmez.
 _TALEP: dict[str, re.Pattern[str]] = {
@@ -65,14 +95,77 @@ class _Rule:
 
     ``konu`` ve ``yanit`` sözlükleri dil koduyla anahtarlanır. Bir dil için
     konu kalıbı tanımlanmamışsa o dilde bu kural sınanmaz.
+
+    ``konu_aksanli`` (isteğe bağlı): katlanMAMIŞ metinde aranan kalıplar.
+    Tek kullanım yeri ölüm kuralındaki "ölür müyüm" — katlanınca "olur
+    muyum" ile çakışıyor (modül docstring'i).
     """
 
     def __init__(self, kategori: str, konu: dict[str, str],
-                 yanit: dict[str, str]):
+                 yanit: dict[str, str],
+                 konu_aksanli: dict[str, str] | None = None):
         self.kategori = kategori
         self.konu = {dil: re.compile(kalip, re.IGNORECASE)
                      for dil, kalip in konu.items()}
+        self.konu_aksanli = {dil: re.compile(kalip, re.IGNORECASE)
+                             for dil, kalip in (konu_aksanli or {}).items()}
         self.yanit = yanit
+
+
+#: Türkçe AD eklerinin KAPALI listesi (çoğul + iyelik + hâl birleşimleri).
+#: `\w*` DEĞİL: "hisse\w*" "hissediyorum"u, "altin\w*" "altında"yı yakalar.
+#: Liste kapalı olduğu için fiil gövdeleri (hisse-t, hisse-d) dışarıda kalır;
+#: iki ünlü uyumu da var ("hisse-leri-mi" / "euro-ları-mı") — tek harmoni
+#: "Eurolarımı satsam mı"yı kaçırıyordu (ölçüldü).
+#: "hisse" + "diyorum" hiçbir ekle eşleşmez ve `\b` düşer.
+_EK = (r"(?:ler|leri|lerim|lerimi|lerin|lerini|lerde|lerden|lerle"
+       r"|lar|lari|larim|larimi|larin|larini|larda|lardan|larla"
+       r"|si|sini|sine|sinde|sinden|su|sunu|suna"
+       r"|yi|ye|ya|yu|yla|yle|de|da|den|dan|le|la"
+       r"|m|mi|n|ni|nin|niz|nizi|im|imi|in|ini|um|umu|un|unu|u|i|a|e)?")
+
+#: Altın bir ARAÇ değil, önce bir kelime: "altın gibi fırsat", "altın kalpli",
+#: "altın yıllar" ve en sinsisi "altında/altına" (under). Çıplak `altin`
+#: kalıbı bunların hepsini finans reddine çeviriyordu. Kalıp alım-satım
+#: BAĞLAMINA daraltıldı: "altın al/sat/fiyat/kur/yüksel/düş…" ya da
+#: "gram/çeyrek/külçe altın". Ek listesi `_EK` DEĞİL: "altına"/"altını"
+#: (under it) ile çakıştığı için tekil hâl ekleri bilerek yok.
+_ALTIN_TR = (r"\baltin(?:lar|lari|larimi|larim|larini|im|imi)?"
+             r" (?:al|sat|fiyat|kur|gram|ons|yatirim|bozdur|biriktir"
+             r"|yuksel|dus)"
+             r"|\b(?:gram|ceyrek|yarim|tam|cumhuriyet|kulce) altin")
+
+#: İngilizce "Cancer" aynı zamanda bir BURÇ — bu bir astroloji uygulaması ve
+#: "I'm a Cancer, will this week be good?" en sıradan soru. Çıplak `cancer`
+#: onu sağlık reddine çeviriyordu. Kalıp hastalık bağlamına daraltıldı
+#: ("my cancer" burç sözcüğü izlemiyorsa, "have cancer", "breast cancer",
+#: "cancer treatment"…).
+_ZODYAK_IZLEYEN_EN = (r"(?! (?:sun|moon|rising|ascendant|asc|season|sign"
+                      r"|man|woman|men|women|guy|girl|placement|energy"
+                      r"|stellium|venus|mars|mercury|jupiter|saturn|north"
+                      r"|south|and|or|with|compatib|friend|partner"
+                      r"|boyfriend|girlfriend|ex|husband|wife)\b)")
+_KANSER_EN = (rf"\bmy cancer\b{_ZODYAK_IZLEYEN_EN}"
+              r"|\b(?:have|has|had|got|beat|survive|surviving|fight"
+              r"|fighting|cure|curing) cancer\b"
+              r"|\bcancer (?:treatment|diagnos|patient|surgery|cure|stage"
+              r"|spread|return|come back|comes back|came back|get better"
+              r"|gets better|get worse|be cured|go away|goes away|kill"
+              r"|free|cells?|screening|test|scan|risk)"
+              r"|\b(?:breast|lung|skin|prostate|colon|bowel|brain|blood"
+              r"|bone|liver|stomach|cervical|ovarian|thyroid|pancreatic"
+              r"|testicular|bladder|kidney|throat|mouth|oral|rectal) cancer\b"
+              r"|\bcancerous\b")
+
+#: "ill" mesajlaşmada çoğu zaman kesme işaretsiz "I'll"dir ("ill be fine,
+#: will it work out?"). Bir fiil izliyorsa hastalık değil, gelecek zaman.
+_ILL_EN = (r"\bill\b(?! (?:be|do|go|get|try|see|have|make|take|call|ask"
+           r"|let|just|never|always|probably|definitely|not|wait|check"
+           r"|send|text|come|keep|stay|start|stop|look|find|give|tell|talk"
+           r"|think|need|want|say|write|buy|sell|pay|work|leave|move|meet"
+           r"|put|bring|show|help|miss|pass|hold|sleep|pick|turn|lose|know"
+           r"|feel|cry|sit|stand|fall|change|end|finish|manage|deal|forget"
+           r"|remember|decide|choose|hope)\b)")
 
 
 #: Konu kalıpları normalize edilmiş metne (ı/İ -> i, küçük harf) uygulanır.
@@ -82,82 +175,157 @@ _RULES: list[_Rule] = [
     _Rule(
         "saglik",
         {
-            "tr": r"kanser|tumor|hastalik|hastaligim|teshis|tani\b|ameliyat|ilac"
-                  r"|tedavi|kisir|depresyon|hasta\b|hastayim|iyilesece",
+            # "hasta\b" ve "hastayim" kalır; "hastane" bilerek yok —
+            # "hastaneye gittim, annem iyi mi olacak" üçüncü kişi/duygu
+            # cümlesi ve geçmeli (ölçüldü, geçiyor). "kısır döngü" bir
+            # deyim, kısırlık değil.
+            "tr": r"\bkanser|\btumor|\bhastali[gk]|\bteshis|\btani\b"
+                  r"|\bameliyat|\bilac|\btedavi"
+                  r"|\bkisir(?:lik|im|sin|iz|lar)?\b(?! ?dongu)"
+                  r"|\bdepresyon|\bhasta\b|\bhastayim\b|\biyilesece",
             # "recover" / "get better" bilinçli olarak YOK: "will things get
             # better?" hayata dair sıradan bir soru ve engellenmesi kapıyı
-            # aşırı geniş yapardı.
-            "en": r"cancer|tumou?r|illness|disease|diagnos|surgery|operation"
-                  r"|medication|medicine\b|treatment|chemo|infertil|depress"
-                  r"|\bsick\b|\bill\b|symptom",
+            # aşırı geniş yapardı. "sick of" bir deyim (bıkmak), hastalık
+            # değil; "silent treatment", "business operation", "study
+            # medicine" de öyle.
+            "en": _KANSER_EN
+                  + r"|\btumou?rs?\b|\billness(?:es)?\b|\bdiseases?\b"
+                  r"|\bdiagnos|\bsurger(?:y|ies)\b"
+                  r"|(?<!business )\boperation\b"
+                  r"|\bmedications?\b"
+                  r"|(?<!study )(?<!studying )(?<!in )(?<!of )\bmedicine\b"
+                  r"|(?<!silent )(?<!royal )(?<!special )\btreatment"
+                  r"|\bchemo|\binfertil|\bdepress(?:ed|ion|ive)\b"
+                  r"|\bsick\b(?! (?:of|and tired|to death)\b)"
+                  + "|" + _ILL_EN
+                  + r"|\bsymptoms?\b",
         },
         {
-            "tr": "Sağlıkla ilgili sorulara yıldızlardan cevap aramam doğru "
-                  "olmaz — bu konuda seni yanıltmak istemem. Böyle bir kaygın "
-                  "varsa bir hekimle konuşman en sağlıklısı. Başka bir şey "
-                  "sormak istersen buradayım.",
-            "en": "I won't look to the sky for answers about health — I'd "
-                  "rather not mislead you on something this important. If "
-                  "this is weighing on you, a doctor is the right person to "
-                  "talk to. I'm here for anything else.",
+            "tr": "Benim alanım haritan ve gökyüzü; sağlık ise bir hekimin "
+                  "alanı — bu soruyu yıldızlardan cevaplamam seni "
+                  "yanıltmak olur, onu yapmam. Bunu bir hekimle konuşmanı "
+                  "isterim. İstersen bu dönemin sana ne taşıdığına, "
+                  "enerjinin nereye aktığına birlikte bakalım.",
+            "en": "My ground is your chart and the sky above it; health "
+                  "belongs with a doctor — answering this from the stars "
+                  "would only mislead you, and I won't do that. I'd want "
+                  "you to talk to a doctor about it. If you'd like, we can "
+                  "look at what this period is carrying for you instead.",
         },
     ),
     _Rule(
         "hamilelik",
         {
-            "tr": r"hamile|gebe\b|bebegim|cocugum olacak|cocuk sahibi",
-            "en": r"pregnan|conceiv|fertility|\bivf\b|having a baby"
-                  r"|get pregnant|expecting a (?:baby|child)",
+            # "bebeğim" aynı zamanda bir hitap ("bebeğim beni seviyor mu?")
+            # — çıplak hâli hamilelik reddi yiyordu. Yalnız "bebeğim
+            # olacak/olur/ne zaman…" bağlamı sayılır.
+            "tr": r"\bhamile|\bgebe(?:lik|yim)?\b"
+                  r"|\bbebegim (?:olacak|olur|olsun|ne zaman|dogacak)"
+                  r"|\bcocugum (?:olacak|olur|olsun|ne zaman)"
+                  r"|\bcocuk sahibi|\btup bebek",
+            "en": r"\bpregnan|\bconceiv(?:e|ing)\b|\bfertility\b|\bivf\b"
+                  r"|\bhaving a baby\b|\bget(?:ting)? pregnant\b"
+                  r"|\bexpecting a (?:baby|child)\b|\btrying for a baby\b",
         },
         {
-            "tr": "Çocuk sahibi olmak gibi bir konuda gökyüzüne dayanarak bir "
-                  "şey söylemem sana haksızlık olur. Bu soru bir hekimin "
-                  "alanı. İstersen bu dönemin genel temalarına bakabiliriz.",
-            "en": "It wouldn't be fair to you if I answered a question about "
-                  "having children from a chart. That belongs with a doctor. "
-                  "If you'd like, we can look at the broader themes of this "
-                  "period instead.",
+            "tr": "Çocuk sahibi olmak gibi bir konuda gökyüzüne dayanarak "
+                  "bir şey söylemem sana haksızlık olur; bu bir hekimin "
+                  "alanı. Benim alanım haritan — istersen bu dönemin genel "
+                  "temalarına, yeni başlangıçlara nasıl baktığına birlikte "
+                  "bakalım.",
+            "en": "On having children I won't speak from a chart — that "
+                  "wouldn't be fair to you; it belongs with a doctor. My "
+                  "ground is your sky. If you'd like, we can look at the "
+                  "broader themes of this period and how it holds new "
+                  "beginnings.",
         },
     ),
     _Rule(
         "olum",
         {
-            "tr": r"olece|olurum|omrum|yasarim|yasar miyim|olum\b|vefat edece",
-            "en": r"\bdie\b|\bdying\b|\bdeath\b|pass away|passing away"
-                  r"|how long (?:do|will) i (?:have|live)|life ?span"
-                  r"|when will i die",
+            # "olurum" ve "yasarim" BİLEREK YOK: "mutlu olurum", "ne
+            # yaşarım bilmiyorum" günlük dil. Ömür sorusu yalnız açık
+            # kalıplarla: "kaç yıl yaşarım", "ömrüm", "ölecek", "ölüm".
+            # "vefat etti" (geçmiş) yok — yas tutan kişi "ne zaman
+            # toparlanırım" diye sorduğunda engellenmemeli.
+            "tr": r"\bolece|\bomrum\b|\byasar m[iu]y[iu]m\b"
+                  r"|\bkac (?:yil|sene) (?:daha )?yasar"
+                  r"|\bne kadar (?:daha )?yasar"
+                  rf"|\bolum{_EK}\b|\bvefat (?:edece|eder mi)",
+            # Deyimler dışarıda: "dying to know", "scared to death",
+            # "do or die", "my father's death" (yas, kehanet değil).
+            "en": r"(?<!or )(?<!say )\bdie\b(?! (?:hard|for|laughing|trying)\b)"
+                  r"|\bdying\b(?! (?:to|for|laughing)\b)"
+                  r"|(?<!to )(?<!'s )\bdeath\b(?! of\b)"
+                  r"|\bpass(?:ing)? away\b"
+                  r"|\bhow long (?:do|will) i (?:have|live)\b"
+                  r"|\blife ?spans?\b|\bwhen will i die\b",
         },
         {
-            "tr": "Ömür ve ölüm üzerine kehanette bulunmam. Bunu kimse bilemez "
-                  "ve bilirmiş gibi davranmak zarar verir. Aklını meşgul eden "
-                  "bir korku varsa onu konuşabiliriz.",
-            "en": "I don't make predictions about death or how long someone "
-                  "will live. No one knows that, and pretending otherwise "
-                  "does harm. If there's a fear sitting with you, we can talk "
-                  "about that instead.",
+            "tr": "Ömür ve ölüm üzerine kehanet benim alanım değil — bunu "
+                  "kimse bilemez, bilirmiş gibi davranmak zarar verir. "
+                  "Aklını meşgul eden bir korku varsa onu konuşabiliriz; "
+                  "istersen bu dönemin haritanda neye dokunduğuna birlikte "
+                  "bakalım.",
+            "en": "Predicting death or how long someone will live isn't my "
+                  "ground — no one knows that, and pretending otherwise "
+                  "does harm. If there's a fear sitting with you, we can "
+                  "talk about that; or, if you'd like, we can look at what "
+                  "this period is touching in your chart.",
+        },
+        # Aksanlı metinde: "ölür müyüm" / "ne zaman ölürüm". Katlanınca
+        # "olur muyum" / "ne zaman olurum" ile çakışır (modül docstring'i).
+        # "ölürüm" tek başına yok — "sensiz ölürüm" bir aşk cümlesi.
+        konu_aksanli={
+            "tr": r"\bölür m[üu]y[üu]m\b|\bne zaman ölürüm\b",
         },
     ),
     _Rule(
         "finans",
         {
-            "tr": r"hisse|borsa|kripto|bitcoin|coin\b|doviz|dolar|euro\b|altin"
-                  r"|fon\b|portfoy|faiz",
+            # Somut araçlar + ek listesi. "yatırım", "kredi", "borç" yok:
+            # "kendime yatırım" finans değil, "kredi" ürünün jeton adı.
+            # "fon müziği" (background music) deyimdir, fon değil.
+            "tr": rf"\bhisse{_EK}\b|\bborsa|\bkripto(?!graf)|\bbitcoin"
+                  rf"|\bethereum|\bbtc\b|\bcoin{_EK}\b|\bdoviz"
+                  rf"|\bdolar{_EK}\b|\beuro{_EK}\b|{_ALTIN_TR}"
+                  rf"|\bfon{_EK}\b(?! muzi)|\bportfoy|\bfaiz",
             # Somut araçlarla sınırlı. Yalın "invest" veya "shares" YOK:
             # "should I invest more time in this?" ya da "he shares my
-            # feelings" finans sorusu değil.
-            "en": r"\bstocks?\b|stock market|share price|crypto|bitcoin"
-                  r"|\bcoin\b|\bforex\b|exchange rate|\bdollars?\b|\beuros?\b"
-                  r"|\bgold\b|\bfund\b|portfolio|interest rate",
+            # feelings" finans sorusu değil. "gold" yalnız alım-satım/fiyat
+            # bağlamında — "gold earrings" bir takı. "dollars" tek başına
+            # yok: "a few dollars left, will things get better?" bir
+            # yatırım sorusu değil, para TEMASI; onu model haritadan
+            # anlatır. "portfolio" tasarımcının da portföyü, yalnız
+            # yatırım/hisse bağlamı. "fund" fiil de olur ("will they fund
+            # my project?"), yalnız fon türleri.
+            "en": r"(?<!of )(?<!take )\bstocks?\b(?! up\b)|\bstock market\b"
+                  r"|\bshare price|\b(?:buy|sell|buying|selling) shares\b"
+                  r"|\bcrypto|\bbitcoin|\bethereum|\bbtc\b"
+                  r"|(?<!flip a )(?<!toss a )(?<!same )\bcoins?\b"
+                  r"|\bforex\b|\bexchange rate"
+                  r"|\bthe dollar\b|\bus dollar|\busd\b"
+                  r"|\bdollar (?:rate|index|exchange|price|rise|fall|drop"
+                  r"|go|strengthen|weaken)"
+                  r"|\b(?:buy|sell|buying|selling) (?:dollars|euros|gold)\b"
+                  r"|\bthe euro\b"
+                  r"|\beuro (?:rate|exchange|price|rise|fall|drop|go)"
+                  r"|\bgold (?:price|rate|market|rise|fall|drop|go up"
+                  r"|go down|bars?|coins?|bullion)\b"
+                  r"|\binvest(?:ing)? in gold\b|\bprice of gold\b"
+                  r"|\b(?:mutual|index|hedge|pension|investment) funds?\b"
+                  r"|\betfs?\b|\b(?:investment|stock|crypto) portfolio\b"
+                  r"|\binterest rates?\b",
         },
         {
-            "tr": "Para ve yatırım kararlarında yıldızlara bakmak iyi bir "
-                  "fikir değil; sana yanlış bir güven vermek istemem. Bu "
-                  "konuda yetkili bir danışmana sormalısın. İşinin genel "
-                  "temalarına bakmak istersen olur.",
-            "en": "Looking to the stars for money decisions isn't a good "
-                  "idea, and I don't want to give you false confidence. A "
-                  "licensed advisor is the right place for this. I'm happy to "
-                  "look at the broader themes around your work instead.",
+            "tr": "Al-sat kararı benim alanım değil; onu yetkili bir "
+                  "danışmanla konuşmanı isterim. Benim alanım haritan — "
+                  "istersen bu dönemin para ve kaynaklarla ilgili "
+                  "temalarına birlikte bakalım.",
+            "en": "Buy-or-sell calls aren't my ground — that's for a "
+                  "licensed advisor. What I can read is your chart: if "
+                  "you'd like, let's look at what this period says about "
+                  "money and resources for you.",
         },
     ),
 ]
@@ -175,6 +343,11 @@ _FOLD = str.maketrans({
     "̇": "",
 })
 
+#: Yalnız BÜYÜK/küçük katlaması, aksanlar yerinde: `konu_aksanli` için.
+#: Türkçeye özel iki harf elle: Python'da "I".lower() "i" verir ("ı" değil),
+#: "İ".lower() ise "i" + birleşen nokta.
+_KUCULT = str.maketrans({"I": "ı", "İ": "i"})
+
 
 def _normalize(text: str) -> str:
     """Metni ASCII'ye katlar ve küçük harfe indirir.
@@ -185,6 +358,11 @@ def _normalize(text: str) -> str:
     siliniyor.
     """
     return text.translate(_FOLD).lower().replace("̇", "")
+
+
+def _kucult(text: str) -> str:
+    """Aksanları KORUYARAK küçük harfe indirir (`konu_aksanli` hedefi)."""
+    return text.translate(_KUCULT).lower().replace("̇", "")
 
 
 #: KRİZ İŞARETLERİ — kullanıcının KENDİSİ zor durumda (S-turu).
@@ -270,6 +448,7 @@ def forbidden_topic(message: str, lang: str = DEFAULT) -> tuple[str, str] | None
         return None
 
     hedef = _normalize(message)
+    aksanli = _kucult(message)
 
     # Talep işareti taşıyan diller. Hiçbiri yoksa mesaj bir soru değil:
     # duygu paylaşımı, anlatı ya da genel sohbet.
@@ -282,7 +461,10 @@ def forbidden_topic(message: str, lang: str = DEFAULT) -> tuple[str, str] | None
     for rule in _RULES:
         for dil in talep_dilleri:
             kalip = rule.konu.get(dil)
-            if kalip is not None and kalip.search(hedef):
+            aksanli_kalip = rule.konu_aksanli.get(dil)
+            if ((kalip is not None and kalip.search(hedef))
+                    or (aksanli_kalip is not None
+                        and aksanli_kalip.search(aksanli))):
                 yanit = rule.yanit.get(yanit_dili) or rule.yanit[DEFAULT]
                 return rule.kategori, yanit
     return None

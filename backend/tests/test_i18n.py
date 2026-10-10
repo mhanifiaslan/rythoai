@@ -264,7 +264,11 @@ def test_tum_sablonlar_iki_dilde_var():
         "SYNASTRY", "SYNASTRY_FALLBACK", "MEMORY_BLOCK",
         "WHISPER_RAG", "WHISPER_MEMORY", "WHISPER_CHART", "WHISPER_SKY",
         "FACT_GUARD_RETRY",
-        "SKY_MOON", "SKY_RETROS", "SKY_ASPECTS",
+        # S1 persona bekçisi (2026-10-10): fısıltı, düzeltme ve sabit cümle
+        # çiftleri — biri tek dilde kalırsa o dilde AttributeError.
+        "PERSONA_WHISPER_TASK", "PERSONA_WHISPER_BIRTH",
+        "PERSONA_RETRY_TASK", "PERSONA_RETRY_THIRD_PARTY",
+        "PERSONA_FALLBACK_TASK", "PERSONA_FALLBACK_THIRD_PARTY",
         "SKY_MOON", "SKY_RETROS", "SKY_ASPECTS",
         "USER_MESSAGE_LABEL", "NONE_LABEL", "NO_ASPECTS",
         "SIGN_NAMES", "PERIOD_NAMES", "PERIOD_LENGTHS",

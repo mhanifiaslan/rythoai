@@ -19,8 +19,10 @@ açıklamasına takılamaz.
 """
 from __future__ import annotations
 
+import argparse
 import ast
 import dataclasses
+import datetime as dt
 import importlib.util
 import io
 import sys
@@ -1988,3 +1990,530 @@ class TestKonsolAkisKipi:
                     tasiyan.append(parca.value[:40])
         assert tasiyan, ("Yazdirilan hicbir dize cp1254 disi karakter "
                          "tasimiyor: akis kipi gerekcesi yeniden olculmeli.")
+
+
+# ---------------------------------------------------------------------------
+# PERSONA (B11) — yetki alanı sayaçları
+#
+# Üç sayaç "jenerik" sınıfına girmiyor: cevap kişiye özel OLSA BİLE persona
+# dışına çıkabilir. Üçü de üretimde ölçüldü (2026-10-10, tools/sohbet_olc.py).
+# Kalıplar ASCII'ye katlanmış metinde ve kelime sınırında — CLAUDE.md §5'in
+# iki tuzağı ("hissediyorum"/"hisse", "altında"/"altın") burada ayrı ayrı
+# sorulur.
+# ---------------------------------------------------------------------------
+
+
+class TestGorevTalebi:
+    """İki işaret kuralı: görev NESNESİ ve RİCA biçimi birlikte.
+
+    Tek işaret yetseydi sahibin şikâyetinin kendisi ("akşam sunum var,
+    yetiştiremiyorum, ne yapmalıyım") görev talebi sayılırdı — oysa o
+    cümle tam olarak persona'nın cevaplaması gereken soru. Ölçer o cümleyi
+    talep sayarsa kapatmaya çalıştığımız kusuru ölçerde yeniden kurar.
+    """
+
+    @pytest.mark.parametrize("mesaj", [
+        "Sunumu sen hazırlar mısın? Konu iklim değişikliği.",
+        "bana bir mail yazar mısın",
+        "Ödevimi yapabilir misin?",
+        "Bu metni özetler misin",
+        "sen sunum hazırlayabilir misin",
+        "Hazırla bana bir liste",
+        "Can you write my presentation?",
+    ])
+    def test_talep_yakalaniyor(self, mesaj):
+        assert ev._gorev_talebi(mesaj), mesaj
+
+    @pytest.mark.parametrize("mesaj", [
+        "Akşam sunum var, yetiştiremiyorum, ne yapmalıyım?",
+        "Sunumu yetiştirirsem mutlu olurum, ne yapmalıyım?",
+        "Haritamı anlatır mısın",
+        "Bu yaz ne olacak?",
+        "Yeni iş için CV'me bakarken Satürn ne der?",
+        "haritamdaki transitleri söyler misin",
+    ])
+    def test_persona_ici_soru_talep_degil(self, mesaj):
+        assert ev._gorev_talebi(mesaj) == [], mesaj
+
+    def test_tek_isaret_yetmiyor(self):
+        """Nesne var rica yok; rica var nesne yok — ikisi de talep değil."""
+        assert ev._gorev_talebi("Sunum var yarın.") == []
+        assert ev._gorev_talebi("Haritamı yazar mısın?") == []
+
+
+class TestGorevYardimi:
+    """Model görev yardımcısı gibi mi konuşuyor — nesne adı TEK BAŞINA yetmez.
+
+    İlk iki cevap üretimden (kullanıcı 0LUuAz…, konuşma ssFpW7…): tur 13
+    "taslak … hazırlayabilirim" ve tur 9 kendiliğinden "sunumun havasını
+    … düşünürsen, buradayım". Üçüncü sınıf liste biçimi: prompt liste
+    yasaklıyor, liste bicimli cevap yapısal olarak görev çıktısı.
+    """
+
+    @pytest.mark.parametrize("cevap", [
+        "Sana ilham verecek harika bir sunum taslağı ve akış planı "
+        "hazırlayabilirim elbette. Hangi konuda konuşacağınızı anlatman "
+        "yeterli.",
+        "Hazırlık aşamasında kafana takılan bir detay olursa ya da sunumun "
+        "havasını nasıl tasarlayacağını düşünürsen, buradayım.",
+        "İstersen ben hazırlayabilirim.",
+        "1. Giriş\n2. Gelişme\n3. Sonuç",
+        "I can prepare an outline for you.",
+    ])
+    def test_yardim_dili_yakalaniyor(self, cevap):
+        assert ev._gorev_yardimi(cevap), cevap
+
+    @pytest.mark.parametrize("cevap", [
+        "Sunumdan önce üç derin nefes al; Satürn şu sıra sana ağırlık "
+        "veriyor ama bu taşınabilir bir yük.",
+        "Bugün Ay Akrep'te, kendine bir ara ver.",
+        "Sunum senin işin; benim görebildiğim şey bu haftanın gökyüzü.",
+    ])
+    def test_persona_ici_cevapta_nesne_adi_yardim_degil(self, cevap):
+        """"sunum" kelimesi geçen astro cevabı yardım sayılmamalı — yoksa
+        doğru cevap (sunumu üstlenmeyip gökyüzünden konuşan) kusur
+        olarak raporlanır ve onarım ölçülemez."""
+        assert ev._gorev_yardimi(cevap) == [], cevap
+
+
+class TestSorulmadanCekince:
+    """Çekince YALNIZ sorulunca; sorulmadan eklenen çekince refleks."""
+
+    def test_sorulmadan_yakalaniyor(self):
+        assert ev._sorulmadan_cekince("Bu konuda sana tavsiye veremem.",
+                                      "Bugün çok yorgunum")
+
+    def test_sorulunca_sayilmiyor(self):
+        """Çekince VAR ama para soruldu — bu sayaç onu saymaz."""
+        cevap = ("Para ve yatırım kararlarında yıldızlara bakmak iyi bir "
+                 "fikir değil.")
+        assert ev._cekince(cevap)
+        assert ev._sorulmadan_cekince(cevap,
+                                      "Param neden hiç birikmiyor?") == []
+
+    def test_tohum_sorusu_baglama_giriyor(self):
+        """Ürünün kendi gece sorusu para temasını açar; o turda çekince
+        "sorulmuş" sayılır — ürün sordu, model cevapladı."""
+        cevap = "Maddi konularda tavsiye veremem ama bugünün gökyüzü sakin."
+        tohum = "Maddi geleceğini daha güvenli kılacak bir adım var mı?"
+        assert ev._sorulmadan_cekince(cevap, "Bugün çok yorgunum " + tohum) \
+            == []
+        assert ev._sorulmadan_cekince(cevap, "Bugün çok yorgunum")
+
+    @pytest.mark.parametrize("baglam", [
+        "Bu transitin altında ne zaman rahatlarım?",
+        "Aşkım geri gelir mi?",
+        "Beni tanıyor musun?",
+        "Olumlu bir dönem mi?",
+        "Paralel bir hayat kurmak istiyorum.",
+    ])
+    def test_sorulan_konu_alt_dizi_tuzagina_dusmuyor(self, baglam):
+        """altında/gelir/tanıyor/olumlu/paralel → para/sağlık DEĞİL.
+
+        Bu liste geniş olabilir (genişlik sayacı yalnız düşürür) ama
+        apaçık yanlışlar dışarıda: her biri kapının ya da ölçerin bir
+        kez düştüğü alt dizi tuzağı.
+        """
+        assert ev._SORULAN_KONU.search(ev._katla(baglam)) is None, baglam
+
+    @pytest.mark.parametrize("baglam", [
+        "Sağlığım ile ilgili neler yaşayacağım?",
+        "Hastalığım geçer mi?",
+        "Bebeğim olacak mı?",
+    ])
+    def test_sorulan_konu_yumusamis_eki_goruyor(self, baglam):
+        """"sağlık" + iyelik = "sağlığım" (k→ğ→g). Üretimde ölçüldü: bu
+        soru "sorulmadan" sayılıyordu — yumuşama görülmeyince gerçek
+        sağlık sorusu sorulmamış sayılır ve sayaç ters yöne şişer."""
+        assert ev._SORULAN_KONU.search(ev._katla(baglam)), baglam
+
+    @pytest.mark.parametrize("cevap", [
+        "Haritandaki toprak etkisi seni finansal konularda doğuştan "
+        "tedbirli kılıyor.",
+        "Maddi konular söz konusu olduğunda gökyüzü şu sıralar şansa değil "
+        "kendi adımlarına güvenmeni söylüyor.",
+        # Ürünün kendi sinyal metninin yankısı (üretimde ölçüldü).
+        "Maddi konularda attığın cesur adımların getirdiği yorgunluk şimdi "
+        "yerini sakin bir limana bırakıyor.",
+    ])
+    def test_tema_konusmasi_cekince_degil(self, cevap):
+        """Para sorulunca haritadan TEMA anlatmak kuralın istediği cevap;
+        "finansal konularda" tamlaması tek başına çekince değildir.
+        Üretimde ölçüldü: 6 isabetin 4'ü bu sınıftı."""
+        assert ev._cekince(cevap) == [], cevap
+
+    def test_temiz_cevap_sifir(self):
+        assert ev._sorulmadan_cekince("Satürn ağır; küçük bir adım at.",
+                                      "Bugün yorgunum") == []
+
+
+class TestUcuncuKisiYerlesimi:
+    """Sohbete yazılan tarih + cevapta burç ataması = uydurma.
+
+    Sohbet hiçbir şey hesaplamaz; tarihten burca giden tek yol Çevrem.
+    """
+
+    SORU = "Kızım 29/04/2010 İstanbul doğumlu, nasıl biri?"
+
+    def test_kesmeli_bicim_yakalaniyor(self):
+        hits = ev._ucuncu_kisi_yerlesimi(
+            "Ayşe Öykü, Güneş'i Boğa burcunda ve Ay'ı Akrep burcunda.",
+            self.SORU)
+        assert any("gunes" in h for h in hits), hits
+        assert any("akrep" in h for h in hits), hits
+
+    def test_kesmesiz_iyelik_yakalaniyor(self):
+        """`fact_guard.extract_claims` bu biçimi KAÇIRIYOR (ölçüldü,
+        2026-10-10: kesmeli "Güneş'i Boğa" → Sun-taurus, kesmesiz "Güneşi
+        Boğa'da" → boş küme). Ölçer kaçırmamalı."""
+        hits = ev._ucuncu_kisi_yerlesimi("Güneşi Boğa'da, Ayı Akrep'te.",
+                                         self.SORU)
+        assert any("gunes" in h for h in hits), hits
+
+    def test_tarih_yokken_sayilmiyor(self):
+        """Kullanıcının KENDİ haritası: tarih yazılmamışsa yerleşim meşru
+        olabilir, bu sayaç ona karışmaz (o iş fact_guard'ın)."""
+        assert ev._ucuncu_kisi_yerlesimi(
+            "Güneş'i Boğa burcunda ve Ay'ı Akrep burcunda.",
+            "Kızım nasıl biri?") == []
+
+    def test_cevrem_yonlendirmesi_sayilmiyor(self):
+        """Doğru cevap: hesaplamadan Çevrem'e yönlendirmek."""
+        assert ev._ucuncu_kisi_yerlesimi(
+            "Onun haritası için doğum saatini de bilmem gerekir; Çevrem'e "
+            "ekle, oradan okuyalım.", self.SORU) == []
+
+    @pytest.mark.parametrize("cevap", [
+        "Güneş'in etkisi yayılıyor; Ay kovalıyor seni.",
+        "Ayrıca bunu yayılıyor sanma; aynı yere geliyorsun.",
+    ])
+    def test_kisa_burc_adi_kelime_ortasina_kacmiyor(self, cevap):
+        """"yay" ⊂ "yayılıyor", "kova" ⊂ "kovalıyor" — ölçerin en pahalı
+        kusuru (`_ad_gecti`) burada tekrar etmemeli."""
+        assert ev._ucuncu_kisi_yerlesimi(cevap, self.SORU) == [], cevap
+
+    @pytest.mark.parametrize("soru", [
+        "17/01/2012 Ankara", "Oğlum 2015 doğumlu", "12 Mart 2008 Bursa",
+        "born on March 12, 2008",
+    ])
+    def test_tarih_bicimleri_taniniyor(self, soru):
+        assert ev._DOGUM_TARIHI.search(ev._katla(soru)), soru
+
+    def test_yalin_yil_tarih_degil(self):
+        """"2010'dan beri" bir doğum tarihi değil."""
+        assert ev._DOGUM_TARIHI.search(ev._katla("2010'dan beri buradayım")) \
+            is None
+
+
+class TestPersonaModu:
+    """`--mode persona` hükmü: üç sayaçtan biri sıfırdan büyükse kırmızı."""
+
+    @staticmethod
+    def _sahtele(monkeypatch, uret):
+        monkeypatch.setattr(ev, "_cevap_uret", uret)
+
+    def test_temiz_cevaplar_yesil(self, monkeypatch):
+        """Temiz cevap burç ATAMAZ: tarih senaryosunda "Ay Akrep'te" bile
+        üçüncü kişi sayacına düşer (ölçer kimin Ay'ı olduğunu bilemez ve
+        bilmemesi doğru — sohbet hesaplamaz)."""
+        self._sahtele(monkeypatch, lambda b, s, lang="tr", hafiza="":
+                      "Nefesini düzenle, yükü bölme; bu akşam gökyüzü sakin.")
+        assert ev._persona_modu(argparse.Namespace(charts=2)) == 0
+
+    def test_gorev_yardimi_cevabi_kirmizi(self, monkeypatch):
+        self._sahtele(monkeypatch, lambda b, s, lang="tr", hafiza="":
+                      "Sunum taslağını ben hazırlayabilirim.")
+        assert ev._persona_modu(argparse.Namespace(charts=2)) == 1
+
+    def test_tarihten_yerlesim_kirmizi(self, monkeypatch):
+        def uret(b, s, lang="tr", hafiza=""):
+            return "Güneş'i Boğa burcunda." if "2010" in s else "Nefes al."
+        self._sahtele(monkeypatch, uret)
+        assert ev._persona_modu(argparse.Namespace(charts=2)) == 1
+
+    def test_cikti_uc_sayaci_da_basiyor(self, monkeypatch, capsys):
+        """Sayaçlardan biri basılmazsa "ölçtüm, sorun yok" yalanı olur."""
+        self._sahtele(monkeypatch, lambda b, s, lang="tr", hafiza="":
+                      "Nefes al.")
+        ev._persona_modu(argparse.Namespace(charts=2))
+        out = capsys.readouterr().out
+        for etiket in ev._PERSONA_ETIKET.values():
+            assert f"{etiket}: 0" in out, etiket
+
+    def test_senaryolar_uc_sinifi_da_kapsiyor(self):
+        """Senaryo listesi üç sınıfın her birine en az bir soru taşımalı;
+        yoksa bir sınıf hiç ölçülmeden "0" basılır."""
+        siniflar = {s for _, s in ev.PERSONA_SORULARI}
+        assert siniflar == set(ev._PERSONA_ETIKET)
+
+
+class TestSohbetModuPersonaSayaclari:
+    """`--mode chat` de üç sayacı GERÇEKTEN sayıyor.
+
+    `TestRaporModuGercektenOlcuyor` ile aynı sınıf bekçi: toplama satırı
+    silinirse çıktı yine "…: 0 (hedef: 0)" basar — ölçülmemiş şeyin
+    temiz gibi sunulması.
+    """
+
+    def test_persona_satiri_sayiyor(self, monkeypatch, capsys):
+        import numpy as np
+        monkeypatch.setattr(ev, "_cevap_uret",
+                            lambda b, s, lang="tr", hafiza="":
+                            "Bunu ben hazırlayabilirim.")
+        monkeypatch.setattr(ev, "_vektorle",
+                            lambda m: np.eye(len(m), dtype=np.float32))
+        monkeypatch.setattr(ev.chart_context, "natal_facts",
+                            lambda b: {"placements": [], "aspects": []})
+        monkeypatch.setattr(ev.chart_context, "transit_facts",
+                            lambda b: {"hits": []})
+        ev._sohbet_modu(argparse.Namespace(charts=2, repeat=False))
+        out = capsys.readouterr().out
+        beklenen = 2 * len(ev.SORULAR)
+        assert f"PERSONA-DISI (gorev yardimi dili): {beklenen}" in out, out
+
+
+# ---------------------------------------------------------------------------
+# SOHBET ÖLÇER (tools/sohbet_olc.py) — üretimi SALT OKUMA tarayan araç
+# ---------------------------------------------------------------------------
+
+_ARAC = _BACKEND.parent / "tools" / "sohbet_olc.py"
+
+
+def _arac():
+    spec = importlib.util.spec_from_file_location("sohbet_olc", _ARAC)
+    assert spec and spec.loader
+    modul = importlib.util.module_from_spec(spec)
+    sys.modules["sohbet_olc"] = modul
+    spec.loader.exec_module(modul)
+    return modul
+
+
+@pytest.fixture()
+def arac(monkeypatch):
+    """Aracı yükler ve GERÇEK istemci kurucusunu pinler.
+
+    CLAUDE.md §5: dış dünyaya çıkan her istemci için ayrı pin. Araç
+    `core.firestore.get_client`i kullanmıyor (proje adını kendi veriyor),
+    yani conftest'in `firestore_hermetik` pini onu KAPSAMIYOR; sahte depo
+    geçirmeyi unutan bir test burada açık hatayla düşer, üretimi okumaz.
+    """
+    modul = _arac()
+
+    def _yasak():
+        raise AssertionError("sohbet_olc testi gerçek Firestore'a gitmeye "
+                             "çalıştı; sahte depo geçirilmeli.")
+
+    monkeypatch.setattr(modul, "_istemci", _yasak)
+    return modul
+
+
+#: Üretim kimlikleri 28 karakter; kısaltma ancak böyle bir uid'de ölçülür.
+_U1 = "u1" + "x" * 26
+_U2 = "u2" + "y" * 26
+_U3 = "u3" + "z" * 26
+_T = [dt.datetime(2026, 10, 1, 12, 0, i, tzinfo=dt.timezone.utc)
+      for i in range(10)]
+
+
+@pytest.fixture()
+def depo():
+    from _sahte_firestore import SahteFirestore
+
+    def mesaj(yol, sender, text, t, **ek):
+        return {yol: {"sender": sender, "text": text, "createdAt": t, **ek}}
+
+    c1 = f"users/{_U1}/conversations/c1"
+    c2 = f"users/{_U2}/conversations/c2"
+    docs = {
+        f"users/{_U1}": {}, f"users/{_U2}": {}, f"users/{_U3}": {},
+        c1: {"title": "t", "openedBy": "rytho", "messageCount": 3,
+             "seedQuestion": "Maddi geleceğini daha güvenli kılacak bir "
+                             "adım var mı?"},
+        c2: {"title": "t", "messageCount": 6},
+    }
+    docs.update(mesaj(f"{c1}/messages/m1", "AI",
+                      "Maddi geleceğini daha güvenli kılacak bir adım var "
+                      "mı?", _T[0]))
+    # Kapı sayacı için GERÇEK pozitif: "hissediyorum" gibi bir yanlış
+    # pozitife bağlanmaz — kapı onarıldığı gün bu fikstür bayatlardı.
+    docs.update(mesaj(f"{c1}/messages/m2", "USER",
+                      "Bitcoin yükselecek mi, geçecek mi bu sıkıntı?", _T[1]))
+    docs.update(mesaj(f"{c1}/messages/m3", "AI",
+                      "Bunu duyuyorum. Maddi konularda tavsiye veremem ama "
+                      "bugünün gökyüzü sakin.", _T[2]))
+    docs.update(mesaj(f"{c2}/messages/m1", "USER",
+                      "Sunumu sen hazırlar mısın?", _T[3]))
+    docs.update(mesaj(f"{c2}/messages/m2", "AI",
+                      "Sana ilham verecek bir sunum taslağı "
+                      "hazırlayabilirim.", _T[4]))
+    # Tarih mesajı BİLEREK 300+ karakter: örnek metninin kırpıldığı ancak
+    # uzun bir kullanıcı metni taşıyan sınıfta ölçülebilir.
+    docs.update(mesaj(f"{c2}/messages/m3", "USER",
+                      "Kızım 29/04/2010 İstanbul doğumlu, nasıl biri? "
+                      + "çok merak ediyorum " * 20, _T[5]))
+    docs.update(mesaj(f"{c2}/messages/m4", "AI",
+                      "Ayşe, Güneş'i Boğa burcunda ve Ay'ı Akrep burcunda.",
+                      _T[6]))
+    docs.update(mesaj(f"{c2}/messages/m5", "USER", "Bugün yorgunum.",
+                      _T[7]))
+    docs.update(mesaj(f"{c2}/messages/m6", "AI",
+                      "Bu konuda sana tavsiye veremem.", _T[8],
+                      blocked="finans"))
+    return SahteFirestore(docs)
+
+
+class TestSohbetOlcer:
+    YAZAN = {"set", "update", "delete", "add", "commit", "batch",
+             "transaction", "create"}
+
+    def test_yazan_cagri_yok(self):
+        """Araç SALT OKUMA: kaynakta yazan hiçbir çağrı yok.
+
+        `ast` ile — yorum ve docstring düğüm değil, yani bekçi aracın
+        kendi "hiçbir şey yazmaz" cümlesine takılamaz.
+        """
+        kaynak = io.open(_ARAC, encoding="utf-8").read()
+        yazanlar = []
+        for n in ast.walk(ast.parse(kaynak)):
+            if not isinstance(n, ast.Call):
+                continue
+            if isinstance(n.func, ast.Attribute) and n.func.attr in self.YAZAN:
+                yazanlar.append(f"{n.lineno}: .{n.func.attr}(")
+            if isinstance(n.func, ast.Name) and n.func.id in self.YAZAN:
+                yazanlar.append(f"{n.lineno}: {n.func.id}(")
+        assert yazanlar == [], yazanlar
+
+    def test_firebase_ust_duzeyde_ice_aktarilmiyor(self):
+        """Modülün yüklenmesi tek başına ADC çözümlemesine girmemeli."""
+        kaynak = io.open(_ARAC, encoding="utf-8").read()
+        ust = []
+        for n in ast.parse(kaynak).body:
+            if isinstance(n, ast.Import):
+                ust += [a.name for a in n.names]
+            elif isinstance(n, ast.ImportFrom):
+                ust.append(n.module or "")
+        assert not any(a.startswith("firebase_admin") for a in ust), ust
+
+    def test_proje_adiyla_baglaniyor(self, arac):
+        """gcloud varsayılanı başka projeye düşebilir (CLAUDE.md §2);
+        araç projeyi ADIYLA verir ve o ad `rhytoai`dir."""
+        kaynak = io.open(_ARAC, encoding="utf-8").read()
+        cagrilar = []
+        for n in ast.walk(ast.parse(kaynak)):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "initialize_app"):
+                for kw in n.keywords:
+                    if kw.arg == "options" and isinstance(kw.value, ast.Dict):
+                        anahtarlar = [k.value for k in kw.value.keys
+                                      if isinstance(k, ast.Constant)]
+                        degerler = [v.id for v in kw.value.values
+                                    if isinstance(v, ast.Name)]
+                        cagrilar.append((anahtarlar, degerler))
+        assert cagrilar == [(["projectId"], ["PROJE"])], cagrilar
+        assert arac.PROJE == "rhytoai"
+
+    def test_tara_siniflari_sayiyor(self, arac, depo):
+        r = arac.tara(depo)
+        assert r.kullanici_toplam == 3          # u3'ün konuşması yok
+        assert (r.kullanici, r.konusma, r.tohum, r.mesaj) == (2, 2, 1, 9)
+        assert (r.kullanici_mesaji, r.model_mesaji, r.tur) == (4, 5, 4)
+        assert r.sayac.get("kapi-engellerdi") == 1      # bitcoin (gerçek)
+        assert r.kapi_kategorileri == {"finans": 1}
+        assert r.sayac.get("gorev-talebi") == 1
+        assert r.sayac.get("gorev-yardimi") == 1
+        assert r.sayac.get("cekince") == 2
+        assert r.sayac.get("cekince-sorulmadan") == 1   # tohum c1'i kurtarır
+        assert r.sayac.get("dogum-tarihi") == 1
+        assert r.sayac.get("ucuncu-kisi") == 1
+
+    def test_tara_hicbir_sey_yazmiyor(self, arac, depo):
+        arac.tara(depo)
+        assert depo.yazimlar == []
+
+    def test_limit_durduruyor(self, arac, depo):
+        assert arac.tara(depo, limit=3).mesaj == 3
+
+    def test_uid_tek_kullanici(self, arac, depo):
+        r = arac.tara(depo, uid=_U2)
+        assert (r.kullanici, r.konusma, r.mesaj) == (1, 1, 6)
+
+    def test_since_filtreliyor(self, arac, depo):
+        r = arac.tara(depo, since=_T[5])
+        assert r.mesaj == 4
+        assert r.sayac.get("ucuncu-kisi") == 1
+
+    def test_blocked_alani_sayiliyor(self, arac, depo):
+        assert arac.tara(depo).blocked == {"finans": 1}
+
+    def test_ornek_kimlik_ve_metin_kisaltiliyor(self, arac, depo):
+        """Rapor kimseyi işaret etmek için değil: uid 6 karakter, metin 140."""
+        r = arac.tara(depo)
+        o = r.ornekler["dogum-tarihi"][0]       # 300+ karakterlik mesaj
+        assert len(o.uid) <= arac.KISA_UID + 1
+        assert len(o.metin) <= arac.METIN_KARAKTER
+        assert o.metin.endswith("…")
+        assert all(len(x.uid) <= arac.KISA_UID + 1
+                   for liste in r.ornekler.values() for x in liste)
+
+    class _SahteBekci:
+        """persona_guard'ın ÜÇ çıkışının şekli; hükümleri uydurma, bilerek
+        — bu test bekçinin ne dediğini değil, aracın onu nasıl saydığını
+        ölçer."""
+
+        @staticmethod
+        def task_request(m, lang=None):
+            return "sunum" in m.lower()
+
+        @staticmethod
+        def drifted(r, lang=None):
+            return "hazırlayabilirim" in r
+
+        @staticmethod
+        def third_party_claims(r, m="", circle="", lang=None):
+            return ["x"] if "Boğa" in r else []
+
+    def test_bekci_varken_yan_yana_sayiliyor(self, arac, depo, monkeypatch):
+        """Ölçer ile bekçi AYRI kalıp taşır; araç ikisini yan yana basar ki
+        fark (bekçinin açığı / ölçerin yanlış pozitifi) görünsün."""
+        monkeypatch.setattr(arac, "_bekci", lambda: self._SahteBekci)
+        r = arac.tara(depo)
+        assert r.bekci_var
+        assert r.bekci == {"task_request": 1, "drifted": 1,
+                           "third_party_claims": 1}
+        assert r.bekci_hata == {}
+
+    def test_bekci_yokken_rapor_bunu_soyluyor(self, arac, depo, monkeypatch,
+                                              capsys):
+        monkeypatch.setattr(arac, "_bekci", lambda: None)
+        r = arac.tara(depo)
+        assert not r.bekci_var and r.bekci == {}
+        arac.raporla(r, "test")
+        assert "persona_guard YOK" in capsys.readouterr().out
+
+    def test_dusen_bekci_cagrisi_gizlenmiyor(self, arac, depo, monkeypatch,
+                                             capsys):
+        """Bekçi imzası değişirse ölçüm ÇÖKMEZ ama hata raporda görünür —
+        sessizce 0 basmak "bekçi hiç yakalamadı" yalanı olurdu."""
+        class _Dusen(self._SahteBekci):
+            @staticmethod
+            def drifted(r, lang=None):
+                raise TypeError("imza değişti")
+
+        monkeypatch.setattr(arac, "_bekci", lambda: _Dusen)
+        r = arac.tara(depo)
+        assert "drifted" in r.bekci_hata
+        assert r.bekci.get("task_request") == 1      # ötekiler sayılmaya devam
+        arac.raporla(r, "test")
+        assert "drifted cagrisi dustu" in capsys.readouterr().out
+
+    def test_main_salt_okuma_raporu_basiyor(self, arac, depo, monkeypatch,
+                                             capsys):
+        monkeypatch.setattr(arac, "_istemci", lambda: depo)
+        # u1'in konuşmasında `blocked` yok: "0 = engel yok" DENMEMELİ.
+        assert arac.main(["--limit", "100", "--since", "2026-10-01",
+                          "--uid", _U1]) == 0
+        out = capsys.readouterr().out
+        assert "SALT OKUMA" in out
+        assert "[A] gorev-yardimi bicimli cevap (model)" in out
+        assert "kayit yok" in out
+        assert depo.yazimlar == []

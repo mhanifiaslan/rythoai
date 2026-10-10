@@ -200,6 +200,18 @@ kapı sınırı aşılıyorsa **iki aday da bildirilir**.
   LLM'e hiç gitmez — ama "annem hasta, üzgünüm" gibi paylaşımlar
   engellenmez (iki işaret birlikte aranır: yasak konu **ve** cevap talebi).
   Dil değiştirerek kapı aşılamaz.
+- **Sohbet neyi YAPMAZ (B11, 2026-10-10):** Rytho bir astrolog-yoldaştır,
+  genel amaçlı asistan değil. Sunum/ödev/mail/metin hazırlamaz, internette
+  araştırma yapmaz, görev üstlenmez; istense de dostça yetki alanını
+  söyler ve gökyüzüyle ilgili bir şey varsa onu aktarır ("akşam sunum
+  var, yetiştiremiyorum" → haritadan ve günden konuşur, taslak teklif
+  etmez). Sorulmamış konuda çekince eklemez ("maddi konularda tavsiye
+  veremem" yalnız para sorulunca, tek cümle; para sorulunca haritadan
+  tema anlatılır, yatırım yönlendirmesi yapılmaz). Sohbete yazılan doğum
+  tarihinden harita ÜRETMEZ — sohbet hiçbir şey hesaplamaz; başka bir
+  kişinin haritası yalnız Çevrem'de hesaplanır ve oradan sohbete gelir.
+  Ölçer: `tools/sohbet_olc.py` (üretim, salt okuma) ve
+  `backend/scripts/eval_genericness.py --mode persona`.
 
 ---
 

@@ -9,8 +9,9 @@ gibi). Gizlilik politikası (legal_texts.dart) aynı fazda güncellendi;
 mağaza formları R9 listesinde.
 
 Duruşun korunan yarısı: serbest metne İSTEMCİ yazamaz (rules'ta
-conversations `write: false`) — yazan tek el burası, moderasyon kapısının
-ARKASI. Engellenen konular ne düşülür ne saklanır.
+conversations `write: false`) — yazan tek el burası. Engellenen tur bedel
+DÜŞMEZ ama arşive `blocked` damgasıyla YAZILIR (`write_turn`): bir tur
+boyunca hiç yazılmadığı için kapının yanlış pozitifleri ölçülemiyordu.
 
 ## Sınırlar
 
@@ -203,7 +204,8 @@ def prepare(uid: str, requested_id: str | None) -> PreparedConversation | None:
 def write_turn(uid: str, prepared: PreparedConversation,
                user_text: str, ai_text: str, lang: str,
                friend_uid: str | None = None,
-               person_id: str | None = None) -> None:
+               person_id: str | None = None,
+               blocked: str | None = None) -> None:
     """Bir soru-cevap turunu arşive yazar — arka plan görevi.
 
     Başarısızlık yanıtı etkilemez; yalnızca o tur arşivden düşer.
@@ -213,6 +215,22 @@ def write_turn(uid: str, prepared: PreparedConversation,
     KAYBETMESİN (`prepare` geri getirir). Bağlam sonradan da gelebilir
     (kullanıcı konuşmanın ortasında kişi ekranından dönerse) — bu yüzden
     yalnız oluşturmada değil, doluysa her turda yazılır.
+
+    ``blocked`` (K-turu): tur yasak alan kapısına takıldıysa kategori adı
+    (`saglik`/`finans`/…); ``ai_text`` o zaman modelin değil kapının
+    SABİT ret metnidir. İKİ mesaj da `blocked` alanını taşır — kullanıcı
+    mesajı "hangi cümle takıldı" sorusunu, AI mesajı "ne dendi"yi
+    cevaplar; ölçüm sorgusu (`messages` grubu, `blocked` dolu) ikisini
+    de tek seferde getirir. Alan YALNIZ engelde yazılır: yokluğu "model
+    cevapladı" demektir, `null` yazmak sorguyu boş alanla kirletirdi.
+
+    Sebep ölçüm: engellenen turlar bir tur boyunca arşive HİÇ
+    yazılmıyordu (uç `write_turn`dan önce dönüyordu) ve 498 mesajlık
+    korpusta kayıtlı engel SIFIRDI — oysa sahip ekranda "hissediyorum"
+    cümlesine finans reddi görüyordu. Kaydı olmayan kusur ölçülemez;
+    kapının yanlış pozitif oranı ancak buradan okunur. Bedel burada
+    DÜŞÜLMEZ (`api/chat.py` kapıyı harcamadan önce koşturur) ve hafıza
+    çıkarıcı bu turu görmez — ret, kişiselleştirme sinyali değildir.
     """
     client = firestore_client.get_client()
     if client is None:
@@ -245,14 +263,19 @@ def write_turn(uid: str, prepared: PreparedConversation,
         mesajlar = conv_ref.collection("messages")
         # AI damgasına mikro fark: aynı anda yazılan çift, createdAt
         # sıralamasında yer değiştirmesin.
-        mesajlar.document().set({
+        kullanici_mesaji: dict[str, Any] = {
             "sender": "USER", "text": clip_message(user_text),
             "createdAt": simdi,
-        })
-        mesajlar.document().set({
+        }
+        ai_mesaji: dict[str, Any] = {
             "sender": "AI", "text": ai_text,
             "createdAt": simdi + dt.timedelta(milliseconds=1),
-        })
+        }
+        if blocked:
+            kullanici_mesaji["blocked"] = blocked
+            ai_mesaji["blocked"] = blocked
+        mesajlar.document().set(kullanici_mesaji)
+        mesajlar.document().set(ai_mesaji)
         guncelleme = {
             "updatedAt": simdi,
             "messageCount": prepared.message_count + 2,

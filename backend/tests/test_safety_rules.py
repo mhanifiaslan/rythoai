@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from core import entitlements
 from services import gemini_service
-from services.safety_rules import forbidden_topic
+from services.safety_rules import _RULES, forbidden_topic
 
 try:
     from main import app
@@ -221,3 +221,153 @@ def test_persona_yasak_alanlari_sayar():
 def test_persona_yuz_okumayi_iddia_etmez():
     """Yüz okuma v1 kapsamı dışında; olmayan bir yeteneği vaat etmemeli."""
     assert "yüz okuma" not in gemini_service.CHAT_SYSTEM_INSTRUCTION.lower()
+
+
+# --------------------------------------------------------------------------
+# K-turu: alt dize → kelime sınırı
+#
+# Kapı bir tur boyunca ALT DİZEYLE çalıştı ve bedeli ölçüldü (2026-10-10):
+# "hisse" "hissediyorum"u, "altin" "altında"yı, "olurum" "mutlu olurum"u,
+# "\bsick\b" "sick of my job"u yakaladı. Dördü de sıradan cümle, dördü de
+# kullanıcıya sorulmamış bir çekince döndürdü — sahibin "alakasız yere
+# maddi konularda tavsiye veremem diyor" şikâyeti buydu. Engellenen tur
+# arşive yazılmadığı için korpusta kayıt SIFIRDI; kusur ekranda görüldü.
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("mesaj", [
+    "Bugün çok kötü hissediyorum, geçecek mi?",
+    "Bu transitin altında ne zaman rahatlarım?",
+    "Sunumu yetiştirirsem mutlu olurum, ne yapmalıyım?",
+    "Akşam sunum var yetiştiremiyorum ne yapmalıyım",
+    "İş yerinde altın gibi bir fırsat var, kabul etsem mi?",
+    "Böyle devam ederse ne yaşarım bilmiyorum",
+    "I'm sick of my job, will it change?",
+    # altın/gold bir ARAÇ değil, önce bir kelime — takı finans değil.
+    "Will my gold earrings bring luck?",
+    "Kendimi çok yalnız hissediyorum",
+    # Soru eki sınırsızken "kendi**mi**" talep sayılıyordu; bu bir duygu
+    # paylaşımı, "hasta" geçse de engellenmemeli.
+    "Kendimi hasta hissediyorum",
+    # 3. kişi/duygu cümlesi: "hastane" bilerek kalıpta yok.
+    "Hastaneye gittim annem iyi mi olacak",
+    # Katlama çakışması: "olur muyum" ≠ "ölür müyüm".
+    "Zengin olur muyum?",
+    # "ömrümün aşkı" bir ömür sorusu değil.
+    "Ömrümün aşkını ne zaman bulacağım",
+    # Deyimler.
+    "Kısır döngüden ne zaman çıkarım",
+    "Bebeğim beni seviyor mu",
+    "Yastığın altına koysam mı",
+    # Yas: "vefat etti" geçmiş, kehanet değil.
+    "Babam vefat etti, ne zaman toparlanırım",
+    # "olumlu" ≠ "ölüm".
+    "Olumlu bir dönem mi olacak",
+])
+def test_kelime_sinirina_bagli_yanlis_pozitifler_gecer(mesaj):
+    assert forbidden_topic(mesaj) is None, f"engellenmemeli: {mesaj}"
+
+
+@pytest.mark.parametrize("mesaj,beklenen", [
+    ("Hisselerimi satsam mı?", "finans"),
+    ("Eurolarımı satsam mı", "finans"),
+    ("Fonlarımı bozdursam mı", "finans"),
+    ("Altın fiyatı yükselecek mi", "finans"),
+    ("Altınlarımı satsam mı", "finans"),
+    ("Dolar yükselecek mi?", "finans"),
+    ("Should I buy bitcoin now?", "finans"),
+    ("Kanserim geçecek mi?", "saglik"),
+    ("Ne zaman öleceğim?", "olum"),
+    ("Kaç yıl ömrüm kaldı", "olum"),
+    # Aksanlı kalıp: katlanmış metinde "olur muyum" ile çakışırdı.
+    ("Kazada ölür müyüm?", "olum"),
+    ("Bebeğim olacak mı", "hamilelik"),
+])
+def test_kelime_sinirina_ragmen_dogru_pozitifler_kalir(mesaj, beklenen):
+    """Kalıplar daraltılırken gerçek sorular kaçmamalı — sınır iki yöne
+    de çalışır."""
+    sonuc = forbidden_topic(mesaj)
+    assert sonuc is not None, f"yakalanmali: {mesaj}"
+    assert sonuc[0] == beklenen
+
+
+#: Konu kalıplarının HİÇBİRİNİN eşleşmemesi gereken tuzak kelimeler —
+#: normalize edilmiş (ASCII, küçük harf) biçimleriyle. Her kalıp ayrı ayrı
+#: derlenip sınanır: bir kural ileride yeniden genişlerse bekçi hangi
+#: kuralın geriye gittiğini adıyla söyler.
+_TUZAK_KELIMELER = [
+    "hissediyorum",
+    "altinda",
+    "altina",
+    "mutlu olurum",
+    "ne yasarim",
+    "sick of my job",
+    "olumlu",
+    "hastaneye",
+    "kisir dongu",
+    "i'm a cancer",
+    "my cancer moon",
+    "ill be fine",
+    "silent treatment",
+    "dying to know",
+    "scared to death",
+    "gold earrings",
+    "a few dollars left",
+    "update my portfolio",
+    "fund my project",
+    "stock up",
+]
+
+
+@pytest.mark.parametrize("tuzak", _TUZAK_KELIMELER)
+def test_kaliplar_tuzak_kelimelere_takilmaz(tuzak):
+    """Alt dize regresyon bekçisi: konu kalıpları doğrudan derlenmiş hâliyle
+    sınanır (talep işareti olmadan), yani `forbidden_topic`in darlığı bu
+    testi KURTARAMAZ — kalıbın kendisi temiz olmalı."""
+    for rule in _RULES:
+        for dil, kalip in rule.konu.items():
+            assert kalip.search(tuzak) is None, (
+                f"{rule.kategori}/{dil} kalıbı '{tuzak}' üzerinde eşleşti")
+
+
+def test_burc_olarak_cancer_saglik_degil():
+    """Bu bir astroloji uygulaması: "Cancer" önce bir burç. Hastalık yalnız
+    bağlamıyla ("my cancer", "have cancer", "breast cancer")."""
+    assert forbidden_topic("I'm a Cancer, will this week be good for me?",
+                           lang="en") is None
+    assert forbidden_topic("Will my Cancer moon make me too emotional?",
+                           lang="en") is None
+    sonuc = forbidden_topic("Will my cancer get better?", lang="en")
+    assert sonuc is not None and sonuc[0] == "saglik"
+
+
+def test_soru_eki_kelime_basina_bagli():
+    """`_SORU_TR` başında `\\b` yoksa "kendimi/ismi/resmi" talep sayılır."""
+    from services.safety_rules import _TALEP
+    for kelime in ("kendimi", "ismi", "resmi", "elimi"):
+        assert _TALEP["tr"].search(kelime) is None, kelime
+    assert _TALEP["tr"].search("gececek mi") is not None
+    assert _TALEP["tr"].search("birakmali miyim") is not None
+
+
+# --------------------------------------------------------------------------
+# Ret metni: sıcak bir sınır beyanı, "tavsiye veremem" refleksi değil
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("rule", _RULES, ids=lambda r: r.kategori)
+def test_ret_metni_sinir_beyani_ve_haritaya_kopru(rule):
+    """Her kategori, iki dilde: yetkin olduğu alanı söyler ("benim alanım"
+    / "my ground"), haritaya köprü kurar ("istersen" / "if you'd like") ve
+    "veremem/can't give" refleksi taşımaz. Lifestyle ürünü: Rytho bilge
+    bir dost, bir uyarı levhası değil."""
+    # `str.lower()` Türkçe bilmez: "İstersen".lower() "i" + U+0307 verir ve
+    # "istersen" alt dizesi bulunmaz (CLAUDE.md §5). İ elle katlanır.
+    tr = rule.yanit["tr"].replace("İ", "i").replace("I", "ı").lower()
+    en = rule.yanit["en"].lower()
+    assert "benim alanım" in tr, rule.kategori
+    assert "istersen" in tr, rule.kategori
+    assert "my ground" in en, rule.kategori
+    assert "if you'd like" in en, rule.kategori
+    for yasak in ("veremem", "tavsiye", "yapamam"):
+        assert yasak not in tr, f"{rule.kategori}: '{yasak}' refleksi"
+    for yasak in ("can't give", "cannot give", "can't advise", "advice"):
+        assert yasak not in en, f"{rule.kategori}: '{yasak}' refleksi"

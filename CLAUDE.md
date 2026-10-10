@@ -99,7 +99,13 @@ Pin sonrası takım süresi **214 sn → 83 sn** düştü.
 `"i" + U+0307`). Alt dizi eşleşmesi yanlış pozitif üretir: "il**iş**kimde"
 içinde "iş" var; ham `feedback` araması `HapticFeedback`'e takılıyor; ham
 `['reply']` sohbet cevabına takılıyor. Eşleşmeyi **kelime başına ya da dize
-literaline** bağla.
+literaline** bağla. ⚠️ Yasak-alan KAPISI bir tur boyunca tam bunu yaptı
+(S1, 2026-10-10): "**hisse**diyorum" → finans reddi, "**altın**da" →
+finans, "mutlu **olurum**" → ölüm, "**sick of** my job" → sağlık,
+"kendi**mi**" → soru eki. Engellenen tur kaydedilmediği için korpusta
+görünmedi; yalnız ekranda ve probe ile ölçüldü. Kural: kapı kalıpları
+`` + KAPALI ek listesi, bir de doğrudan-kalıp tuzak-kelime bekçisi
+(`test_kaliplar_tuzak_kelimelere_takilmaz`).
 
 **Bir şeyin YOKLUĞUNU arayan bekçi, onu ANLATAN yorumu görmemeli.** İki kez
 patladı: build kapısı kendi manifest yorumuna takıldı, davet sayfası testi
@@ -261,6 +267,18 @@ konuşması) DÖRT ayrı kusur verdi:
 Onarım S1 dalgasında (K kapı+kayıt, P yetki alanı+`persona_guard`+üçüncü
 kişi, E ölçer `tools/sohbet_olc.py`). Yayılım: yalnız backend
 (`infra/deploy-backend.ps1`), AAB gerekmez.
+
+⚠️ **Üçüncü-kişi bekçisi kapanış probunda YANLIŞ POZİTİF verdi** ve bu
+sınıf en tehlikelisi: kullanıcının KENDİ haritasını anlatan doğru yanıt
+("Haritanda Güneş'inin Yay burcundaki Jüpiter…") cümle başındaki büyük
+harfli sıradan kelime yüzünden "adlı iddia" sayıldı; ikinci üretim de aynı
+doğru cümleyi kurunca kullanıcıya doğru cevap yerine SABİT "Çevrem'e ekle"
+cümlesi gidecekti. Kural: bekçi yalnız sohbete DOĞUM VERİSİ girdiğinde
+bakar (bu mesaj ya da prompt geçmişi — uydurma tarihsiz sonraki turlara
+geçmişle taşınıyor, ölçüldü). "Bir bekçinin yanlış pozitifi, koruduğu
+kusurdan ağırsa bekçi daralır." Kriz turu BİLEREK arşivlenmez (kullanıcının
+geçmişinde durmasın); yasak-alan turu arşivlenir ve `conversation_id`
+döner (yoksa yetim konu 20 konu tavanına sayılıp gerçek konuyu sildirirdi).
 
 ⚠️ **Dalga kapanış ritüeli** (üç kez işe yaradı): tam takım → ajanların
 `dokunmadigim_ama_gerekli` alanlarını TAM metin oku (dikişler orada; D0'da

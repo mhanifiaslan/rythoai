@@ -183,3 +183,51 @@ class TestYapisalKarsilastirma:
             {"planet": "Venus", "sign": "Lib", "house": 3}]}
         assert fact_guard.invented_claims(
             "Venüs Terazi'de, 3. evde.", "", olgular) == set()
+# ---------------------------------------------------------------------------
+# Ucuncu kisi bicimleri (P-turu) — OLCUM, onarim degil
+# ---------------------------------------------------------------------------
+
+class TestUcuncuKisiBicimleri:
+    """Uretimde "29/04/2010 istanbul" sonrasi "Ayse Oyku, Gunes'i Boga
+    burcunda ve Ay'i Akrep burcunda" kullaniciya gitti ve olgu bekcisi
+    yakalamadi. Ilk hipotez `extract_claims`in iyelik bicimini
+    ("Gunes'i … burcunda") kacirdigiydi — OLCULDU (2026-10-10), kacirmiyor.
+    Gercek bosluk YAPISAL: iddia kumesi KIMIN Gunes'i oldugunu bilmez.
+    Kullanicinin kendi Gunes'i Boga ise ("sign","Sun","taurus") dayanakta
+    vardir ve ucuncu kisiye yakistirilan ayni iddia "dogru" sayilir. O
+    boslugu sohbette `persona_guard.third_party_claims` kapatir (adi
+    fisiltida olmayan kisi); bu sinif burada yalniz olcumu civiler.
+    """
+
+    def test_iyelik_bicimleri_yakalanir(self):
+        iddialar = fact_guard.extract_claims(
+            "Ayse Oyku, Gunes'i Boga burcunda ve Ay'i Akrep burcunda.")
+        assert ("sign", "Sun", "taurus") in iddialar
+        assert ("sign", "Moon", "scorpio") in iddialar
+        assert ("sign", "Sun", "sagittarius") in fact_guard.extract_claims(
+            "Gunes'inin Yay burcundaki konumu ona ates katiyor.")
+
+    def test_iddia_kumesi_sahibi_bilmez(self):
+        """SINIR BEYANI: kullanici Boga ise ucuncu kisinin Boga Gunes'i
+        'uydurma' SAYILMAZ — bekci sahibi gormez. Bu test onarilacak bir
+        kusur degil, ayrimin nerede durdugunun kaydidir."""
+        olgular = {"sun": {"planet": "Sun", "sign": "Tau"}}
+        assert fact_guard.invented_claims(
+            "Ayse Oyku, Gunes'i Boga burcunda.", "", olgular) == set()
+        # Sahipsiz ayni iddia, kullanici Boga DEGILSE yakalanir.
+        assert ("sign", "Sun", "taurus") in fact_guard.invented_claims(
+            "Ayse Oyku, Gunes'i Boga burcunda.", "",
+            {"sun": {"planet": "Sun", "sign": "Leo"}})
+def test_gunes_ay_yukselen_sayimi_aci_iddiasi_degildir():
+    """"Ay" ozel eslesmesi bir tur boyunca ACI listesine de ekleniyordu:
+    "Gunes, Ay, Yukselen" sayimi ("aspect", "Ascendant", "Moon", "Sun")
+    diye SAHTE bir aci uretiyor ve ucluyu bir cumlede anan her dogru yanit
+    bir LLM turu daha ismarliyordu (olculdu 2026-10-10, persona
+    fisiltisinin "burc, Gunes, Ay, Yukselen" satirinda yakalandi)."""
+    for cumle in ("Burc, Gunes, Ay, Yukselen cikarma.",
+                  "Gunes'in, Ay'in ve Yukselenin bir arada okunmasi gerekir."):
+        iddialar = fact_guard.extract_claims(cumle)
+        assert not any(c[0] == "aspect" for c in iddialar), (cumle, iddialar)
+    # Gercek bir Ay acisi HALA yakalanir — onarim bekciyi kor etmemeli.
+    assert ("aspect", "Moon", "square", "Sun") in fact_guard.extract_claims(
+        "Gunes kare Ay teması sende gerilim yaratir.")

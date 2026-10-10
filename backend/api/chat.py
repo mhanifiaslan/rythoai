@@ -18,6 +18,7 @@ from services import (
     memory_extractor,
     memory_service,
     notification_service,
+    persona_guard,
     profile_service,
     prompts,
     safety_rules,
@@ -114,6 +115,30 @@ def _sky_summary(lang: str, profile: dict | None = None) -> str:
         return ""
 
 
+def _engellenen_turu_kaydet(background: BackgroundTasks, uid: str,
+                            hazir_konu, mesaj: str, reply: str, lang: str,
+                            kategori: str) -> None:
+    """Kapıda engellenen turu arşive yazar — ÖLÇÜLEBİLSİN diye (P-turu).
+
+    Engellenen turlar `write_turn`dan ÖNCE dönüyordu, yani Firestore'a
+    HİÇ yazılmıyordu. Ölçüldü (2026-10-10): 498 mesajlık üretim korpusunda
+    kayıtlı engel SIFIR — oysa sahibi ekranda alakasız finans/sağlık
+    reddini görmüştü. Konu kalıplarının yanlış pozitifleri ("hissediyorum"
+    içinde "hisse") ancak kayıtlı turdan ölçülür; kayıt yoksa kusur
+    görünmez ve bir daha onarılamaz.
+
+    YALNIZ yasak-alan kapısı için: kriz turu BİLEREK arşivlenmez — "yaşamak
+    istemiyorum" cümlesinin kullanıcının kendi geçmişinde 30 gün durması,
+    hafıza çıkarıcının da o turda koşmaması kararıyla aynı yerden gelir
+    (kriz anı kişiselleştirme sinyali değil, kayıt malzemesi de değil).
+    Sıklığı log satırı ("Kriz işareti") ölçer.
+    """
+    if hazir_konu is None:
+        return
+    background.add_task(chat_history.write_turn, uid, hazir_konu, mesaj,
+                        reply, lang, blocked=kategori)
+
+
 @router.post("")
 @router.post("/")
 def chat(request: ChatRequest, background: BackgroundTasks,
@@ -138,34 +163,12 @@ def chat(request: ChatRequest, background: BackgroundTasks,
     #
     # Model çağrılmaz, jeton düşmez, kota yenmez ve hafızaya "mood"
     # yazılmaz: kriz anı bir kişiselleştirme sinyali değil.
-    if safety_rules.crisis_signal(request.message):
-        logger.info("Kriz işareti: yanıt destek metnine yönlendirildi")
-        return {"status": "success", "reply": text("crisis.support", lang),
-                "blocked": "crisis"}
-
-    # Yasak alan kapısı kotadan ÖNCE: reddedilen bir soru kullanıcının günlük
-    # hakkını yemez.
-    blocked = forbidden_topic(request.message, lang=lang)
-    if blocked is not None:
-        kategori, reply = blocked
-        logger.info("Yasak alan reddedildi: %s", kategori)
-        return {"status": "success", "reply": reply, "blocked": kategori}
-
-    # Tek cihaz kilidi (yalnızca ücretli abonede etkili) HARCAMADAN önce:
-    # 409 alan istek token da yakmamalı.
-    device.enforce_single_device(user.uid, x_device_id,
-                                 auth_time=user.auth_time,
-                                 platform=x_device_platform, lang=lang)
-
-    # Ücretsiz günlük hak + token cüzdanı tek kapıda (Revize R1). Abone
-    # cüzdanından harcar; ücretsiz kullanıcı önce günlük hakkını yer, sonra
-    # varsa satın alınmış paketten. Sohbet ÖNBELLEKSİZ tek uç olduğu için
-    # harcama peşin; LLM yanıt veremezse aşağıda iade edilir.
-    token_harcandi = charge_metered(user, "chat", FREE_CHAT_PER_DAY, lang=lang)
-
-    # Konu hedefi SENKRON çözülür (yanıt kimliği döndürmek zorunda), mesaj
-    # yazımı arka planda (kullanıcı Firestore'u beklemez). Kırpma 422 yerine:
-    # uzun yazan kullanıcının mesajını reddetmek yerine kısaltıyoruz.
+    #
+    # Konu hedefi ve kırpılmış mesaj KAPILARDAN ÖNCE hazırlanır (P-turu):
+    # engellenen tur da arşive yazılacak (`_engellenen_turu_kaydet`) ve
+    # bunun için konu kimliği lazım. `prepare` tek doküman okuması ve
+    # bedava; HARCAMA (`charge_metered`) kapıların arkasında kalmaya
+    # devam ediyor — reddedilen soru hak yemez.
     mesaj_metni = chat_history.clip_message(request.message)
 
     # SS4b — yayın günü tuzağı. Güncellenmemiş istemci `cid`'yi bilmez:
@@ -181,6 +184,48 @@ def chat(request: ChatRequest, background: BackgroundTasks,
             entitlements.user_local_date(user.uid).isoformat())
 
     hazir_konu = chat_history.prepare(user.uid, hedef_konu)
+
+    if safety_rules.crisis_signal(request.message):
+        logger.info("Kriz işareti: yanıt destek metnine yönlendirildi")
+        reply = text("crisis.support", lang)
+        # Arşiv YOK (bkz. _engellenen_turu_kaydet) ve konu kimliği de
+        # dönmez: rezerve edilen kimliğe hiçbir şey yazılmadı, istemci onu
+        # taşısaydı bir sonraki mesaj hiç var olmayan bir konuya bağlanırdı.
+        return {"status": "success", "reply": reply, "blocked": "crisis"}
+
+    # Yasak alan kapısı kotadan ÖNCE: reddedilen bir soru kullanıcının günlük
+    # hakkını yemez.
+    blocked = forbidden_topic(request.message, lang=lang)
+    if blocked is not None:
+        kategori, reply = blocked
+        logger.info("Yasak alan reddedildi: %s", kategori)
+        _engellenen_turu_kaydet(background, user.uid, hazir_konu,
+                                mesaj_metni, reply, lang, kategori)
+        # `conversation_id` ŞART (K'nin dikişi): tur bu kimliğe arşivlendi;
+        # istemci kimliği öğrenmezse bir sonraki mesajı `cid: null` ile
+        # gönderir, YENİ bir konu açılır ve engellenen tur tek-turluk
+        # yetim konu olarak 20 konu tavanına sayılıp gerçek bir konuyu
+        # sildirebilir (`_evict_oldest_if_needed`).
+        return {"status": "success", "reply": reply, "blocked": kategori,
+                "conversation_id": (hazir_konu.conversation_id
+                                    if hazir_konu else None)}
+
+    # Tek cihaz kilidi (yalnızca ücretli abonede etkili) HARCAMADAN önce:
+    # 409 alan istek token da yakmamalı.
+    device.enforce_single_device(user.uid, x_device_id,
+                                 auth_time=user.auth_time,
+                                 platform=x_device_platform, lang=lang)
+
+    # Ücretsiz günlük hak + token cüzdanı tek kapıda (Revize R1). Abone
+    # cüzdanından harcar; ücretsiz kullanıcı önce günlük hakkını yer, sonra
+    # varsa satın alınmış paketten. Sohbet ÖNBELLEKSİZ tek uç olduğu için
+    # harcama peşin; LLM yanıt veremezse aşağıda iade edilir.
+    token_harcandi = charge_metered(user, "chat", FREE_CHAT_PER_DAY, lang=lang)
+
+    # Konu hedefi yukarıda SENKRON çözüldü (yanıt kimliği döndürmek
+    # zorunda), mesaj yazımı arka planda (kullanıcı Firestore'u beklemez).
+    # Kırpma 422 yerine: uzun yazan kullanıcının mesajını reddetmek yerine
+    # kısaltıyoruz.
 
     try:
         # Prompt geçmişi tavanlı (K4): son 12 mesaj × 1.200 karakter —
@@ -382,6 +427,14 @@ def chat(request: ChatRequest, background: BackgroundTasks,
             # şikâyetinin en ağır hâli. Sessiz kalmasın (KA8).
             logger.info("Sohbet SIFIR fısıltıyla gitti (%s)", user.uid)
 
+        # Persona fısıltısı (P-turu): mesaj bir görev delege ediyorsa
+        # ("sunum hazırlar mısın") ya da doğum tarihi taşıyorsa modele
+        # ÖNCEDEN söylenir — kusuru çıktıda yakalayıp yeniden üretmek bir
+        # LLM turu, burada söylemek bedava. `compose_chat_message`in
+        # ARDINDAN iliştirilir (o modül başka paketin); yer mesajın hemen
+        # üstü — en yakın yer, en ağır yer.
+        message = persona_guard.attach(message, mesaj_metni, lang=lang)
+
         reply = gemini_service.chat(history, message, lang=lang,
                                     feature="chat", uid=user.uid)
         if reply is None:
@@ -405,6 +458,23 @@ def chat(request: ChatRequest, background: BackgroundTasks,
             # açıyordu.
             reply, _ = fact_guard.enforce(
                 reply, message, lang=lang, regenerate=yeniden, facts=facts)
+            # Persona bekçisi OLGU bekçisinden SONRA (P-turu): olgu
+            # bekçisinin yeniden ürettiği metin de kayabilir ve ikinci
+            # üretim de kirliyse kullanıcıya giden şey modelin metni DEĞİL
+            # sabit cümledir — "sunum taslağı hazırlayabilirim" bir kez
+            # ekrana çıktı, bir daha çıkmaz. Olgu bekçisi aynı dalda metni
+            # döndürüyor (rapor yüzeyleri için doğru); sohbet için değil.
+            # Her iki bekçi de aynı turun kapanışını kullanır: jeton ikinci
+            # kez düşülmez, en kötü hâlde tur üç LLM çağrısı tutar.
+            # `message=`/`history=` ŞART: üçüncü-kişi bekçisi yalnız sohbete
+            # doğum verisi girdiğinde bakar (bu mesaj ya da prompt geçmişi);
+            # verilmezse kullanıcının KENDİ haritasını anlatan doğru cevap
+            # sabit cümleyle ezilirdi (kapanış probunda ölçüldü).
+            reply, _ = persona_guard.enforce(
+                reply, message, lang=lang, regenerate=yeniden,
+                circle=circle, relationship=relationship,
+                message=mesaj_metni,
+                history=" ".join(m["text"] for m in history))
         # Olgu çıkarımı yanıttan SONRA, arka planda: kullanıcı ikinci bir LLM
         # çağrısını beklemez. Kendi içinde kotalı ve hataya dayanıklı.
         #

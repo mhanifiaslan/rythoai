@@ -118,8 +118,18 @@ _AY_DEGIL = re.compile(
 )
 
 
-def _find_spans(text: str, names: list[tuple[str, str]]) -> list[tuple[int, int, str]]:
-    """Metindeki ad geçişleri: (baş, son, kanonik). Örtüşen kısa ad elenir."""
+def _find_spans(text: str, names: list[tuple[str, str]],
+                moon: bool = False) -> list[tuple[int, int, str]]:
+    """Metindeki ad geçişleri: (baş, son, kanonik). Örtüşen kısa ad elenir.
+
+    ``moon`` yalnız GEZEGEN taramasında True: Ay'ın özel eşleşmesi ("bu ay"
+    değil, "Ay'ın" evet) bir tur boyunca HER listeye ekleniyordu — burç
+    listesi `_SIGN_KEYS` süzgeciyle kurtuluyordu, açı listesi kurtulmuyordu.
+    Ölçüldü (2026-10-10): "burç, Güneş, Ay, Yükselen" gibi sıradan bir
+    sayım ``("aspect", "Ascendant", "Moon", "Sun")`` diye SAHTE bir açı
+    iddiası üretiyor, yani Güneş-Ay-Yükselen'i bir cümlede anan her doğru
+    yanıt "uydurma" damgası yiyip bir LLM turu daha ısmarlıyordu.
+    """
     bulunan: list[tuple[int, int, str]] = []
     for ad, anahtar in names:
         if ad == "ay":
@@ -127,6 +137,9 @@ def _find_spans(text: str, names: list[tuple[str, str]]) -> list[tuple[int, int,
         desen = re.compile(rf"(?<![a-zçğıöşü]){re.escape(ad)}(?![a-zçğıöşü])")
         for m in desen.finditer(text):
             bulunan.append((m.start(), m.end(), anahtar))
+    if not moon:
+        bulunan.sort(key=lambda t: (t[0], -(t[1] - t[0])))
+        return bulunan
     # Ay: yalnız başlı başına, "bu ay" değil.
     temiz = _AY_DEGIL.sub(" " * 5, text)
     for m in re.finditer(r"(?<![a-zçğıöşü])ay(?:['’]ın|ın|in)?(?![a-zçğıöşü])",
@@ -213,7 +226,7 @@ def extract_claims(text: str) -> set[Claim]:
     if not text:
         return set()
     dusuk = prompt_composer.normalize(text)
-    gezegenler = _find_spans(dusuk, _PLANET_NAMES)
+    gezegenler = _find_spans(dusuk, _PLANET_NAMES, moon=True)
     burclar = _find_spans(dusuk, _SIGN_NAMES)
     acilar = _find_spans(dusuk, _ASPECT_NAMES)
 
@@ -435,6 +448,18 @@ def enforce(reply: str, prompt: str, lang: str | None = None,
 
     Dönen çift: (metin, grounded). ``grounded is False`` ise çağıran
     metni uzun ömürlü önbelleğe YAZMAMALI.
+
+    ⚠️ SINIR BEYANI: yeniden üretimde de uydurma kalırsa metin OLDUĞU GİBİ
+    döner; bu dal yalnız önbellek kararını etkiler, kullanıcıya gideni
+    DEĞİŞTİRMEZ. Rapor yüzeyleri (natal, yıl haritası, BaZi) için bilinçli:
+    30 günlük raporu kilitlememek yeter, raporun kendisi yine gösterilir.
+    SOHBET için bu dal yetmez — ölçüldü (2026-10-10): "29/04/2010 istanbul"
+    sonrası "Ayşe Öykü, Güneş'i Boğa burcunda" iki üretimde de kalıp
+    kullanıcıya gitti. Ayrıca iddia kümesi KİMİN Güneş'i olduğunu bilmez
+    (bkz. `tests/test_fact_guard.py::TestUcuncuKisiBicimleri`). Sohbette
+    o boşluğu `services/persona_guard.py` kapatır: ikinci üretim de
+    kirliyse SABİT cümle döner. Bu fonksiyonun dalı değiştirilmez; rapor
+    yüzeyleri ona dayanıyor.
     """
     uydurma = invented_claims(reply, prompt, facts)
     if not uydurma:

@@ -296,3 +296,45 @@ def test_konu_tavani_en_eskiyi_dusurur(depo):
     chat_history.write_turn("u1", h, "yeni konu", "cevap", "tr")
 
     assert len(_konu_yollari(depo)) == chat_history.MAX_CONVERSATIONS
+
+
+# --------------------------------------------------------------------------
+# Engellenen tur damgasi (K-turu)
+#
+# Engellenen turlar bir tur boyunca arşive HİÇ yazılmıyordu ve 498
+# mesajlık korpusta kayıtlı engel SIFIRDI — kapının yanlış pozitifleri
+# ("hissediyorum" → finans reddi) yalnız ekranda görüldü. Kaydı olmayan
+# kusur ölçülemez.
+# --------------------------------------------------------------------------
+
+def test_engellenen_tur_damgali_yazilir(depo):
+    """`blocked` iki mesajda da durur; AI metni kapının sabit ret metnidir."""
+    hazir = chat_history.prepare("u1", None)
+    chat_history.write_turn("u1", hazir, "Hisselerimi satsam mı?",
+                            "Al-sat kararı benim alanım değil…", "tr",
+                            blocked="finans")
+
+    mesajlar = sorted(
+        (veri for yol, veri in depo.items()
+         if f"conversations/{hazir.conversation_id}/messages/" in yol),
+        key=lambda v: v["createdAt"])
+    assert [m["sender"] for m in mesajlar] == ["USER", "AI"]
+    assert all(m["blocked"] == "finans" for m in mesajlar), (
+        "ölçüm sorgusu iki mesajı da tek seferde getirmeli")
+    assert mesajlar[1]["text"].startswith("Al-sat")
+    konu = depo[f"users/u1/conversations/{hazir.conversation_id}"]
+    assert konu["messageCount"] == 2, "engellenen tur da bir turdur"
+
+
+def test_engellenmeyen_turda_blocked_alani_yok(depo):
+    """Alan YALNIZ engelde yazılır: yokluğu "model cevapladı" demek. `null`
+    yazılsaydı `blocked` dolu olanları süzen ölçüm sorgusu boş alanla
+    kirlenirdi."""
+    hazir = chat_history.prepare("u1", None)
+    chat_history.write_turn("u1", hazir, "Bugün nasıl bir gün?", "Sakin.",
+                            "tr")
+
+    mesajlar = [veri for yol, veri in depo.items()
+                if f"conversations/{hazir.conversation_id}/messages/" in yol]
+    assert len(mesajlar) == 2
+    assert all("blocked" not in m for m in mesajlar)
