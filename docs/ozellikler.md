@@ -134,6 +134,12 @@ yok, sıfırdan yazıldı:
 - Şans sütunları (Da Yun) + **takvim yılları** ("1993-2003"), yıllık sütun
   (Liu Nian), **5 Shen Sha yıldızı** (her bulgu hangi kuraldan geldiğini
   taşır), Kong Wang.
+- **Cinsiyet belirtilmezse Da Yun'un YÖNÜ hesaplanmaz** (2026-10-10):
+  yön cinsiyet + yıl polaritesine bağlı; "belirtmek istemiyorum" seçen
+  kullanıcıda motor yön uydurmaz, `luck_direction_known: false` ve iki olası
+  dizi (`luck_pillar_candidates`) döner, ekrana beyan satırı girer. Eski
+  hâl ikili olmayan cinsiyeti sessizce kadın kuralıyla hesaplıyordu —
+  "ölçülmeyen söylenmez" ihlaliydi. Kayıt formu cinsiyeti önseçili vermez.
 - **Bugünün katmanı (günlük):** Liu Ri (gün sütunu) + Liu Yue (ay sütunu),
   doğumun dört sütunuyla kesişimi en fazla üç cümlede. Günlüklüğü taşıyan
   terim Liu Ri — ölçüldü: gün sütunu 30 günde 30 ayrı etiket alıyor, ay
