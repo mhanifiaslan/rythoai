@@ -170,7 +170,24 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 ## 6. Bugünkü durum (2026-10-10)
 
 Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.19.0+49**, AAB **üretildi**
-(`10-10 07:25`, 113,1 MiB, beş kapı da OK) ama **Play'e HENÜZ YÜKLENMEDİ**.
+(`10-10 19:53`, 114,0 MiB, **altı** kapı da OK — D3 ve R8 onarımı içeriyor)
+ama **Play'e HENÜZ YÜKLENMEDİ**; plan tek büyük sürüm **1.20.0+50**, 49'luk
+AAB yalnız ölçüm artefaktı.
+
+⚠️ **Play "DEX optimizasyonu %0" uyarısı KAPANDI (kaynakta, 2026-10-10)** —
+Console'un kendi ölçümü ancak 50 yüklenince değişir. Kök: RevenueCat Amazon
+modülünün consumer kuralındaki tek `-dontoptimize` BÜTÜN uygulamanın
+optimizasyonunu kapatıyordu; küçültme/karartma açıktı, derleme başarılı,
+testler yeşil — kusur yalnız AAB'nin `BUNDLE-METADATA/com.android.tools/
+r8.json`'unda görünüyordu (`noOptimizationPercentage: 100.0`). Onarım
+`keepRules { ignoreFrom(...) }` + `proguard-rules.pro`'da modülün diğer üç
+kuralı; `build-aab.ps1` altıncı kapı r8.json'u okuyor; ölçülen sonrası
+**%37,53** (kalan `-keep`'li sınıflar, eşik 75). Aynı turda `main()` her
+Android sürümünde `edgeToEdge` açıyor (ikinci Play uyarısı). Bekçi
+`backend/tests/test_android_build_config.py`. ⚠️ Cihazda ölçülecek: R8
+optimizasyonu ilk kez açık — bildirim, Google girişi, satın alma/geri
+yükleme, yüz okuma (ML Kit + TFLite), sohbet; ve çubukların içerikle çakışıp
+çakışmadığı.
 Backend rev **00108-gtj** — `10-10` dağıtıldı, trafiğin %100'ü, `/health`
 **200** (deploy logundan BAĞIMSIZ sorguyla doğrulandı).
 
@@ -193,7 +210,7 @@ kavram için TEK bileşen kalır. Plan dosyası
 | D0 backend + sözlük ("kredi" tek kelime, `fallback` 6 uçta, BaZi `unspecified`, "sınırsız" gitti) | ✅ pytest 2384, 31/31 mutasyon | `410737a` |
 | D1–D2 fontlar pakette + `RythoGlyphs` + token/hareket/tema eklemeleri | ✅ Flutter 882, 10/10 mutasyon | `eed33c7` |
 | BaZi fısıltı önbellek anahtarı cinsiyet | ✅ | `d954948` |
-| D3 paylaşılan 22 bileşen (4 ajan paralel) | ⏳ | — |
+| D3 paylaşılan bileşenler (4 ajan paralel; `OkumaKabi`, `acPaywall`, `ozellik_katalogu`, `IzinKapisi`…) | ✅ Flutter 1033, 57/57 mutasyon | `b9b81c7` |
 | D8-web (App Store hapı, 4 sayfa rytho.css, yorum temizliği, WebP, ortak EN) | ⏳ | — |
 | D4 giriş+onboarding · D5 ana ekran+profil · D6 derinlik · D7 para · D8 cırcır+l10n+belge | bekliyor | — |
 
