@@ -5,68 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rytho — Ortak bağlantısı</title>
   <meta name="description" content="Rytho'yu indir.">
-  <!-- /r/** yeniden yazımı SINIRSIZ URL'yi bu tek sayfaya düşürüyor; hepsi
-       aynı başlığı taşıdığı için indekslenirlerse kopya içerik olurlar.
-       /i/ sayfasıyla aynı gerekçe; robots.txt bunu çözmez çünkü Disallow
-       taramayı durdurur, indekslemeyi değil. -->
+  <!-- noindex: /r/** tek sayfaya düşüyor, hepsi kopya içerik olurdu — docs/web-notlari.md §Ortak bağlantısı -->
   <meta name="robots" content="noindex, nofollow">
 
-  <!-- Uygulama KURULUYSA işletim sistemi bu sayfayı hiç açmaz; doğrudan
-       uygulamaya gider (AndroidManifest'teki /r/ intent-filter). Bu sayfa
-       yalnızca uygulama kurulu DEĞİLSE görünür. -->
+  <!-- Uygulama kuruluysa bu sayfa hiç açılmaz — docs/web-notlari.md §Ortak bağlantısı -->
 
   <meta property="og:title" content="Rytho — gökyüzünü senin için okuyor">
   <meta property="og:description"
         content="Gerçek gökyüzü hesabına dayanan günlük okuma.">
   <meta property="og:type" content="website">
+  <link rel="icon" href="/assets/rytho_logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/assets/rytho.css?v=3">
 
   <style>
+    /* Sayfaya özel olan yalnız ortalanmış tek kart düzeni; renk, yazı tipi ve
+       düğme ortak kabuktan gelir. */
     :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background: linear-gradient(180deg, #13091F 0%, #241038 55%, #0B0713 100%);
-      color: #EFE7DA;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                   Helvetica, Arial, sans-serif;
-      text-align: center;
-    }
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
     main { max-width: 420px; width: 100%; }
-    .glyph { font-size: 56px; color: #F2C14E; margin-bottom: 12px; }
-    h1 { font-size: 28px; margin: 0 0 10px; letter-spacing: -0.3px; }
-    p { font-size: 15px; line-height: 1.55; color: #C9BCA8; margin: 0 0 20px; }
-    .buton {
-      display: inline-block;
-      padding: 14px 26px;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #7B2FF7, #E64ACF);
-      color: #fff;
-      font-weight: 600;
-      font-size: 15px;
-      text-decoration: none;
-    }
-    .not { font-size: 12.5px; color: #8E8296; margin-top: 22px; }
+    .glyph { font-size: 56px; color: var(--gold); margin-bottom: 12px; }
+    h1 { font-size: 28px; margin: 0 0 10px; }
+    p { font-size: 15px; line-height: 1.55; color: var(--parchment-dim); margin: 0 0 20px; }
+    main .buton { width: 100%; }
+    /* 13 px taban ve ikincil metin rengi: eski not 12,5 px ve daha soluk bir gri (4,79:1) ile AA sınırındaydı. */
+    .not { font-size: 13px; color: var(--parchment-dim); margin: 22px 0 0; }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
+  <div class="gokyuzu"></div>
   <main>
     <div class="glyph">&#9790;</div>
     <h1 id="baslik">Rytho</h1>
     <p id="govde">Mağazaya yönlendiriliyorsun…</p>
 
-    <!-- ⚠️ KOD KULLANICIYA HİÇ GÖSTERİLMEZ ve bu bilinçli.
-         Uygulamada kod girme alanı YOK (paywall_screen.dart:329, A2
-         kararı). Kodu ekranda gösterip "kurulumdan sonra gir" demek,
-         girilecek bir yer olmadığı için düpedüz yanlış yönlendirme
-         olurdu — sayfanın ilk hâli tam bunu yapıyordu. Android'de kod
-         mağaza bağlantısında taşınıyor; kullanıcının yazması gerekmiyor. -->
-    <a class="buton" id="magaza" href="#">Uygulamayı indir</a>
+    <!-- Kod kullanıcıya gösterilmez, bilinçli — docs/web-notlari.md §Ortak bağlantısı -->
+    <a class="buton" id="magaza" href="https://play.google.com/store/apps/details?id=ai.rytho">Uygulamayı indir</a>
     <p class="not" id="not"></p>
   </main>
 

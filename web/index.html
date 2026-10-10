@@ -16,9 +16,11 @@
   <meta property="og:url" content="https://rytho.app/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/rytho.css?v=2">
-  <link rel="preload" href="/assets/space/hero-nebula.png" as="image" fetchpriority="high">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/assets/rytho.css?v=3">
+  <link rel="preload" as="image" type="image/webp" href="/assets/space/hero-nebula.webp" media="(max-width: 980px)" fetchpriority="high">
+  <link rel="preload" as="image" type="image/webp" href="/assets/space/hero-nebula.webp" media="(min-width: 981px)" fetchpriority="high">
 </head>
 <body>
   <div class="gokyuzu"><canvas id="yildizlar"></canvas></div>
@@ -60,7 +62,7 @@
     <div class="hero-space" aria-hidden="true">
       <div class="hero-fallback"></div>
       <div class="hero-video-mask">
-        <video class="hero-video" autoplay muted loop playsinline preload="auto" poster="/assets/space/hero-nebula.png">
+        <video class="hero-video" autoplay muted loop playsinline preload="none" poster="/assets/space/hero-nebula.webp">
           <source src="/assets/space/hero-space.mp4" type="video/mp4" media="(min-width: 981px)">
         </video>
       </div>
@@ -96,10 +98,7 @@
     çarpıştırır ve sana ait olanı söyler.</p>
     <div class="magaza acil" style="--i:3">
       <a class="buton" href="https://play.google.com/store/apps/details?id=ai.rytho">▶ Google Play'den indir</a>
-      <span>
-        <a class="buton ikincil" href="#" aria-disabled="true"> App Store</a>
-        <span class="yakinda">yakında</span>
-      </span>
+      <span class="rozet yakinda">App Store · yakında</span>
     </div>
     <div class="guven-satiri acil" style="--i:4">
       <span>Ücretsiz katman süresiz</span>
@@ -111,7 +110,7 @@
   <main>
     <!-- ---------- DÖRTLÜ ÖZELLİK ---------- -->
     <section id="neler-var" class="sarici">
-      <div class="orta" style="margin-bottom:52px">
+      <div class="orta bolum-bas">
         <div class="bolum-etiket acil">Dört gelenek, tek harita</div>
         <h2 class="bolum-baslik acil" style="--i:1">Aynı doğum anına<br>dört ayrı pencereden bakıyoruz</h2>
         <p class="bolum-alt acil" style="--i:2">Birbirlerini tekrar etmezler; biri susunca diğeri konuşur.
@@ -119,25 +118,25 @@
       </div>
       <div class="dortlu">
         <div class="oge acil" style="--i:1">
-          <div class="kure k1"><img src="/assets/space/planet-transits.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></div>
+          <div class="kure k1"><picture><source type="image/webp" srcset="/assets/space/planet-transits-1x.webp 1x, /assets/space/planet-transits-2x.webp 2x"><img src="/assets/space/planet-transits.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></picture></div>
           <h3>Günlük Transitler</h3>
           <p>Bugünün gökyüzü senin natal haritanla çarpışır. Genel burç
           yorumu değil — açılar seninkiler.</p>
         </div>
         <div class="oge acil" style="--i:2">
-          <div class="kure k2"><img src="/assets/space/planet-natal.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></div>
+          <div class="kure k2"><picture><source type="image/webp" srcset="/assets/space/planet-natal-1x.webp 1x, /assets/space/planet-natal-2x.webp 2x"><img src="/assets/space/planet-natal.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></picture></div>
           <h3>Doğum Haritası</h3>
           <p>Gezegenler, evler, açılar. Yükselen, doğum saatin kadar
           kesin — bilinmiyorsa Rytho bunu söyler, uydurmaz.</p>
         </div>
         <div class="oge acil" style="--i:3">
-          <div class="kure k3"><img src="/assets/space/planet-bazi.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></div>
+          <div class="kure k3"><picture><source type="image/webp" srcset="/assets/space/planet-bazi-1x.webp 1x, /assets/space/planet-bazi-2x.webp 2x"><img src="/assets/space/planet-bazi.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></picture></div>
           <h3>BaZi &amp; I Ching</h3>
           <p>Dört Sütun analizi, Day Master gücü, şans dönemleri; günde
           bir heksagram çekimi ve hareketli çizgilerin.</p>
         </div>
         <div class="oge acil" style="--i:4">
-          <div class="kure k4"><img src="/assets/space/planet-firaset.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></div>
+          <div class="kure k4"><picture><source type="image/webp" srcset="/assets/space/planet-firaset-1x.webp 1x, /assets/space/planet-firaset-2x.webp 2x"><img src="/assets/space/planet-firaset.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></picture></div>
           <h3>Firaset</h3>
           <p>Yüz okuma geleneği. Ölçüm telefonunda yapılır —
           fotoğrafın hiçbir sunucuya gitmez.</p>
@@ -180,7 +179,7 @@
         <div class="telefon-sahne acil" style="--i:2">
           <div class="telefon">
             <div class="centik"></div>
-            <img class="telefon-ekrani" src="/assets/screens/shot-1-sky.png" alt="Rytho uygulamasının Gökyüzü ekranı" width="1080" height="1920" loading="lazy" decoding="async">
+            <picture><source type="image/webp" srcset="/assets/screens/shot-1-sky-1x.webp 1x, /assets/screens/shot-1-sky-2x.webp 2x"><img class="telefon-ekrani" src="/assets/screens/shot-1-sky.png" alt="Rytho uygulamasının Gökyüzü ekranı" width="1080" height="1920" loading="lazy" decoding="async"></picture>
           </div>
         </div>
       </div>
@@ -195,7 +194,7 @@
         hepsi senin saat dilimine göre, sessiz saatlerine saygıyla.</p>
       </div>
       <div class="kure-sahne">
-        <div class="buyuk-kure acil"><img src="/assets/space/planet-alerts.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></div>
+        <div class="buyuk-kure acil"><picture><source type="image/webp" srcset="/assets/space/planet-alerts-1x.webp 1x, /assets/space/planet-alerts-2x.webp 2x"><img src="/assets/space/planet-alerts.png" alt="" width="1024" height="1024" loading="lazy" decoding="async"></picture></div>
         <div class="cipler">
           <div class="cip c1 acil" style="--i:1"><span class="im"><svg class="kozmik-ikon" aria-hidden="true"><use href="/assets/cosmic-icons.svg#orbit"></use></svg></span>
             <div><b>Merkür geriliyor</b><span>3 hafta · sözleşme ve söz</span></div></div>
@@ -216,7 +215,7 @@
       <div class="ikili">
         <div class="panel acil">
           <div class="etiket">Motorun gördüğü ham veri</div>
-          <div class="mono" style="font-size:12.5px;line-height:2;overflow-x:auto;white-space:pre">☉ Güneş      Aslan      132.4071°
+          <div class="mono ham-veri">☉ Güneş      Aslan      132.4071°
 ☽ Ay         Balık      344.9182°
 ↑ Yükselen   Terazi     201.6640°
 BaZi gün     丁卯 DingMao
@@ -260,7 +259,7 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
 
     <!-- ---------- SÖZLERİMİZ (sahte yorum yerine gerçek taahhüt) ---------- -->
     <section class="sarici">
-      <div class="orta" style="margin-bottom:44px">
+      <div class="orta bolum-bas sik">
         <div class="bolum-etiket acil">Neye söz veriyoruz</div>
         <h2 class="bolum-baslik acil" style="--i:1">Sana yaranmaya çalışmayan<br>bir rehber</h2>
       </div>
@@ -291,7 +290,7 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
 
     <!-- ---------- PLAN ---------- -->
     <section id="plan" class="sarici">
-      <div class="orta" style="margin-bottom:40px">
+      <div class="orta bolum-bas dar">
         <div class="bolum-etiket acil">Rytho+</div>
         <h2 class="bolum-baslik acil" style="--i:1">Ücretsiz kalan çok şey var</h2>
         <p class="bolum-alt acil" style="--i:2">Günlük burç yorumun, gerçek gökyüzü ekranı, doğum haritası çarkın
@@ -307,43 +306,19 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
           Doğum haritası çarkın ve yerleşimlerin<br>
           Arkadaş listesi, seri ve tepkiler<br>
           Çevrende 1 kişi — haritası ve ilişki ÖLÇÜMÜ</p>
-          <p style="margin-top:12px;font-size:12.5px">Yeni hesaplar ilk 3 gün
+          <p class="not-kucuk">Yeni hesaplar ilk 3 gün
           tüm Rytho+ yüzeylerini kart bilgisi vermeden kullanır ve tek
           seferlik 30 karşılama kredisi alır.</p>
         </div>
-        <div class="panel acil" style="--i:2; border-color:rgba(183,156,255,.3)">
+        <div class="panel acil vurgulu" style="--i:2">
           <div class="etiket altin">Rytho+ · aylık</div>
           <p>Kişiye özel günlük okuma<br>
           Aylık 100 kredi hakkı<br>
           Derin doğum haritası, BaZi ve sinastri raporları<br>
           I Ching, ikili dinamik, Doğum Kapısı ve yüz okuma<br>
           Çevrende 10 kişi, her birine AI ilişki yorumu</p>
-          <!-- Bedel cümlesi İKİ kez daraltıldı, ikisi de ölçümle:
-               (1) Bedeli HARCAMADAN ÖNCE gösteren tek ekran İ Ching
-               (iching_tab.dart rozeti); derin raporlar, ikili okuma ve
-               sohbet göstermiyor — yani "uygulama bedeli önceden
-               gösterir" sınıfı bir cümle buraya yazılamaz. Yazılabilen
-               tek şey mağaza ekranındaki bedel satırıdır
-               (token_store_screen.dart → tokenCostsNote, abone kapısının
-               DIŞINDA, herkese görünür).
-               (2) Bu gerekçenin eski hâli YANLIŞ KALDI ve düzeltildi
-               (ölçüldü 2026-10-03): "o satır elle yazılmış bir l10n
-               dizesi, /wallet'in costs haritasından türemiyor" yazıyordu.
-               Türüyor — token_store_screen.dart satırı
-               bedelSatiri(l10n.tokenCostsNote, cuzdan.costs) ile kuruyor,
-               l10n dizesi yalnızca ŞABLON. Cümledeki "güncel" sıfatının
-               geri YAZILMAMA gerekçesi başka ve hâlâ geçerli: sunucu ayrı
-               dağıtılıyor, yani harita okunamazsa (ya da paket eskiyse)
-               satır şablonun kendi sayılarıyla çizilir ve o sayılar bir
-               backend dağıtımından sonra bayatlayabilir.
-               (3) Tekrar okuma SÜRESİZ bedava DEĞİL: harcama yalnız
-               önbellek kaçırıldığında işliyor (report_service
-               ._cached_generate) ve önbellek ömürlü (yüz okuma 7, derin
-               raporlar 30, yıl haritası 90 gün). Ömür dolunca yeniden
-               ÜRETİM olur ve bedel düşer — bu yüzden cümle süre değil
-               "yeni üretim" üzerine kuruldu.
-               Bekçi: backend/tests/test_honesty.py::TestJetonIddialari. -->
-          <p style="margin-top:12px;font-size:12.5px">Krediler rapor başına
+          <!-- Bedel cümlesinin gerekçesi: docs/web-notlari.md §Ana sayfa / plan kartı -->
+          <p class="not-kucuk">Krediler rapor başına
           harcanır ve bedeller uygulamanın kredi mağazasında yazılıdır.
           Kredi yalnız yeni bir rapor üretilirken düşer; hazır duran rapora
           yeniden bakmak hiç düşürmez. Aboneler ayrıca süresiz geçerli
@@ -361,21 +336,18 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
           için kart istemiyoruz.</p>
           <div class="magaza">
             <a class="buton" href="https://play.google.com/store/apps/details?id=ai.rytho">▶ Google Play</a>
-            <span>
-              <a class="buton ikincil" href="#" aria-disabled="true"> App Store</a>
-              <span class="yakinda">yakında</span>
-            </span>
+            <span class="rozet yakinda">App Store · yakında</span>
           </div>
         </div>
         <div class="mini-telefonlar" aria-label="Rytho uygulama ekranları">
           <button class="mini-telefon" type="button" aria-label="Gökyüzü ekranını öne çıkar" aria-pressed="false">
-            <img src="/assets/screens/shot-1-sky.png" alt="Rytho Gökyüzü ekranı" width="1080" height="1920" loading="lazy" decoding="async"><span class="mockup-etiketi">Gökyüzü</span>
+            <picture><source type="image/webp" srcset="/assets/screens/shot-1-sky-1x.webp 1x, /assets/screens/shot-1-sky-2x.webp 2x"><img src="/assets/screens/shot-1-sky.png" alt="Rytho Gökyüzü ekranı" width="1080" height="1920" loading="lazy" decoding="async"></picture><span class="mockup-etiketi">Gökyüzü</span>
           </button>
           <button class="mini-telefon is-selected" type="button" aria-label="Harita ekranını öne çıkar" aria-pressed="true">
-            <img src="/assets/screens/shot-2-chart.png" alt="Rytho Harita ekranı" width="1080" height="1920" loading="lazy" decoding="async"><span class="mockup-etiketi">Harita</span>
+            <picture><source type="image/webp" srcset="/assets/screens/shot-2-chart-1x.webp 1x, /assets/screens/shot-2-chart-2x.webp 2x"><img src="/assets/screens/shot-2-chart.png" alt="Rytho Harita ekranı" width="1080" height="1920" loading="lazy" decoding="async"></picture><span class="mockup-etiketi">Harita</span>
           </button>
           <button class="mini-telefon" type="button" aria-label="Sohbet ekranını öne çıkar" aria-pressed="false">
-            <img src="/assets/screens/shot-5-chat.png" alt="Rytho Sohbet ekranı" width="1080" height="1920" loading="lazy" decoding="async"><span class="mockup-etiketi">Sohbet</span>
+            <picture><source type="image/webp" srcset="/assets/screens/shot-5-chat-1x.webp 1x, /assets/screens/shot-5-chat-2x.webp 2x"><img src="/assets/screens/shot-5-chat.png" alt="Rytho Sohbet ekranı" width="1080" height="1920" loading="lazy" decoding="async"></picture><span class="mockup-etiketi">Sohbet</span>
           </button>
         </div>
       </div>
@@ -384,7 +356,7 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
     <!-- ---------- SSS ---------- -->
     <section id="sss" class="sarici sss">
       <div class="bolum-etiket acil">Sık sorulanlar</div>
-      <h2 class="bolum-baslik acil" style="--i:1;margin-bottom:22px">Merak edilenler</h2>
+      <h2 class="bolum-baslik acil" style="--i:1">Merak edilenler</h2>
       <details class="acil" style="--i:2">
         <summary>Doğum saatimi bilmiyorum, yine de işe yarar mı?</summary>
         <p>Yarar. Yükselen ve evler saat gerektirir; Rytho saatin
@@ -427,7 +399,7 @@ I Ching      1/16 · 5/16 · 7/16 · 3/16</div>
       <div class="ust-alan">
         <div class="marka-blok">
           <img src="/assets/rytho_logo.svg" alt="RythoAI">
-          <p style="max-width:320px">Kadim bilgelik, hassas gökyüzü
+          <p>Kadim bilgelik, hassas gökyüzü
           hesabıyla buluşur. Haritan çizilir, yolun aydınlanır.</p>
         </div>
         <div>

@@ -5,63 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rytho — Davet</title>
   <meta name="description" content="Rytho'da seni bekleyen bir davet var.">
-  <!-- /i/** yeniden yazimi SINIRSIZ URL'yi bu tek sayfaya dusuruyor; hepsi
-       ayni basligi tasidigi icin indekslenirlerse kopya icerik olurlar.
-       robots.txt bunu cozmez (orada aciklamasi var). -->
+  <!-- noindex: /i/** tek sayfaya düşüyor, hepsi kopya içerik olurdu — docs/web-notlari.md §Davet -->
   <meta name="robots" content="noindex, nofollow">
-
-  <!-- Uygulama kuruluysa isletim sistemi bu sayfayi hic acmaz; dogrudan
-       uygulamaya gider (Android App Links / iOS Universal Links). Bu sayfa
-       yalnizca uygulama KURULU DEGILSE gorunur. -->
-
+  <!-- Uygulama kuruluysa bu sayfa hiç açılmaz (App Links) — docs/web-notlari.md §Davet -->
   <meta property="og:title" content="Rytho — bir davetin var">
   <meta property="og:description"
         content="Gercek gokyuzu hesabina dayanan gunluk okuma. Arkadasin seni ekledi.">
   <meta property="og:type" content="website">
-
+  <link rel="icon" href="/assets/rytho_logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/assets/rytho.css?v=3">
   <style>
+    /* Sayfaya özel olan yalnız ortalanmış tek kart düzeni; renk, yazı tipi ve
+       düğme ortak kabuktan gelir. */
     :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background: linear-gradient(180deg, #13091F 0%, #241038 55%, #0B0713 100%);
-      color: #EFE7DA;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                   Helvetica, Arial, sans-serif;
-      text-align: center;
-    }
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
     main { max-width: 420px; width: 100%; }
-    .glyph { font-size: 56px; color: #F2C14E; margin-bottom: 12px; }
-    h1 { font-size: 28px; margin: 0 0 10px; letter-spacing: -0.3px; }
-    p { color: #B9AFC4; line-height: 1.6; margin: 0 0 28px; font-size: 15px; }
-    .username { color: #F2C14E; font-weight: 600; }
-    a.store {
-      display: block;
-      padding: 15px 20px;
-      margin-bottom: 12px;
-      border-radius: 14px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 15px;
-      background: linear-gradient(135deg, #7B4BC9, #C8479B);
-      color: #fff;
-    }
-    a.secondary {
-      background: transparent;
-      border: 1px solid rgba(239, 231, 218, 0.22);
-      color: #EFE7DA;
-    }
-    .note { font-size: 12px; color: #7E7490; margin-top: 22px; }
+    .glyph { font-size: 56px; color: var(--gold); margin-bottom: 12px; }
+    h1 { font-size: 28px; margin: 0 0 10px; }
+    p { color: var(--parchment-dim); line-height: 1.6; margin: 0 0 28px; font-size: 15px; }
+    .username { color: var(--gold); font-weight: 600; }
+    main .buton { width: 100%; }
+    /* 13 px taban ve ikincil metin rengi: eski not 12 px'ti ve zeminde 3,97:1 ölçüldü (AA eşiği 4,5). */
+    .not { font-size: 13px; color: var(--parchment-dim); margin: 22px 0 0; }
+    .dil { margin-top: 24px; }
   </style>
 </head>
 <body>
+  <div class="gokyuzu"></div>
   <main>
-    <div class="glyph">✦</div>
+    <div class="glyph" aria-hidden="true">✦</div>
     <h1 id="baslik">Rytho'da bir davetin var</h1>
     <p>
       <span class="username" id="username"></span>
@@ -69,23 +45,22 @@
         uygulamayı aç.</span>
     </p>
 
-    <!-- iOS kapsam disi: "App Store'dan indir" dugmesi hicbir yere
-         gitmiyordu (href="#") ve Android'de de gorunuyordu. Calismayan bir
-         dugme, cevrilmemis metinden daha kotu bir ilk izlenim. -->
-    <a class="store" id="play"
+    <!-- Tek mağaza düğmesi; App Store düğmesi hiçbir yere gitmediği için kaldırıldı — docs/web-notlari.md §Davet -->
+    <a class="buton" id="play"
        href="https://play.google.com/store/apps/details?id=ai.rytho">
       Google Play'den indir
     </a>
 
-    <p class="note" id="not">
+    <p class="not" id="not">
       Uygulama zaten kuruluysa bu bağlantı doğrudan Rytho'da açılır.
     </p>
+    <div class="dil"><a class="dil-sec" id="dil" href="?lang=en">EN</a></div>
   </main>
 
   <script>
     'use strict';
 
-    // ---- Dil. web/auth/action/index.html ile AYNI desen.
+    // ---- Dil: hesap işlemi sayfasıyla AYNI desen.
     //
     // Bu sayfa yalnizca uygulama KURULU DEGILKEN aciliyor, yani yeni
     // testcinin gordugu ilk yuzey; tek dilli kalirsa Ingilizce telefondaki
@@ -93,7 +68,8 @@
     //
     // Asil sinyal `navigator.language`: davet baglantisi (`inviteLinkFor`)
     // bilerek `?lang=` TASIMIYOR, cunku GONDERENIN dili alicinin dili
-    // degil. `?lang=` yalniz elle QA icin okunuyor.
+    // degil. `?lang=` elle QA icin ve asagidaki dil pili icin okunuyor —
+    // otomatik secim yanlis dustugunde ziyaretcinin bir cikisi olsun.
     var params = new URLSearchParams(window.location.search);
     var lang = (params.get('lang') || navigator.language || 'tr')
       .toLowerCase().slice(0, 2);
@@ -107,7 +83,9 @@
         govde: 'seni arkadaş olarak ekledi. Daveti kabul etmek için uygulamayı aç.',
         anonim: 'Bir arkadaşın',
         magaza: 'Google Play\'den indir',
-        not: 'Uygulama zaten kuruluysa bu bağlantı doğrudan Rytho\'da açılır.'
+        not: 'Uygulama zaten kuruluysa bu bağlantı doğrudan Rytho\'da açılır.',
+        dil: 'EN',
+        dilHref: '?lang=en'
       },
       en: {
         pageTitle: 'Rytho — Invitation',
@@ -115,7 +93,9 @@
         govde: 'added you as a friend. Open the app to accept the invitation.',
         anonim: 'A friend of yours',
         magaza: 'Get it on Google Play',
-        not: 'If the app is already installed, this link opens straight in Rytho.'
+        not: 'If the app is already installed, this link opens straight in Rytho.',
+        dil: 'TR',
+        dilHref: '?lang=tr'
       }
     }[lang];
 
@@ -124,6 +104,9 @@
     document.getElementById('govde').textContent = T.govde;
     document.getElementById('play').textContent = T.magaza;
     document.getElementById('not').textContent = T.not;
+    var dil = document.getElementById('dil');
+    dil.textContent = T.dil;
+    dil.setAttribute('href', T.dilHref);
 
     // Kullanici adi yoldan okunur: /i/gezgin
     var parcalar = window.location.pathname.split('/').filter(Boolean);

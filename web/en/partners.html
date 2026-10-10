@@ -8,9 +8,7 @@
   <link rel="canonical" href="https://rytho.app/en/partners.html">
   <link rel="alternate" hreflang="tr" href="https://rytho.app/ortaklik.html">
   <link rel="alternate" hreflang="en" href="https://rytho.app/en/partners.html">
-  <!-- x-default points at Turkish: the product is TR-first, and an
-       unsupported locale falls back to `kSupportedLocales.first` = tr in
-       the app as well. -->
+  <!-- x-default TR — gerekçe docs/web-notlari.md §Ortaklık -->
   <link rel="alternate" hreflang="x-default" href="https://rytho.app/ortaklik.html">
   <link rel="icon" href="/assets/rytho_logo.svg" type="image/svg+xml">
   <meta property="og:title" content="Rytho Partner Programme">
@@ -19,8 +17,9 @@
   <meta property="og:url" content="https://rytho.app/en/partners.html">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/rytho.css?v=2">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/assets/rytho.css?v=3">
   <style>
     /* Only three things are page-specific: the plain intro that stands in
        for the cinematic hero, the three-step strip and the bullet lists.
@@ -40,6 +39,7 @@
       margin: 18px auto 28px; font-size: 16px;
     }
     .ortak-cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+    .ortak-cta.sola { justify-content: flex-start; }
 
     .adimlar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(16px, 2vw, 26px); }
     .adimlar .panel h3 { font-size: 16.5px; margin: 9px 0 8px; }
@@ -126,7 +126,7 @@
   <main>
     <!-- ---------- HOW IT WORKS ---------- -->
     <section id="how" class="sarici">
-      <div class="orta" style="margin-bottom:44px">
+      <div class="orta bolum-bas sik">
         <div class="bolum-etiket acil">How it works</div>
         <h2 class="bolum-baslik acil" style="--i:1">Three steps, all of them measured</h2>
         <p class="bolum-alt acil" style="--i:2">Every link in the chain leaves a record on the server. There is no
@@ -165,11 +165,7 @@
           <h2 class="bolum-baslik acil" style="--i:1">A fixed amount<br><span class="altin">per subscriber earned</span></h2>
           <p class="bolum-alt acil" style="--i:2">No percentages, no tier table, no targets. One fixed amount for
           each subscriber you earn.</p>
-          <!-- ⚠️ NO FIGURE APPEARS ON THIS PAGE, deliberately: the amount is
-               set per partner (`partners/{id}.rewardTry`). Printing one
-               number here would misstate the deal for a partner on a
-               different amount. Same reason there is no income promise:
-               earnings depend on whether the people you bring subscribe. -->
+          <!-- Sayfada rakam YOK, bilinçli — gerekçe docs/web-notlari.md §Ortaklık -->
           <div class="akordiyon acil" style="--i:3">
             <details open>
               <summary>How is the amount set?</summary>
@@ -183,21 +179,7 @@
               claim opens. Changing it afterwards never re-prices your
               earlier claims.</p>
             </details>
-            <!-- Bu cümlenin NİYET BEYANI değil yapısal bir kısıt olması,
-                 sıfır dışı `bonusTokens` kabul etmeyen bir kapıya bağlı:
-                 kod oluşturma ucu (backend/api/admin.py, `CodeCreate`) ve
-                 servis (`partner_service.create_code`). Alan veri modelinde
-                 uyuyor durumda kalır — hedef "promo jeton vermiyoruz"
-                 değil, "veremiyoruz".
-                 ⚠️ ÖLÇÜLDÜ 2026-09-28: o kapı ağaçta HENÜZ YOKTU — uç
-                 `bonusTokens` için `ge=0, le=5000` kabul ediyordu ve
-                 `partner_service.redeem` içindeki `bonus > 0` dalı
-                 `wallet.credit_promo` çağırıyordu. Yani cümle o an yalnızca
-                 niyet beyanıydı; aynı iddia kullanım şartlarının dört
-                 kopyasında da yazılı.
-                 Okuyan ÖNCE ÖLÇSÜN: kapı inmişse cümle yapısaldır, hâlâ
-                 inmemişse düzeltilecek yer bu sayfa değil, uçtur.
-                 Türkçe karşılığı: web/ortaklik.html, aynı SSS girdisi. -->
+            <!-- "credit or a discount" cümlesinin kapı bağı — docs/web-notlari.md §Ortaklık -->
             <details>
               <summary>Does the user get a discount or a bonus?</summary>
               <p>They don't, and we don't hide it: the programme does not
@@ -225,7 +207,7 @@
             <li><strong>Void</strong> — a refund landed inside the window, or
             the subscription ended early.</li>
           </ul>
-          <p style="margin-top:16px;font-size:13.5px;color:var(--parchment-dim)">
+          <p class="panel-not">
           A user <strong>cancelling</strong> their subscription (turning off
           auto-renewal) does not void your claim — you did bring that
           subscriber.</p>
@@ -235,7 +217,7 @@
 
     <!-- ---------- WHAT DOESN'T COUNT ---------- -->
     <section id="excluded" class="sarici">
-      <div class="orta" style="margin-bottom:40px">
+      <div class="orta bolum-bas dar">
         <div class="bolum-etiket acil">The honest list</div>
         <h2 class="bolum-baslik acil" style="--i:1">What earns you nothing</h2>
         <p class="bolum-alt acil" style="--i:2">We write these down up front. A rule you only discover later makes
@@ -260,19 +242,7 @@
         <div class="panel acil" style="--i:2">
           <h3>Cases where no attribution exists</h3>
           <ul class="ortak-liste yok">
-            <!-- "The endpoint refuses it" iddiası TEK bir bağa dayanıyor:
-                 partner_service.redeem, `partners/{partnerId}.uid` alanını
-                 kodu giren uid ile karşılaştırıp 403 self_referral atıyor
-                 (ölçüldü). Yani kapı uid bağının var olmasına bağlı.
-                 SINIR: `uid` alanı boş kalmış bir ortak kaydında
-                 karşılaştırma HİÇ eşleşmez ve kapı sessizce geçilir — ortak
-                 kendi kodunu kendi hesabında kullanabilir. Bu yüzden ortak
-                 oluştururken uid zorunlu tutulur; zorunluluk kalkarsa ya da
-                 uid'siz ESKİ kayıtlar varsa bu cümle o kayıtlar için
-                 geçersizdir.
-                 Ziyaretçi için gürültü olduğundan sayfa metnine yazılmadı;
-                 iddianın sınırı kayıtsız kalmasın diye buraya yazıldı.
-                 Türkçe karşılığı: web/ortaklik.html, aynı madde. -->
+            <!-- "Your own account" maddesinin sınırı — docs/web-notlari.md §Ortaklık -->
             <li><strong>Your own account.</strong> A partner cannot use their
             own code on their own account; the endpoint refuses it.</li>
             <li><strong>Test purchases.</strong> Purchases made in the
@@ -288,21 +258,19 @@
     </section>
 
     <!-- ---------- ANDROID ONLY ---------- -->
-    <!-- This section must not be hidden. A partner who sends the link to an
-         iPhone user and earns nothing will assume the system is broken; the
-         real cause is that Play's install referrer has no iOS equivalent. -->
+    <!-- Android koşulu bölümü saklanamaz — docs/web-notlari.md §Ortaklık -->
     <section id="android" class="sarici">
       <div class="panel acil">
         <div class="etiket">A limit you should know</div>
-        <h2 class="bolum-baslik" style="font-size:clamp(23px,3.2vw,32px)">Attribution currently counts for
+        <h2 class="bolum-baslik kucuk">Attribution currently counts for
         <span class="lila">Android installs only</span></h2>
-        <p style="color:var(--parchment-dim);margin-top:14px;max-width:760px">
+        <p class="panel-metin">
         Your code travels with Google Play's install referrer. There is no
         equivalent of that on iPhone or desktop, and since the app has no
         manual code field either, the code has nowhere to travel from there.
         So <strong>a link you send to an iPhone user may start an install,
         but it will not be attributed to you.</strong></p>
-        <p style="color:var(--parchment-dim);margin-top:12px;max-width:760px">
+        <p class="panel-metin">
         The link page tells the visitor the same thing: opened on a non-Android
         device it shows the store link and states plainly that the referral is
         not being counted. The iOS version is in preparation; this page will be
@@ -321,12 +289,7 @@
         </div>
         <div class="panel acil">
           <ul class="ortak-liste">
-            <!-- The panel's ADDRESS is deliberately not printed: it is a
-                 private surface behind a login and is linked from nowhere
-                 (its own noindex plus the /ortak/** header in firebase.json
-                 are the evidence for that decision). ⚠️ This bullet depends
-                 on OP9's panel page — if that surface goes away, the
-                 sentence describes something unmeasured and must go too. -->
+            <!-- Panonun adresi yazılmıyor — docs/web-notlari.md §Ortaklık -->
             <li>Your own numbers live in a <strong>partner panel behind a
             login</strong>: how many arrived, how many subscribed, and your
             pending and settled amounts. The panel is not public; access is
@@ -343,11 +306,9 @@
     </section>
 
     <!-- ---------- LANGUAGE RULE ---------- -->
-    <!-- A sentence a partner says counts as our claim too, so the forbidden
-         language rule for store copy applies to partners verbatim
-         (docs/store-launch.md). -->
+    <!-- Dil kuralı ortağa da geçer — docs/web-notlari.md §Ortaklık -->
     <section id="language" class="sarici">
-      <div class="orta" style="margin-bottom:40px">
+      <div class="orta bolum-bas dar">
         <div class="bolum-etiket acil">When you talk about it</div>
         <h2 class="bolum-baslik acil" style="--i:1">What we won't say<br>holds for you too</h2>
         <p class="bolum-alt acil" style="--i:2">Rytho has one principle: nothing unmeasured is stated. It applies to
@@ -382,13 +343,13 @@
 
     <!-- ---------- APPLY ---------- -->
     <section id="apply" class="sarici">
-      <div class="indir-bandi acil" style="grid-template-columns:1fr">
+      <div class="indir-bandi acil tek">
         <div>
           <h2>If you want to join,<br><span class="altin">one email is enough.</span></h2>
           <p>Applications are reviewed by hand: we open your code and link,
           and agree the amount with you. Tell us briefly where you would talk
           about Rytho and who you reach.</p>
-          <div class="ortak-cta" style="justify-content:flex-start">
+          <div class="ortak-cta sola">
             <a class="buton" href="mailto:aslan.mh@gmail.com?subject=Rytho%20partner%20application">aslan.mh@gmail.com</a>
           </div>
         </div>
@@ -398,7 +359,7 @@
     <!-- ---------- FAQ ---------- -->
     <section id="faq" class="sarici sss">
       <div class="bolum-etiket acil">Frequently asked</div>
-      <h2 class="bolum-baslik acil" style="--i:1;margin-bottom:22px">What partners ask</h2>
+      <h2 class="bolum-baslik acil" style="--i:1">What partners ask</h2>
       <details class="acil" style="--i:2">
         <summary>Does the user have to enter the code somewhere?</summary>
         <p>No. The code travels from the link to the store and from the store
@@ -437,7 +398,7 @@
       <div class="ust-alan">
         <div class="marka-blok">
           <img src="/assets/rytho_logo.svg" alt="RythoAI">
-          <p style="max-width:320px">Ancient wisdom, met with precise sky
+          <p>Ancient wisdom, met with precise sky
           calculation. Your chart is drawn; your path lights up.</p>
         </div>
         <div>

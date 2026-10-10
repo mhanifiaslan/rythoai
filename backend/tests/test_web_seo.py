@@ -279,3 +279,104 @@ def test_hreflang_kumelerinde_x_default_var():
         if 'hreflang="tr"' not in metin:
             continue
         assert 'hreflang="x-default"' in metin, f"x-default yok: {p}"
+
+
+# ---------------------------------------------------------------------------
+# Stil/yorum turu (2026-10-10): ölü bağlantı, hukuk tarihi, EN logo kökü
+# ---------------------------------------------------------------------------
+
+def _honesty():
+    """`test_honesty` modülü — 15 sayfalık liste oradan alınır, kopyalanmaz
+    (tamlığını `test_yayindaki_her_sayfa_listede` kanıtlıyor). test_sozluk
+    ile aynı yükleme yolu: pytest `tests/`i sys.path'e koymazsa dosyadan."""
+    try:
+        import test_honesty
+        return test_honesty
+    except ImportError:
+        import importlib.util
+        import sys
+        yol = pathlib.Path(__file__).with_name("test_honesty.py")
+        spec = importlib.util.spec_from_file_location("test_honesty", yol)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["test_honesty"] = mod
+        spec.loader.exec_module(mod)
+        return mod
+
+
+def _yorumsuz_html(metin: str) -> str:
+    """Bir şeyin YOKLUĞUNU arayan bekçi, onu ANLATAN yorumu görmemeli —
+    davet sayfasının eski yorumu kelimesi kelimesine `href="#"` içeriyordu."""
+    return re.sub(r"<!--.*?-->", " ", metin, flags=re.S)
+
+
+def test_hicbir_sayfada_olu_baglanti_yok():
+    """`href="#"` tıklanınca sayfa başına atlar: düğme gibi görünür, hiçbir
+    yere gitmez.
+
+    Ölçüldü 2026-10-10: iki ana sayfada App Store "düğmesi" `href="#"` +
+    `aria-disabled` idi — aria-disabled için tek satır CSS yoktu, yani
+    görünüşte normal bir ikincil düğmeydi ve tıklayan hero'ya geri
+    fırlıyordu. Davet sayfası aynı deseni daha önce "çalışmayan düğme,
+    çevrilmemiş metinden kötü" diye kaldırmıştı; ortak bağlantısı sayfası
+    ise JS koşmazsa `href="#"` ile kalıyordu. Karar: bağlantı olmayan
+    şey bağlantı gibi işaretlenmez — "yakında" bir metin hapıdır
+    (`.rozet.yakinda`), mağaza düğmesi JS'siz de gerçek adrese gider.
+    """
+    for yol in _honesty().TestPazarlamaDili._SAYFALAR:
+        metin = _yorumsuz_html((_KOK / yol).read_text(encoding="utf-8"))
+        assert 'href="#"' not in metin, (
+            f"{yol}: href=\"#\" var — ya gerçek adres yaz ya da öğe bağlantı "
+            f"olmaktan çıksın (metin hapı: .rozet.yakinda)")
+    # Ters yön: yerine geçen hap gerçekten tanımlı ve kullanılıyor. Sınıf
+    # silinirse "yakında" yazısı stilsiz düz metne düşer, yukarısı yine
+    # yeşil kalırdı.
+    css = (_WEB / "assets" / "rytho.css").read_text(encoding="utf-8")
+    assert ".rozet.yakinda {" in css, "rytho.css'te .rozet.yakinda tanımı yok"
+    for yol in ("index.html", "en/index.html"):
+        assert 'class="rozet yakinda"' in (_WEB / yol).read_text(
+            encoding="utf-8"), f"{yol}: App Store hapı (.rozet.yakinda) yok"
+
+
+#: Hukuk sayfası tarih satırı — dil başına kalıp. "Son güncelleme" /
+#: "Last updated" satırı okuyucunun "bu metin güncel mi" sorusunun tek
+#: cevabı; iki hesap silme sayfası bu satırı taşımıyordu (ölçüldü
+#: 2026-10-10), yalnız geliştirici adı yazıyordu.
+_TARIH = {
+    "tr": re.compile(r'class="tarih">Son güncelleme: \d{1,2} '
+                     r'[A-ZÇĞİÖŞÜ][a-zçğıöşü]+ \d{4}'),
+    "en": re.compile(r'class="tarih">Last updated: [A-Z][a-z]+ \d{1,2}, \d{4}'),
+}
+
+
+def test_hukuk_sayfalari_tarih_satiri_tasiyor():
+    sayfalar = (sorted((_WEB / "legal").glob("*.html"))
+                + sorted((_WEB / "en" / "legal").glob("*.html")))
+    assert len(sayfalar) >= 6, f"hukuk sayfası sayısı düştü: {len(sayfalar)}"
+    for p in sayfalar:
+        metin = p.read_text(encoding="utf-8")
+        dil = re.search(r'<html lang="(\w+)"', metin)
+        assert dil and dil.group(1) in _TARIH, f"{p}: html lang okunamadı"
+        assert _TARIH[dil.group(1)].search(metin), (
+            f"{p.relative_to(_KOK).as_posix()}: 'Son güncelleme / Last "
+            f"updated' tarih satırı yok ya da biçimi bozuk (gün Ay yıl / "
+            f"Month day, year)")
+
+
+_LOGO = re.compile(r'<a\s+(?:class="marka"\s+)?href="([^"]+)"\s*>\s*'
+                   r'<img src="/assets/rytho_logo.svg"')
+
+
+def test_ingilizce_sayfalarda_logo_ingilizce_koke_gider():
+    """`/en/**` altında logo `/`'e giderse İngilizce okuyan ziyaretçi bir
+    tıkla Türkçe ana sayfaya düşer. Ölçüldü 2026-10-10:
+    en/legal/delete-account.html logosu `/` idi, kardeşleri `/en/`."""
+    for p in sorted((_WEB / "en").rglob("*.html")):
+        metin = p.read_text(encoding="utf-8")
+        hedefler = _LOGO.findall(metin)
+        assert hedefler, (
+            f"{p.relative_to(_KOK).as_posix()}: logo bağlantısı bulunamadı — "
+            f"kalıp değiştiyse bekçi kör")
+        for h in hedefler:
+            assert h.startswith("/en/"), (
+                f"{p.relative_to(_KOK).as_posix()}: logo {h!r} adresine "
+                f"gidiyor, /en/ bekleniyor")

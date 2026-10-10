@@ -47,6 +47,14 @@
  * (54 KB) BİLEREK yüklenmiyor; bu pano yedi KPI ve iki tablodan oluşuyor.
  * Ortak olan yalnız kimlik kurulumu (/assets/ry-auth.js) ve API katmanı
  * (/assets/ry-api.js) — o ikisi kopyalanmadı, paylaşıldı.
+ *
+ * DİL: pano iki dilli (tr/en), seçim `?lang=` → tarayıcı → tr. NEDEN
+ * (ölçüldü 2026-10-10): `web/en/partners.html` İngilizce bir ortaklık
+ * programı sunup girişin arkasında bir pano VAAT EDİYOR; pano ise yalnız
+ * Türkçeydi — dil mantığı sıfır, `toLocaleString('tr-TR')` beş yerde
+ * sabit. İngilizce ortak girince Türkçe görüyordu ve hiçbir bekçi kırmızı
+ * değildi. Kullanıcıya görünen her dize `SOZLUK`ta; bekçi
+ * `backend/tests/test_web_ortak.py`.
  */
 (function () {
   'use strict';
@@ -63,6 +71,390 @@
      para almıyorum" cevabını burada veriyoruz. */
   var OLGUNLASMA_GUN = 15;
 
+  /* ------------------------------------------------ dil */
+
+  /* `web/i/index.html` ile AYNI desen: `?lang=` → `navigator.language` →
+     tr. Ortağın kaydında dil alanı YOK (`partner_self_view` taşımıyor), o
+     yüzden tek sinyal tarayıcı; `?lang=` elle QA için. Pano hiçbir yerden
+     linklenmez, adres ortağa elden verilir — `?lang=` taşıyan bir bağlantı
+     EKLENMEZ, parametre yalnız okunur. */
+  var params = new URLSearchParams(window.location.search);
+  var lang = (params.get('lang') || navigator.language || 'tr')
+    .toLowerCase().slice(0, 2);
+  if (lang !== 'en') lang = 'tr';
+  document.documentElement.lang = lang;
+
+  /* Sayı/tarih/yüzde biçimi DİLDEN türer; sabit 'tr-TR' kalmaz (eskiden
+     beş yerde sabitti ve İngilizce panoda "1.234,50", "28 Eyl" çıkardı).
+     İngilizce için en-GB: tanıtım sayfası (`web/en/partners.html`)
+     İngiliz yazımıyla ("programme") yazılı, en-US'nin "Sept 28" sırası o
+     sayfayla çelişirdi. Yüzde işaretinin YERİ de buradan geliyor —
+     tr-TR "%12,4", en-GB "12.4%" (ölçüldü, Intl.NumberFormat percent). */
+  var YEREL = lang === 'en' ? 'en-GB' : 'tr-TR';
+
+  /* Kullanıcıya görünen HER dize burada; iki dilin anahtar kümesi eşit
+     (bekçi: backend/tests/test_web_ortak.py). `{ad}` yer tutucularını
+     `t()` doldurur; `<b>`/`<i>` taşıyan değerler HTML olarak basılır, o
+     yüzden içine giren değer ÇAĞIRAN tarafta `e()`den geçer. Gün sayısı
+     ({gun}) sözlükte YAZILMAZ, `OLGUNLASMA_GUN`dan gelir: iki dilde iki
+     sayı yazmak, `partner_service.MATURATION_DAYS`in iki kopyası daha
+     demek olurdu. */
+  var SOZLUK = {
+    tr: {
+      sayfaBasligi: 'Rytho Ortak Panosu',
+      atla: 'İçeriğe atla',
+      yokBaslik: 'Bu gökyüzünde böyle bir sayfa yok',
+      kokSayfa: 'Ana sayfa',
+      panoAdi: 'Ortak panosu',
+      eposta: 'E-posta',
+      sifre: 'Şifre',
+      girisYap: 'Giriş yap',
+      yaDa: 'ya da',
+      googleIle: 'Google ile devam et',
+      sifreUnut: 'Şifreni mi unuttun?',
+      yenile: 'Yenile',
+      cikis: 'Çıkış',
+      girisHatali: 'E-posta ya da şifre hatalı.',
+      cokDeneme: 'Çok fazla deneme — biraz bekleyip tekrar dene.',
+      gecersizEposta: 'Geçerli bir e-posta gir.',
+      girisBasarisiz: 'Giriş başarısız: {kod}',
+      onceEposta: 'Önce e-posta alanını doldur.',
+      sifirlamaGonderildi: 'E-posta kayıtlıysa sıfırlama bağlantısı ' +
+        'gönderildi — spam kutusunu da kontrol et.',
+      pencereKapandi: 'Pencere kapandı — tekrar dene.',
+      oranAz: '%0,1’den az',
+      uyariyiOku: 'aşağıdaki uyarıyı oku',
+      odemeBekliyor: 'ödeme bekliyor',
+      kapali: 'kapalı',
+      altSinirYok: '{durum} · alt sınır yok',
+      esikAsildi: 'eşik aşıldı · alt sınır {esik}',
+      esigeKaldi: 'eşiğe {kalan} kaldı',
+      huniEtiket: 'Huni: tıklamadan aboneye',
+      olcumYok: 'henüz ölçüm yok',
+      tiklama: 'Tıklama',
+      tiklamaAnlam: 'Bağlantına dokunan sayısı — kurulum gerekmez. Kimlik ' +
+        'saklanmadığı için tekil kişi sayısı ölçülemez.',
+      son30: 'Son 30 gün: {n}.',
+      tiklamaKapali: 'Tıklama ölçümü bu panoda henüz açılmadı.',
+      oranTiklayan: 'tıklayanın atfı',
+      kullanan: 'Bağlantıyı kullanan',
+      kullananAnlam: 'Bağlantın bir hesaba yazıldığında sayılır: ya ' +
+        'kurulumdan sonra otomatik, ya da uygulaması zaten kurulu biri ' +
+        'bağlantına dokunduğunda. Kullanıcı başına bir kez.',
+      oranKullanan: 'kullananın abonesi',
+      abone: 'Abone',
+      aboneAnlam: 'İlk ücretli aboneliğini başlatan sayısı; kazancın ' +
+        'yalnız bu basamaktan doğar. İptal olan hakedişler bu sayıda yok.',
+      kirilim: 'kesinleşen {kesin} · beklemede {bekleyen}',
+      kirilimIptal: ' · iptal {n}',
+      dipnotAndroid: 'Atıf yalnız Android kurulumlarında yazılabiliyor ' +
+        '(iOS’ta Play Install Referrer dengi yok), yani iPhone ya da ' +
+        'bilgisayardan gelen biri uygulamayı kursa bile “Bağlantıyı ' +
+        'kullanan” sayısına girmez.',
+      dipnotTiklama: 'Tıklama kişi değil: aynı kişinin iki cihazı iki ' +
+        'tıklamadır (aynı sekmede yenilemek ikinci kez sayılmaz, tarayıcı ' +
+        'depolaması kapalıysa sayılır). {android} Bu yüzden düşük oran ' +
+        'her zaman kötü tanıtım demek değil. Oran %100’ü de aşabilir ve ' +
+        'bu bozuk veri değil: mağaza bağlantısını doğrudan paylaşan bir ' +
+        'kurulum “Bağlantıyı kullanan”ı artırır, tıklamayı artırmaz.',
+      seriBos: 'Son {gun} günde tıklama yok.',
+      enYuksek: 'en yüksek {gun}: {n}',
+      seriCaption: 'Son {gun} günün tıklama sayıları',
+      gun: 'Gün',
+      seriBaslik: 'Son {gun} gün — tıklama',
+      tiklamaToplamTek: '{n} tıklama',
+      tiklamaToplam: '{n} tıklama',
+      pasif: 'Pasif',
+      suresiDoldu: 'Süresi doldu',
+      aktif: 'Aktif',
+      kodYok: 'Henüz kodun yok — Rytho ekibi açtığında burada görünür.',
+      kodlarCaption: 'Kodların ve paylaşılabilir bağlantıları',
+      kod: 'Kod',
+      sonGun: 'Son gün',
+      durum: 'Durum',
+      paylasilabilir: 'Paylaşılabilir bağlantı',
+      kodBaglantisi: '{kod} kodunun bağlantısı',
+      kopyala: 'Kopyala',
+      kodlar: 'Kodların',
+      kanalDipnot: 'Her kanal için ayrı kod isteyebilirsin: tıklama ve ' +
+        'bağlantıyı kullanan sayıları kod başına ayrı tutulduğu için ' +
+        'hangi kanalın işe yaradığını yalnız bu tablodan görürsün.',
+      kodSayisiTek: '{n} kod',
+      kodSayisi: '{n} kod',
+      odemeYok: 'Henüz ödeme yapılmadı.',
+      odemelerCaption: 'Sana yapılan ödemeler',
+      tarihSutun: 'Tarih',
+      tutar: 'Tutar',
+      notSutun: 'Not',
+      bekleyenCumle: 'Bekleyen hakediş, satın almadan {gun} gün sonra ' +
+        'kendiliğinden kesinleşir: iade penceresi kapanmadan ödeme ' +
+        'yapılmıyor. İade ya da erken sona erme olursa o hakediş iptal ' +
+        'olur.',
+      odulCumlesi: 'Yeni hakedişlerde abone başına {tutar} — tutar panodan ' +
+        'değiştirilemez. Her hakediş satış anındaki tutarı taşır; oran ' +
+        'sonradan değişse bile geçmiş yeniden fiyatlanmaz, bu yüzden ' +
+        'aşağıdaki toplamlar bu sayının tam katı olmak zorunda değil.',
+      odulTanimsiz: 'Ödül tutarı henüz tanımlanmadı.',
+      pasifBant: 'Hesabın şu anda <b>pasif</b>: kodların çalışmaya devam ' +
+        'eder ama yeni hakediş açılmaz. Kesinleşen bakiyen olduğu gibi ' +
+        'durur.',
+      odulYokBant: 'Ödül tutarın henüz <b>tanımlanmadı</b>: kodların ' +
+        'çalışır ve kullanım sayın artar, ama tutar girilene kadar yeni ' +
+        'hakediş açılmaz. Rytho ekibiyle konuşman gerekiyor.',
+      hakedis: 'Hakediş',
+      kesinlesenHakedis: 'Kesinleşen hakediş',
+      toplamKazanc: 'toplam kazanç',
+      beklemede: 'Beklemede',
+      gunSonraKesinlesir: '{gun} gün sonra kesinleşir',
+      odenen: 'Ödenen',
+      sanaAktarilan: 'sana aktarılan',
+      bakiye: 'Bakiye',
+      odemeGecmisi: 'Ödeme geçmişi',
+      uyumsuzBant: 'Ödeme defterinde <b>{n}</b> kayıt senin ödeme ' +
+        'biriminden ({birim}) farklı bir birimde duruyor. Yukarıdaki ' +
+        '<b>Ödenen</b> ve <b>Bakiye</b> o kayıtları saymıyor, yani ' +
+        'bakiyen olduğundan büyük görünüyor; bu hâlde yeni ödeme de ' +
+        'yapılmıyor. Rytho ekibiyle konuşman gerekiyor.',
+      odemeDipnotBas: 'Ödemeler Rytho ekibi tarafından elle kaydedilir; ' +
+        'bu panoda bir ödeme takvimi gösterilmiyor. ',
+      esikYok: 'Ödeme alt sınırı da burada yazılı değil — anlaşmanızda ' +
+        'ne yazıyorsa o geçerli. ',
+      esikSifir: 'Ödemen için bir alt sınır yok: kesinleşen bakiyen ne ' +
+        'olursa ödenebilir. ',
+      esikVar: 'Anlaşmandaki ödeme alt sınırı {esik} — "Bakiye" kartı ' +
+        'eşiğe ne kadar kaldığını gösteriyor. Sınırın aşılması ödemeyi ' +
+        'kendiliğinden başlatmaz; kaydı ekip elle yazar. ',
+      odemeDipnotSon: 'Kesinleşen bakiyen için Rytho ekibiyle yazışırsın.',
+      odemeBirimi: 'ödeme para birimi {birim}',
+      odulNasil: 'Ödül nasıl işliyor',
+      odulP1: 'Getirdiğin kullanıcının <b>ilk ücretli aboneliği</b> için ' +
+        'sabit bir ₺ tutar kazanırsın. Kullanıcı için indirim ya da ödül ' +
+        'yoktur — bağlantıya dokunması yeter, kod yazmasına gerek kalmaz.',
+      odulP2: 'Deneme <i>başlatmak</i> ödül üretmez; deneme ücretli ' +
+        'aboneliğe dönerse üretir. Yenileme, kredi paketi ve mağaza test ' +
+        'alımları ödül üretmez. Kullanıcı başına en fazla bir hakediş ' +
+        'açılır.',
+      odulP3: 'Kendi kodunu kendi hesabında kullanamazsın.',
+      panoYuklendi: 'Pano yüklendi',
+      panoYukleniyor: 'Pano yükleniyor',
+      gecici: 'Pano şu an ulaşılamıyor. Bu geçici bir durum: oturumun ' +
+        'açık, kodların ve hakedişlerin olduğu gibi duruyor.',
+      tekrarDene: 'Tekrar dene',
+      kopyalandi: 'Bağlantı kopyalandı.',
+      kopyalanamadi: 'Kopyalanamadı — bağlantı seçildi, Ctrl+C ile ' +
+        'kopyalayabilirsin.',
+      kimlikAg: 'Kimliğin doğrulanması için ağ bağlantısı gerekiyor — ' +
+        'bağlantını kontrol edip tekrar dene.',
+      bilinmeyenHata: 'Bilinmeyen hata.',
+      agHatasi: 'Bağlantı kurulamadı — ağını kontrol edip tekrar dene.',
+      istekSiniri: 'İstek sınırı aşıldı — {sn} sn sonra tekrar dene.',
+      sunucuHatasi: 'Sunucu hatası — birazdan tekrar dene.',
+      veriAlinamadi: 'Veri alınamadı ({sebep}).'
+    },
+    en: {
+      sayfaBasligi: 'Rytho Partner Panel',
+      atla: 'Skip to content',
+      yokBaslik: 'There is no such page in this sky',
+      kokSayfa: 'Home',
+      panoAdi: 'Partner panel',
+      eposta: 'Email',
+      sifre: 'Password',
+      girisYap: 'Sign in',
+      yaDa: 'or',
+      googleIle: 'Continue with Google',
+      sifreUnut: 'Forgot your password?',
+      yenile: 'Refresh',
+      cikis: 'Sign out',
+      girisHatali: 'Email or password is incorrect.',
+      cokDeneme: 'Too many attempts — wait a moment and try again.',
+      gecersizEposta: 'Enter a valid email address.',
+      girisBasarisiz: 'Sign-in failed: {kod}',
+      onceEposta: 'Fill in the email field first.',
+      sifirlamaGonderildi: 'If the email is registered, a reset link has ' +
+        'been sent — check your spam folder too.',
+      pencereKapandi: 'The window was closed — try again.',
+      oranAz: 'under 0.1%',
+      uyariyiOku: 'read the notice below',
+      odemeBekliyor: 'awaiting payout',
+      kapali: 'nothing due',
+      altSinirYok: '{durum} · no minimum',
+      esikAsildi: 'threshold reached · minimum {esik}',
+      esigeKaldi: '{kalan} to the threshold',
+      huniEtiket: 'Funnel: from click to subscriber',
+      olcumYok: 'not measured yet',
+      tiklama: 'Clicks',
+      tiklamaAnlam: 'Number of taps on your link — no install needed. No ' +
+        'identity is stored, so unique people cannot be counted.',
+      son30: 'Last 30 days: {n}.',
+      tiklamaKapali: 'Click measurement is not enabled on this panel yet.',
+      oranTiklayan: 'clicks attributed',
+      kullanan: 'Used the link',
+      kullananAnlam: 'Counted when your link is written onto an account: ' +
+        'either automatically after an install, or when someone who ' +
+        'already has the app taps your link. Once per user.',
+      oranKullanan: 'users who subscribed',
+      abone: 'Subscribers',
+      aboneAnlam: 'Number who started their first paid subscription; your ' +
+        'earnings come only from this step. Voided claims are not in ' +
+        'this number.',
+      kirilim: 'settled {kesin} · pending {bekleyen}',
+      kirilimIptal: ' · void {n}',
+      dipnotAndroid: 'Attribution can only be written on Android installs ' +
+        '(iOS has no equivalent of the Play Install Referrer), so someone ' +
+        'coming from an iPhone or a computer does not enter the “Used ' +
+        'the link” count even if they install the app.',
+      dipnotTiklama: 'A click is not a person: one person on two devices ' +
+        'is two clicks (refreshing in the same tab does not count twice; ' +
+        'it does if browser storage is off). {android} So a low rate does ' +
+        'not always mean poor promotion. The rate can also exceed 100% ' +
+        'and that is not broken data: an install from a directly shared ' +
+        'store link raises “Used the link” without raising clicks.',
+      seriBos: 'No clicks in the last {gun} days.',
+      enYuksek: 'peak {gun}: {n}',
+      seriCaption: 'Click counts for the last {gun} days',
+      gun: 'Day',
+      seriBaslik: 'Last {gun} days — clicks',
+      tiklamaToplamTek: '{n} click',
+      tiklamaToplam: '{n} clicks',
+      pasif: 'Inactive',
+      suresiDoldu: 'Expired',
+      aktif: 'Active',
+      kodYok: 'You have no codes yet — they appear here once the Rytho ' +
+        'team creates them.',
+      kodlarCaption: 'Your codes and their shareable links',
+      kod: 'Code',
+      sonGun: 'Expires',
+      durum: 'Status',
+      paylasilabilir: 'Shareable link',
+      kodBaglantisi: 'Link for code {kod}',
+      kopyala: 'Copy',
+      kodlar: 'Your codes',
+      kanalDipnot: 'You can ask for a separate code per channel: clicks ' +
+        'and link uses are kept per code, so this table is the only ' +
+        'place that shows which channel works.',
+      kodSayisiTek: '{n} code',
+      kodSayisi: '{n} codes',
+      odemeYok: 'No payouts yet.',
+      odemelerCaption: 'Payouts made to you',
+      tarihSutun: 'Date',
+      tutar: 'Amount',
+      notSutun: 'Note',
+      bekleyenCumle: 'A pending claim settles on its own {gun} days after ' +
+        'the purchase: nothing is paid before the refund window closes. ' +
+        'A refund or an early end voids that claim.',
+      odulCumlesi: '{tutar} per subscriber on new claims — the amount ' +
+        'cannot be changed from this panel. Each claim carries the amount ' +
+        'at the time of sale; if the rate changes later, history is not ' +
+        're-priced, so the totals below need not be exact multiples of ' +
+        'this number.',
+      odulTanimsiz: 'The reward amount has not been set yet.',
+      pasifBant: 'Your account is currently <b>inactive</b>: your codes ' +
+        'keep working but no new claim opens. Your settled balance stays ' +
+        'as it is.',
+      odulYokBant: 'Your reward amount is <b>not set</b> yet: your codes ' +
+        'work and your usage count grows, but no new claim opens until ' +
+        'the amount is entered. You need to talk to the Rytho team.',
+      hakedis: 'Claims',
+      kesinlesenHakedis: 'Settled claims',
+      toplamKazanc: 'total earnings',
+      beklemede: 'Pending',
+      gunSonraKesinlesir: 'settles after {gun} days',
+      odenen: 'Paid',
+      sanaAktarilan: 'transferred to you',
+      bakiye: 'Balance',
+      odemeGecmisi: 'Payout history',
+      uyumsuzBant: '<b>{n}</b> entries in the payout ledger are in a ' +
+        'currency other than your payout currency ({birim}). <b>Paid</b> ' +
+        'and <b>Balance</b> above do not count them, so your balance looks ' +
+        'larger than it is; no new payout is made in this state. You need ' +
+        'to talk to the Rytho team.',
+      odemeDipnotBas: 'Payouts are recorded by hand by the Rytho team; ' +
+        'this panel shows no payout schedule. ',
+      esikYok: 'The payout minimum is not written here either — whatever ' +
+        'your agreement says applies. ',
+      esikSifir: 'There is no minimum for your payout: whatever your ' +
+        'settled balance is, it can be paid. ',
+      esikVar: 'The payout minimum in your agreement is {esik} — the ' +
+        '"Balance" card shows how far you are from it. Reaching it does ' +
+        'not start a payout by itself; the team records it by hand. ',
+      odemeDipnotSon: 'For your settled balance, you correspond with the ' +
+        'Rytho team.',
+      odemeBirimi: 'payout currency {birim}',
+      odulNasil: 'How the reward works',
+      odulP1: 'You earn a fixed ₺ amount for the <b>first paid ' +
+        'subscription</b> of a user you bring. There is no discount or ' +
+        'reward for the user — tapping the link is enough, they never ' +
+        'type a code.',
+      odulP2: '<i>Starting</i> a trial earns nothing; a trial converting ' +
+        'to a paid subscription does. Renewals, credit packs and store ' +
+        'test purchases earn nothing. At most one claim opens per user.',
+      odulP3: 'You cannot use your own code on your own account.',
+      panoYuklendi: 'Panel loaded',
+      panoYukleniyor: 'Panel loading',
+      gecici: 'The panel cannot be reached right now. This is temporary: ' +
+        'you are still signed in, and your codes and claims are untouched.',
+      tekrarDene: 'Try again',
+      kopyalandi: 'Link copied.',
+      kopyalanamadi: 'Could not copy — the link is selected, you can copy ' +
+        'it with Ctrl+C.',
+      kimlikAg: 'Verifying your identity needs a network connection — ' +
+        'check your connection and try again.',
+      bilinmeyenHata: 'Unknown error.',
+      agHatasi: 'Could not connect — check your network and try again.',
+      istekSiniri: 'Request limit reached — try again in {sn} s.',
+      sunucuHatasi: 'Server error — try again shortly.',
+      veriAlinamadi: 'Could not load data ({sebep}).'
+    }
+  };
+  var T = SOZLUK[lang];
+
+  function t(anahtar, degerler) {
+    var sablon = T[anahtar];
+    /* Eksik anahtar ekranda ANAHTAR ADIYLA görünür, "undefined" ya da boş
+       olarak değil: boş kalan bir etiket fark edilmez, anahtar adı fark
+       edilir. Asıl kapı bekçi (anahtar kümeleri eşit); bu son perde. */
+    if (sablon == null) return anahtar;
+    if (!degerler) return sablon;
+    return sablon.replace(/\{(\w+)\}/g, function (hepsi, ad) {
+      return degerler[ad] != null ? String(degerler[ad]) : hepsi;
+    });
+  }
+
+  /* İngilizce tekil/çoğul ("1 codes" yazmamak için). Türkçede sayıdan
+     sonra çoğul eki gelmez, iki anahtar aynı metni taşır. */
+  function cogul(n, tekAnahtar, cokAnahtar) {
+    return t(Number(n) === 1 ? tekAnahtar : cokAnahtar, { n: sayi(n) });
+  }
+
+  /* HTML'deki sabit metinler: `data-i18n` → textContent,
+     `data-i18n-placeholder` → placeholder. <title> da bu yoldan dolar;
+     HTML'deki Türkçe, JS çalışmadan önceki tek kare. */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n]'),
+    function (el) { el.textContent = t(el.getAttribute('data-i18n')); });
+  Array.prototype.forEach.call(
+    document.querySelectorAll('[data-i18n-placeholder]'), function (el) {
+      el.setAttribute('placeholder',
+        t(el.getAttribute('data-i18n-placeholder')));
+    });
+
+  /* Hata → cümle, bu panonun DİLİNDE. `RY.hataMetni` (ry-api.js) yönetim
+     paneliyle paylaşılan modül ve Türkçe sabit (panel TR); buradan
+     çağırmak İngilizce panoya Türkçe bant basardı. Harita bilerek dar:
+     yalnız bu sayfanın ekrana taşıdığı hâller (ağ, 429, sunucunun
+     `detail`i olduğu gibi, 5xx, kalan). ry-api.js'in KENDİ bastığı 429
+     toast'ı da bu haritadan geçer: modül RY.hataMetni'yi (varsa) kullanır,
+     aşağıda kaydediliyor — yoksa İngilizce panoya Türkçe toast düşerdi. */
+  function hataMetni(hata) {
+    if (!hata) return T.bilinmeyenHata;
+    if (hata.message === 'ag-hatasi') return T.agHatasi;
+    if (hata.durum === 429) {
+      return t('istekSiniri', { sn: hata.retryAfter || 60 });
+    }
+    if (hata.detay) return hata.detay;
+    if (hata.durum >= 500) return T.sunucuHatasi;
+    return t('veriAlinamadi', { sebep: hata.message || hata });
+  }
+
   /* ------------------------------------------------ küçük yardımcılar */
 
   function e(s) {
@@ -74,7 +466,7 @@
   function sayi(v) {
     var n = Number(v);
     if (v == null || !isFinite(n)) return '—';
-    return n.toLocaleString('tr-TR');
+    return n.toLocaleString(YEREL);
   }
 
   /* Para birimi kodu → simge. Bilinmeyen kod OLDUĞU GİBİ yazılır: ₺
@@ -91,7 +483,7 @@
   function para(v, birim) {
     var n = Number(v);
     if (v == null || !isFinite(n)) return '—';
-    return (birim || '₺') + n.toLocaleString('tr-TR',
+    return (birim || '₺') + n.toLocaleString(YEREL,
       { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
@@ -112,7 +504,7 @@
   function tarih(v) {
     var d = tarihNesnesi(v);
     if (!d) return '—';
-    return d.toLocaleDateString('tr-TR',
+    return d.toLocaleDateString(YEREL,
       { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
@@ -135,9 +527,11 @@
   function oranMetni(oran) {
     var n = Number(oran);
     if (oran == null || !isFinite(n) || n < 0) return null;
-    var p = n * 100;
-    if (p > 0 && p < 0.1) return '%0,1’den az';
-    return '%' + p.toLocaleString('tr-TR', { maximumFractionDigits: 1 });
+    if (n > 0 && n < 0.001) return T.oranAz;
+    /* İşaretin YERİ dile bağlı (tr "%12,4", en "12.4%"); "%" + sayı diye
+       elle kurmak İngilizce panoda işareti yanlış tarafa koyardı. */
+    return new Intl.NumberFormat(YEREL,
+      { style: 'percent', maximumFractionDigits: 1 }).format(n);
   }
 
   /* 'YYYY-MM-DD' → '28 Eyl'.
@@ -152,7 +546,7 @@
     if (p.length !== 3) return String(gun || '—');
     var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
     if (isNaN(d.getTime())) return String(gun);
-    return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    return d.toLocaleDateString(YEREL, { day: 'numeric', month: 'short' });
   }
 
   function $(id) { return document.getElementById(id); }
@@ -180,6 +574,8 @@
     setTimeout(function () { if (kutu.parentNode) kutu.remove(); }, 5000);
   }
   RY.toast = toast;
+  // ry-api.js'in 429 toast'ı için dil bilen harita (bkz. hataMetni yorumu).
+  RY.hataMetni = hataMetni;
 
   /* ------------------------------------------------ kimlik */
 
@@ -237,13 +633,13 @@
         if (kod === 'auth/wrong-password' || kod === 'auth/user-not-found' ||
             kod === 'auth/invalid-credential' ||
             kod === 'auth/invalid-login-credentials') {
-          girisHatasi('E-posta ya da şifre hatalı.');
+          girisHatasi(T.girisHatali);
         } else if (kod === 'auth/too-many-requests') {
-          girisHatasi('Çok fazla deneme — biraz bekleyip tekrar dene.');
+          girisHatasi(T.cokDeneme);
         } else if (kod === 'auth/invalid-email') {
-          girisHatasi('Geçerli bir e-posta gir.');
+          girisHatasi(T.gecersizEposta);
         } else {
-          girisHatasi('Giriş başarısız: ' + (kod || hata));
+          girisHatasi(t('girisBasarisiz', { kod: kod || hata }));
         }
       })
       .then(function () { dugme.disabled = false; });
@@ -253,12 +649,9 @@
   $('sifre-unut').addEventListener('click', function () {
     girisHatasi('');
     var eposta = $('giris-eposta').value.trim();
-    if (!eposta) { girisHatasi('Önce e-posta alanını doldur.'); return; }
+    if (!eposta) { girisHatasi(T.onceEposta); return; }
     auth.sendPasswordResetEmail(eposta).catch(function () {})
-      .then(function () {
-        girisBilgi('E-posta kayıtlıysa sıfırlama bağlantısı gönderildi — ' +
-          'spam kutusunu da kontrol et.');
-      });
+      .then(function () { girisBilgi(T.sifirlamaGonderildi); });
   });
 
   $('google-gir').addEventListener('click', function () {
@@ -272,15 +665,15 @@
       }
       if (kod === 'auth/popup-closed-by-user' ||
           kod === 'auth/cancelled-popup-request') {
-        girisHatasi('Pencere kapandı — tekrar dene.');
+        girisHatasi(T.pencereKapandi);
         return;
       }
-      girisHatasi('Giriş başarısız: ' + (kod || hata));
+      girisHatasi(t('girisBasarisiz', { kod: kod || hata }));
     });
   });
 
   auth.getRedirectResult().catch(function (hata) {
-    girisHatasi('Giriş başarısız: ' + ((hata && hata.code) || hata));
+    girisHatasi(t('girisBasarisiz', { kod: (hata && hata.code) || hata }));
   });
 
   $('cikis').addEventListener('click', function () {
@@ -317,15 +710,15 @@
      `Number(null)` ise 0 — ikincisi girilmemiş bir eşiği "alt sınır yok"
      diye BEYAN ederdi. */
   function bakiyeAlt(d, uyumsuz) {
-    if (uyumsuz > 0) return 'aşağıdaki uyarıyı oku';
+    if (uyumsuz > 0) return T.uyariyiOku;
     var bakiye = Number(d.balanceTry);
-    var durum = isFinite(bakiye) && bakiye > 0 ? 'ödeme bekliyor' : 'kapalı';
+    var durum = isFinite(bakiye) && bakiye > 0 ? T.odemeBekliyor : T.kapali;
     if (!olculdu(d.minPayoutTry)) return durum;
     var esik = Number(d.minPayoutTry);
-    if (esik === 0) return durum + ' · alt sınır yok';
+    if (esik === 0) return t('altSinirYok', { durum: durum });
     if (!isFinite(bakiye)) return durum;
-    if (bakiye >= esik) return 'eşik aşıldı · alt sınır ' + para(esik, '₺');
-    return 'eşiğe ' + para(esik - bakiye, '₺') + ' kaldı';
+    if (bakiye >= esik) return t('esikAsildi', { esik: para(esik, '₺') });
+    return t('esigeKaldi', { kalan: para(esik - bakiye, '₺') });
   }
 
   function modul(baslik, ic, alt) {
@@ -361,7 +754,7 @@
       '<span class="ok" aria-hidden="true">→</span>' +
       '<span class="etiket">' + e(etiket) + '</span>' +
       (metin ? '<span class="oran">' + e(metin) + '</span>'
-             : '<span class="yok">henüz ölçüm yok</span>') +
+             : '<span class="yok">' + e(T.olcumYok) + '</span>') +
       '</div>';
   }
 
@@ -397,15 +790,14 @@
        yazıyordu ("sekme içi yenileme sayılmaz"); iki ekran aynı sayıyı iki
        farklı şekilde tarif ediyordu ve biri yalandı. Tekil KİŞİ hâlâ
        ölçülemez — bu doğru ve söylenen şey artık o. */
-    var anlam1 = 'Bağlantına dokunan sayısı — kurulum gerekmez. Kimlik ' +
-      'saklanmadığı için tekil kişi sayısı ölçülemez.';
+    var anlam1 = T.tiklamaAnlam;
     if (olculdu(d.clicks30)) {
-      anlam1 += ' Son 30 gün: ' + sayi(d.clicks30) + '.';
+      anlam1 += ' ' + t('son30', { n: sayi(d.clicks30) });
     }
 
-    var kirilim3 = 'kesinleşen ' + sayi(kesinlesen) +
-      ' · beklemede ' + sayi(bekleyen) +
-      (dusen > 0 ? ' · iptal ' + sayi(dusen) : '');
+    var kirilim3 = t('kirilim', { kesin: sayi(kesinlesen),
+                                  bekleyen: sayi(bekleyen) }) +
+      (dusen > 0 ? t('kirilimIptal', { n: sayi(dusen) }) : '');
 
     /* Huninin ALTINDAKİ dipnot: basamak açıklamalarına sığmayan ama oranı
        YANLIŞ OKUTAN olguları kapatıyor. Hepsi ölçüldü.
@@ -424,31 +816,18 @@
        Basamaklara ADIYLA gönderme yapılıyor, "2. basamak" diye DEĞİL: sıra
        numaraları `aria-hidden` (bkz. `huniAdim`), yani ekran okuyucu onları
        hiç duymuyor ve numaraya gönderen bir cümle o kullanıcıda boşa düşer. */
-    var dipnot = 'Atıf yalnız Android kurulumlarında yazılabiliyor ' +
-      '(iOS’ta Play Install Referrer dengi yok), yani iPhone ya da ' +
-      'bilgisayardan gelen biri uygulamayı kursa bile “Bağlantıyı kullanan” ' +
-      'sayısına girmez.';
+    var dipnot = T.dipnotAndroid;
     if (tiklamaVar) {
-      dipnot = 'Tıklama kişi değil: aynı kişinin iki cihazı iki tıklamadır ' +
-        '(aynı sekmede yenilemek ikinci kez sayılmaz, tarayıcı depolaması ' +
-        'kapalıysa sayılır). ' + dipnot + ' Bu yüzden düşük oran her zaman ' +
-        'kötü tanıtım demek değil. Oran %100’ü de aşabilir ve bu bozuk veri ' +
-        'değil: mağaza bağlantısını doğrudan paylaşan bir kurulum “Bağlantıyı ' +
-        'kullanan”ı artırır, tıklamayı artırmaz.';
+      dipnot = t('dipnotTiklama', { android: T.dipnotAndroid });
     }
 
-    return '<section class="huni" aria-label="Huni: tıklamadan aboneye">' +
-      huniAdim('1', 'Tıklama', tiklamaVar ? sayi(tiklama) : '—', anlam1, '',
-        tiklamaVar ? '' : 'Tıklama ölçümü bu panoda henüz açılmadı.') +
-      huniOran('tıklayanın atfı', oran1) +
-      huniAdim('2', 'Bağlantıyı kullanan', sayi(kuran),
-        'Bağlantın bir hesaba yazıldığında sayılır: ya kurulumdan sonra ' +
-        'otomatik, ya da uygulaması zaten kurulu biri bağlantına ' +
-        'dokunduğunda. Kullanıcı başına bir kez.', '') +
-      huniOran('kullananın abonesi', oran2) +
-      huniAdim('3', 'Abone', sayi(abone),
-        'İlk ücretli aboneliğini başlatan sayısı; kazancın yalnız bu ' +
-        'basamaktan doğar. İptal olan hakedişler bu sayıda yok.',
+    return '<section class="huni" aria-label="' + e(T.huniEtiket) + '">' +
+      huniAdim('1', T.tiklama, tiklamaVar ? sayi(tiklama) : '—', anlam1, '',
+        tiklamaVar ? '' : T.tiklamaKapali) +
+      huniOran(T.oranTiklayan, oran1) +
+      huniAdim('2', T.kullanan, sayi(kuran), T.kullananAnlam, '') +
+      huniOran(T.oranKullanan, oran2) +
+      huniAdim('3', T.abone, sayi(abone), T.aboneAnlam,
         kirilim3, '', abone > 0) +
       '</section>' +
       /* Dipnot `.huni`nin DIŞINDA: içine konsaydı esnek bir öğe olur ve
@@ -495,8 +874,8 @@
     if (toplam === 0) {
       return {
         gun: gunler.length, toplam: 0,
-        html: '<p class="bos-durum">Son ' + e(gunler.length) +
-          ' günde tıklama yok.</p>'
+        html: '<p class="bos-durum">' +
+          e(t('seriBos', { gun: gunler.length })) + '</p>'
       };
     }
 
@@ -526,35 +905,37 @@
            ekran okuyucu "→" işaretini "sağ ok" diye okur. */
         '<span>' + e(gunEtiketi(gunler[0].gun) + ' – ' +
           gunEtiketi(gunler[gunler.length - 1].gun)) + '</span>' +
-        '<span>' + e('en yüksek ' + gunEtiketi(enYuksekGun) + ': ' +
-          sayi(enYuksek)) + '</span>' +
+        '<span>' + e(t('enYuksek', { gun: gunEtiketi(enYuksekGun),
+                                     n: sayi(enYuksek) })) + '</span>' +
         '</div>' +
-        '<table class="sr-only"><caption>Son ' + e(gunler.length) +
-        ' günün tıklama sayıları</caption>' +
-        '<thead><tr><th scope="col">Gün</th>' +
-        '<th scope="col">Tıklama</th></tr></thead><tbody>' + satirlar +
+        '<table class="sr-only"><caption>' +
+        e(t('seriCaption', { gun: gunler.length })) + '</caption>' +
+        '<thead><tr><th scope="col">' + e(T.gun) + '</th>' +
+        '<th scope="col">' + e(T.tiklama) + '</th></tr></thead><tbody>' +
+        satirlar +
         '</tbody></table></div>'
     };
   }
 
   function kodDurumu(k) {
-    if (k.active !== true) return '<span class="rozet">Pasif</span>';
+    if (k.active !== true) {
+      return '<span class="rozet">' + e(T.pasif) + '</span>';
+    }
     var son = tarihNesnesi(k.expiresAt);
     if (son && son.getTime() < Date.now()) {
-      return '<span class="rozet dolmus">Süresi doldu</span>';
+      return '<span class="rozet dolmus">' + e(T.suresiDoldu) + '</span>';
     }
-    return '<span class="rozet aktif">Aktif</span>';
+    return '<span class="rozet aktif">' + e(T.aktif) + '</span>';
   }
 
   function kodlarTablosu(kodlar) {
     if (!kodlar.length) {
-      return '<p class="bos-durum">Henüz kodun yok — Rytho ekibi açtığında ' +
-        'burada görünür.</p>';
+      return '<p class="bos-durum">' + e(T.kodYok) + '</p>';
     }
     return '<div class="tablo-sar"><table class="tablo">' +
-      '<caption class="sr-only">Kodların ve paylaşılabilir bağlantıları</caption>' +
+      '<caption class="sr-only">' + e(T.kodlarCaption) + '</caption>' +
       '<thead><tr>' +
-      '<th scope="col">Kod</th>' +
+      '<th scope="col">' + e(T.kod) + '</th>' +
       /* Sütun adı "Kullanım" değil "Bağlantıyı kullanan".
          ⚠️ "Kuran kullanıcı" da YANLIŞTI ve bir tur boyunca öyle durdu:
          `redemptionCount` tek bir satırdan artıyor
@@ -564,11 +945,11 @@
          Kapalı testte herkeste uygulama kurulu olduğu için oradaki her
          sayı ikinci yoldan gelir: "Kuran" desek 12 kurulum olmadığı hâlde
          12 kurulum raporlardık. */
-      '<th scope="col" class="sag">Tıklama</th>' +
-      '<th scope="col" class="sag">Bağlantıyı kullanan</th>' +
-      '<th scope="col">Son gün</th>' +
-      '<th scope="col">Durum</th>' +
-      '<th scope="col">Paylaşılabilir bağlantı</th>' +
+      '<th scope="col" class="sag">' + e(T.tiklama) + '</th>' +
+      '<th scope="col" class="sag">' + e(T.kullanan) + '</th>' +
+      '<th scope="col">' + e(T.sonGun) + '</th>' +
+      '<th scope="col">' + e(T.durum) + '</th>' +
+      '<th scope="col">' + e(T.paylasilabilir) + '</th>' +
       '</tr></thead><tbody>' +
       kodlar.map(function (k, i) {
         var bag = PAYLASIM_TABANI + encodeURIComponent(k.code || '');
@@ -584,10 +965,10 @@
           '<td>' + kodDurumu(k) + '</td>' +
           '<td><div class="bag-satir">' +
           '<label class="sr-only" for="' + alanKimlik + '">' +
-          e(k.code || '') + ' kodunun bağlantısı</label>' +
+          t('kodBaglantisi', { kod: e(k.code || '') }) + '</label>' +
           '<input class="girdi mono" id="' + alanKimlik + '" readonly value="' + e(bag) + '">' +
           '<button type="button" class="buton ikincil kucuk" data-kopya="' + alanKimlik +
-          '">Kopyala</button>' +
+          '">' + e(T.kopyala) + '</button>' +
           '</div></td></tr>';
       }).join('') +
       '</tbody></table></div>';
@@ -595,7 +976,7 @@
 
   function odemelerTablosu(odemeler) {
     if (!odemeler.length) {
-      return '<p class="bos-durum">Henüz ödeme yapılmadı.</p>';
+      return '<p class="bos-durum">' + e(T.odemeYok) + '</p>';
     }
     /* En yeni üstte: sunucu sıralama garantisi vermiyor (alt koleksiyon
        stream'i), sıralama burada yapılır. */
@@ -604,11 +985,11 @@
       return (tb ? tb.getTime() : 0) - (ta ? ta.getTime() : 0);
     });
     return '<div class="tablo-sar"><table class="tablo">' +
-      '<caption class="sr-only">Sana yapılan ödemeler</caption>' +
+      '<caption class="sr-only">' + e(T.odemelerCaption) + '</caption>' +
       '<thead><tr>' +
-      '<th scope="col">Tarih</th>' +
-      '<th scope="col" class="sag">Tutar</th>' +
-      '<th scope="col">Not</th>' +
+      '<th scope="col">' + e(T.tarihSutun) + '</th>' +
+      '<th scope="col" class="sag">' + e(T.tutar) + '</th>' +
+      '<th scope="col">' + e(T.notSutun) + '</th>' +
       '</tr></thead><tbody>' +
       sirali.map(function (o) {
         /* Tutar SATIRIN kendi para biriminde yazılır — ortağın varsayılan
@@ -635,13 +1016,11 @@
        döner — aynı yol. */
     var seriKutu = Array.isArray(d.clickSeries)
       ? tiklamaSerisi(d.clickSeries) : null;
-    var bekleyenCumle = 'Bekleyen hakediş, satın almadan ' + OLGUNLASMA_GUN +
-      ' gün sonra kendiliğinden kesinleşir: iade penceresi kapanmadan ödeme ' +
-      'yapılmıyor. İade ya da erken sona erme olursa o hakediş iptal olur.';
+    var bekleyenCumle = t('bekleyenCumle', { gun: OLGUNLASMA_GUN });
 
     var html =
       '<div class="sayfa-bas">' +
-      '<h1 tabindex="-1">' + e(d.name || 'Ortak panosu') + '</h1>' +
+      '<h1 tabindex="-1">' + e(d.name || T.panoAdi) + '</h1>' +
       '<p>' + (odulVar
         /* Ödül tutarını ortak DEĞİŞTİREMEZ; yazma ucu da yok. Ama bu sayı
            GÜNCEL oran, geçmişin oranı değil: `rewardTry` hakediş açılırken
@@ -650,19 +1029,13 @@
            eski tutarla kalır. Bunu yazmazsak ortak "3 abone × ₺50 = ₺150
            olmalı, neden ₺90?" diye panoyu bozuk sanır — sayılar doğru,
            eksik olan cümleydi. */
-        ? 'Yeni hakedişlerde abone başına ' + e(para(odulSayisi, '₺')) +
-          ' — tutar panodan değiştirilemez. Her hakediş satış anındaki ' +
-          'tutarı taşır; oran sonradan değişse bile geçmiş yeniden ' +
-          'fiyatlanmaz, bu yüzden aşağıdaki toplamlar bu sayının tam katı ' +
-          'olmak zorunda değil.'
-        : 'Ödül tutarı henüz tanımlanmadı.') + '</p>' +
+        ? t('odulCumlesi', { tutar: e(para(odulSayisi, '₺')) })
+        : e(T.odulTanimsiz)) + '</p>' +
       '</div>' +
 
       /* Pasiflik ölçülmüş davranıştır (partner_service.open_qualification):
          kod kullanımı sürer, YENİ hakediş açılmaz, geçmiş durur. */
-      (pasif ? '<div class="bant uyari">Hesabın şu anda <b>pasif</b>: ' +
-        'kodların çalışmaya devam eder ama yeni hakediş açılmaz. Kesinleşen ' +
-        'bakiyen olduğu gibi durur.</div>' : '') +
+      (pasif ? '<div class="bant uyari">' + T.pasifBant + '</div>' : '') +
 
       /* Tutarsız ödül tutarı PASİFLİKLE AYNI sonucu veriyor ve bu ölçüldü:
          `open_qualification` geçersiz `rewardTry`de `_rewardi_dogrula`
@@ -670,10 +1043,8 @@
          hakediş AÇILMAZ. Yukarıdaki tek satırlık "tanımlanmadı" notu bu
          sonucu söylemiyordu; ortak huninin ilk basamağı artarken
          "Beklemede 0" görüp panoyu bozuk sanardı. */
-      (!odulVar ? '<div class="bant uyari">Ödül tutarın henüz ' +
-        '<b>tanımlanmadı</b>: kodların çalışır ve kullanım sayın artar, ama ' +
-        'tutar girilene kadar yeni hakediş açılmaz. Rytho ekibiyle ' +
-        'konuşman gerekiyor.</div>' : '') +
+      (!odulVar ? '<div class="bant uyari">' + T.odulYokBant + '</div>'
+                : '') +
 
       /* Eski hâlde burada üç KPI vardı ve ikisi huninin AYNI basamağıydı
          ("Beklemede" + "Kesinleşen" = abone), birincisinin adı ise
@@ -682,12 +1053,12 @@
          döndürüyor ama pano hiç göstermiyordu. */
       huniBolumu(d) +
 
-      '<section class="izgara-kpi" aria-label="Hakediş">' +
-      kpi('Kesinleşen hakediş', para(d.earnedTry, '₺'), 'toplam kazanç', true) +
-      kpi('Beklemede', para(d.pendingTry, '₺'),
-        OLGUNLASMA_GUN + ' gün sonra kesinleşir') +
-      kpi('Ödenen', para(d.paidTry, '₺'), 'sana aktarılan') +
-      kpi('Bakiye', para(d.balanceTry, '₺'), bakiyeAlt(d, uyumsuz),
+      '<section class="izgara-kpi" aria-label="' + e(T.hakedis) + '">' +
+      kpi(T.kesinlesenHakedis, para(d.earnedTry, '₺'), T.toplamKazanc, true) +
+      kpi(T.beklemede, para(d.pendingTry, '₺'),
+        t('gunSonraKesinlesir', { gun: OLGUNLASMA_GUN })) +
+      kpi(T.odenen, para(d.paidTry, '₺'), T.sanaAktarilan) +
+      kpi(T.bakiye, para(d.balanceTry, '₺'), bakiyeAlt(d, uyumsuz),
         Number(d.balanceTry) > 0 && uyumsuz === 0) +
       '</section>' +
 
@@ -699,21 +1070,21 @@
          `clicks30` oraya YAZILMIYOR çünkü pencere 30 günden farklıysa iki
          sayı çelişir. `clicks30` 1. basamağın açıklamasında kullanılıyor,
          yani tam olarak "son 30 gün" dediği yerde. */
-      (seriKutu ? modul('Son ' + seriKutu.gun + ' gün — tıklama',
-        seriKutu.html, sayi(seriKutu.toplam) + ' tıklama') : '') +
+      (seriKutu ? modul(t('seriBaslik', { gun: seriKutu.gun }),
+        seriKutu.html,
+        cogul(seriKutu.toplam, 'tiklamaToplamTek', 'tiklamaToplam')) : '') +
 
-      modul('Kodların',
+      modul(T.kodlar,
         (kodlar.length
           /* Kod başına tıklama, ortağın KANALLARINI kıyaslamasının tek
              yolu (sektörde "sub-ID" denen şeyin karşılığı): aynı ortak
              birden fazla kod taşıyabiliyor, yani her kanala ayrı kod
              verilip hangisinin çalıştığı ölçülebilir. */
-          ? '<p class="dipnot">Her kanal için ayrı kod isteyebilirsin: ' +
-            'tıklama ve kuran sayıları kod başına ayrı tutulduğu için ' +
-            'hangi kanalın işe yaradığını yalnız bu tablodan görürsün.</p>'
+          ? '<p class="dipnot">' + e(T.kanalDipnot) + '</p>'
           : '') +
         kodlarTablosu(kodlar),
-        kodlar.length ? sayi(kodlar.length) + ' kod' : '') +
+        kodlar.length ? cogul(kodlar.length, 'kodSayisiTek', 'kodSayisi')
+                      : '') +
 
       /* ⚠️ ÖDEME EŞİĞİ artık GELİYOR — önceki tur burada "hiç gelmiyor"
          yazıyordu ve gerekçesi bu turda geçersizleşti. Ölçülen yeni hâl:
@@ -741,7 +1112,7 @@
          genişletmemek yönünde — ortak kendi IBAN'ını zaten biliyor, panoda
          tekrar okumasının karar değeri yok, buna karşılık ekran görüntüsü
          paylaşılan bir panoya bir ödeme kimliği daha koymak olurdu. */
-      modul('Ödeme geçmişi',
+      modul(T.odemeGecmisi,
         odemelerTablosu(odemeler) +
         /* Sıfır dışı uyumsuzluk EKRANDAKİ PARAYI yanlış yapıyor ve bunu
            ortağa söylemek şart: `partner_detail` yorumunun ölçtüğü hâl —
@@ -749,32 +1120,24 @@
            `balanceTry` olduğundan BÜYÜK çıkar. Para çıkışı da bu hâlde
            kapalı (`add_payout` → `ledger_currency_mixed`). self_view bu
            sayacı tam bunun için döndürüyordu, pano ise hiç göstermiyordu. */
-        (uyumsuz > 0 ? '<div class="bant uyari">Ödeme defterinde <b>' +
-          e(sayi(uyumsuz)) + '</b> kayıt senin ödeme biriminden (' +
-          e(odemeBirimi.trim()) + ') farklı bir birimde duruyor. ' +
-          'Yukarıdaki <b>Ödenen</b> ve <b>Bakiye</b> o kayıtları saymıyor, ' +
-          'yani bakiyen olduğundan büyük görünüyor; bu hâlde yeni ödeme de ' +
-          'yapılmıyor. Rytho ekibiyle konuşman gerekiyor.</div>' : '') +
+        (uyumsuz > 0 ? '<div class="bant uyari">' +
+          t('uyumsuzBant', { n: e(sayi(uyumsuz)),
+                             birim: e(odemeBirimi.trim()) }) +
+          '</div>' : '') +
         /* Dipnot ÜÇ HÂLE göre ayrılıyor, tek metin değil: eşiğin yokluğu,
            sıfırı ve pozitifi ortağa BAŞKA şeyler söyler. Tek bir cümle
            ("bir eşik gösterilmiyor") eşik girildiği anda yalan olurdu, ters
            yönde tek bir cümle de girilmediği anda olmayan bir kuralı
            duyururdu. Üç dalın hiçbirinde ÖDEME TAKVİMİ vaat edilmiyor:
            takvim de anlaşmada ve panoya hiç gelmiyor. */
-        '<p class="dipnot">Ödemeler Rytho ekibi tarafından elle kaydedilir; ' +
-        'bu panoda bir ödeme takvimi gösterilmiyor. ' +
+        '<p class="dipnot">' + e(T.odemeDipnotBas) +
         (!olculdu(d.minPayoutTry)
-          ? 'Ödeme alt sınırı da burada yazılı değil — anlaşmanızda ne ' +
-            'yazıyorsa o geçerli. '
+          ? e(T.esikYok)
           : (Number(d.minPayoutTry) === 0
-              ? 'Ödemen için bir alt sınır yok: kesinleşen bakiyen ne olursa ' +
-                'ödenebilir. '
-              : 'Anlaşmandaki ödeme alt sınırı ' +
-                e(para(Number(d.minPayoutTry), '₺')) + ' — "Bakiye" kartı ' +
-                'eşiğe ne kadar kaldığını gösteriyor. Sınırın aşılması ' +
-                'ödemeyi kendiliğinden başlatmaz; kaydı ekip elle yazar. ')) +
-        'Kesinleşen bakiyen için Rytho ekibiyle yazışırsın.</p>',
-        'ödeme para birimi ' + odemeBirimi.trim()) +
+              ? e(T.esikSifir)
+              : t('esikVar', { esik: e(para(Number(d.minPayoutTry), '₺')) }))) +
+        e(T.odemeDipnotSon) + '</p>',
+        t('odemeBirimi', { birim: odemeBirimi.trim() })) +
 
       /* Ödül kuralı, ölçülen davranışın birebir aynası
          (api/billing.py _ortaklik_hakedisi + partner_service):
@@ -810,17 +1173,13 @@
          `bonusTokens > 0` var mı). Dayanak kalkarsa (uç ya da servis
          yeniden sıfırdan büyük değer kabul ederse) önce bu cümle
          düzeltilmeli — kaynaksız kalan bir mutlak iddia kusurdur. */
-      modul('Ödül nasıl işliyor',
-        '<p class="dipnot">Getirdiğin kullanıcının <b>ilk ücretli aboneliği</b> ' +
-        'için sabit bir ₺ tutar kazanırsın. Kullanıcı için indirim ya da ödül ' +
-        'yoktur — bağlantıya dokunması yeter, kod yazmasına gerek kalmaz.</p>' +
-        '<p class="dipnot">Deneme <i>başlatmak</i> ödül üretmez; deneme ücretli ' +
-        'aboneliğe dönerse üretir. Yenileme, jeton paketi ve mağaza test ' +
-        'alımları ödül üretmez. Kullanıcı başına en fazla bir hakediş açılır.</p>' +
-        '<p class="dipnot">Kendi kodunu kendi hesabında kullanamazsın.</p>');
+      modul(T.odulNasil,
+        '<p class="dipnot">' + T.odulP1 + '</p>' +
+        '<p class="dipnot">' + T.odulP2 + '</p>' +
+        '<p class="dipnot">' + e(T.odulP3) + '</p>');
 
     $('pano-govde').innerHTML = html;
-    duyur('Pano yüklendi');
+    duyur(T.panoYuklendi);
   }
 
   /* ------------------------------------------------ yükleme */
@@ -834,8 +1193,7 @@
   /* Geçici durumun METNİ tek yerde: iki farklı yol (pano verisi ve kimlik
      jetonu) aynı cümleyi göstermek zorunda, yoksa aynı olguyu iki farklı
      dille anlatan bir pano çıkar. */
-  var GECICI_METIN = 'Pano şu an ulaşılamıyor. Bu geçici bir durum: ' +
-    'oturumun açık, kodların ve hakedişlerin olduğu gibi duruyor.';
+  var GECICI_METIN = T.gecici;
 
   /* Durum ekranı (bant + görünür "Tekrar dene"). Ayrı fonksiyon olmasının
      nedeni ölçülmüş bir kusur: geçici/kalıcı ayrımı yalnız `yukle()`ye
@@ -855,7 +1213,7 @@
       '<div class="bant ' + (gecici ? 'uyari' : 'hata') + '">' +
       e(metin) + (ayrinti ? ' ' + e(ayrinti) : '') + '</div>' +
       '<div><button type="button" class="buton ikincil" id="tekrar-dene">' +
-      'Tekrar dene</button></div>';
+      e(T.tekrarDene) + '</button></div>';
     var tekrar = $('tekrar-dene');
     if (tekrar) tekrar.addEventListener('click', tekrarIslev);
     govde.setAttribute('aria-busy', 'false');
@@ -870,7 +1228,7 @@
     var govde = $('pano-govde');
     govde.setAttribute('aria-busy', 'true');
     govde.innerHTML = iskelet();
-    duyur('Pano yükleniyor');
+    duyur(T.panoYukleniyor);
     return RY.get('/api/v1/partners/me').then(function (d) {
       ciz(d || {});
     }).catch(function (hata) {
@@ -926,8 +1284,8 @@
          tekrar dene." de ilk cümlenin tekrarı olurdu; iki kez aynı şeyi
          söylemek metni gürültüye çevirir. */
       var ayrinti = (hata && hata.message === 'ag-hatasi')
-        ? RY.hataMetni(hata) : '';
-      durumEkrani(gecici, gecici ? GECICI_METIN : RY.hataMetni(hata),
+        ? hataMetni(hata) : '';
+      durumEkrani(gecici, gecici ? GECICI_METIN : hataMetni(hata),
         gecici ? ayrinti : '', yukle);
     }).then(function () {
       yukleniyor = false;
@@ -947,8 +1305,8 @@
        olsa bile bağlantı elle seçilebilir durumda kalır — bu yüzden
        hata yolunda kullanıcıyı çıkmaza sokmuyoruz. */
     function tamam() {
-      toast('Bağlantı kopyalandı.', 'basari');
-      duyur('Bağlantı kopyalandı');
+      toast(T.kopyalandi, 'basari');
+      duyur(T.kopyalandi);
     }
     function elle() {
       alan.focus();
@@ -957,7 +1315,7 @@
       try { oldu = document.execCommand('copy'); } catch (yok) { oldu = false; }
       if (oldu) tamam();
       else {
-        toast('Kopyalanamadı — bağlantı seçildi, Ctrl+C ile kopyalayabilirsin.', 'uyari');
+        toast(T.kopyalanamadi, 'uyari');
       }
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1006,9 +1364,7 @@
       var kod = (hata && hata.code) || '';
       if (KALICI_KIMLIK_HATASI.indexOf(kod) >= 0) { RY.yetkisiz(); return; }
       $('kim-eposta').textContent = kullanici.email || '';
-      durumEkrani(true, GECICI_METIN,
-        'Kimliğin doğrulanması için ağ bağlantısı gerekiyor — bağlantını ' +
-        'kontrol edip tekrar dene.',
+      durumEkrani(true, GECICI_METIN, T.kimlikAg,
         function () { kimlikKontrol(kullanici); });
     });
   }

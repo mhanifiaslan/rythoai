@@ -217,7 +217,8 @@ kavram için TEK bileşen kalır. Plan dosyası
 ⚠️ **Dalga kapanış ritüeli** (üç kez işe yaradı): tam takım → ajanların
 `dokunmadigim_ama_gerekli` alanlarını TAM metin oku (dikişler orada; D0'da
 üç kırmızı ve bir ürün kusuru oradan çıktı) → ajan mutasyonlarını kendi
-harness'ınla koştur (`scratchpad/mutasyon_dart.py`, `mutasyon_d0.py`) →
+harness'ınla koştur (`tools/mutasyon_dart.py`, `tools/mutasyon_backend.py` —
+ikisi de `<workflow_output.json> [ajan,ajan]` alır) →
 commit. Ajan "kendim denedim" dese de ölçüm değildir.
 
 ⚠️ **`google_fonts` `fontFamilyFallback`'i ÜZERİNE YAZAR**
@@ -608,7 +609,8 @@ kısım yazıldı:
   aboneliğinde sabit ₺ kazanır (`partners/{id}.rewardTry`, ortak başına,
   tavan 500). 15 gün sonra kesinleşir.
 - Ortağın panosu `rytho.app/ortak/` — **hiçbir yerden linklenmez**, adres
-  ortağa elden verilir. Girebilmesi için custom claim şart ve o claim artık
+  ortağa elden verilir; pano **tr/en** (2026-10-10: `?lang=` → tarayıcı dili
+  → tr, elle QA `?lang=en`). Girebilmesi için custom claim şart ve o claim artık
   **panelden** basılıyor (Ortak erişimi → Erişimi aç). `tools/set_admin.py
   --partner` kurtarma yolu olarak duruyor.
 - ⚠️ Claim **anında geçerli olmaz**: ortağın ID jetonu yenilenene kadar (en

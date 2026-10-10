@@ -113,7 +113,9 @@
         var ra = Number(yanit.headers.get('Retry-After'));
         hata.retryAfter = isFinite(ra) && ra > 0 ? ra : 60;
         var simdi = Date.now();
-        if (simdi - son429 > 5000 && toastBas(hataMetni(hata))) {
+        // Metin sayfanın kendi RY.hataMetni'sinden (ortak panosu tr/en);
+        // kaydetmeyen sayfa (yönetim paneli) modülün Türkçesini alır.
+        if (simdi - son429 > 5000 && toastBas((RY.hataMetni || hataMetni)(hata))) {
           son429 = simdi;
         }
       }
@@ -235,6 +237,7 @@
       return y.json();
     });
   };
-  RY.hataMetni = hataMetni;
+  // Sayfa daha önce kendi haritasını kaydettiyse (ortak.js, dil bilen) ezilmez.
+  RY.hataMetni = RY.hataMetni || hataMetni;
   RY.BACKEND = BACKEND;
 })();

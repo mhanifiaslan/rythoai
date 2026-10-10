@@ -23,6 +23,14 @@
   --celadon: #7FD8A4;
   --madder: #FF6B81;
   --line: #2C1F40;
+  /* Hero uzay penceresinin dibi: video ve nebula karesinin altındaki en
+     koyu zemin. Mobil palette karşılığı yok, yalnız web hero'sunda var. */
+  --ink-void: #07050D;
+  /* Telefon maketlerinin çerçeve tonu. İki maket iki ayrı ton taşıyordu
+     (kanal başına en çok 3/255 fark); tek çifte indirildi. */
+  --bezel-top: #1A1024;
+  --bezel-bottom: #120A1C;
+  --kure-fill: #16092C;
 
   /* GlassPanel reçetesi */
   --glass-fill: rgba(28, 19, 38, 0.9);
@@ -31,6 +39,13 @@
 
   /* Degradeler */
   --primary-gradient: linear-gradient(135deg, #7B2FF7, #B02EFF, #E64ACF);
+  /* Metin taşıyan düğmelerin degradesi — mobil ctaGradient'in aynası.
+     Beyaz metin --primary-gradient'in magenta ucunda 3,36:1 ölçüldü (AA
+     eşiği 4,5); bu üç durakta 5,85 / 4,60 / 4,60. Süs yüzeyleri (dock,
+     avatar halkası) primary'de kalır, üstlerinde metin yok. Bekçili. */
+  --cta-gradient: linear-gradient(135deg, #7B2FF7, #AE29FF, #D11DB6);
+  --on-gradient: #FFFFFF;
+  --band-gradient: linear-gradient(135deg, #2A1250, #170C2C);
   --background-gradient: linear-gradient(180deg, #0B0710, #14091E);
 
   /* Hareket — mobil RythoMotion'ın aynası */
@@ -125,13 +140,17 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
   text-transform: uppercase; color: var(--lilac); margin-bottom: 10px;
 }
 
-/* ---- GoldButton: degrade CTA ---- */
+/* ---- GoldButton: degrade CTA ----
+   Köşe BİLEREK hap (--r-pill); uygulamadaki GoldButton 18 dp köşe taşır.
+   Fark pazarlama yüzeyi kararı: web düğmesi mağaza rozetleriyle aynı
+   satırda duruyor ve hap biçimi o satırın dili. Birleştirilecekse iki
+   taraf birden değişir; tek taraflı "düzeltme" ayrışmayı büyütür. */
 .buton {
   display: inline-flex; min-height: 50px; align-items: center; justify-content: center; gap: 9px;
   padding: 13px 22px;
   border-radius: var(--r-pill);
-  background: var(--primary-gradient);
-  color: #fff;
+  background: var(--cta-gradient);
+  color: var(--on-gradient);
   font-weight: 700;
   font-size: 15px;
   text-decoration: none;
@@ -148,7 +167,8 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
   border-color: var(--glass-stroke);
   color: var(--parchment);
 }
-.buton.kucuk { min-height: 40px; padding: 8px 18px; font-size: 13.5px; }
+/* 44 px: dokunma hedefi tabanı — küçük düğme, dil pili ve hamburger aynı tabanda. */
+.buton.kucuk { min-height: 44px; padding: 8px 18px; font-size: 13.5px; }
 
 /* ---- Üst gezinti ---- */
 .gezinti {
@@ -178,6 +198,7 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
 .gezinti nav a:hover { color: var(--parchment); }
 .gezinti .sag { display: flex; align-items: center; gap: 12px; }
 .dil-sec {
+  display: inline-flex; align-items: center; min-height: 44px;
   color: var(--parchment-dim); text-decoration: none;
   font-size: 12.5px; font-weight: 700; letter-spacing: 0.6px;
   border: 1px solid var(--glass-stroke); border-radius: var(--r-pill);
@@ -199,7 +220,7 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
   inset: 0;
   overflow: hidden;
   z-index: -1;
-  background: #07050d;
+  background: var(--ink-void);
   pointer-events: none;
 }
 .hero-fallback,
@@ -215,7 +236,7 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
      Video burada değil, yalnız üst uzay penceresinde görünür. */
   background:
     radial-gradient(ellipse at 72% 78%, rgba(82, 39, 127, 0.26), transparent 46%),
-    linear-gradient(180deg, #0B0710 0%, #0B0710 48%, #14091E 100%);
+    linear-gradient(180deg, var(--ink) 0%, var(--ink) 48%, var(--ink-deep) 100%);
   z-index: 0;
 }
 .hero-fallback::before { display: none; }
@@ -310,12 +331,23 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
   gap: 12px; margin-inline: auto; align-items: start;
 }
 .magaza > a,
-.magaza > span { min-width: 0; width: 100%; }
+.magaza > .rozet { min-width: 0; width: 100%; }
 .magaza > .buton { width: 100%; align-self: start; }
-.magaza > span .buton { width: 100%; }
-.magaza .yakinda {
-  font-size: 11px; color: var(--parchment-dim);
-  display: block; margin-top: 7px; text-align: center;
+/* "Yakında" hapı: düğme DEĞİL — href'i yok, tıklanmaz. Eski hâli href="#"
+   + aria-disabled bir bağlantıydı: aria-disabled için hiçbir stil yoktu ve
+   tıklanınca sayfa başına atlıyordu (davet sayfası aynı deseni "çalışmayan
+   düğme" diye daha önce kaldırmıştı). Izgarada düğmeyle aynı yüksekliği
+   alır ki satır hizası bozulmasın; kontur ve renk bilerek sönük — "bu bir
+   eylem değil" sinyali rengin kendisinde. Seçici .magaza ile ÖLÇEKLİ:
+   .kahraman .rozet aynı özgüllükte ve dar ekran bloğunda daha sonra geliyor,
+   ölçüldü — hap 620 px altında 11 px punto ve 20 px alt boşluk alıyordu. */
+.magaza .rozet.yakinda {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 50px; margin: 0; padding: 13px 22px;
+  border: 1px solid var(--glass-stroke); border-radius: var(--r-pill);
+  background: transparent; color: var(--parchment-dim);
+  /* Düğmeyle aynı punto ve dolgu: yükseklik her yazı tipi metriğinde birebir eşit kalır. */
+  font-size: 15px; font-weight: 600; white-space: nowrap; cursor: default;
 }
 .guven-satiri {
   margin-top: 30px; display: flex; gap: 10px 26px;
@@ -426,7 +458,7 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
 .telefon {
   position: relative; width: min(272px, 78vw);
   border-radius: 36px; padding: 9px;
-  background: linear-gradient(180deg, #1a1024, #120a1c);
+  background: linear-gradient(180deg, var(--bezel-top), var(--bezel-bottom));
   border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow: 0 34px 90px rgba(0, 0, 0, 0.6);
   overflow: hidden;
@@ -460,7 +492,7 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
 }
 .buyuk-kure {
   width: min(460px, 84vw); aspect-ratio: 1; border-radius: 50%;
-  background: #16092c;
+  background: var(--kure-fill);
   border: 1px solid rgba(183, 156, 255, 0.22);
   box-shadow: 0 0 100px rgba(123, 47, 247, 0.28), inset 0 0 60px rgba(0,0,0,0.6);
   position: relative; overflow: hidden;
@@ -508,7 +540,7 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
   border-radius: 28px; padding: clamp(28px, 4vw, 52px);
   background:
     radial-gradient(circle at 12% 20%, rgba(230, 74, 207, 0.22), transparent 55%),
-    linear-gradient(135deg, #2a1250, #170c2c);
+    var(--band-gradient);
   border: 1px solid rgba(183, 156, 255, 0.2);
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(28px, 4vw, 56px); align-items: center;
 }
@@ -523,7 +555,7 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
 .mini-telefon {
   position: relative; z-index: 1; flex: none;
   width: 122px; height: 244px; border-radius: 25px;
-  background: linear-gradient(180deg, #1d1229, #120a1c);
+  background: linear-gradient(180deg, var(--bezel-top), var(--bezel-bottom));
   border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255,255,255,0.08);
   padding: 5px; overflow: hidden; appearance: none; color: inherit; font: inherit; cursor: pointer;
@@ -572,6 +604,24 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
 .kanit .panel h3 { font-size: 16.5px; margin-bottom: 8px; }
 .kanit .panel p { color: var(--parchment-dim); font-size: 14px; }
 #plan .kanit .panel { min-height: 270px; }
+
+/* ---- Sayfa içi yardımcılar — eski satır içi stillerin sınıf hâli ----
+   Satır içi style="" yalnız kademe değişkeni (--i:N) taşır; onun dışındaki
+   her şey burada bir ad alır (bekçili). Üç bölüm-başı boşluğu ölçülmüş
+   bir ritim DEĞİL, sayfalardan birebir taşındı; birleştirme ayrı karar. */
+.bolum-bas { margin-bottom: 52px; }
+.bolum-bas.sik { margin-bottom: 44px; }
+.bolum-bas.dar { margin-bottom: 40px; }
+.sss .bolum-baslik { margin-bottom: 22px; }
+.bolum-baslik.kucuk { font-size: clamp(23px, 3.2vw, 32px); }
+.panel .ham-veri { font-size: 12.5px; line-height: 2; overflow-x: auto; white-space: pre; }
+.panel.vurgulu { border-color: rgba(183, 156, 255, 0.3); }
+.panel p.not-kucuk { margin-top: 12px; font-size: 12.5px; }
+.panel p.panel-not { margin-top: 16px; font-size: 13.5px; color: var(--parchment-dim); }
+.panel p.panel-metin { color: var(--parchment-dim); margin-top: 14px; max-width: 760px; }
+.panel p.panel-metin + p.panel-metin { margin-top: 12px; }
+.indir-bandi.tek { grid-template-columns: 1fr; }
+footer .marka-blok p { max-width: 320px; }
 
 /* ---- SSS ---- */
 .sss details { border-bottom: 1px solid var(--line); padding: 17px 0; }
@@ -627,8 +677,9 @@ footer .satir {
   .gezinti .sag { margin-left: auto; }
   .gezinti .sag > .buton.kucuk { display: none; }
   .mobil-menu { display: block; position: relative; }
+  /* 44 px dokunma hedefi (eskiden 40). */
   .mobil-menu summary {
-    display: grid; width: 40px; height: 40px; place-items: center;
+    display: grid; width: 44px; height: 44px; place-items: center;
     list-style: none; cursor: pointer; border: 1px solid var(--glass-stroke);
     border-radius: 50%; background: rgba(255,255,255,0.04);
   }
@@ -652,13 +703,19 @@ footer .satir {
   }
   .gezinti .mobil-menu-panel a:hover { background: rgba(183,156,255,0.12); }
   .gezinti .mobil-menu-panel .mobil-menu-cta {
-    margin-top: 4px; text-align: center; color: #fff;
-    background: var(--primary-gradient);
+    margin-top: 4px; text-align: center; color: var(--on-gradient);
+    background: var(--cta-gradient);
   }
   .hero-video-mask { display: none; }
   .hero-fallback::before {
     content: ''; display: block; position: absolute; inset: 0;
-    background: #07050d url('/assets/space/hero-nebula.png') center / cover no-repeat;
+    background: var(--ink-void) url('/assets/space/hero-nebula.png') center / cover no-repeat;
+    /* Ayrı bildirim, bilerek: `background` kısayoluna image-set yazılsaydı
+       onu anlamayan tarayıcı bütün satırı düşürür ve zemin RENGİ de giderdi.
+       Burada düşen yalnız bu satır olur, PNG kalır. Mobil ağırlık 925 KB → 24 KB.
+       Mobil preload (index.html) aynı webp'yi gösterir; bekçi ikisini bağlar. */
+    background-image: image-set(url('/assets/space/hero-nebula.webp') type('image/webp'),
+                                url('/assets/space/hero-nebula.png') type('image/png'));
     -webkit-mask-image: radial-gradient(circle 85vw at 50% -57vw, #000 0 99.8%, transparent 100%);
     mask-image: radial-gradient(circle 85vw at 50% -57vw, #000 0 99.8%, transparent 100%);
   }

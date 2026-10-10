@@ -5,174 +5,107 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>Rytho — Hesap işlemi</title>
+  <link rel="icon" href="/assets/rytho_logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/assets/rytho.css?v=3">
 
-  <!-- Firebase Auth eylem sayfasi (mode=resetPassword | verifyEmail |
-       recoverEmail). Firebase Console > Authentication > Templates >
-       Action URL bu sayfaya cevrilidir; e-postadaki baglanti buraya
-       ?mode=...&oobCode=...&lang=... ile gelir.
-
-       Yapilandirma Hosting'in ayrilmis URL'lerinden gelir
-       (/__/firebase/init.js) - anahtar gomulmez; rytho-admin ile ayni
-       desen. Sifre kurali mobil auth_service.validatePassword ile
-       birebir aynidir: en az 8 karakter + {harf, rakam, sembol}
-       siniflarindan en az ikisi. -->
+  <!-- Firebase Auth eylem sayfası (resetPassword · verifyEmail · recoverEmail) — kurulum ve şifre kuralı: docs/web-notlari.md §Hesap işlemi -->
 
   <style>
+    /* Sayfaya özel olan yalnız kart düzeni ve form; renk, yazı tipi ve düğme
+       ortak kabuktan gelir. Kart GlassPanel reçetesi: blur yok. */
     :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background: linear-gradient(180deg, #13091F 0%, #241038 55%, #0B0713 100%);
-      color: #EFE7DA;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                   Helvetica, Arial, sans-serif;
-    }
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
     main { max-width: 420px; width: 100%; }
     .brand {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin-bottom: 22px;
-      color: #F2C14E;
-      font-weight: 600;
-      letter-spacing: 0.4px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-bottom: 22px; color: var(--gold); font-weight: 600; letter-spacing: 0.4px;
     }
     .brand .glyph { font-size: 22px; }
     .card {
-      background: rgba(255, 255, 255, 0.045);
-      border: 1px solid rgba(239, 231, 218, 0.13);
-      border-radius: 18px;
+      background: var(--glass-fill);
+      border: 1px solid var(--glass-stroke);
+      border-radius: var(--r-card);
       padding: 26px 22px;
-      backdrop-filter: blur(6px);
     }
-    h1 {
-      font-size: 22px;
-      margin: 0 0 8px;
-      letter-spacing: -0.2px;
-      text-align: center;
-    }
+    h1 { font-size: 22px; margin: 0 0 8px; text-align: center; }
     p.sub {
-      color: #B9AFC4;
-      line-height: 1.55;
-      margin: 0 0 22px;
-      font-size: 14px;
-      text-align: center;
-      overflow-wrap: anywhere;
+      color: var(--parchment-dim); line-height: 1.55; margin: 0 0 22px;
+      font-size: 14px; text-align: center; overflow-wrap: anywhere;
     }
-    p.sub .email { color: #F2C14E; font-weight: 600; }
-    label {
-      display: block;
-      font-size: 12.5px;
-      color: #B9AFC4;
-      margin: 0 0 6px 2px;
-    }
+    p.sub.sik { margin-bottom: 4px; }
+    p.sub.az { margin-bottom: 8px; }
+    p.sub .email { color: var(--gold); font-weight: 600; }
+    label { display: block; font-size: 13px; color: var(--parchment-dim); margin: 0 0 6px 2px; }
     .field { position: relative; margin-bottom: 14px; }
+    /* 16 px: iOS Safari 16 px altındaki girdiye odaklanınca sayfayı yakınlaştırır
+       ve geri almaz (eski değer 15). "Göster" düğmesi 44×44 dokunma hedefi
+       (eskiden 12,5 px metin + 6/8 dolgu). */
     input[type="password"], input[type="text"] {
       width: 100%;
-      padding: 13px 74px 13px 14px;
-      border-radius: 12px;
-      border: 1px solid rgba(239, 231, 218, 0.2);
-      background: rgba(11, 7, 19, 0.55);
-      color: #EFE7DA;
-      font-size: 15px;
+      padding: 13px 84px 13px 14px;
+      border-radius: var(--r-md);
+      border: 1px solid var(--glass-edge);
+      background: rgba(11, 7, 16, 0.55);
+      color: var(--parchment);
+      font: inherit;
+      font-size: 16px;
       outline: none;
     }
-    input:focus { border-color: #F2C14E; }
+    input:focus { border-color: var(--gold); }
     .toggle {
-      position: absolute;
-      right: 8px;
-      top: 50%;
-      transform: translateY(-50%);
-      border: 0;
-      background: transparent;
-      color: #7E7490;
-      font-size: 12.5px;
-      cursor: pointer;
-      padding: 6px 8px;
+      position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      min-width: 44px; min-height: 44px; padding: 0 10px;
+      border: 0; background: transparent; color: var(--parchment-dim);
+      font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+      border-radius: var(--r-md);
     }
-    .toggle:hover { color: #EFE7DA; }
+    .toggle:hover, .toggle:focus-visible { color: var(--parchment); }
+    .toggle:focus-visible { outline: 2px solid var(--lilac); outline-offset: -2px; }
     ul.rules {
-      list-style: none;
-      margin: 2px 0 18px;
-      padding: 0;
-      font-size: 12.5px;
-      color: #7E7490;
-      line-height: 1.9;
+      list-style: none; margin: 2px 0 18px; padding: 0;
+      font-size: 13px; color: var(--parchment-dim); line-height: 1.9;
     }
     ul.rules li::before { content: "○ "; }
-    ul.rules li.ok { color: #7FD8A4; }
+    ul.rules li.ok { color: var(--celadon); }
     ul.rules li.ok::before { content: "✓ "; }
-    ul.rules li.bad { color: #FF8A5C; }
+    ul.rules li.bad { color: var(--madder); }
     ul.rules li.bad::before { content: "✕ "; }
-    button.primary {
-      display: block;
-      width: 100%;
-      padding: 15px 20px;
-      border: 0;
-      border-radius: 14px;
-      font-weight: 600;
-      font-size: 15px;
-      color: #fff;
-      background: linear-gradient(135deg, #7B4BC9, #C8479B);
-      cursor: pointer;
-    }
-    button.primary:disabled { opacity: 0.45; cursor: default; }
-    a.store {
-      display: block;
-      margin-top: 14px;
-      padding: 13px 20px;
-      border-radius: 14px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 14px;
-      text-align: center;
-      background: transparent;
-      border: 1px solid rgba(239, 231, 218, 0.22);
-      color: #EFE7DA;
-    }
+    button.primary { width: 100%; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
+    button.primary:disabled { opacity: 0.45; cursor: default; transform: none; }
+    a.store { width: 100%; margin-top: 14px; }
     .error {
-      display: none;
-      margin: 0 0 14px;
-      padding: 11px 13px;
-      border-radius: 12px;
-      background: rgba(255, 92, 122, 0.12);
-      border: 1px solid rgba(255, 92, 122, 0.35);
-      color: #FF9FB2;
-      font-size: 13.5px;
-      line-height: 1.5;
+      display: none; margin: 0 0 14px; padding: 11px 13px;
+      border-radius: var(--r-md);
+      background: rgba(255, 107, 129, 0.12);
+      border: 1px solid rgba(255, 107, 129, 0.35);
+      color: var(--madder); font-size: 13.5px; line-height: 1.5;
     }
     .big-glyph { font-size: 52px; text-align: center; margin-bottom: 10px; }
     .center { text-align: center; }
-    .note { font-size: 12px; color: #7E7490; margin-top: 20px; text-align: center; line-height: 1.6; }
+    .note { font-size: 13px; color: var(--parchment-dim); margin-top: 20px; text-align: center; line-height: 1.6; }
     .spinner {
-      width: 26px; height: 26px;
-      margin: 8px auto 16px;
-      border: 3px solid rgba(239, 231, 218, 0.15);
-      border-top-color: #F2C14E;
-      border-radius: 50%;
-      animation: spin 0.9s linear infinite;
+      width: 26px; height: 26px; margin: 8px auto 16px;
+      border: 3px solid var(--glass-edge); border-top-color: var(--gold);
+      border-radius: 50%; animation: spin 0.9s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    @media (prefers-reduced-motion: reduce) {
-      .spinner { animation: none; }
-    }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
     .hidden { display: none; }
   </style>
 </head>
 <body>
+  <div class="gokyuzu"></div>
   <main>
     <div class="brand"><span class="glyph">✦</span><span>Rytho</span></div>
 
     <!-- Durum: yukleniyor -->
     <div class="card" id="state-loading">
       <div class="spinner" aria-hidden="true"></div>
-      <p class="sub" id="loading-text" style="margin-bottom:4px"></p>
+      <p class="sub sik" id="loading-text"></p>
     </div>
 
     <!-- Durum: sifre formu -->
@@ -196,7 +129,7 @@
           <li id="rule-mix"></li>
           <li id="rule-match"></li>
         </ul>
-        <button type="submit" class="primary" id="submit" disabled></button>
+        <button type="submit" class="buton primary" id="submit" disabled></button>
       </form>
     </div>
 
@@ -204,8 +137,8 @@
     <div class="card hidden" id="state-done">
       <div class="big-glyph">🌙</div>
       <h1 id="done-title"></h1>
-      <p class="sub" id="done-body" style="margin-bottom:8px"></p>
-      <a class="store hidden" id="store-link"
+      <p class="sub az" id="done-body"></p>
+      <a class="buton ikincil store hidden" id="store-link"
          href="https://play.google.com/store/apps/details?id=ai.rytho"></a>
     </div>
 
@@ -213,7 +146,7 @@
     <div class="card hidden" id="state-invalid">
       <div class="big-glyph">🔗</div>
       <h1 id="invalid-title"></h1>
-      <p class="sub" id="invalid-body" style="margin-bottom:4px"></p>
+      <p class="sub sik" id="invalid-body"></p>
     </div>
 
     <p class="note" id="footer-note"></p>
@@ -221,9 +154,7 @@
 
   <script src="/__/firebase/10.12.2/firebase-app-compat.js"></script>
   <script src="/__/firebase/10.12.2/firebase-auth-compat.js"></script>
-  <!-- App Check: bu sayfanin TUM cagrilari (verifyPasswordResetCode,
-       applyActionCode, confirmPasswordReset) identitytoolkit'e gidiyor ve
-       o servis ZORLANIYOR — jetonsuz sifre sifirlama calismaz. -->
+  <!-- App Check: identitytoolkit zorlanıyor, kimliksiz çağrı düşer — docs/web-notlari.md §Hesap işlemi -->
   <script src="/__/firebase/10.12.2/firebase-app-check-compat.js"></script>
   <script src="/__/firebase/init.js"></script>
   <script src="/assets/appcheck.js?v=1"></script>

@@ -5,44 +5,78 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>Sayfa bulunamadı · RythoAI</title>
+  <link rel="icon" href="/assets/rytho_logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/assets/rytho.css?v=3">
   <style>
-    /* Marka tonunda 404 (W0): davet sayfasıyla aynı zemin dili.
+    /* Marka tonunda 404: davet ve ortak bağlantısı sayfalarıyla aynı kabuk.
        Admin dahil eşleşmeyen HER yol buraya düşer — sayfa hiçbir yol
        hakkında bilgi vermez. */
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(180deg, #0B0710 0%, #14091E 100%);
-      color: #F4EFFA;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      text-align: center;
-      padding: 24px;
-    }
-    .yildiz { font-size: 40px; color: #FFC24B; }
-    h1 { font-size: 22px; margin: 16px 0 8px; font-weight: 600; }
-    p { color: #A99EC2; font-size: 14px; line-height: 1.55; }
-    a {
-      display: inline-block;
-      margin-top: 24px;
-      padding: 12px 28px;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #7B2FF7, #B02EFF, #E64ACF);
-      color: #fff;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 14px;
-    }
+    :root { color-scheme: dark; }
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+    main { max-width: 420px; width: 100%; }
+    .yildiz { font-size: 40px; color: var(--gold); }
+    h1 { font-size: 22px; margin: 16px 0 8px; }
+    p { color: var(--parchment-dim); font-size: 15px; line-height: 1.55; }
+    main .buton { margin-top: 24px; }
+    .dil { margin-top: 28px; }
   </style>
 </head>
 <body>
+  <div class="gokyuzu"></div>
   <main>
-    <div class="yildiz">✦</div>
-    <h1>Bu gökyüzünde böyle bir sayfa yok</h1>
-    <p>Aradığın yol haritada görünmüyor.</p>
-    <a href="/">Ana sayfaya dön</a>
+    <div class="yildiz" aria-hidden="true">✦</div>
+    <h1 id="baslik">Bu gökyüzünde böyle bir sayfa yok</h1>
+    <p id="govde">Aradığın yol haritada görünmüyor.</p>
+    <a class="buton" id="eve" href="/">Ana sayfaya dön</a>
+    <div class="dil"><a class="dil-sec" id="dil" href="?lang=en">EN</a></div>
   </main>
+
+  <script>
+    'use strict';
+
+    // ---- Dil: davet sayfasıyla AYNI desen — önce ?lang=, sonra tarayıcı.
+    // Sayfa tek dilliydi; İngilizce tarayıcıdaki ziyaretçi Türkçe bir 404
+    // görüyor ve "ana sayfaya dön" onu Türkçe köke götürüyordu.
+    var params = new URLSearchParams(window.location.search);
+    var lang = (params.get('lang') || navigator.language || 'tr')
+      .toLowerCase().slice(0, 2);
+    if (lang !== 'en') lang = 'tr';
+    document.documentElement.lang = lang;
+
+    var T = {
+      tr: {
+        pageTitle: 'Sayfa bulunamadı · RythoAI',
+        baslik: 'Bu gökyüzünde böyle bir sayfa yok',
+        govde: 'Aradığın yol haritada görünmüyor.',
+        eve: 'Ana sayfaya dön',
+        ev: '/',
+        dil: 'EN',
+        dilHref: '?lang=en'
+      },
+      en: {
+        pageTitle: 'Page not found · RythoAI',
+        baslik: 'There is no such page in this sky',
+        govde: 'The path you were looking for is not on the chart.',
+        eve: 'Back to the home page',
+        ev: '/en/',
+        dil: 'TR',
+        dilHref: '?lang=tr'
+      }
+    }[lang];
+
+    document.title = T.pageTitle;
+    document.getElementById('baslik').textContent = T.baslik;
+    document.getElementById('govde').textContent = T.govde;
+    var eve = document.getElementById('eve');
+    eve.textContent = T.eve;
+    eve.setAttribute('href', T.ev);
+    var dil = document.getElementById('dil');
+    dil.textContent = T.dil;
+    dil.setAttribute('href', T.dilHref);
+  </script>
 </body>
 </html>

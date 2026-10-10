@@ -461,3 +461,9 @@ eklenmesi ayrı bir iş.
 | Ortak bağlantısı sayfası | `web/r/index.html` |
 | Günlük olgunlaştırma işi | `infra/create-scheduler.ps1:157` |
 | Senaryolar | `docs/test-raporu.md` (143-148) |
+
+## Pano dili (2026-10-10)
+
+Ortak panosu (`rytho.app/ortak/`) tr/en: sıra `?lang=` → tarayıcı dili → tr.
+Ortak kaydında dil alanı yok; elle QA `?lang=en` ile. Sunucunun `detail`
+metni olduğu gibi geçer (dili sunucu seçer). Bekçi `backend/tests/test_web_ortak.py`.
