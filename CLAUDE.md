@@ -211,7 +211,7 @@ kavram için TEK bileşen kalır. Plan dosyası
 | D1–D2 fontlar pakette + `RythoGlyphs` + token/hareket/tema eklemeleri | ✅ Flutter 882, 10/10 mutasyon | `eed33c7` |
 | BaZi fısıltı önbellek anahtarı cinsiyet | ✅ | `d954948` |
 | D3 paylaşılan bileşenler (4 ajan paralel; `OkumaKabi`, `acPaywall`, `ozellik_katalogu`, `IzinKapisi`…) | ✅ Flutter 1033, 57/57 mutasyon | `b9b81c7` |
-| D8-web (App Store hapı, 4 sayfa rytho.css, yorum temizliği, WebP, ortak EN) | ⏳ | — |
+| D8-web (App Store hapı, 4 sayfa rytho.css, yorum temizliği, WebP 11,7 MB→0,6 MB, ortak EN) | ✅ pytest 2541, 31+3 mutasyon | `2be3512` |
 | D4 giriş+onboarding · D5 ana ekran+profil · D6 derinlik · D7 para · D8 cırcır+l10n+belge | bekliyor | — |
 
 ⚠️ **Dalga kapanış ritüeli** (üç kez işe yaradı): tam takım → ajanların
