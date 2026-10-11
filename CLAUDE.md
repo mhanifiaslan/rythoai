@@ -249,7 +249,8 @@ kavram için TEK bileşen kalır. Plan dosyası
 | D8-web (App Store hapı, 4 sayfa rytho.css, yorum temizliği, WebP 11,7 MB→0,6 MB, ortak EN) | ✅ pytest 2541, 31+3 mutasyon | `2be3512` |
 | D4 giriş+onboarding (6 adım, önseçim yok, saat uydurulmaz, giriş sükûneti, iptal hata değil) | ✅ Flutter 1103, 48/48 mutasyon | `c16a99d` |
 | D5 ana ekran+profil (tek "Bugün", AsyncBolum, günlük satırı altta, kabuk niyeti, hikâye sükûneti, çıkış onaylı, abonelik "—", saat uydurulmaz) | ✅ Flutter 1194, 70 mutasyon | `3dfe7a3` |
-| D6 derinlik · D7 para · D8 cırcır+l10n+belge | bekliyor | — |
+| D6 derinlik (OkumaKabi 9 yüzey, çark çizgi dili + salt önizleme, Çevrem/kişi onayları, sohbet hata balonu + 402 tek yol) | ✅ Flutter 1441, 89/89 mutasyon | `707dd4a` |
+| D7 para · D8 cırcır+l10n+belge | bekliyor | — |
 | **S1 sohbet personası** (plan dışı, sahip şikâyeti 2026-10-10; yalnız backend — kapı ``, yetki alanı, `persona_guard`, `tools/sohbet_olc.py`) | ✅ pytest 2750, 66+7 mutasyon · ✅ CANLI rev 00109 | `5da5ed2` |
 
 ### S1 — sohbet personası kayması (ölçüldü 2026-10-10, üretim Firestore salt okuma)
