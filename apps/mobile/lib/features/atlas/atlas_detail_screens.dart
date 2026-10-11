@@ -30,12 +30,19 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../theme/rytho_glyphs.dart'
+    show kExtraPointGlyphs, kPlanetTextGlyphs;
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
+import '../../widgets/alt_sayfa.dart' show showRythoSheet;
+import '../../widgets/atlas_widgets.dart' show RythoyaSor;
+import '../../widgets/basis_sheet.dart' show OlcumSatiri;
+import '../../widgets/chart/chart_palette.dart' show kElementTints;
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart';
+import '../chat/chat_screen.dart';
 import 'atlas_screen.dart'
     show aspectKindLabel, aspectPairLabel, planetSignLabel;
 
@@ -101,21 +108,38 @@ class _Dipnot extends StatelessWidget {
       );
 }
 
+/// Sayfa sonundaki sohbet kapısı: tohum ön-doldurur, göndermez
+/// (`chat_screen.dart` doktrini). Üç detay sayfası ve üç alt sayfa aynı
+/// kapıyı kullanır; tohum sayfaya özel.
+class _SohbetKapisi extends StatelessWidget {
+  const _SohbetKapisi({required this.tohum});
+
+  final String tohum;
+
+  @override
+  Widget build(BuildContext context) => RythoyaSor(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => ChatScreen(initialText: tohum))),
+      );
+}
+
+/// Alt sayfadan sohbete: önce sayfa kapanır, sonra sohbet açılır (emsal
+/// `showSignalBasisSheet` çağıranları). Navigator KAPATMADAN ÖNCE alınır —
+/// kapanan sayfanın context'i sonrasında ata aramasına izin vermez.
+void _altSayfadanSor(BuildContext context, String tohum) {
+  final nav = Navigator.of(context);
+  nav.pop();
+  nav.push(MaterialPageRoute(builder: (_) => ChatScreen(initialText: tohum)));
+}
+
 // ---------------------------------------------------------------------------
 // Gezegen Konumları
 // ---------------------------------------------------------------------------
 
-/// Klasik yedili + modern gezegenler; ek noktalar ayrı bölümde.
-const _kPlanetEmojis = {
-  'Sun': '☀️', 'Moon': '🌙', 'Mercury': '☿', 'Venus': '♀', 'Mars': '♂',
-  'Jupiter': '♃', 'Saturn': '♄', 'Uranus': '♅', 'Neptune': '♆',
-  'Pluto': '♇',
-};
-
-const _kExtraEmojis = {
-  'Chiron': '⚷', 'Mean_Lilith': '⚸',
-  'True_North_Lunar_Node': '☊', 'True_South_Lunar_Node': '☋',
-};
+/// Klasik yedili + modern gezegenler (`kPlanetTextGlyphs`); ek noktalar
+/// (`kExtraPointGlyphs`) ayrı bölümde. Tablolar `rytho_glyphs.dart`ta TEK:
+/// bu dosyanın kendi `☀️🌙` emojili kopyası glif fontunun kapsam bekçisini
+/// kaçırıyordu ve Güneş öteki gezegenlerden farklı dilde çiziliyordu.
 
 /// Ekranı açan anlam cümlesinin öznesi: **Güneş** — listede varsa ve
 /// ölçümü şüpheli işaretlenmemişse. Yoksa null, yani cümle hiç çizilmez.
@@ -168,12 +192,13 @@ class AtlasPlanetsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final klasik = points
-        .where((p) => _kPlanetEmojis.containsKey(p['name']))
+        .where((p) => kPlanetTextGlyphs.containsKey(p['name']))
         .toList();
     // Ek noktalar artık SESSİZCE atılmıyor (eski filtre Kiron, Lilith ve
     // iki Ay düğümünü listeden düşürüyordu — hesaplanıp saklanan veri).
-    final ek =
-        points.where((p) => _kExtraEmojis.containsKey(p['name'])).toList();
+    final ek = points
+        .where((p) => kExtraPointGlyphs.containsKey(p['name']))
+        .toList();
 
     // ANLAM KATMANI: bu ekran "anlam önce" ailesinin TEK kaçağıydı —
     // açılışta on noktalık bir ızgara (emoji · burç · derece · ev) ve
@@ -228,6 +253,7 @@ class AtlasPlanetsScreen extends StatelessWidget {
               child: PlanetGrid(points: ek)),
         ],
         _Dipnot(l10n.planetsFootnote),
+        _SohbetKapisi(tohum: l10n.planetsAskPrefill),
       ],
     );
   }
@@ -262,7 +288,9 @@ class _PlanetRow extends StatelessWidget {
 
     // Alt satır: derece · ev — ikisi de zaten hesaplanıyordu ama hiç
     // gösterilmiyordu ("bu konumlar ne demek" şikâyetinin yarısı buydu).
-    // Retro başlıkta ℞ ile (klasik sembol); ne demek olduğu detayda.
+    // Retro başlıkta "R" ile — çarkın retro işaretiyle AYNI harf
+    // (`wheel_painter`); eski `℞` (U+211E) paket fontların hiçbirinde yok,
+    // sistem fontuna düşüyordu. Ne demek olduğu detayda.
     // Saatsiz doğumda Ay BELİRSİZ (1.7.0): Yükselen hiç üretilmiyor ama
     // Ay öğle dolgusuyla hesaplanıyordu ve "senin Ay'ın" diye
     // duruyordu. Ay günde ~13° yol alır; ölçüldü — 16 tarihin 7'sinde
@@ -277,24 +305,29 @@ class _PlanetRow extends StatelessWidget {
 
     return Pressable(
       onTap: () => showPointSheet(context, point),
+      // Kart kabı `GlassPanel(tone: raised)` DEĞİL ve bu bilinçli: retro
+      // gezegen kenarlığı magenta — kap o kenarlığı ifade edemiyor, retro
+      // ise satırda yalnız harfle değil renkle de okunmalı.
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 3),
         padding: const EdgeInsets.symmetric(
             horizontal: RythoSpace.md, vertical: 9),
         decoration: BoxDecoration(
           color: RythoColors.inkLighter,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(RythoRadius.sm),
           border: Border.all(
               color: retro
                   ? RythoColors.magenta.withValues(alpha: 0.4)
                   : RythoColors.glassStroke),
         ),
         child: Row(children: [
+          // Glif rolü: doğrudan glif fontu — çıplak `TextStyle` sistem
+          // fontuna, Android'de emojiye düşüyordu.
           Text(
-              _kPlanetEmojis[point['name']] ??
-                  _kExtraEmojis[point['name']] ??
+              kPlanetTextGlyphs[point['name']] ??
+                  kExtraPointGlyphs[point['name']] ??
                   '•',
-              style: const TextStyle(fontSize: 15)),
+              style: RythoText.glyph(15)),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
@@ -302,7 +335,7 @@ class _PlanetRow extends StatelessWidget {
                 children: [
                   Text(
                     '${planetSignLabel(context, point)} '
-                    '${_signGlyph(point)}${retro ? ' ℞' : ''}'
+                    '${_signGlyph(point)}${retro ? ' R' : ''}'
                     '${belirsiz ? ' ~' : ''}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -363,33 +396,15 @@ class _PlanetRow extends StatelessWidget {
 /// yok, jeton yok. Uydurma da yok: cümle ölçülen yerleşimi anlatır.
 Future<void> showPointSheet(
     BuildContext context, Map<String, dynamic> point) {
-  return showModalBottomSheet<void>(
-    context: context,
-    // Gövde KAYDIRILABİLİR olmak zorunda: anlam katmanı eklenince sayfa
-    // bir satır uzadı ve kaydırmasız gövdede içerik SESSİZCE kırpılıyordu
-    // — dar ekranda alttaki ölçüm satırları hiç görünmezdi.
-    //
-    // ÖLÇÜLDÜ (doğrulama turu, 320×480, Ay · 1. ev · retro, yazı ölçeği
-    // 1.0): sarmalayıcı olmadan taşma 131 px. Bu dosyanın ilk yazımında
-    // "28 px" yazıyordu; o sayı hiçbir senaryoda ölçülmedi, düzeltildi.
-    //
-    // ⚠️ Kırpılmayı önleyen şey aşağıdaki `SingleChildScrollView`;
-    // `isScrollControlled` ayrı bir şey yapıyor: sayfanın varsayılan
-    // 9/16 tavanını kaldırıyor, yani içerik yarım sayfaya sıkışmak
-    // yerine ekranı kullanıyor. Ölçüldü: sarmalayıcı dururken bunu
-    // `false` yapmak hiçbir taşma üretmiyor (bekçi haklı olarak yeşil
-    // kalır) — yani bu satır KONFOR, kapı değil.
-    isScrollControlled: true,
-    backgroundColor: RythoColors.inkLight,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      side: BorderSide(color: RythoColors.glassStroke),
-    ),
-    // Kaydırma SARMALAYICIDA, sayfanın gövdesinde değil: gövde
-    // `mainAxisSize.min` bir Column ve içerik ekrandan uzun olduğunda
-    // taşıyor. Sarmalayıcı hem içerik kadar yükseklik verir hem taşarsa
-    // kaydırır.
-    builder: (_) => SingleChildScrollView(child: _PointSheet(point: point)),
+  // Kabuk ortak (`showRythoSheet`): zemin, köşe, tutamak, güvenli alan ve
+  // kaydırma sarmalayıcısı oradan gelir. Sarmalayıcı burada ŞART ve
+  // ÖLÇÜLDÜ (320×480, Ay · 1. ev · retro, yazı ölçeği 1.0): onsuz taşma
+  // 131 px — gövde `mainAxisSize.min` bir Column ve dar ekranda alttaki
+  // ölçüm satırları SESSİZCE kırpılıyordu. Bu dosyanın ilk yazımında
+  // "28 px" yazıyordu; o sayı hiçbir senaryoda ölçülmedi, düzeltildi.
+  return showRythoSheet<void>(
+    context,
+    builder: (_) => _PointSheet(point: point),
   );
 }
 
@@ -408,19 +423,17 @@ class _PointSheet extends StatelessWidget {
     // gezegen cümlesini döner — uydurulmuş bir ev alanı eklenmez.
     final anlam = yerlesimCumlesi(l10n, point['name'] as String?, ev);
 
-    return SafeArea(
-      child: Padding(
+    // Güvenli alan ve tutamak kabuktan geliyor (`showRythoSheet`).
+    return Padding(
         padding: const EdgeInsets.fromLTRB(
             RythoSpace.lg, RythoSpace.md, RythoSpace.lg, RythoSpace.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _SheetTutamak(),
-            const SizedBox(height: RythoSpace.md),
             Text(
                 '${planetSignLabel(context, point)} ${_signGlyph(point)}',
-                style: RythoText.display(17, w: FontWeight.w600)),
+                style: RythoType.sheetTitle),
             const SizedBox(height: RythoSpace.md),
             // ANLAM KATMANI — başlıktan sonra ilk gelen şey burada.
             if (anlam != null)
@@ -433,19 +446,21 @@ class _PointSheet extends StatelessWidget {
             ],
             const SizedBox(height: RythoSpace.md),
             // DAYANAK — ölçüm artık anlamın ALTINDA ve kendi başlığı var.
+            // Satırlar `OlcumSatiri` (basis_sheet ile tek bileşen): etiket
+            // büyük harfe ÇEVRİLMEZ, rol tipografisi taşır.
             const _DayanakBasligi(),
             if (derece != null)
-              _OlcumSatiri(
+              OlcumSatiri(
                   etiket: l10n.planetDegree,
                   deger: '${derece.toStringAsFixed(2)}°'),
             if (ev != null)
-              _OlcumSatiri(etiket: l10n.planetHouse, deger: l10n.houseN(ev)),
+              OlcumSatiri(etiket: l10n.planetHouse, deger: l10n.houseN(ev)),
             if (point['retrograde'] == true)
-              _OlcumSatiri(
+              OlcumSatiri(
                   etiket: l10n.planetMotion,
-                  deger: '℞ ${l10n.planetRetrograde}'),
+                  deger: 'R · ${l10n.planetRetrograde}'),
             if (hiz != null)
-              _OlcumSatiri(
+              OlcumSatiri(
                   etiket: l10n.planetSpeed,
                   deger: '${hiz.toStringAsFixed(3)}°/${l10n.perDay}'),
             const SizedBox(height: RythoSpace.md),
@@ -464,9 +479,13 @@ class _PointSheet extends StatelessWidget {
             Text(l10n.pointSheetFootnote,
                 style: RythoText.body(11.5,
                     color: RythoColors.parchmentDim, height: 1.4)),
+            const SizedBox(height: RythoSpace.sm),
+            // Sohbet kapısı en altta; tohum noktanın KENDİ adı.
+            RythoyaSor(
+                onTap: () => _altSayfadanSor(
+                    context, l10n.pointAskPrefill(_pointName(point)))),
           ],
         ),
-      ),
     );
   }
 }
@@ -545,11 +564,14 @@ class AtlasTraitsScreen extends StatelessWidget {
     final toplam = elementler.values
         .fold<int>(0, (a, b) => a + ((b as num?)?.toInt() ?? 0));
 
+    // Element renkleri çarkın paletiyle TEK (`kElementTints`, sıra
+    // ateş/toprak/hava/su): eskiden aynı dört element iki ekranda dört
+    // farklı renkti. Nitelik paletinin çarkta karşılığı yok; ayrı kalır.
     const elementRenk = {
-      'fire': RythoColors.magenta,
-      'earth': RythoColors.celadon,
-      'air': RythoColors.lilac,
-      'water': Color(0xFF5AC8FA),
+      'fire': 0,
+      'earth': 1,
+      'air': 2,
+      'water': 3,
     };
     const nitelikRenk = {
       'cardinal': RythoColors.gold,
@@ -597,7 +619,7 @@ class AtlasTraitsScreen extends StatelessWidget {
                 ad: elementName(l10n, e),
                 sayi: (elementler[e] as num?)?.toInt() ?? 0,
                 toplam: toplam,
-                renk: elementRenk[e]!,
+                renk: kElementTints[elementRenk[e]!],
                 onTap: () => _acDagilim(
                   context,
                   baslik: elementName(l10n, e),
@@ -642,6 +664,7 @@ class AtlasTraitsScreen extends StatelessWidget {
           ]),
         ),
         _Dipnot('${l10n.traitsSetNote}\n${l10n.traitsTapHint}'),
+        _SohbetKapisi(tohum: l10n.traitsAskPrefill),
       ],
     );
   }
@@ -675,27 +698,19 @@ void showDagilimSheet(
   required List<String> uyeler,
   required List<Map<String, dynamic>> points,
 }) {
-  showModalBottomSheet<void>(
-    context: context,
-    // Üye çipleri `Wrap` içinde ve sekiz nokta dar ekranda üç satıra
-    // çıkabiliyor; bu sayfa artık Harita İnceleme'den de açıldığı için
-    // kırpılma riski ölçülmeden bırakılmadı (bkz. `showPointSheet`).
-    // ÖLÇÜLDÜ (320×480, ateş · sekiz üye): sarmalayıcı olmadan taşma
-    // 117 px, yazı ölçeği 1,3'te 474 px.
-    isScrollControlled: true,
-    backgroundColor: RythoColors.inkLight,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      side: BorderSide(color: RythoColors.glassStroke),
-    ),
-    builder: (_) => SingleChildScrollView(
-      child: _DagilimSheet(
-        baslik: baslik,
-        aciklama: aciklama,
-        klasik: klasik,
-        uyeler: uyeler,
-        points: points,
-      ),
+  // Kabuk ortak (`showRythoSheet`); kaydırma sarmalayıcısı oradan gelir
+  // ve burada ŞART: üye çipleri `Wrap` içinde ve sekiz nokta dar ekranda
+  // üç satıra çıkabiliyor; bu sayfa Harita İnceleme'den de açıldığı için
+  // kırpılma riski ölçülmeden bırakılmadı. ÖLÇÜLDÜ (320×480, ateş · sekiz
+  // üye): sarmalayıcı olmadan taşma 117 px, yazı ölçeği 1,3'te 474 px.
+  showRythoSheet<void>(
+    context,
+    builder: (_) => _DagilimSheet(
+      baslik: baslik,
+      aciklama: aciklama,
+      klasik: klasik,
+      uyeler: uyeler,
+      points: points,
     ),
   );
 }
@@ -733,23 +748,21 @@ class _DagilimSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SafeArea(
-      child: Padding(
+    // Güvenli alan ve tutamak kabuktan geliyor (`showRythoSheet`).
+    return Padding(
         padding: const EdgeInsets.fromLTRB(
             RythoSpace.lg, RythoSpace.md, RythoSpace.lg, RythoSpace.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _SheetTutamak(),
-            const SizedBox(height: RythoSpace.md),
-            Text(l10n.traitsSheetTitle(baslik),
-                style: RythoText.display(17, w: FontWeight.w600)),
+            Text(l10n.traitsSheetTitle(baslik), style: RythoType.sheetTitle),
             const SizedBox(height: 6),
             Text(aciklama, style: RythoText.body(13.5, height: 1.45)),
             const SizedBox(height: RythoSpace.md),
-            Text(l10n.traitsMembersLabel.toUpperCase(),
-                style: RythoType.dataSmall),
+            // Etiket büyük harfe ÇEVRİLMEZ (Türkçe `i`→`I` düşüyordu);
+            // rol tipografisi etiket ağırlığını taşır.
+            Text(l10n.traitsMembersLabel, style: RythoType.label),
             const SizedBox(height: 4),
             if (uyeler.isEmpty)
               Text(l10n.traitsNoMember,
@@ -784,9 +797,14 @@ class _DagilimSheet extends StatelessWidget {
             Text(l10n.traitsSheetFootnote,
                 style: RythoText.body(11,
                     color: RythoColors.parchmentDim, height: 1.4)),
+            const SizedBox(height: RythoSpace.sm),
+            // Dağılıma özel tohum anahtarı yok; kişilik sayfasının tohumu
+            // aynı konuyu açıyor.
+            RythoyaSor(
+                onTap: () =>
+                    _altSayfadanSor(context, l10n.traitsAskPrefill)),
           ],
         ),
-      ),
     );
   }
 }
@@ -946,6 +964,7 @@ class AtlasAspectsScreen extends StatelessWidget {
         bolum('flow', l10n.aspectsGroupFlow),
         bolum('other', l10n.aspectsGroupOther),
         _Dipnot('${l10n.aspectsSortNote}\n${l10n.traitsTapHint}'),
+        _SohbetKapisi(tohum: l10n.aspectsAskPrefill),
       ],
     );
   }
@@ -1000,33 +1019,26 @@ class _AspectRow extends StatelessWidget {
 
 Future<void> showAspectSheet(
     BuildContext context, Map<String, dynamic> aspect) {
-  return showModalBottomSheet<void>(
-    context: context,
-    // Bkz. `showPointSheet`. ⚠️ Bu sayfanın gerekçesi oradakiyle AYNI
-    // DEĞİL ve ilk yazımında öyle sanılmıştı: 320×480'de yazı ölçeği
-    // 1.0 iken bu sayfa HİÇ taşmıyor (beş açı türü × iki hareket,
-    // hepsi 0 px — ölçüldü). Taşma uygulamanın kendi yazı ölçeği
-    // tavanında başlıyor (`kMaxTextScale` = 1,3): ölçülen 141–247 px,
-    // türe ve harekete göre (en azı Üçgen·ayrılan, en çoğu
-    // Kavuşum·yaklaşan).
-    //
-    // ⚠️ Bu aralık bir tur "200–279 px" yazıyordu ve YENİDEN ÖLÇÜLDÜ:
-    // on senaryonun yedisi 200'ün ALTINDA ve 279 px hiç görülmedi.
-    // Ölçüm yöntemi de kusurluydu — `RenderFlex` taşmayı render nesnesi
-    // BAŞINA BİR KEZ bildiriyor ve `pumpWidget` aynı widget tiplerinde
-    // o nesneleri yeniden kullanıyor, yani tek testte döngüyle ölçmek
-    // ilk senaryodan sonra hep "0 px" veriyor. Her senaryo AYRI test
-    // olmak zorunda.
-    // Yani sarmalayıcı burada BÜYÜK YAZI için duruyor; bekçisi de o
-    // ölçekte koşmak zorunda, 1.0'da kör kalır.
-    isScrollControlled: true,
-    backgroundColor: RythoColors.inkLight,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      side: BorderSide(color: RythoColors.glassStroke),
-    ),
-    builder: (_) =>
-        SingleChildScrollView(child: _AspectSheet(aspect: aspect)),
+  // Kabuk ortak (`showRythoSheet`); kaydırma sarmalayıcısı oradan gelir.
+  // ⚠️ Bu sayfanın gerekçesi nokta sayfasınınkiyle AYNI DEĞİL ve ilk
+  // yazımında öyle sanılmıştı: 320×480'de yazı ölçeği 1.0 iken bu sayfa
+  // HİÇ taşmıyor (beş açı türü × iki hareket, hepsi 0 px — ölçüldü).
+  // Taşma uygulamanın kendi yazı ölçeği tavanında başlıyor
+  // (`kMaxTextScale` = 1,3): ölçülen 141–247 px, türe ve harekete göre
+  // (en azı Üçgen·ayrılan, en çoğu Kavuşum·yaklaşan).
+  //
+  // ⚠️ Bu aralık bir tur "200–279 px" yazıyordu ve YENİDEN ÖLÇÜLDÜ:
+  // on senaryonun yedisi 200'ün ALTINDA ve 279 px hiç görülmedi.
+  // Ölçüm yöntemi de kusurluydu — `RenderFlex` taşmayı render nesnesi
+  // BAŞINA BİR KEZ bildiriyor ve `pumpWidget` aynı widget tiplerinde
+  // o nesneleri yeniden kullanıyor, yani tek testte döngüyle ölçmek
+  // ilk senaryodan sonra hep "0 px" veriyor. Her senaryo AYRI test
+  // olmak zorunda.
+  // Yani sarmalayıcı burada BÜYÜK YAZI için duruyor; bekçisi de o
+  // ölçekte koşmak zorunda, 1.0'da kör kalır.
+  return showRythoSheet<void>(
+    context,
+    builder: (_) => _AspectSheet(aspect: aspect),
   );
 }
 
@@ -1042,19 +1054,17 @@ class _AspectSheet extends StatelessWidget {
     final aciklama = aspectMeaningText(l10n, aspect['aspect'] as String?);
     final hareketAciklama =
         movementMeaningText(l10n, aspect['movement'] as String?);
+    final cift = aspectPairLabel(context, aspect);
 
-    return SafeArea(
-      child: Padding(
+    // Güvenli alan ve tutamak kabuktan geliyor (`showRythoSheet`).
+    return Padding(
         padding: const EdgeInsets.fromLTRB(
             RythoSpace.lg, RythoSpace.md, RythoSpace.lg, RythoSpace.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _SheetTutamak(),
-            const SizedBox(height: RythoSpace.md),
-            Text(aspectPairLabel(context, aspect),
-                style: RythoText.display(17, w: FontWeight.w600)),
+            Text(cift, style: RythoType.sheetTitle),
             const SizedBox(height: RythoSpace.md),
             // ANLAM KATMANI — eskiden bu blok orb satırlarının ALTINDAYDI.
             if (aciklama != null)
@@ -1065,17 +1075,18 @@ class _AspectSheet extends StatelessWidget {
                   style: RythoText.body(13.5, height: 1.45)),
             ],
             const SizedBox(height: RythoSpace.md),
-            // DAYANAK
+            // DAYANAK — `OlcumSatiri` (basis_sheet ile tek bileşen). Açı
+            // türü boş gelirse satır HİÇ çizilmez; o bileşenin kuralı.
             const _DayanakBasligi(),
-            _OlcumSatiri(
+            OlcumSatiri(
                 etiket: l10n.basisAspect,
                 deger: aspectKindLabel(context, aspect)),
             if (orb != null)
-              _OlcumSatiri(
+              OlcumSatiri(
                   etiket: l10n.basisOrb,
                   deger: '${orb.toStringAsFixed(2)}°'),
             if (aspect['movement_local'] != null)
-              _OlcumSatiri(
+              OlcumSatiri(
                   etiket: l10n.basisMovement,
                   deger: aspect['movement_local'] as String),
             const SizedBox(height: RythoSpace.md),
@@ -1088,9 +1099,13 @@ class _AspectSheet extends StatelessWidget {
             Text(l10n.aspectSheetFootnote,
                 style: RythoText.body(11,
                     color: RythoColors.parchmentDim, height: 1.4)),
+            const SizedBox(height: RythoSpace.sm),
+            // Sohbet kapısı en altta; tohum açının KENDİ çifti.
+            RythoyaSor(
+                onTap: () =>
+                    _altSayfadanSor(context, l10n.aspectAskPrefill(cift))),
           ],
         ),
-      ),
     );
   }
 }
@@ -1098,22 +1113,10 @@ class _AspectSheet extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Ortak küçük parçalar
 // ---------------------------------------------------------------------------
-
-class _SheetTutamak extends StatelessWidget {
-  const _SheetTutamak();
-
-  @override
-  Widget build(BuildContext context) => Center(
-        child: Container(
-          width: 36,
-          height: 4,
-          decoration: BoxDecoration(
-            color: RythoColors.glassStroke,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      );
-}
+//
+// `_SheetTutamak` ve `_OlcumSatiri` KALKTI: tutamak kabukta
+// (`alt_sayfa.SheetTutamak`), ölçüm satırı `basis_sheet.OlcumSatiri` —
+// iki alt sayfa ailesi aynı kavramı iki kopyayla çiziyordu.
 
 /// Ölçüm bloğunun başlığı — "Neye dayanıyor?".
 ///
@@ -1122,35 +1125,17 @@ class _SheetTutamak extends StatelessWidget {
 /// yerden gelsin. `signalWhy` anahtarı sinyal kartlarından geliyor ama
 /// metni ("Neye dayanıyor?" / "What's behind this?") sinyale ÖZEL DEĞİL —
 /// yeni bir anahtar uydurmak yerine bu kullanıldı.
+///
+/// Büyük harfe ÇEVRİLMEZ: `toUpperCase` Türkçe bilmiyor; rol tipografisi
+/// (`RythoType.label`) etiket ağırlığını zaten taşıyor.
 class _DayanakBasligi extends StatelessWidget {
   const _DayanakBasligi();
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 2),
-        child: Text(AppLocalizations.of(context).signalWhy.toUpperCase(),
-            style: RythoType.dataSmall),
-      );
-}
-
-/// Etiket + değer satırı (basis_sheet ile aynı görsel dil).
-class _OlcumSatiri extends StatelessWidget {
-  const _OlcumSatiri({required this.etiket, required this.deger});
-
-  final String etiket;
-  final String deger;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(
-            width: 108,
-            child: Text(etiket.toUpperCase(), style: RythoType.dataSmall),
-          ),
-          const SizedBox(width: RythoSpace.sm),
-          Expanded(child: Text(deger, style: RythoText.body(13.5))),
-        ]),
+        child: Text(AppLocalizations.of(context).signalWhy,
+            style: RythoType.label),
       );
 }
 

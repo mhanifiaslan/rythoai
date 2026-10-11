@@ -479,8 +479,13 @@ Future<SubscriptionStatus> abonelikDurumunuOku(Dio dio) async {
   //
   // Niçin yalnız HIZLI hatada: ilk deneme zaman aşımıyla düştüyse sunucu
   // gerçekten ulaşılamaz demektir ve ikinci deneme bir zaman aşımını daha
-  // ÜST ÜSTE bindirir — ilk çizimi saniyelerce geciktirirdi. 429/5xx/bağlantı
-  // reddi ise milisaniyelerde döner; onarılabilecek tek sınıf da bu.
+  // ÜST ÜSTE bindirir — ilk çizimi saniyelerce geciktirirdi. 5xx/bağlantı
+  // reddi ise milisaniyelerde döner; onarılabilecek sınıf bu.
+  //
+  // 429 da hızlı düşer ama YENİDEN DENENMEZ: sunucu "yavaşla" demişken
+  // 600 ms sonra atılan ikinci istek kotayı kendisi besler — Riverpod'un
+  // retry'ını kapatma gerekçesiyle aynı. Eski hâli 429'u "onarılabilir"
+  // sayıp ikinci isteği atıyordu (ölçüldü, D6).
   const hizliEsik = Duration(seconds: 3);
   final saat = Stopwatch()..start();
   for (var deneme = 0; deneme < 2; deneme++) {
@@ -488,7 +493,7 @@ Future<SubscriptionStatus> abonelikDurumunuOku(Dio dio) async {
       final response = await dio.get('/api/v1/billing/status');
       return SubscriptionStatus.fromJson(
           Map<String, dynamic>.from(response.data));
-    } catch (_) {
+    } catch (e) {
       // Durum okunamadıysa ücretsiz varsay; sunucu zaten uçları koruyor.
       //
       // Yakalama BİLEREK geniş (`on DioException` değil): bu sağlayıcı hata
@@ -498,7 +503,8 @@ Future<SubscriptionStatus> abonelikDurumunuOku(Dio dio) async {
       //
       // Ama "ucretsiz varsay" artik SESSIZ degil: bayrak duser, boylece
       // kullaniciya bir sey SOYLEYEN kararlar bu acilista susar.
-      if (deneme > 0 || saat.elapsed > hizliEsik) {
+      final kota = e is DioException && e.response?.statusCode == 429;
+      if (kota || deneme > 0 || saat.elapsed > hizliEsik) {
         return SubscriptionStatus.bilinmiyor;
       }
       await Future<void>.delayed(const Duration(milliseconds: 600));

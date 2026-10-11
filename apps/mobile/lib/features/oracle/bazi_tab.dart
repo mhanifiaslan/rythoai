@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/api.dart' show friendlyError;
+import '../../core/okuma_durumu.dart';
 import '../../core/providers.dart';
-import '../../theme/rytho_theme.dart';
-import '../../widgets/atlas_widgets.dart';
-import '../../widgets/frame_sequence.dart';
-import '../../widgets/glass.dart' show SkeletonPanel;
-import '../../widgets/motion.dart';
-import '../chat/chat_screen.dart';
-import '../paywall/plus_locked_card.dart';
-import '../../core/api.dart' show RaporUretilemedi, friendlyError;
-import '../../widgets/common.dart' show ErrorCard;
 import '../../l10n/app_localizations.dart';
+import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
+import '../../widgets/atlas_widgets.dart';
+import '../../widgets/common.dart' show ErrorCard;
+import '../../widgets/frame_sequence.dart';
+import '../../widgets/glass.dart';
+import '../../widgets/motion.dart';
+import '../../widgets/okuma_kabi.dart';
+import '../chat/chat_screen.dart';
+import '../paywall/ozellik_katalogu.dart';
+import '../paywall/plus_locked_card.dart';
 
 /// BaZi — Dört Sütun tablosu, Day Master, element dağılımı, şans dönemleri.
 class BaziTab extends ConsumerWidget {
@@ -25,8 +28,15 @@ class BaziTab extends ConsumerWidget {
     // değil" demek. Cevap gelmeden kilit çizmek, ödemiş kullanıcıya her
     // girişte "abone değilsin" demekti — ve `loading:` dalı o pencerede
     // hiç koşmuyordu, çünkü sağlayıcı `AsyncData(null)` ile TAMAMLANIYOR.
+    //
+    // Ne kilit ne harita: ikisi de bir hüküm ve o hüküm henüz yok. Bekleyiş
+    // sahnesi (`StagedWaiting` + luopan) de KULLANILMIYOR — o sahne "şu an
+    // senin için hesaplanıyor" diyor ve hiçbir istek atılmamışken yalan
+    // olurdu. Bloklar dört sütun tablosunun gerçek hacmini taklit ediyor.
     final kapi = ref.watch(raporKapisiProvider);
-    if (kapi == PlusHali.bilinmiyor) return const _Iskelet();
+    if (kapi == PlusHali.bilinmiyor) {
+      return const SkeletonList(heights: [72, 160, 110]);
+    }
     final bazi = ref.watch(baziReportProvider);
 
     return bazi.when(
@@ -36,7 +46,7 @@ class BaziTab extends ConsumerWidget {
       // sonuçla sökülür; reduce-motion'da son kare statik.
       loading: () => StagedWaiting(
         visual: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: RythoSpace.xl),
           child: AnimStage(
             child: FrameSequence(
                 asset: 'assets/anim/bazi_wait.webp', loop: true),
@@ -52,21 +62,19 @@ class BaziTab extends ConsumerWidget {
       // goren kullanici uygulamayi yeniden acmak zorunda kaliyordu. ErrorCard
       // depodaki ortak desen (sky_screen, token_store_screen).
       error: (e, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: ErrorCard(
-            message: friendlyError(e, l10n),
-            screen: 'oracle',
-            onRetry: () => ref.invalidate(baziReportProvider),
-          ),
+        child: ErrorCard(
+          message: friendlyError(e, l10n),
+          screen: 'oracle',
+          onRetry: () => ref.invalidate(baziReportProvider),
         ),
       ),
       data: (data) {
         if (data == null) {
+          const ozellik = PlusOzellik.bazi;
           return PlusLockedCard(
-            emoji: '🀄',
-            title: l10n.baziLockedTitle,
-            description: l10n.baziLockedBody,
+            ozellik: ozellik,
+            title: ozellik.baslik(l10n),
+            description: ozellik.kilitGovdesi(l10n),
             centered: true,
           );
         }
@@ -74,18 +82,50 @@ class BaziTab extends ConsumerWidget {
         final pillars = Map<String, dynamic>.from(chart['pillars']);
         final elements =
             Map<String, dynamic>.from(chart['element_distribution']);
-        final luck = List<Map<String, dynamic>>.from(chart['luck_pillars']);
+        // Hoşgörülü ayrıştırma (Yıl Haritası emsali): yön bilinmeyen
+        // doğumda `luck_pillars` BOŞ gelir, eski sunucuda alan hiç
+        // gelmeyebilir — sert cast sekmenin TAMAMINI çökertiyordu.
+        final luck = List<Map<String, dynamic>>.from(
+            (chart['luck_pillars'] as List?) ?? const []);
+        final eksikElementler =
+            (chart['missing_elements'] as List?) ?? const [];
+        final gun = pillars['day'] == null
+            ? null
+            : Map<String, dynamic>.from(pillars['day']);
+
+        // Şans yönü ÖLÇÜLMEDİYSE (cinsiyet belirtilmedi) sunucu iki adayı
+        // `luck_pillar_candidates` altında yollar; bugüne kadar okuyucusu
+        // yoktu ve sekme 104 px'lik BOŞ bir şerit çiziyordu — beyansız.
+        final yonBilinmiyor = chart['luck_direction_known'] == false;
+        final adaylarHam = chart['luck_pillar_candidates'];
+        final adaylar = <List<Map<String, dynamic>>>[
+          if (adaylarHam is Map)
+            for (final yon in const ['forward', 'backward'])
+              if (adaylarHam[yon] is Map)
+                List<Map<String, dynamic>>.from(
+                    ((adaylarHam[yon] as Map)['luck_pillars'] as List?) ??
+                        const []),
+        ];
+
+        // Paylaşım rozetleri ÖLÇÜLMÜŞ kalemler: gün sütunu ve güç hükmü.
+        final rozetler = <(String, String)>[
+          if (gun != null)
+            (l10n.baziPillarDay, '${gun['stem']['cn']}${gun['branch']['cn']}'),
+          if (chart['strength']?['verdict_name'] is String)
+            (l10n.baziStrengthTitle, chart['strength']['verdict_name']),
+        ];
 
         return ListView(
-            padding: const EdgeInsets.only(top: 8, bottom: 110),
+            padding: const EdgeInsets.only(
+                top: RythoSpace.sm, bottom: RythoSpace.dockClearance),
             children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(l10n.baziHeadline, style: RythoText.display(28)),
+            padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
+            child: Text(l10n.baziHeadline, style: RythoType.hero),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: RythoSpace.xs),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
             child: Text(
               l10n.baziChineseSign(chart['zodiac_animal'],
                   chart['day_master']['description']),
@@ -99,33 +139,36 @@ class BaziTab extends ConsumerWidget {
           // sonundaydı. Üstteki iki satır (başlık + "Çin burcun") KALDI
           // çünkü onlar ölçüm değil AD — konunun kendisi.
           //
-          // ⚠️ `fallback` DALI AYNEN TAŞINDI ve yorumunun gerekçesi burada
-          // GÜNCELLENDİ: eski hâli "ÜSTTEKİ her şey deterministik hesap"
-          // diyordu, oysa sıra döndükten sonra o hesap ALTTA. Gerekçesi
-          // yanlış bir yorum bu depoda kusur sayılır. Doğru hâli: yorum
-          // üretilemediyse HARİTA YERİNDE KALIR (aşağıda), yalnız bu kalem
-          // dürüst cümleye döner — hesabın ücreti ödendi, LLM paragrafı
-          // düştü diye onu da silmek "ölçüleni söyle"yi tersine çevirmek
-          // olurdu. `screen` kapalı kümeden ('bazi' sessizce düşürülürdü).
-          const SizedBox(height: 14),
+          // Kap `OkumaKabi`: yorum üretilemediyse HARİTA YERİNDE KALIR
+          // (aşağıda), yalnız bu kalem dürüst cümleye döner — hesabın
+          // ücreti ödendi, LLM paragrafı düştü diye onu da silmek "ölçüleni
+          // söyle"yi tersine çevirmek olurdu. Bayrağı okuyan tek nokta
+          // `okumaDurumuFromYanit`; eski elle `fallback ? ErrorCard :
+          // MarginNote` dalı bu kabın içinde. `screen` kapalı kümeden
+          // ('bazi' sessizce düşürülürdü).
+          const SizedBox(height: RythoSpace.md),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: data['fallback'] == true
-                ? ErrorCard(
-                    message: friendlyError(
-                        RaporUretilemedi(
-                            jetonIadeEdildi: data['refunded'] == true),
-                        l10n),
-                    screen: 'oracle',
-                    onRetry: () => ref.invalidate(baziReportProvider),
-                  )
-                : MarginNote(
-                    title: l10n.baziFateNote, text: data['report'] ?? ''),
+            padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
+            child: OkumaKabi(
+              durum: okumaDurumuFromYanit(data),
+              ekranKodu: 'oracle',
+              baslik: l10n.baziFateNote,
+              onTekrarDene: () => ref.invalidate(baziReportProvider),
+              onSor: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) =>
+                      ChatScreen(initialText: l10n.baziAskPrefill))),
+              paylasim: PaylasimTarifi(
+                title: l10n.baziHeadline,
+                dateLabel: bugununEtiketi(),
+                badges: rozetler,
+                glyph: PlusOzellik.bazi.emoji,
+              ),
+            ),
           ),
           const SectionDivider(),
-          Plaque(
+          GlassPanel(
             label: l10n.baziFourPillars,
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(RythoSpace.md),
             // IntrinsicHeight + stretch (Revize İ0): saatsiz doğumda "—"
             // sütunu dolu sütunlardan ~75 px kısa kalıyordu; fonta bağımlı
             // SizedBox dengeleyicisi yerine sütunlar birbirinin yüksekliğini
@@ -142,24 +185,26 @@ class BaziTab extends ConsumerWidget {
                 ('year', l10n.baziPillarYear),
               ].indexed)
                 Expanded(
-                  // Saat sütunu bilinmeyen doğumda null gelir (Revize B1):
-                  // "—" gösterilir, uydurma bir öğle sütunu değil. Sebep
-                  // beyan satırında (aşağıda `notes`).
-                  child: _PillarColumn(
-                    label: key.$2,
-                    pillar: pillars[key.$1] == null
-                        ? null
-                        : Map<String, dynamic>.from(pillars[key.$1]),
-                    // Gövdenin On Tanrısı (B9): gün gövdesi Day Master'ın
-                    // kendisi — etiket almaz.
-                    tenGod: key.$1 == 'day'
-                        ? null
-                        : (chart['ten_gods']?[key.$1]?['name'] as String?),
-                    highlight: key.$1 == 'day',
-                  )
-                      .animate(delay: (i * 130).ms)
-                      .fadeIn(duration: 380.ms)
-                      .slideY(begin: 0.18, curve: Curves.easeOutCubic),
+                  // Sütunlar kademeli belirir (tek stagger, reduce-motion
+                  // kapılı). Saat sütunu bilinmeyen doğumda null gelir
+                  // (Revize B1): "—" gösterilir, uydurma bir öğle sütunu
+                  // değil. Sebep beyan satırında (aşağıda `notes`).
+                  child: RythoReveal(
+                    index: i,
+                    slide: 0.18,
+                    child: _PillarColumn(
+                      label: key.$2,
+                      pillar: pillars[key.$1] == null
+                          ? null
+                          : Map<String, dynamic>.from(pillars[key.$1]),
+                      // Gövdenin On Tanrısı (B9): gün gövdesi Day Master'ın
+                      // kendisi — etiket almaz.
+                      tenGod: key.$1 == 'day'
+                          ? null
+                          : (chart['ten_gods']?[key.$1]?['name'] as String?),
+                      highlight: key.$1 == 'day',
+                    ),
+                  ),
                 ),
             ])),
           ),
@@ -173,13 +218,14 @@ class BaziTab extends ConsumerWidget {
           // Sunucudan İSTEĞİN DİLİNDE hazır cümleler gelir (localize_bazi).
           if ((chart['notes'] as List?)?.isNotEmpty ?? false)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+              padding: const EdgeInsets.fromLTRB(
+                  RythoSpace.lg, RythoSpace.xs, RythoSpace.lg, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   for (final not in chart['notes'] as List)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
+                      padding: const EdgeInsets.only(bottom: RythoSpace.xxs),
                       child: Text('• $not',
                           style: RythoText.body(11,
                               color: RythoColors.parchmentDim)),
@@ -187,12 +233,13 @@ class BaziTab extends ConsumerWidget {
                 ],
               ),
             ),
-          Plaque(
+          GlassPanel(
             label: l10n.baziElementBalance,
             child: Column(children: [
               for (final e in elements.entries)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: RythoSpace.xs),
                   child: Row(children: [
                     SizedBox(
                         width: 64,
@@ -227,13 +274,12 @@ class BaziTab extends ConsumerWidget {
                     ),
                   ]),
                 ),
-              if ((chart['missing_elements'] as List).isNotEmpty) ...[
-                const SizedBox(height: 8),
+              if (eksikElementler.isNotEmpty) ...[
+                const SizedBox(height: RythoSpace.sm),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    l10n.baziNourish(
-                        (chart['missing_elements'] as List).join(', ')),
+                    l10n.baziNourish(eksikElementler.join(', ')),
                     style: RythoText.mono(11, color: RythoColors.copper),
                   ),
                 ),
@@ -241,12 +287,12 @@ class BaziTab extends ConsumerWidget {
             ]),
           ),
           // ---------- YILDIZLAR (B4 → B9) ----------
-          Plaque(
+          GlassPanel(
             label: l10n.baziStarsTitle,
             child: (chart['shen_sha'] as List?)?.isNotEmpty ?? false
                 ? Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: RythoSpace.sm,
+                    runSpacing: RythoSpace.sm,
                     children: [
                       for (final y in chart['shen_sha'] as List)
                         Tooltip(
@@ -257,7 +303,8 @@ class BaziTab extends ConsumerWidget {
                                 horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
                               color: RythoColors.gold.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(999),
+                              borderRadius:
+                                  BorderRadius.circular(RythoRadius.pill),
                               border: Border.all(
                                   color:
                                       RythoColors.gold.withValues(alpha: 0.4)),
@@ -275,76 +322,31 @@ class BaziTab extends ConsumerWidget {
                     style:
                         RythoText.body(12, color: RythoColors.parchmentDim)),
           ),
-          Plaque(
+          GlassPanel(
             label: l10n.baziLuckPillars,
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(RythoSpace.sm),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-              SizedBox(
-                height: 104,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: luck.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) {
-                    final lp = luck[i];
-                    // Aktif dönem vurgulanır (B5/B9): "şu an neredeyim"
-                    // sorusu listeye bakarak cevaplanmamalı.
-                    final aktif = chart['current_luck_index'] == i;
-                    return Container(
-                      width: 104,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                            color: aktif
-                                ? RythoColors.gold
-                                : RythoColors.line),
-                        borderRadius: BorderRadius.circular(4),
-                        color: aktif
-                            ? RythoColors.gold.withValues(alpha: 0.06)
-                            : null,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // FittedBox + maxLines 1: "1984-1993 · şimdi" 88
-                          // px'lik karta sığmayıp ikinci satıra kırılıyor ve
-                          // kartı ~2 px taşırıyordu (kullanıcının bildirdiği
-                          // "bottom overflowed"). %95'lik görünmez ölçekleme,
-                          // metni kırdırmadan sığdırır ve textScaler'a da
-                          // dayanıklıdır (Revize İ0).
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                                '${lp['from_year']}-${lp['to_year']}'
-                                '${aktif ? ' · ${l10n.baziCurrentTag}' : ''}',
-                                maxLines: 1,
-                                style: RythoText.mono(10,
-                                    color: aktif
-                                        ? RythoColors.goldBright
-                                        : RythoColors.parchmentDim)),
-                          ),
-                          Text(l10n.baziAgeRange(lp['from_age'], lp['to_age']),
-                              style: RythoText.mono(9,
-                                  color: RythoColors.parchmentDim)),
-                          const SizedBox(height: 2),
-                          Text(
-                              '${lp['stem']['cn']}${lp['branch']['cn']}',
-                              style: RythoText.display(20)),
-                          const Spacer(),
-                          Text(lp['ten_god']['name'],
-                              style: RythoText.body(10.5,
-                                  color: RythoColors.parchmentDim),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
+              if (yonBilinmiyor) ...[
+                // Beyan: yön hesaplanmadı. Boş bir şerit "veri gelmedi"
+                // okunurdu; iki aday "iki olası yol" diye gösterilir,
+                // yorumlanmaz (hangisi olduğu bilinmiyor, biri seçilmez).
+                Text(l10n.baziLuckDirectionUnknown,
+                    style: RythoText.body(11.5, color: RythoColors.copper)),
+                if (adaylar.isNotEmpty) ...[
+                  const SizedBox(height: RythoSpace.sm),
+                  Text(l10n.baziLuckCandidatesLabel, style: RythoType.label),
+                  for (final dizi in adaylar) ...[
+                    const SizedBox(height: RythoSpace.xs),
+                    _SansSeridi(l10n: l10n, luck: dizi, aktifIndex: null),
+                  ],
+                ],
+              ] else if (luck.isNotEmpty)
+                _SansSeridi(
+                    l10n: l10n,
+                    luck: luck,
+                    aktifIndex: chart['current_luck_index'] as int?),
+              const SizedBox(height: RythoSpace.sm),
               if (chart['luck_start'] != null)
                 Text(
                     l10n.baziLuckStartLabel(
@@ -364,14 +366,89 @@ class BaziTab extends ConsumerWidget {
                         color: RythoColors.parchmentDim)),
             ]),
           ),
-          // Sayfanın birincil eylemi en alt kenarda (tasarım doktrini).
-          RythoyaSor(
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) =>
-                      ChatScreen(initialText: l10n.baziAskPrefill)))),
-          const SizedBox(height: 32),
+          const SizedBox(height: RythoSpace.xxl),
         ]);
       },
+    );
+  }
+}
+
+/// Şans dönemleri şeridi: yatay kartlar, aktif dönem vurgulu.
+///
+/// Ayrı widget çünkü yön bilinmeyen doğumda AYNI şerit iki aday dizi için
+/// iki kez çiziliyor; [aktifIndex] o hâlde null — hangi dizinin gerçek
+/// olduğu bilinmezken "şimdi" etiketi basılamaz.
+class _SansSeridi extends StatelessWidget {
+  const _SansSeridi(
+      {required this.l10n, required this.luck, required this.aktifIndex});
+
+  final AppLocalizations l10n;
+  final List<Map<String, dynamic>> luck;
+  final int? aktifIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    // Yatay liste sınırlı yükseklik ister; 104 px 1,0 ölçeğin ölçüsü ve
+    // kartın dört satırı büyük yazıda (1,3) 2,9 px taşıyordu (ölçüldü,
+    // 320 dp). Sabit yazıyla büyür: 1,0'da aynı kart, 1,3'te 135 px.
+    final yukseklik = MediaQuery.textScalerOf(context).scale(104);
+    return SizedBox(
+      height: yukseklik,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: luck.length,
+        separatorBuilder: (_, _) => const SizedBox(width: RythoSpace.sm),
+        itemBuilder: (_, i) {
+          final lp = luck[i];
+          // Aktif dönem vurgulanır (B5/B9): "şu an neredeyim" sorusu
+          // listeye bakarak cevaplanmamalı.
+          final aktif = aktifIndex == i;
+          return Container(
+            width: 104,
+            padding: const EdgeInsets.all(RythoSpace.sm),
+            decoration: BoxDecoration(
+              border: Border.all(
+                  color: aktif ? RythoColors.gold : RythoColors.line),
+              borderRadius: BorderRadius.circular(RythoRadius.xs),
+              color: aktif ? RythoColors.gold.withValues(alpha: 0.06) : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // FittedBox + maxLines 1: "1984-1993 · şimdi" 88 px'lik
+                // karta sığmayıp ikinci satıra kırılıyor ve kartı ~2 px
+                // taşırıyordu (kullanıcının bildirdiği "bottom overflowed").
+                // %95'lik görünmez ölçekleme, metni kırdırmadan sığdırır ve
+                // textScaler'a da dayanıklıdır (Revize İ0).
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                      '${lp['from_year']}-${lp['to_year']}'
+                      '${aktif ? ' · ${l10n.baziCurrentTag}' : ''}',
+                      maxLines: 1,
+                      style: RythoText.mono(10,
+                          color: aktif
+                              ? RythoColors.goldBright
+                              : RythoColors.parchmentDim)),
+                ),
+                Text(l10n.baziAgeRange(lp['from_age'], lp['to_age']),
+                    style:
+                        RythoText.mono(9, color: RythoColors.parchmentDim)),
+                const SizedBox(height: RythoSpace.xxs),
+                Text('${lp['stem']['cn']}${lp['branch']['cn']}',
+                    style: RythoText.display(20)),
+                const Spacer(),
+                Text(lp['ten_god']?['name'] ?? '',
+                    style: RythoText.body(10.5,
+                        color: RythoColors.parchmentDim),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -404,7 +481,7 @@ class _PillarColumn extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           border: Border.all(color: RythoColors.line),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(RythoRadius.xs),
         ),
         child: Column(children: [
           Text(label,
@@ -430,16 +507,16 @@ class _PillarColumn extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border.all(
             color: highlight ? RythoColors.gold : RythoColors.line),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(RythoRadius.xs),
       ),
       child: Column(children: [
         Text(label, style: RythoText.mono(9, color: RythoColors.parchmentDim)),
-        const SizedBox(height: 4),
+        const SizedBox(height: RythoSpace.xs),
         Text(tenGod ?? ' ',
             style: RythoText.mono(8.5, color: RythoColors.lilac),
             maxLines: 1,
             overflow: TextOverflow.ellipsis),
-        const SizedBox(height: 2),
+        const SizedBox(height: RythoSpace.xxs),
         Text(stem['cn'], style: RythoText.display(24, color: RythoColors.goldBright)),
         Text(stem['element'],
             style: RythoText.body(10, color: RythoColors.parchmentDim)),
@@ -493,15 +570,15 @@ class _StrengthPlaque extends StatelessWidget {
     final oran = (strength['ratio'] as num?)?.toDouble() ?? 0.5;
     final bilesenler =
         List<Map<String, dynamic>>.from(strength['components'] ?? const []);
-    return Plaque(
+    return GlassPanel(
       label: l10n.baziStrengthTitle,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Hüküm adı + mevsim durumu sunucudan gelir ve ikisi de
         // esnemiyordu; 22 punto ad + parantezli durum dar ekranda satırı
         // taşırıyordu. `Wrap` sığmayanı alt satıra indirir.
         Wrap(
-          spacing: 8,
-          runSpacing: 2,
+          spacing: RythoSpace.sm,
+          runSpacing: RythoSpace.xxs,
           crossAxisAlignment: WrapCrossAlignment.end,
           children: [
             Text(strength['verdict_name'] ?? '',
@@ -514,7 +591,7 @@ class _StrengthPlaque extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: RythoSpace.sm),
         Row(children: [
           Expanded(
             child: ClipRRect(
@@ -528,7 +605,7 @@ class _StrengthPlaque extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: RythoSpace.sm),
           Text('${l10n.baziRatioLabel} ${(oran * 100).round()}%',
               style: RythoText.mono(10, color: RythoColors.parchmentDim)),
         ]),
@@ -546,7 +623,7 @@ class _StrengthPlaque extends StatelessWidget {
                   RythoText.body(12, color: RythoColors.parchmentDim)),
         if (strength['climate_element_name'] != null)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.only(top: RythoSpace.xs),
             child: Text(
                 l10n.baziClimateNote(
                     strength['climate_element_name'] as String),
@@ -556,7 +633,7 @@ class _StrengthPlaque extends StatelessWidget {
           const SizedBox(height: 10),
           Text(l10n.baziBasisTitle,
               style: RythoText.label(10, color: RythoColors.parchmentDim)),
-          const SizedBox(height: 4),
+          const SizedBox(height: RythoSpace.xs),
           for (final c in bilesenler.take(3))
             Text(
                 '${c['side'] == 'support' ? '+' : '−'}'
@@ -569,24 +646,4 @@ class _StrengthPlaque extends StatelessWidget {
       ]),
     );
   }
-}
-
-/// Kapı BİLİNMİYORken çizilen iskelet (P2).
-///
-/// Ne kilit ne harita: ikisi de bir hüküm ve o hüküm henüz yok. Bekleyiş
-/// sahnesi (`StagedWaiting` + luopan) de KULLANILMIYOR — o sahne "şu an
-/// senin için hesaplanıyor" diyor ve hiçbir istek atılmamışken yalan
-/// olurdu. Bloklar dört sütun tablosunun gerçek hacmini taklit ediyor.
-class _Iskelet extends StatelessWidget {
-  const _Iskelet();
-
-  @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.only(top: 8, bottom: 110),
-        children: const [
-          SkeletonPanel(height: 72),
-          SkeletonPanel(height: 160),
-          SkeletonPanel(height: 110),
-        ],
-      );
 }

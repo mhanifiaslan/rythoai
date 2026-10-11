@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
 import '../../core/discovery.dart';
 import '../../core/friends.dart';
+import '../../core/okuma_durumu.dart';
 import '../../core/people.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
@@ -13,11 +13,36 @@ import '../../widgets/atlas_widgets.dart';
 import '../../widgets/common.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
-import '../../widgets/markdown_text.dart';
+import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart';
+import '../../widgets/okuma_kabi.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 import '../people/person_form_screen.dart' show relationLabel;
+
+/// Geri bildirim kanalındaki ekran kodu (`FeedbackScreen.screen` kapalı
+/// kümesi): ilişki ekranı Çevrem sekmesinin altında yaşar.
+const String kIliskiEkranKodu = 'circle';
+
+/// Destekleyici / zorlayıcı satırın öneki — yalnız renk yetmiyordu
+/// (renk körlüğünde iki satır aynı okunuyor). ▴/▾ glif fontunda ÖLÇÜLÜ
+/// (`assets/fonts/RythoGlyphs.codepoints.txt`: U+25B4, U+25BE); ▲/▼
+/// (U+25B2/U+25BC) orada YOK, tofu üretirdi.
+String dayanakOneki({required bool destekleyici}) =>
+    destekleyici ? '▴' : '▾';
+
+/// Sunucu yanıtından okumanın durumu.
+///
+/// `reading_locked` ayrı bir bayrak: `okumaDurumuFromYanit`in 1. kuralı
+/// (`veri == null → kilitli`) buraya uymuyor, çünkü bu uç ölçümü herkese
+/// verip yalnız yorumu kilitliyor — yük hiç null değil. Kilit önce, gerisi
+/// tek fonksiyondan (`fallback` bayrağını okuyan TEK nokta). `refunded`
+/// bu uçta hep false (jetonsuz uç) → iade cümlesi doğru olarak çıkmaz.
+OkumaDurumu iliskiOkumaDurumu(Map<String, dynamic> data) =>
+    data['reading_locked'] == true
+        ? const OkumaKilitli()
+        : okumaDurumuFromYanit(data, alan: 'reading');
 
 /// İLİŞKİ — iki haritanın dört eksende nitel okuması (R2-L1).
 ///
@@ -58,8 +83,8 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
   bool _busy = true;
 
   /// İlişkinin AI okuması (1.6.0). Ölçüm herkese açık; yorum Rytho+.
-  String? _reading;
-  bool _readingLocked = false;
+  /// Kilit/şablon/hazır ayrımı `iliskiOkumaDurumu`nda.
+  OkumaDurumu _okuma = const OkumaKilitli();
 
   /// Bugün aranıza dokunan gökyüzü (GT-turu) — LLM'siz günlük ölçüm;
   /// ücretsiz katmanda da görünür ("hesap bedava, yorum paralı").
@@ -93,8 +118,7 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
         ];
         _footnote = data['footnote'] as String?;
         _reason = data['reason'] as String?;
-        _reading = data['reading'] as String?;
-        _readingLocked = data['reading_locked'] == true;
+        _okuma = iliskiOkumaDurumu(data);
         _today = data['today'] is Map
             ? Map<String, dynamic>.from(data['today'] as Map)
             : null;
@@ -111,12 +135,11 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
 
   /// Karşı tarafın ekranda görünen adı. Eklenen kişide etiket CİHAZDAN
   /// gelir; sunucu o adı bilmiyor ve bilmesi de gerekmiyor.
-  String _karsiAd(AppLocalizations l10n) => widget.friend?.name ??
+  String _karsiAd(AppLocalizations l10n) => widget.friend?.ad(l10n) ??
       widget.person!.label ??
       relationLabel(l10n, widget.person!.relation);
 
-  void _ask(String axisLocal) {
-    final l10n = AppLocalizations.of(context);
+  void _sohbet(String tohum) {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ChatScreen(
         // R4-2: bağlam sunucuda kurulur — model bu sohbette ölçülen
@@ -124,10 +147,17 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
         // arkadaşlık değil sahipliktir (P-turu).
         friendUid: widget.friend?.uid,
         personId: widget.person?.id,
-        initialText: l10n.relationshipAskPrefill(
-            _karsiAd(l10n), axisLocal.toLowerCase()),
+        initialText: tohum,
       ),
     ));
+  }
+
+  /// Eksen adı sunucudan YERELLEŞMİŞ gelir ve tırnak içinde geçer;
+  /// dönüşüm yok. Eski `toLowerCase()` "İletişim"i `i̇letişim`e
+  /// (i + U+0307) çeviriyordu.
+  void _ask(String axisLocal) {
+    final l10n = AppLocalizations.of(context);
+    _sohbet(l10n.relationshipAskPrefill(_karsiAd(l10n), axisLocal));
   }
 
   @override
@@ -136,88 +166,81 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
 
     Widget govde;
     if (_busy) {
-      govde = const Padding(
-        padding: EdgeInsets.all(RythoSpace.xl),
-        child: Center(child: AstrolabeSpinner()),
-      );
+      govde = const Column(children: [
+        SkeletonPanel(height: 120),
+        SkeletonPanel(height: 110),
+        SkeletonPanel(height: 110),
+      ]);
     } else if (_error != null) {
       govde = Padding(
         padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
-        child: ErrorCard(message: _error!, onRetry: _load),
+        child: ErrorCard(
+            message: _error!, screen: kIliskiEkranKodu, onRetry: _load),
       );
     } else if (_reason == 'birth_missing' || _axes.isEmpty) {
       // Doğum kaydı eksikse VARSAYILAN veriyle harita kurup "sizin
       // ilişkiniz" demek veri uydurmak olurdu; dürüstçe söylenir.
       govde = Padding(
         padding: const EdgeInsets.all(RythoSpace.lg),
-        child: Text(l10n.relationshipBirthMissing,
-            style: RythoText.body(13.5, color: RythoColors.parchmentDim)),
+        child: Text(l10n.relationshipBirthMissing, style: RythoType.bodyDim),
       );
     } else {
-      var stagger = 0;
+      var sira = 0;
       govde = Column(children: [
         // GT4: BUGÜNÜN çifte özgü ölçümü — eksenlerin ÜSTÜNDE, çünkü
         // eksenler zemin, bu şerit gündür. Ücretsiz katman da görür.
         if (_today != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.sm),
-            child: _TodayPanel(
-              today: _today!,
-              onAsk: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => ChatScreen(
-                    friendUid: widget.friend?.uid,
-                    personId: widget.person?.id,
-                    initialText:
-                        l10n.relationshipTodayAskPrefill(_karsiAd(l10n)),
-                  ),
-                ));
-              },
+          RythoReveal(
+            index: sira++,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.sm),
+              child: _TodayPanel(
+                today: _today!,
+                onAsk: () => _sohbet(
+                    l10n.relationshipTodayAskPrefill(_karsiAd(l10n))),
+              ),
             ),
-          )
-              .animate(delay: Duration(milliseconds: 70 * stagger++))
-              .fadeIn(duration: 360.ms)
-              .slideY(begin: 0.06, curve: Curves.easeOutCubic),
+          ),
         for (final eksen in _axes)
-          _AxisCard(
-            eksen: eksen,
-            onAsk: () => _ask(eksen['axis_local'] as String? ?? ''),
-          )
-              .animate(delay: Duration(milliseconds: 70 * stagger++))
-              .fadeIn(duration: 360.ms)
-              .slideY(begin: 0.06, curve: Curves.easeOutCubic),
+          RythoReveal(
+            index: sira++,
+            child: _AxisCard(
+              eksen: eksen,
+              onAsk: () => _ask(eksen['axis_local'] as String? ?? ''),
+            ),
+          ),
         // İlişkinin ANA TEMASI: kartlar ekseni tek tek açar, bu bölüm
         // hepsini toplar. Model biçimi tutturamadığı ender durumda
         // sunucu tam metni buraya koyar — kart cümlesi uydurulmaz.
-        if (_reading != null && _reading!.trim().isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(RythoSpace.lg,
-                RythoSpace.md, RythoSpace.lg, 0),
-            child: GlassPanel(
-              label: l10n.relationshipReadingTitle,
-              child: MarkdownText(_reading!,
-                  baseStyle: RythoText.body(13.5, height: 1.55)),
-            ),
-          ).animate(delay: Duration(milliseconds: 70 * stagger++))
-              .fadeIn(duration: 380.ms),
-        if (_readingLocked)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(RythoSpace.lg,
-                RythoSpace.md, RythoSpace.lg, 0),
-            child: PlusLockedCard(
-              emoji: '💞',
-              title: l10n.relationshipReadingTitle,
-              description: l10n.relationshipReadingLocked,
+        // Kap tek (`OkumaKabi`): kilitte katalog kartı, şablonda dürüst
+        // cümle + tekrar dene; paylaşım BİLEREK yok (üçüncü kişi hakkında,
+        // sahip kararı).
+        RythoReveal(
+          index: sira++,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                RythoSpace.lg, RythoSpace.md, RythoSpace.lg, 0),
+            child: OkumaKabi(
+              durum: _okuma,
+              ekranKodu: kIliskiEkranKodu,
+              baslik: l10n.relationshipReadingTitle,
+              onTekrarDene: _load,
+              onSor: () =>
+                  _sohbet(l10n.askAboutFriendPrefill(_karsiAd(l10n))),
+              kilit: PlusLockedCard(
+                ozellik: PlusOzellik.dyad,
+                title: PlusOzellik.dyad.baslik(l10n),
+                description: PlusOzellik.dyad.kilitGovdesi(l10n),
+              ),
             ),
           ),
+        ),
         if (_footnote != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 RythoSpace.lg, RythoSpace.sm, RythoSpace.lg, 0),
-            child: Text(_footnote!,
-                style: RythoText.body(11.5,
-                    color: RythoColors.parchmentDim, height: 1.4)),
+            child: Text(_footnote!, style: RythoType.caption),
           ),
       ]);
     }
@@ -232,7 +255,7 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 40),
+          padding: const EdgeInsets.only(bottom: RythoSpace.xxl),
           children: [const SizedBox(height: RythoSpace.sm), govde],
         ),
       ),
@@ -242,9 +265,9 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
 
 /// "Bugün aranıza dokunan gökyüzü" şeridi (GT-turu) — friend_detail'deki
 /// `_DyadPanel` kabuğunun ölçüm hali. Satırlar SUNUCUDA yerelleştirilmiş
-/// gelir (`text`); destekleyici açı lila, zorlayıcı bakır (dayanak satırı
-/// idiomu). Boş günde dürüst "sakin gün" satırı — panel gizlenmez, çünkü
-/// "ölçüldü ve bugün bir şey yok" da bir bilgidir.
+/// gelir (`text`); destekleyici açı ▴ lila, zorlayıcı ▾ bakır (dayanak
+/// satırı idiomu). Boş günde dürüst "sakin gün" satırı — panel gizlenmez,
+/// çünkü "ölçüldü ve bugün bir şey yok" da bir bilgidir.
 class _TodayPanel extends StatelessWidget {
   const _TodayPanel({required this.today, required this.onAsk});
 
@@ -265,28 +288,38 @@ class _TodayPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (hits.isEmpty)
-            Text(l10n.relationshipTodayQuiet,
-                style: RythoText.body(12.5,
-                    color: RythoColors.parchmentDim, height: 1.5))
+            Text(l10n.relationshipTodayQuiet, style: RythoType.caption)
           else
             for (final v in hits)
               Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text('• ${v['text'] ?? ''}',
-                    style: RythoText.mono(11.5,
-                        color: v['supportive'] == true
-                            ? RythoColors.lilac
-                            : RythoColors.copper)),
+                padding: const EdgeInsets.only(bottom: RythoSpace.xs),
+                child: _DayanakSatiri(
+                  metin: v['text'] as String? ?? '',
+                  destekleyici: v['supportive'] == true,
+                ),
               ),
-          const SizedBox(height: 6),
-          Pressable(
-            onTap: onAsk,
-            child: Text('✦ ${l10n.signalAsk} →',
-                style: RythoText.body(12.5,
-                    color: RythoColors.goldBright, w: FontWeight.w600)),
-          ),
+          const SizedBox(height: RythoSpace.xs),
+          RythoyaSor(onTap: onAsk),
         ],
       ),
+    );
+  }
+}
+
+/// Dayanak/bugün satırı: önek (▴ destekleyici / ▾ zorlayıcı) + renk.
+/// İki işaret birden: renk tek başına renk körlüğünde ayırt edilmiyordu.
+class _DayanakSatiri extends StatelessWidget {
+  const _DayanakSatiri({required this.metin, required this.destekleyici});
+
+  final String metin;
+  final bool destekleyici;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '${dayanakOneki(destekleyici: destekleyici)} $metin',
+      style: RythoText.mono(11.5,
+          color: destekleyici ? RythoColors.lilac : RythoColors.copper),
     );
   }
 }
@@ -322,12 +355,24 @@ class _AxisCard extends StatefulWidget {
 class _AxisCardState extends State<_AxisCard> {
   bool _acik = false;
 
+  /// Açılır bölme: hareket açıkken boy geçişi, azaltılmışken çıplak çocuk.
+  Widget _dayanakBolmesi(BuildContext context, Widget cocuk) =>
+      reduceMotion(context)
+          ? cocuk
+          : AnimatedSize(
+              alignment: Alignment.topCenter,
+              duration: RythoMotion.base,
+              curve: RythoMotion.enter,
+              child: cocuk,
+            );
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final e = widget.eksen;
     final anahtar = e['axis'] as String? ?? '';
     final seviye = e['level'] as String? ?? 'quiet';
+    final ikon = _kAxisIcons[anahtar];
     final dayanak = [
       for (final b in (e['basis'] as List? ?? const []))
         Map<String, dynamic>.from(b as Map),
@@ -335,13 +380,17 @@ class _AxisCardState extends State<_AxisCard> {
 
     return GlassPanel(
       margin: const EdgeInsets.symmetric(
-          horizontal: RythoSpace.lg, vertical: 5),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          horizontal: RythoSpace.lg, vertical: RythoSpace.xs),
+      padding: const EdgeInsets.fromLTRB(
+          RythoSpace.md, RythoSpace.md, RythoSpace.md, RythoSpace.md),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text(_kAxisIcons[anahtar] ?? '✦',
-              style: const TextStyle(fontSize: 15)),
-          const SizedBox(width: 7),
+          // Eksen ikonu renkli emoji (bilinçli); bilinmeyen eksende glif.
+          if (ikon != null)
+            Text(ikon, style: RythoText.emoji(15))
+          else
+            Text('✦', style: RythoText.glyph(15, color: RythoColors.lilac)),
+          const SizedBox(width: RythoSpace.sm),
           Expanded(
             child: Text(e['axis_local'] as String? ?? '',
                 style: RythoText.display(13.5,
@@ -353,11 +402,12 @@ class _AxisCardState extends State<_AxisCard> {
           // taşırıyordu. `Flexible` çipin daralıp metni sarmasına izin verir.
           Flexible(
               child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+                horizontal: RythoSpace.sm + RythoSpace.xxs,
+                vertical: RythoSpace.xs),
             decoration: BoxDecoration(
               color: _toneColor(e['tone'] as String?).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(RythoRadius.pill),
               border: Border.all(
                   color: _toneColor(e['tone'] as String?)
                       .withValues(alpha: 0.34)),
@@ -380,53 +430,68 @@ class _AxisCardState extends State<_AxisCard> {
         // dört boş başlık + dört "Rytho'ya sor" kaldı — kullanıcı neyi
         // soracağını bilemedi. İpucu merakı açar, detay soruyla gelir.
         if ((e['line'] as String? ?? '').isNotEmpty) ...[
-          const SizedBox(height: 7),
-          Text(e['line'] as String,
-              style: RythoText.body(13.5, height: 1.45)),
+          const SizedBox(height: RythoSpace.sm),
+          Text(e['line'] as String, style: RythoType.body),
         ],
         if (dayanak.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: RythoSpace.xs),
+          // Açma satırı: ikon chevron, metin satır içi ▴/▾ DEĞİL — o iki
+          // glif artık dayanak satırlarının destekleyici/zorlayıcı önekini
+          // taşıyor; aynı kartta iki anlam taşıyamaz. Dikey dolgu dokunma
+          // hedefini ≥ 44 px'e çıkarır (eski 11.5 px çıplak metindi).
           Pressable(
             onTap: () => setState(() => _acik = !_acik),
-            child: Text(
-                '${l10n.relationshipBasisTitle} ${_acik ? '▴' : '▾'}',
-                style: RythoText.body(11.5,
-                    color: RythoColors.parchmentDim, w: FontWeight.w600)),
-          ),
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 220),
-            crossFadeState: _acik
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: const SizedBox(width: double.infinity),
-            secondChild: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 6),
-                for (final b in dayanak)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(
-                      '${b['p1_local']} ${b['aspect_local']} '
-                      '${b['p2_local']} · ${b['orb']}°',
-                      style: RythoText.mono(11.5,
-                          color: (b['supportive'] == true)
-                              ? RythoColors.lilac
-                              : RythoColors.copper),
-                    ),
-                  ),
-              ],
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(
+                      vertical: RythoSpace.sm + RythoSpace.xxs),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(l10n.relationshipBasisTitle,
+                    style: RythoText.body(11.5,
+                        color: RythoColors.parchmentDim,
+                        w: FontWeight.w600)),
+                const SizedBox(width: RythoSpace.xxs),
+                Icon(
+                    _acik
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    size: 16,
+                    color: RythoColors.parchmentDim),
+              ]),
             ),
+          ),
+          // Koşullu çocuk (dayanak sayfasıyla aynı dil, basis_sheet
+          // gerekçesi): `AnimatedCrossFade` kapalı dalı da monte ediyordu.
+          // ⚠️ Hareket azaltmada `AnimatedSize` SIFIR SÜREYLE DEĞİL, HİÇ
+          // kurulmaz: sıfır sürede denetleyici kendi `performLayout`ı
+          // içinde biter ve `markNeedsLayout` fırlatır ("mutated in its own
+          // performLayout" — ölçüldü, iliski_ekrani_test). `kapili` bu
+          // animatöre uymuyor; kapı dalla kurulur.
+          _dayanakBolmesi(
+            context,
+            !_acik
+                ? const SizedBox(width: double.infinity)
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: RythoSpace.xs),
+                      for (final b in dayanak)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: RythoSpace.xxs),
+                          child: _DayanakSatiri(
+                            metin: '${b['p1_local']} ${b['aspect_local']} '
+                                '${b['p2_local']} · ${b['orb']}°',
+                            destekleyici: b['supportive'] == true,
+                          ),
+                        ),
+                    ],
+                  ),
           ),
         ],
         if (seviye != 'quiet') ...[
-          const SizedBox(height: 8),
-          Pressable(
-            onTap: widget.onAsk,
-            child: Text('✦ ${l10n.signalAsk} →',
-                style: RythoText.body(11.5,
-                    color: RythoColors.lilac, w: FontWeight.w600)),
-          ),
+          const SizedBox(height: RythoSpace.xs),
+          RythoyaSor(onTap: widget.onAsk),
         ],
       ]),
     );

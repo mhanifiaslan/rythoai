@@ -46,6 +46,36 @@ int signIndexFromAny(String? code, double absPosition) {
   return ((absPosition % 360) ~/ 30).clamp(0, 11);
 }
 
+/// Burç içi dereceyi `12°30'` biçimine çevirir — TEK tanım (konum tablosu
+/// + ressamın zoom≥2 etiketi aynı hesabı iki yerde kopyalıyordu).
+///
+/// Dakika EN YAKINA yuvarlanır ve 60'a ulaşınca dereceye taşar: eski kopya
+/// `floor(derece) + round(dakika)` yazıyordu ve 12,9999 için "12°60'"
+/// basıyordu (ölçüldü) — olmayan bir dakika.
+///
+/// BURÇ SINIRI KARARI: 29,9999 → "29°59'", "30°00'" DEĞİL. Burç adı sunucunun
+/// `sign` kodundan gelir (kerykeion `abs_position` tabanını alır) ve bu
+/// formatlayıcı o adla ÇELİŞEMEZ — "Balık 30°00'" ölçüleni yanlış adla
+/// sunmaktır (30° Balık diye bir konum yok, o 0° Koç'tur). Burç adını
+/// yuvarlanmış boylamdan türetmek seçilmedi: `signIndex` element sayımı ve
+/// alt-sayfalar için kanonik ve sunucuyla aynı kalmalı. Bedel: yalnız
+/// sınıra 30 açı-saniyesinden yakın konumda hata 0,5' yerine 1' (astro.com
+/// / Solar Fire'ın dakika KIRPMA konvansiyonu zaten bunu kabul eder).
+String formatDegree(double degreeInSign) {
+  final d = degreeInSign.clamp(0.0, 30.0);
+  var derece = d.floor();
+  var dakika = ((d - derece) * 60).round();
+  if (dakika == 60) {
+    derece += 1;
+    dakika = 0;
+  }
+  if (derece >= 30) {
+    derece = 29;
+    dakika = 59;
+  }
+  return "$derece°${dakika.toString().padLeft(2, '0')}'";
+}
+
 class ChartPoint {
   const ChartPoint({
     required this.name,

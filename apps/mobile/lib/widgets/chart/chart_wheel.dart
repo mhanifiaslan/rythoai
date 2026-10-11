@@ -16,6 +16,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../theme/rytho_tokens.dart';
 import '../motion.dart';
 import 'chart_data.dart';
 import 'wheel_layout.dart';
@@ -28,6 +29,7 @@ class ChartWheel extends StatefulWidget {
     required this.size,
     this.onPlanetTap,
     this.onAspectTap,
+    this.onTap,
     this.filter = WheelAspectFilter.all,
     this.maxOrb = 8.0,
     this.showMinors = false,
@@ -42,12 +44,24 @@ class ChartWheel extends StatefulWidget {
   final void Function(GlyphPlacement placement)? onPlanetTap;
   final void Function(ChartAspect aspect)? onAspectTap;
 
+  /// SALT ÖNİZLEME: verilirse çarkın neresine dokunulursa dokunulsun
+  /// gezegen/açı çözümlemesi YAPILMAZ, yalnız bu çağrılır (gömülü çark
+  /// Harita İnceleme'yi açar). Çark o zaman erişilebilirlikte DÜĞME olur.
+  ///
+  /// NEDEN: gömülü çark iki etkileşim modeli taşıyordu — gezegene dokun
+  /// alt-sayfa, altındaki düğme İnceleme. Aynı yüzeyde iki fiil; dokunan
+  /// kişi hangisini aldığını önceden bilemiyordu. Alt-sayfa artık yalnız
+  /// İnceleme'de. Varsayılan null: `onPlanetTap`/`onAspectTap` eski
+  /// davranışıyla çalışır, öteki tüketiciler kendi turunda göçer.
+  final VoidCallback? onTap;
+
   final WheelAspectFilter filter;
   final double maxOrb;
   final bool showMinors;
   final WheelSelection selection;
 
-  /// false: gömülü küçük çark (zoom/pan kapalı, dokunma açık kalır).
+  /// false: gömülü küçük çark (zoom/pan kapalı). Dokunma [onTap] varsa
+  /// ona, yoksa gezegen/açı geri çağrılarına gider.
   final bool interactive;
 
   /// false: dışa aktarım/kayıt kipi — süpürme animasyonu YOK, ilk kare
@@ -60,8 +74,8 @@ class ChartWheel extends StatefulWidget {
 
 class _ChartWheelState extends State<ChartWheel>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _sweep = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1400));
+  late final AnimationController _sweep =
+      AnimationController(vsync: this, duration: RythoMotion.sweep);
 
   double _zoom = 1.0;
   Offset _pan = Offset.zero;
@@ -106,6 +120,10 @@ class _ChartWheelState extends State<ChartWheel>
   Offset _toScene(Offset local) => local - _pan;
 
   void _onTapUp(TapUpDetails d) {
+    if (widget.onTap != null) {
+      widget.onTap!();
+      return;
+    }
     final hit = _ensureLayout().hitTest(_toScene(d.localPosition));
     if (hit == null) return;
     if (hit.placement != null) {
@@ -158,6 +176,10 @@ class _ChartWheelState extends State<ChartWheel>
     return Semantics(
       label: l10n.chartWheelSemantics(
           layout.data.rings.length, layout.data.aspects.length),
+      // Salt önizlemede çark tek bir eylemin yüzeyi: ekran okuyucu onu
+      // düğme olarak duyar ve etkinleştirince İnceleme açılır.
+      button: widget.onTap != null,
+      onTap: widget.onTap,
       child: ExcludeSemantics(
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,

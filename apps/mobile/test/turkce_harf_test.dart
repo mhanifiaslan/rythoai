@@ -66,6 +66,11 @@ void main() {
       'lib/core/deep_links.dart', // davet/ortak kodu (ASCII)
       'lib/core/partner_referrer.dart', // ortak kodu
       'lib/core/friends.dart', // kullanıcı adı (ASCII'ye zorlanmış)
+      // Yalnız `_AddFriendSheet._send` kullanıcı adı: `kUsernamePattern`
+      // ASCII dayatıyor, `trKucuk` "ISIK"ı geçersiz "ısık" yapardı. D6'da
+      // gösterim çağrısı (1001 `addFriend.toUpperCase`) ve baş harf
+      // (`trBuyuk`) temizlendi; bu satır kalan tek gerekçeli çağrı.
+      'lib/features/friends/friends_screen.dart',
       'lib/core/wallet.dart', // HTTP metodu
       'lib/core/auth_service.dart', // e-posta normalizasyonu
       'lib/widgets/chart/chart_data.dart', // açı anahtarı (ASCII)
@@ -76,15 +81,11 @@ void main() {
       'lib/features/profile/subscription_screen.dart', // ürün kimliği
       'lib/widgets/phone_number_field.dart', // ülke kodu
       // --- GÖSTERİM: D6/D8'de trBuyuk'a geçecek ya da kalkacak ---
-      'lib/features/atlas/atlas_detail_screens.dart',
       'lib/features/atlas/atlas_screen.dart',
-      'lib/features/atlas/solar_return_screen.dart',
       'lib/features/auth/device_conflict_screen.dart',
-      'lib/features/chat/chat_screen.dart',
-      'lib/features/friends/contacts_screen.dart',
-      'lib/features/friends/friends_screen.dart',
-      'lib/features/friends/relationship_screen.dart',
-      'lib/features/oracle/iching_tab.dart',
+      // contacts_screen.dart ve relationship_screen.dart D6'da temizlendi
+      // (bölüm başlığı rol tipografisi, baş harf trBuyuk, eksen adı
+      // tırnaklı — dönüşüm yok).
       // delete_account.dart ve profile_screen.dart D5'te temizlendi
       // (onayKelimesiEslesiyor; grup başlığı rol tipografisine geçti).
       'lib/features/profile/legal_page.dart',

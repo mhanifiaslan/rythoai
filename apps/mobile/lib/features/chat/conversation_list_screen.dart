@@ -20,6 +20,7 @@ import '../../widgets/atlas_widgets.dart';
 import '../../widgets/common.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/liste_satiri.dart';
 import '../../widgets/motion.dart';
 import 'chat_screen.dart';
 
@@ -63,18 +64,22 @@ class ConversationListScreen extends ConsumerWidget {
       ),
       body: SafeArea(
         child: konular.when(
-          // Satır iskeletleri (R12-B3): liste geleceği yerde liste hacmi.
-          loading: () => ListView(
-              padding: const EdgeInsets.only(top: 12),
-              children: const [
-                SkeletonPanel(height: 64),
-                SkeletonPanel(height: 64),
-                SkeletonPanel(height: 64),
-                SkeletonPanel(height: 64),
-              ]),
+          // Satır iskeletleri (R12-B3): liste geleceği yerde liste hacmi —
+          // tek iskelet bileşeni, dört eşit satır.
+          loading: () => const SkeletonList(
+              heights: [64, 64, 64, 64],
+              padding: EdgeInsets.only(top: RythoSpace.md)),
+          // Akış sağlayıcısı hatada DURUR: Firestore dinleyicisi düşünce
+          // kendiliğinden yeniden bağlanmaz. Tek çıkış elle tazeleme —
+          // "Tekrar dene"siz hata kartı kullanıcıyı ekranı kapatıp açmaya
+          // mahkûm ediyordu.
           error: (e, _) => Padding(
             padding: const EdgeInsets.all(RythoSpace.xl),
-            child: ErrorCard(message: friendlyError(e, l10n)),
+            child: ErrorCard(
+              message: friendlyError(e, l10n),
+              onRetry: () => ref.invalidate(conversationsProvider),
+              screen: 'chat',
+            ),
           ),
           data: (liste) => liste.isEmpty
               ? EmptyState(
@@ -131,39 +136,26 @@ class ConversationListScreen extends ConsumerWidget {
                           return false;
                         }
                       },
-                      child: GlassPanel(
+                      // Tek liste satırı (`ListeSatiri`): başlık iki
+                      // satıra sarar, ELLIPSIS YOK — konu başlığının
+                      // ayırt edici kısmı çoğu zaman sondaydı ve "…"
+                      // tam onu kesiyordu.
+                      child: ListeSatiri(
+                        leading: Text('✦',
+                            style: RythoText.glyph(18,
+                                color: RythoColors.lilac)),
+                        title: konu.title,
+                        subtitle: konu.updatedAt != null
+                            ? DateFormat(
+                                    'd MMM · HH:mm',
+                                    Localizations.localeOf(context)
+                                        .toLanguageTag())
+                                .format(konu.updatedAt!)
+                            : null,
                         margin:
                             const EdgeInsets.only(bottom: RythoSpace.md),
                         onTap: () =>
                             _ac(context, conversationId: konu.id),
-                        child: Row(children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text(konu.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: RythoType.cardTitle),
-                                const SizedBox(height: 2),
-                                Text(
-                                  konu.updatedAt != null
-                                      ? DateFormat(
-                                              'd MMM · HH:mm',
-                                              Localizations.localeOf(
-                                                      context)
-                                                  .toLanguageTag())
-                                          .format(konu.updatedAt!)
-                                      : '',
-                                  style: RythoType.caption,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right_rounded,
-                              size: 20, color: RythoColors.parchmentDim),
-                        ]),
                       ),
                     ));
                   },

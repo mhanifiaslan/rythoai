@@ -15,12 +15,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
+import '../../core/okuma_durumu.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart' show AstrolabeSpinner;
-import '../../widgets/common.dart' show ErrorCard;
 import '../../widgets/glass.dart';
-import '../../widgets/motion.dart';
+import '../../widgets/okuma_kabi.dart';
+import '../chat/chat_screen.dart';
+import '../paywall/ozellik_katalogu.dart';
 import '../profile/legal_page.dart' show LegalPage, privacyPolicySections;
 import 'face_api.dart';
 import 'face_capture_screen.dart';
@@ -255,12 +258,12 @@ class FaceReadingScreen extends ConsumerStatefulWidget {
 }
 
 class _FaceReadingScreenState extends ConsumerState<FaceReadingScreen> {
-  /// `final` DEGIL (gz-2): yedek metin artik hata olarak duser ve hata
-  /// kartindaki "birkac saniye sonra tekrar dene" cumlesinin ARKASINDA bir
-  /// yol olmasi gerekiyor. Sabit bir future yeniden kurulamadigi icin tek
-  /// cikis ekrandan cikip YUZU BASTAN CEKMEKTI — oysa olculen oranlar
-  /// elimizde, yeniden istenecek olan yalniz okuma.
-  late Future<String> _okuma;
+  /// `final` DEGIL (gz-2): yedek metin artik durust cumleye duser ve o
+  /// kartin "Tekrar dene" dugmesinin ARKASINDA bir yol olmasi gerekiyor.
+  /// Sabit bir future yeniden kurulamadigi icin tek cikis ekrandan cikip
+  /// YUZU BASTAN CEKMEKTI — oysa olculen oranlar elimizde, yeniden
+  /// istenecek olan yalniz okuma.
+  late Future<Map<String, dynamic>> _okuma;
 
   @override
   void initState() {
@@ -268,7 +271,7 @@ class _FaceReadingScreenState extends ConsumerState<FaceReadingScreen> {
     _okuma = _iste();
   }
 
-  Future<String> _iste() =>
+  Future<Map<String, dynamic>> _iste() =>
       fetchFirasaReading(ref.read(apiProvider), widget.result);
 
   /// Blok govde: ok govdesi atamanin DEGERINI (Future) dondurur ve
@@ -279,35 +282,56 @@ class _FaceReadingScreenState extends ConsumerState<FaceReadingScreen> {
     });
   }
 
+  /// Okumanın durumu — bayrağı okuyan tek nokta `okumaDurumuFromYanit`
+  /// (`alan: 'reading'`: bu ucun anahtarı `report` değil). Boş metin de
+  /// orada "üretilemedi" sayılır; eski hâl boş metinde BOŞ PANEL çiziyordu.
+  OkumaDurumu _durum(AsyncSnapshot<Map<String, dynamic>> snap) {
+    if (snap.connectionState != ConnectionState.done) {
+      return const OkumaYukleniyor();
+    }
+    if (snap.hasError) return OkumaHata(snap.error ?? Exception());
+    return okumaDurumuFromYanit(snap.data, alan: 'reading');
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.faceReadingTitle)),
       body: SafeArea(
-        child: FutureBuilder<String>(
+        child: FutureBuilder<Map<String, dynamic>>(
           future: _okuma,
           builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const _FirasaWaiting();
-            }
-            if (snap.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  // Duz metin CIKMAZ SOKAKTI (gz-2): metin "birkac saniye
-                  // sonra tekrar dene" diyor ama dokunacak bir sey yoktu.
-                  // Yeniden denenen yalniz OKUMA istegi; cekim tekrarlanmaz.
-                  child: ErrorCard(
-                    message: friendlyError(snap.error ?? Exception(), l10n),
-                    screen: 'atlas',
-                    onRetry: _tekrarDene,
-                  ),
-                ),
-              );
-            }
+            final durum = _durum(snap);
+            // Kap TEK: bekleme sahnesi, dürüst cümle + tekrar dene, hazır
+            // okuma + paylaş + Rytho'ya sor — hepsi `OkumaKabi`. Ekran
+            // kodu 'oracle': yüz okuma kehanet ailesinde (BaZi ile aynı),
+            // 'atlas' bildirimi yanlış ekrana düşürüyordu.
+            final kap = OkumaKabi(
+              durum: durum,
+              ekranKodu: 'oracle',
+              onTekrarDene: _tekrarDene,
+              onSor: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) =>
+                      ChatScreen(initialText: l10n.faceAskPrefill))),
+              // Yalnız metin: yüz görüntüsü ne ağa ne karta çıkar.
+              paylasim: PaylasimTarifi(
+                title: l10n.faceReadingTitle,
+                dateLabel: bugununEtiketi(),
+                glyph: PlusOzellik.face.emoji,
+              ),
+              beklemeAsamalari: [
+                l10n.faceWaitStage1,
+                l10n.faceWaitStage2,
+                l10n.faceWaitStage3,
+              ],
+            );
+            // Bekleme sahnesi ekranı ortalar; hint satırı okumaya ait,
+            // bekleyişe değil.
+            if (durum is OkumaYukleniyor) return kap;
             return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+              padding: const EdgeInsets.fromLTRB(RythoSpace.lg, RythoSpace.md,
+                  RythoSpace.lg, RythoSpace.xxl),
               children: [
                 // Geleneğin kendi sınırı okumanın ÜSTÜNDE duruyor, altında
                 // değil: kullanıcı metni okumadan önce neye baktığını bilmeli.
@@ -319,42 +343,18 @@ class _FaceReadingScreenState extends ConsumerState<FaceReadingScreen> {
                 // bu söylenmek zorunda — "gerçek veriler ne diyorsa onu
                 // söylemek" beyandaki payı da kapsıyor.
                 if (widget.result.singleFrame) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: RythoSpace.xs),
                   Text(l10n.faceStillSingleFrameNote,
                       style: RythoText.body(12.5,
                           color: RythoColors.parchmentDim)),
                 ],
-                const SizedBox(height: 16),
-                GlassPanel(
-                  child: Text(snap.data ?? '',
-                      style: RythoText.body(15, color: RythoColors.parchment)),
-                ),
+                const SizedBox(height: RythoSpace.lg),
+                kap,
               ],
             );
           },
         ),
       ),
     );
-  }
-}
-
-/// Okuma beklerken görünen sahne — çıplak spinner değil (Revize R5,
-/// madde 8: "Firaset ile eşleştiriliyor" ekranı sıkıcıydı).
-///
-/// R12-A0: buradaki çözüm (usturlap + sırayla değişen, SON aşamada duran
-/// aşama metinleri; uydurma yüzde çubuğu yok) `StagedWaiting`'e genelleşti
-/// ve tüm uzun bekleyişlerin ortak sahnesi oldu — bu sınıf yalnız yüz
-/// okumaya özgü metinleri bağlayan ince bir sarmalayıcı.
-class _FirasaWaiting extends StatelessWidget {
-  const _FirasaWaiting();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return StagedWaiting(stages: [
-      l10n.faceWaitStage1,
-      l10n.faceWaitStage2,
-      l10n.faceWaitStage3,
-    ]);
   }
 }

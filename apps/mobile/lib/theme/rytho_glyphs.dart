@@ -51,12 +51,22 @@ const Map<String, String> kExtraPointGlyphs = {
   'True_North_Lunar_Node': '☊', 'True_South_Lunar_Node': '☋',
 };
 
-/// Açı glifleri. Altmışlık (⚹) BİLEREK yok: ressam ve açı tablosu "tabloda
-/// yoksa vektör çiz" kuralıyla çalışıyor (`aspectGlyphPath`); buraya
-/// eklemek o kuralı sessizce değiştirirdi. Glif fontu ⚹'ı yine de taşıyor
-/// (lejant/metin için) — tabloya alınması D6'da ressamla birlikte kararlaşır.
+/// Açı glifleri — beş majörün beşi de metin, altmışlık (⚹) dahil.
+///
+/// D6 kararı (ressamla birlikte): ⚹ bu tabloya ALINDI. Eski gerekçe
+/// ("tabloda yoksa vektör çiz" kuralı `aspectGlyphPath` ile çalışıyor)
+/// ölçüldü ve YANLIŞTI: depoda `aspectGlyphPath` diye bir fonksiyon hiç
+/// yoktu; o kural gezegen glifleri içindir (`planetGlyphPathOrNull`). Açı
+/// glifini çark hiç basmaz (çarkta açı = çizgi); tek tüketici açı tablosu
+/// hücresiydi ve orada ⚹ için elle yazılmış bir vektör dalı (`'sextile'`
+/// özel durumu) öteki dört glifin yanında ikinci bir çizim yolu tutuyordu.
+/// Fontun ⚹'ı taşıdığı ölçülür (`font_paketi_test`: tablodaki her kod
+/// noktası `codepoints.txt`te), yani metin yolu vektör kadar güvenilir ve
+/// tek yol. Lejant açı SINIFINI glifle değil çizgi örneğiyle gösterir
+/// (`aci_lejanti.dart`) — glif türü, çizgi sınıfı anlatır.
 const Map<String, String> kAspectTextGlyphs = {
   'conjunction': '☌', 'opposition': '☍', 'trine': '△', 'square': '□',
+  'sextile': '⚹',
 };
 
 /// Glif fontunun kapsamak ZORUNDA olduğu her kod noktası. Bekçi bu listeyi

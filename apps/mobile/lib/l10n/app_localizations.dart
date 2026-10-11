@@ -1007,7 +1007,7 @@ abstract class AppLocalizations {
   /// No description provided for @friendLabel.
   ///
   /// In tr, this message translates to:
-  /// **'ARKADAŞIN'**
+  /// **'Arkadaşın'**
   String get friendLabel;
 
   /// No description provided for @streakHiddenByFriend.
@@ -1025,7 +1025,7 @@ abstract class AppLocalizations {
   /// No description provided for @dyadLabel.
   ///
   /// In tr, this message translates to:
-  /// **'BUGÜN ARANIZDA'**
+  /// **'Bugün aranızda'**
   String get dyadLabel;
 
   /// No description provided for @dyadDisclaimer.
@@ -1513,6 +1513,36 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Tekrar dene'**
   String get retry;
+
+  /// No description provided for @retryAfterSeconds.
+  ///
+  /// In tr, this message translates to:
+  /// **'{n} sn sonra tekrar dene'**
+  String retryAfterSeconds(int n);
+
+  /// No description provided for @delete.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sil'**
+  String get delete;
+
+  /// No description provided for @discard.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bırak'**
+  String get discard;
+
+  /// No description provided for @feedbackDiscardTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yazdıklarını bırak'**
+  String get feedbackDiscardTitle;
+
+  /// No description provided for @feedbackDiscardBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Geri bildirim kaydedilmeyecek.'**
+  String get feedbackDiscardBody;
 
   /// No description provided for @errorGeneric.
   ///
@@ -2264,6 +2294,24 @@ abstract class AppLocalizations {
   /// **'○ eski yang (9) · × eski yin (6) — dönen çizgiler'**
   String get iChingLegend;
 
+  /// No description provided for @iChingShiTag.
+  ///
+  /// In tr, this message translates to:
+  /// **'özne'**
+  String get iChingShiTag;
+
+  /// No description provided for @iChingYingTag.
+  ///
+  /// In tr, this message translates to:
+  /// **'karşılık'**
+  String get iChingYingTag;
+
+  /// No description provided for @iChingTapToSkip.
+  ///
+  /// In tr, this message translates to:
+  /// **'İnişi atlamak için dokun'**
+  String get iChingTapToSkip;
+
   /// No description provided for @iChingLineLabel.
   ///
   /// In tr, this message translates to:
@@ -2353,6 +2401,18 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Beslenecek element: {elements}'**
   String baziNourish(Object elements);
+
+  /// No description provided for @baziLuckDirectionUnknown.
+  ///
+  /// In tr, this message translates to:
+  /// **'Cinsiyet belirtilmediği için şans sütunlarının yönü hesaplanmadı; iki olası dizi aşağıda.'**
+  String get baziLuckDirectionUnknown;
+
+  /// No description provided for @baziLuckCandidatesLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Olası iki dizi'**
+  String get baziLuckCandidatesLabel;
 
   /// No description provided for @baziLuckPillars.
   ///
@@ -2659,6 +2719,24 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Paylaş'**
   String get shareReading;
+
+  /// No description provided for @shareText.
+  ///
+  /// In tr, this message translates to:
+  /// **'Rytho — doğum haritanı bilen, gökyüzünü her gün izleyen AI astrolog.'**
+  String get shareText;
+
+  /// No description provided for @chatShareCardTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Rytho ile sohbetimden'**
+  String get chatShareCardTitle;
+
+  /// No description provided for @chatSeedFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Konu yüklenemedi.'**
+  String get chatSeedFailed;
 
   /// No description provided for @shareCardTagline.
   ///
@@ -2981,7 +3059,7 @@ abstract class AppLocalizations {
   /// No description provided for @faceOpenSettings.
   ///
   /// In tr, this message translates to:
-  /// **'Tekrar dene'**
+  /// **'Ayarları aç'**
   String get faceOpenSettings;
 
   /// No description provided for @faceCameraDeniedHint.
@@ -2989,6 +3067,24 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'İzni reddettiysen, telefon ayarlarından Rytho için kamera iznini açıp buraya dönebilirsin.'**
   String get faceCameraDeniedHint;
+
+  /// No description provided for @birthHexagramWaitStage1.
+  ///
+  /// In tr, this message translates to:
+  /// **'Doğum anındaki Güneş konumlanıyor'**
+  String get birthHexagramWaitStage1;
+
+  /// No description provided for @birthHexagramWaitStage2.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kapı ve çizgi okunuyor'**
+  String get birthHexagramWaitStage2;
+
+  /// No description provided for @readingCardReadMore.
+  ///
+  /// In tr, this message translates to:
+  /// **'Okumaya devam et'**
+  String get readingCardReadMore;
 
   /// No description provided for @save.
   ///
@@ -3770,6 +3866,54 @@ abstract class AppLocalizations {
   /// **'Rytho\'ya sor'**
   String get signalAsk;
 
+  /// No description provided for @atlasAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'Atlas sayfamdaki okumalara bakıyorum. Bugün için en çok hangisine eğilmeliyim?'**
+  String get atlasAskPrefill;
+
+  /// No description provided for @faceAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yüz okumamı gördüm. Bugünkü gökyüzüyle birlikte bana ne söylüyor?'**
+  String get faceAskPrefill;
+
+  /// No description provided for @planetsAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gezegenlerimin yerleşimine bakıyorum. En belirleyici olanını bana anlatır mısın?'**
+  String get planetsAskPrefill;
+
+  /// No description provided for @traitsAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kişilik özelliklerime bakıyorum. Hangisi bugünlerde daha öne çıkıyor?'**
+  String get traitsAskPrefill;
+
+  /// No description provided for @aspectsAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'Haritamdaki açılara bakıyorum. En çok hangisini hissederim?'**
+  String get aspectsAskPrefill;
+
+  /// No description provided for @pointAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} yerleşimim hakkında konuşalım. Bu bana nasıl yansıyor?'**
+  String pointAskPrefill(String name);
+
+  /// No description provided for @aspectAskPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'Haritamdaki \"{label}\" açısı hakkında konuşalım. Bunu nasıl yaşarım?'**
+  String aspectAskPrefill(String label);
+
+  /// No description provided for @askAboutFriendPrefill.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} ile aramızdaki dinamik hakkında konuşalım.'**
+  String askAboutFriendPrefill(String name);
+
   /// No description provided for @signalAskPrefill.
   ///
   /// In tr, this message translates to:
@@ -4070,6 +4214,54 @@ abstract class AppLocalizations {
   /// **'{name} hakkında Rytho\'ya sor'**
   String askAboutFriend(String name);
 
+  /// No description provided for @removeFriendConfirmTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Arkadaşlıktan çıkar'**
+  String get removeFriendConfirmTitle;
+
+  /// No description provided for @removeFriendConfirmBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} listenden çıkar; ortak okumalar kapanır. İstersen yeniden ekleyebilirsin.'**
+  String removeFriendConfirmBody(String name);
+
+  /// No description provided for @blockUserConfirmTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engelle'**
+  String get blockUserConfirmTitle;
+
+  /// No description provided for @blockUserConfirmBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} seni bulamaz ve davet gönderemez. Bunu Çevrem ayarlarından geri alabilirsin.'**
+  String blockUserConfirmBody(String name);
+
+  /// No description provided for @peopleSlotsOver.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kontenjanın {limit}; {used} kişi kayıtlı — yeni kişi eklemek için birini çıkar.'**
+  String peopleSlotsOver(int limit, int used);
+
+  /// No description provided for @inviteNeedsUsername.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bir davet bekliyor — önce kullanıcı adı seç.'**
+  String get inviteNeedsUsername;
+
+  /// No description provided for @inviteNeedsUsernameAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kullanıcı adı seç'**
+  String get inviteNeedsUsernameAction;
+
+  /// No description provided for @friendAcceptedSnack.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} artık arkadaşın.'**
+  String friendAcceptedSnack(String name);
+
   /// No description provided for @diaryQuickTitle.
   ///
   /// In tr, this message translates to:
@@ -4229,7 +4421,7 @@ abstract class AppLocalizations {
   /// No description provided for @relationshipAskPrefill.
   ///
   /// In tr, this message translates to:
-  /// **'{name} ile ilişkimizde {axis} ekseni hakkında konuşalım.'**
+  /// **'{name} ile ilişkimizde \"{axis}\" ekseni hakkında konuşalım.'**
   String relationshipAskPrefill(String name, String axis);
 
   /// No description provided for @houseN.
@@ -5245,6 +5437,48 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Sen & {name}'**
   String chartModeSynastry(String name);
+
+  /// No description provided for @chartAskPrefillNatal.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şu an {name} haritasının çarkını inceliyorum. En çok dikkat etmem gereken ne?'**
+  String chartAskPrefillNatal(String name);
+
+  /// No description provided for @chartAskPrefillSky.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şu anki gökyüzü çarkını inceliyorum. Bugün beni en çok ne etkiliyor?'**
+  String get chartAskPrefillSky;
+
+  /// No description provided for @chartAskPrefillBiwheel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Haritamla bugünkü gökyüzünü üst üste inceliyorum. En çok hangi dokunuş öne çıkıyor?'**
+  String get chartAskPrefillBiwheel;
+
+  /// No description provided for @chartAskPrefillSynastry.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} ile ikili çarkımızı inceliyorum. Aramızda en belirleyici bağ hangisi?'**
+  String chartAskPrefillSynastry(String name);
+
+  /// No description provided for @chartMovementLegend.
+  ///
+  /// In tr, this message translates to:
+  /// **'Y yaklaşan · A ayrılan'**
+  String get chartMovementLegend;
+
+  /// No description provided for @chartLoading.
+  ///
+  /// In tr, this message translates to:
+  /// **'Çark hazırlanıyor…'**
+  String get chartLoading;
+
+  /// No description provided for @chartSelectionClear.
+  ///
+  /// In tr, this message translates to:
+  /// **'Seçimi kaldır'**
+  String get chartSelectionClear;
 
   /// No description provided for @chartAsOf.
   ///

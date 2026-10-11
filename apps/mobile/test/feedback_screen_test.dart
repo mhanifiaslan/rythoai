@@ -331,6 +331,11 @@ void main() {
       expect(find.byType(AlertDialog), findsOneWidget,
           reason: 'yazılmış metin sorulmadan atılmaz');
       expect(find.byType(FeedbackScreen), findsOneWidget);
+      // Ödünç "Kapat" etiketi gitti (D6 öncesi kablo): başlık ne yapılacağını,
+      // gövde ne kaybedileceğini söyler; vazgeçme yıkıcı düğmedir.
+      expect(find.text(_tr.feedbackDiscardTitle), findsOneWidget);
+      expect(find.text(_tr.feedbackDiscardBody), findsOneWidget);
+      expect(find.widgetWithText(GoldButton, _tr.discard), findsOneWidget);
 
       await tester.tap(find.widgetWithText(TextButton, _tr.cancel));
       await tester.pump();
@@ -341,7 +346,7 @@ void main() {
       await tester.tap(find.byType(BackButton));
       await tester.pump();
       await tester.pump(RythoMotion.base);
-      await tester.tap(find.widgetWithText(TextButton, _tr.feedbackClose));
+      await tester.tap(find.widgetWithText(GoldButton, _tr.discard));
       await tester.pump();
       await tester.pump(RythoMotion.base);
       await tester.pump(RythoMotion.route);

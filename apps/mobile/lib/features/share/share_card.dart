@@ -12,13 +12,18 @@ import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart' show kMarkaYazi;
 import '../../widgets/chart/chart_data.dart';
-import '../../widgets/chart/chart_palette.dart'
-    show kInnerGlyphColor, kOuterPartnerColor, kOuterTransitColor;
+import '../../widgets/chart/chart_palette.dart' show ringGlyphColor;
 import '../../widgets/chart/chart_wheel.dart';
 import '../../widgets/chart/wheel_painter.dart' show WheelAspectFilter;
 
 /// Üç kartın ortak zemini — aynı tuval, aynı degrade; ayrışırsa paylaşılan
 /// kartlar aynı uygulamadan çıkmış gibi durmaz.
+///
+/// Tema tokeni (`RythoColors.shareGradient`) BİLEREK YOK ve bu degrade
+/// burada kalır: tek tüketicisi bu dosya ve kart uygulamanın DIŞINA gidiyor
+/// — ekran temasından bağımsız, her zaman bu koyu üç durak. Temaya taşımak
+/// "tema değişirse kart da değişsin" demek olurdu; paylaşılan görsel
+/// tanınır kalmalı, uygulamanın o günkü yüzeyini yansıtmamalı.
 const BoxDecoration _kKartZemini = BoxDecoration(
   gradient: LinearGradient(
     begin: Alignment.topCenter,
@@ -26,6 +31,14 @@ const BoxDecoration _kKartZemini = BoxDecoration(
     colors: [Color(0xFF13091F), Color(0xFF241038), Color(0xFF0B0713)],
   ),
 );
+
+/// 1080×1920 tuvalin dolguları — üç kart aynı üst/alt payı kullanır;
+/// yatay pay metin kartlarında 96, çark kartında çarktan türer.
+const double _kTuvalYanPay = 96;
+const double _kTuvalUstPay = 150;
+const double _kTuvalAltPay = 110;
+const EdgeInsets _kTuvalDolgu = EdgeInsets.fromLTRB(
+    _kTuvalYanPay, _kTuvalUstPay, _kTuvalYanPay, _kTuvalAltPay);
 
 /// Marka satırı: paylaşan kişi uygulamayı tanıtıyor. Ayırt edici iddia da
 /// burada — "gerçek gökyüzü hesabıyla". Üç kartta TEK kopya; marka yazısı
@@ -80,7 +93,7 @@ class ShareCard extends StatelessWidget {
   static const double height = 1920;
 
   /// Metin alanının genişliği ve yüksekliği (dolgu düşülmüş hâliyle).
-  static const double _textWidth = width - 96 * 2;
+  static const double _textWidth = width - _kTuvalYanPay * 2;
   static const double _textHeight = 900;
 
   /// Yorumun sığdırılacağı yazı boyutu aralığı.
@@ -207,7 +220,7 @@ class ShareCard extends StatelessWidget {
       child: DecoratedBox(
         decoration: _kKartZemini,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(96, 150, 96, 110),
+          padding: _kTuvalDolgu,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -215,9 +228,11 @@ class ShareCard extends StatelessWidget {
                   style: RythoText.mono(34, color: RythoColors.parchmentDim)),
               const SizedBox(height: 56),
               Row(children: [
+                // Burç glifi glif fontundan: ailesiz TextStyle sistem
+                // fontuna düşüyordu ve ♈–♓ Emoji_Presentation=Yes olduğu
+                // için kartta RENKLİ emoji çıkıyordu (rytho_glyphs.dart).
                 Text(signGlyph,
-                    style: const TextStyle(
-                        fontSize: 116, color: RythoColors.goldBright)),
+                    style: RythoText.glyph(116, color: RythoColors.goldBright)),
                 const SizedBox(width: 28),
                 Expanded(
                   child: Text(trBuyuk(signName),
@@ -288,7 +303,7 @@ class ReportShareCard extends StatelessWidget {
   static const double width = ShareCard.width;
   static const double height = ShareCard.height;
 
-  static const double _textWidth = width - 96 * 2;
+  static const double _textWidth = width - _kTuvalYanPay * 2;
 
   @override
   Widget build(BuildContext context) {
@@ -304,7 +319,7 @@ class ReportShareCard extends StatelessWidget {
       child: DecoratedBox(
         decoration: _kKartZemini,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(96, 150, 96, 110),
+          padding: _kTuvalDolgu,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -313,9 +328,12 @@ class ReportShareCard extends StatelessWidget {
               const SizedBox(height: 48),
               Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
                 if (glyph != null) ...[
+                  // Çağıranlar ✦ / burç glifi / 🌞 geçiriyor: glif fontu
+                  // ilk ikisini taşır, taşımadığını (emoji) Skia sistem
+                  // fontundan tamamlar — ailesiz stilden farkı, glifin
+                  // emojiye DÜŞMEMESİ.
                   Text(glyph!,
-                      style: const TextStyle(
-                          fontSize: 96, color: RythoColors.goldBright)),
+                      style: RythoText.glyph(96, color: RythoColors.goldBright)),
                   const SizedBox(width: 28),
                 ],
                 Expanded(
@@ -492,7 +510,8 @@ class ChartShareCard extends StatelessWidget {
       child: DecoratedBox(
         decoration: _kKartZemini,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(_yatayDolgu, 150, _yatayDolgu, 110),
+          padding: const EdgeInsets.fromLTRB(
+              _yatayDolgu, _kTuvalUstPay, _yatayDolgu, _kTuvalAltPay),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -513,17 +532,15 @@ class ChartShareCard extends StatelessWidget {
               ),
               const SizedBox(height: 40),
               // Halka lejantı — chart_inspector'daki rozetlerin kart ölçeği;
-              // renkler çarkın kendi paletinden (chart_palette) ki lejant
+              // renk çarkla AYNI kuraldan (`ringGlyphColor`) ki lejant
               // çizilen halkayla aynı rengi söylesin.
               Wrap(spacing: 40, runSpacing: 16, children: [
                 _HalkaRozeti(
-                    renk: kInnerGlyphColor,
+                    renk: ringGlyphColor(data, 0),
                     metin: l10n.chartLegendInner(data.rings.first.label)),
                 if (data.isBiWheel)
                   _HalkaRozeti(
-                      renk: data.rings[1].kind == ChartRingKind.partner
-                          ? kOuterPartnerColor
-                          : kOuterTransitColor,
+                      renk: ringGlyphColor(data, 1),
                       metin: l10n.chartLegendOuter(data.rings[1].label)),
               ]),
               const Spacer(),
@@ -596,8 +613,11 @@ Future<bool> shareRenderedCard(
         .millisecondsSinceEpoch}.png');
     await dosya.writeAsBytes(bayt);
 
+    // Görselin yanındaki metin kullanıcının dilinde tanıtım cümlesi: logo
+    // yazısı (`kMarkaYazi`) tek başına paylaşım sayfasında bağlamsız bir
+    // "RYTHO" bırakıyordu; alan kişinin uygulamayı ne yaptığını okusun.
     await SharePlus.instance.share(
-      ShareParams(files: [XFile(dosya.path)], text: kMarkaYazi),
+      ShareParams(files: [XFile(dosya.path)], text: l10n.shareText),
     );
     return true;
   } catch (e) {

@@ -50,7 +50,7 @@ class Person {
     this.label,
     this.birthTime,
     this.birthNation,
-    this.gender = 'female',
+    this.gender,
     this.sunSign,
     this.moonSign,
     this.ascendant,
@@ -73,7 +73,14 @@ class Person {
 
   final String birthCity;
   final String? birthNation;
-  final String gender;
+
+  /// `female` | `male` | `other` | `unspecified` ya da **null**: beyan
+  /// edilmemiş. Eski varsayılan `'female'` idi — kullanıcı dokunmadan geçince
+  /// üçüncü bir kişi adına "kadın" beyan ediliyordu (ölçülmeyen söylenmez).
+  /// Null ile `'unspecified'` SUNUCUYA aynı gider ama ekranda ayrışır:
+  /// düzenleme kipinde null hiçbir segmenti seçili göstermez, `unspecified`
+  /// kullanıcının kendi "Belirtmedim" seçimidir.
+  final String? gender;
 
   final String? sunSign;
   final String? moonSign;
@@ -92,7 +99,10 @@ class Person {
       birthTime: data['birthTime'] as String?,
       birthCity: data['birthCity'] as String? ?? '',
       birthNation: data['birthNation'] as String?,
-      gender: data['gender'] as String? ?? 'female',
+      // Alanın YOKLUĞU beyan edilmemiş demektir; varsayılan konmaz
+      // (birthTime ile aynı kural). Eski `?? 'female'` düzenleme formunu
+      // "kadın seçili" açıyordu.
+      gender: data['gender'] as String?,
       sunSign: data['sunSign'] as String?,
       moonSign: data['moonSign'] as String?,
       ascendant: data['ascendant'] as String?,
@@ -114,10 +124,15 @@ class Person {
       'hour_known': birthTime != null,
       'city': birthCity,
       'nation': birthNation,
-      'gender': gender,
+      // Beyan yoksa sunucuya `unspecified`: backend bu dalı D0'dan beri
+      // tanıyor ve cinsiyete bağlı hesabı yapmayıp beyan ediyor.
+      'gender': gender ?? kCinsiyetBelirtilmedi,
     };
   }
 }
+
+/// Sunucunun "belirtilmedi" değeri — `CinsiyetSecici.degerler` ile aynı.
+const String kCinsiyetBelirtilmedi = 'unspecified';
 
 FirebaseFirestore get _db => FirebaseFirestore.instance;
 
@@ -186,7 +201,7 @@ Map<String, dynamic> _body(Person kisi) => {
       'birth_time': kisi.birthTime,
       'birth_city': kisi.birthCity,
       'birth_nation': kisi.birthNation,
-      'gender': kisi.gender,
+      'gender': kisi.gender ?? kCinsiyetBelirtilmedi,
     };
 
 /// Kişi ekler ve etiketi CİHAZA yazar. Kontenjan doluysa sunucu 402

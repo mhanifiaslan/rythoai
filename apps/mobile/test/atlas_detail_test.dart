@@ -53,9 +53,14 @@ Widget _sar(Widget child) => MaterialApp(
 
 /// `AstrolabeSpinner` ve yildiz alani surekli animasyonlu — `pumpAndSettle`
 /// hicbir zaman donmez.
+///
+/// 600 ms: detay iskeleti bloklari `RythoReveal(index:)` ile kademeli
+/// acar ve flutter_animate gecikmeyi `Future.delayed` ile kurar — 8. blok
+/// 7 × 70 = 490 ms sonra baslar. 400 ms D6'da sohbet kapisi eklenince
+/// (7. blok) "A Timer is still pending" ile dusuyordu; urun hatasi degil.
 Future<void> _bekle(WidgetTester tester) async {
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump(const Duration(milliseconds: 600));
 }
 
 /// `GradientProgressBar` her cubugu 120 ms gecikmeyle baslatir ve 800 ms'de
@@ -113,7 +118,11 @@ void main() {
           .pumpWidget(_sar(AtlasPlanetsScreen(points: _gezegenler)));
       await _bekle(tester);
 
-      expect(find.textContaining('℞'), findsOneWidget);
+      // Isaret carkla AYNI harf: "R" (D6; eski `℞` paket fontlarda yoktu).
+      // Tam satir aranir — `textContaining('R')` baska metne takilir.
+      expect(find.text('Merkür — Başak ♍ R'), findsOneWidget);
+      expect(find.textContaining('℞'), findsNothing,
+          reason: 'paket fontta olmayan ℞ geri gelmis');
     });
 
     testWidgets('ek noktalar ARTIK gizlenmez (R5-2)', (tester) async {

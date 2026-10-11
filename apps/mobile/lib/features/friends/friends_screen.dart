@@ -1,23 +1,34 @@
 import 'dart:async' show unawaited;
+import 'dart:math' show min;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/analytics.dart';
+import '../../core/api.dart' show apiProvider, friendlyError;
 import '../../core/contact_match.dart';
 import '../../core/deep_links.dart';
 import '../../core/friends.dart';
 import '../../core/people.dart';
 import '../../core/providers.dart';
 import '../../core/safety.dart';
+import '../../core/subscription.dart' show aboneAynasiProvider;
+import '../../core/tr_metin.dart' show trBuyuk;
+import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
+import '../../widgets/alt_sayfa.dart' show showRythoSheet;
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/common.dart' show EmptyState, ErrorCard;
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/liste_satiri.dart';
+import '../../widgets/motion.dart' show RythoReveal;
 import '../../widgets/nebula_widgets.dart';
+import '../../widgets/onay.dart' show onayla;
+import '../paywall/ozellik_katalogu.dart' show PlusOzellik;
+import '../paywall/paywall_acilis.dart' show PaywallKaynak, acPaywall;
 import '../people/person_detail_screen.dart' show PersonDetailScreen;
 import '../people/person_form_screen.dart'
     show PersonFormScreen, relationIcon, relationLabel;
@@ -27,8 +38,36 @@ import 'contacts_screen.dart' show ContactsScreen;
 import 'friend_detail_screen.dart' show FriendDetailScreen, reactionLabel;
 import 'reaction_sheet.dart' show showReactionSheet;
 import 'relationship_screen.dart' show RelationshipScreen;
-import '../../core/api.dart' show apiProvider, friendlyError;
-import '../../l10n/app_localizations.dart';
+
+/// Geri bildirim kanalındaki ekran kodu (`FeedbackScreen.screen`).
+const String kCevremEkranKodu = 'circle';
+
+/// Kontenjan sayacı + (varsa) aşım beyanı — SAF, test edilebilir.
+///
+/// Abonelik düşünce `used > limit` olur ve eski satır "4/1 kişi" basıyordu:
+/// ölçülen sayı yanlış adla sunuluyordu (sayaç "kullanılan/tavan" demektir,
+/// 4/1 bir oran değil). Sayaç tavana kelepçelenir; fazlası ayrı cümleyle
+/// söylenir ("kontenjanın 1; 4 kişi kayıtlı"). Sayı gizlenmez, adı düzelir.
+({String sayac, String? asim}) kontenjanBeyani(AppLocalizations l10n,
+    {required int used, required int limit}) {
+  return (
+    sayac: l10n.peopleSlots(min(used, limit), limit),
+    asim: used > limit ? l10n.peopleSlotsOver(limit, used) : null,
+  );
+}
+
+/// Kişi formu açılmadan ÖNCE kontenjan kapısı.
+///
+/// NEDEN formdan önce (B10 sonrası ölçüldü): kontenjan dolu kullanıcı formu
+/// doldurup "Kaydet"e basınca sunucu 402 dönüyor, interceptor Plus
+/// aboneye bile satış ekranı açıyor, form açık kalıyor ve kişi çıkarmaya
+/// giden bir yol yok. Sunucu zaten `used/limit` veriyor; kapı burada.
+/// `limit == 0` bilinmiyor demektir (yük gelmedi) — kapı KAPANMAZ, karar
+/// sunucuya bırakılır.
+bool kisiKontenjaniDolu(({int used, int limit})? kontenjan) =>
+    kontenjan != null &&
+    kontenjan.limit > 0 &&
+    kontenjan.used >= kontenjan.limit;
 
 /// ARKADAŞLAR — serbest metin içermeyen sosyal katman.
 ///
@@ -45,11 +84,12 @@ class FriendsScreen extends ConsumerWidget {
     final profile = ref.watch(profileProvider).value;
     final friendsAsync = ref.watch(friendsProvider);
     final username = profile?['username'] as String?;
+    final invite = ref.watch(pendingInviteProvider);
 
     // Davet bağlantısıyla açıldıysa ekleme sayfasını kullanıcı adı dolu
     // olarak aç. Bağlantı uygulama açılırken de gelebildiği için burada
     // ele alınıyor: bu noktada oturum ve onboarding tamamlanmış oluyor.
-    _handlePendingInvite(context, ref, username);
+    _handlePendingInvite(context, ref, username, invite);
 
     return CosmicScaffold(
       appBar: AppBar(
@@ -65,9 +105,10 @@ class FriendsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.only(right: RythoSpace.md),
             child: Pressable(
+              semanticLabel: l10n.addChooserTitle,
               // Artık doğrudan kullanıcı adı sayfası açmaz: iki ekleme yolu
               // var ve gizlilik anlamları farklı, seçimi kullanıcı yapmalı.
-              onTap: () => _showAddChooser(context, username),
+              onTap: () => _showAddChooser(context, ref, username),
               child: Container(
                 width: 40,
                 height: 40,
@@ -85,9 +126,13 @@ class FriendsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(padding: const EdgeInsets.only(bottom: 120), children: [
+      body: ListView(
+          padding: const EdgeInsets.only(bottom: RythoSpace.dockClearance),
+          children: [
         if (username == null)
-          const _UsernameSetupPanel()
+          // Davet bekliyorsa panel bunu en üstte söyler: eski hâlde niyet
+          // sessizce bekliyor, kullanıcı hiçbir şey görmüyordu.
+          _UsernameSetupPanel(davetBekliyor: invite != null)
         else
           _MyCardPanel(
             username: username,
@@ -100,14 +145,11 @@ class FriendsScreen extends ConsumerWidget {
         // sunucu listeyi saklar.
         _ContactsEntry(ayarAcik: profile?['contactMatch'] == true),
         friendsAsync.when(
-          loading: () => const Padding(
-            padding: EdgeInsets.only(top: 48),
-            child: Center(child: AstrolabeSpinner()),
-          ),
-          error: (e, _) => Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(friendlyError(e, l10n),
-                style: RythoText.body(13, color: RythoColors.parchmentDim)),
+          loading: () => const SkeletonPanel(height: 96),
+          error: (e, _) => ErrorCard(
+            message: friendlyError(e, l10n),
+            screen: kCevremEkranKodu,
+            onRetry: () => ref.invalidate(friendsProvider),
           ),
           // Boş durum yalnız İKİ liste de boşken çizilir; kişileri olan
           // ama arkadaşı olmayan kullanıcıya "hiç kimsen yok" demek
@@ -126,7 +168,11 @@ class FriendsScreen extends ConsumerWidget {
 
 /// Kullanıcı adı henüz alınmamışsa: arkadaşların seni bulabilmesi için gerekli.
 class _UsernameSetupPanel extends StatefulWidget {
-  const _UsernameSetupPanel();
+  const _UsernameSetupPanel({this.davetBekliyor = false});
+
+  /// Bağlantıdan gelen bir davet kullanıcı adını bekliyor mu — panel bunu
+  /// söyler ve eylem düğmesi alanı odaklar.
+  final bool davetBekliyor;
 
   @override
   State<_UsernameSetupPanel> createState() => _UsernameSetupPanelState();
@@ -134,12 +180,14 @@ class _UsernameSetupPanel extends StatefulWidget {
 
 class _UsernameSetupPanelState extends State<_UsernameSetupPanel> {
   final _controller = TextEditingController();
+  final _odak = FocusNode();
   String? _error;
   bool _busy = false;
 
   @override
   void dispose() {
     _controller.dispose();
+    _odak.dispose();
     super.dispose();
   }
 
@@ -174,15 +222,31 @@ class _UsernameSetupPanelState extends State<_UsernameSetupPanel> {
     return GlassPanel(
       label: l10n.usernameLabel,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(l10n.usernameHeadline, style: RythoText.display(19)),
-        const SizedBox(height: 6),
-        Text(
-          l10n.usernameBody,
-          style: RythoText.body(12.5, color: RythoColors.parchmentDim),
-        ),
-        const SizedBox(height: 14),
+        if (widget.davetBekliyor) ...[
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.mail_outline_rounded,
+                size: 18, color: RythoColors.goldBright),
+            const SizedBox(width: RythoSpace.sm),
+            Expanded(
+                child: Text(l10n.inviteNeedsUsername, style: RythoType.body)),
+          ]),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _odak.requestFocus,
+              child: Text(l10n.inviteNeedsUsernameAction,
+                  style: RythoType.button),
+            ),
+          ),
+          const SizedBox(height: RythoSpace.sm),
+        ],
+        Text(l10n.usernameHeadline, style: RythoType.sectionTitle),
+        const SizedBox(height: RythoSpace.xs + RythoSpace.xxs),
+        Text(l10n.usernameBody, style: RythoType.caption),
+        const SizedBox(height: RythoSpace.md + RythoSpace.xxs),
         TextField(
           controller: _controller,
+          focusNode: _odak,
           autocorrect: false,
           enableSuggestions: false,
           maxLength: 20,
@@ -195,7 +259,7 @@ class _UsernameSetupPanelState extends State<_UsernameSetupPanel> {
             hintStyle: RythoText.body(15, color: RythoColors.parchmentDim),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: RythoSpace.md),
         GoldButton(text: l10n.claimUsername, busy: _busy, onPressed: _submit),
       ]),
     );
@@ -242,39 +306,24 @@ class _ContactsEntry extends ConsumerWidget {
       onTap = () => _ac(context);
     }
 
-    return GlassPanel(
-      child: Pressable(
-        onTap: onTap,
-        child: Row(children: [
-          Container(
-            width: 38,
-            height: 38,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: RythoColors.inkLight,
-              border: Border.all(color: RythoColors.glassStroke),
-            ),
-            child: const Icon(Icons.contacts_outlined,
-                size: 19, color: RythoColors.parchment),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.contactsFindEntry,
-                      style: RythoText.body(14, w: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text(altYazi,
-                      style: RythoText.body(
-                          12, color: RythoColors.parchmentDim)),
-                ]),
-          ),
-          const Icon(Icons.chevron_right_rounded,
-              size: 20, color: RythoColors.parchmentDim),
-        ]),
+    return ListeSatiri(
+      margin: const EdgeInsets.symmetric(
+          horizontal: RythoSpace.lg, vertical: RythoSpace.sm),
+      leading: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: RythoColors.inkLight,
+          border: Border.all(color: RythoColors.glassStroke),
+        ),
+        child: const Icon(Icons.contacts_outlined,
+            size: 19, color: RythoColors.parchment),
       ),
+      title: l10n.contactsFindEntry,
+      subtitle: altYazi,
+      onTap: onTap,
     );
   }
 }
@@ -307,7 +356,8 @@ class _MyCardPanel extends StatelessWidget {
         );
 
     return GlassPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: RythoSpace.md, vertical: RythoSpace.sm),
       child: Row(children: [
         Expanded(
           child: Text('@$username',
@@ -316,7 +366,7 @@ class _MyCardPanel extends StatelessWidget {
               style: RythoText.display(16, w: FontWeight.w600)),
         ),
         StreakBadge(count: streakCount),
-        const SizedBox(width: 4),
+        const SizedBox(width: RythoSpace.xs),
         // Kullanıcı adı bir dönem yalnızca BİR KEZ yazılabiliyordu; düzeltme
         // yolu bu ikon (AccountScreen).
         ikon(l10n.edit, Icons.edit_outlined, () {
@@ -356,7 +406,7 @@ class _InboxPanel extends ConsumerWidget {
 
     String nameOf(String? uid) {
       for (final friend in friends) {
-        if (friend.uid == uid) return friend.name;
+        if (friend.uid == uid) return friend.ad(l10n);
       }
       return l10n.aFriend;
     }
@@ -367,13 +417,13 @@ class _InboxPanel extends ConsumerWidget {
         for (final nudge in nudges.take(6))
           if (kReactions[nudge['reaction']] case final emoji?)
             InkWell(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(RythoRadius.sm),
               onTap: () => dismissNudge(nudge['id'] as String),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: RythoSpace.sm),
                 child: Row(children: [
-                  Text(emoji, style: const TextStyle(fontSize: 18)),
-                  const SizedBox(width: 10),
+                  Text(emoji, style: RythoText.emoji(18)),
+                  const SizedBox(width: RythoSpace.sm + RythoSpace.xxs),
                   Expanded(
                     child: Text(
                       '${nameOf(nudge['fromUid'] as String?)} · '
@@ -404,20 +454,10 @@ class _FriendsList extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     if (friends.isEmpty) {
       if (!boslugoster) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(28, 40, 28, 0),
-        child: Column(children: [
-          const Text('🛰️', style: TextStyle(fontSize: 34)),
-          const SizedBox(height: 12),
-          Text(l10n.noFriendsYet,
-              style: RythoText.display(18), textAlign: TextAlign.center),
-          const SizedBox(height: 6),
-          Text(
-            l10n.noFriendsBody,
-            style: RythoText.body(12.5, color: RythoColors.parchmentDim),
-            textAlign: TextAlign.center,
-          ),
-        ]),
+      return EmptyState(
+        emoji: '🛰️',
+        title: l10n.noFriendsYet,
+        description: l10n.noFriendsBody,
       );
     }
 
@@ -440,9 +480,7 @@ class _FriendsList extends StatelessWidget {
         // bölüm var ve ikisi farklı şeyler (P-turu).
         _sectionTitle(l10n.circleFriendsSection),
         for (final (i, friend) in accepted.indexed)
-          _FriendTile(friend: friend)
-              .animate(delay: Duration(milliseconds: 40 * i))
-              .fadeIn(duration: 300.ms),
+          RythoReveal(index: i, child: _FriendTile(friend: friend)),
       ],
       if (outgoing.isNotEmpty) ...[
         const SectionDivider(),
@@ -452,9 +490,11 @@ class _FriendsList extends StatelessWidget {
     ]);
   }
 
+  // Bölüm başlığı bir AD, ölçüm değil: etiket rolü (mono veri rolüydü).
   Widget _sectionTitle(String text) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 2),
-        child: Text(text, style: RythoText.mono(11, color: RythoColors.parchmentDim)),
+        padding: const EdgeInsets.fromLTRB(
+            RythoSpace.xl, RythoSpace.xs, RythoSpace.xl, RythoSpace.xxs),
+        child: Text(text, style: RythoType.label),
       );
 }
 
@@ -463,7 +503,8 @@ class _FriendsList extends StatelessWidget {
 /// Baş harf avatarı + ad + tek satır durum; sağda İKİ eylem ikonu:
 /// ⚡ tepki (KART AÇILMADAN — dokununca tepki sayfası, seçim anında
 /// gider) ve 🪐 ilişki (dört eksenli okuma). Satırın kendisi arkadaş
-/// detayını ("bugün aranızda") açar.
+/// detayını ("bugün aranızda") açar. Kap `ListeSatiri` (beş satır sınıfının
+/// tek varisi): başlıkta ellipsis yok, iki satıra sarar.
 class _FriendTile extends ConsumerWidget {
   const _FriendTile({required this.friend});
 
@@ -472,89 +513,97 @@ class _FriendTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final ad = friend.ad(l10n);
     final durum = friend.streakVisible
         ? (friend.readToday ? l10n.readToday : l10n.notReadToday)
         : l10n.streakHidden;
-    final durumRenk = friend.streakVisible && friend.readToday
-        ? RythoColors.goldBright
-        : RythoColors.parchmentDim;
+    final altSatir = [
+      if (friend.sunSign != null) localizedSignName(l10n, friend.sunSign),
+      durum,
+    ].join(' · ');
 
-    return GlassPanel(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => FriendDetailScreen(friend: friend))),
-      child: Row(children: [
-        CircleAvatar(
-          radius: 17,
-          backgroundColor: RythoColors.lilac.withValues(alpha: 0.16),
-          child: Text(
-              friend.name.isEmpty ? '?' : friend.name[0].toUpperCase(),
-              style: RythoText.display(14, color: RythoColors.lilac)),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(friend.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: RythoText.body(14.5, w: FontWeight.w600)),
-                const SizedBox(height: 1),
-                Row(children: [
-                  // Burç adı da esnemeliydi: uzun ad ("Sagittarius") +
-                  // durum metni dar ekranda satırı taşırıyordu.
-                  if (friend.sunSign != null)
-                    Flexible(
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Text(localizedSignName(l10n, friend.sunSign),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: RythoText.label(10.5,
-                                color: RythoColors.lilac)),
-                      ),
-                    ),
-                  Flexible(
-                    child: Text(durum,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: RythoText.body(11, color: durumRenk)),
-                  ),
-                ]),
-              ]),
-        ),
+    return ListeSatiri(
+      margin: const EdgeInsets.symmetric(
+          horizontal: RythoSpace.lg, vertical: RythoSpace.xs),
+      leading: CircleAvatar(
+        radius: 17,
+        backgroundColor: RythoColors.lilac.withValues(alpha: 0.16),
+        // Baş harf Türkçe kuralla ("ilayda" → "İ"); `characters` ilk
+        // öğeyi tam alır (emoji/birleşik harf yarım kalmaz).
+        child: Text(trBuyuk(ad.characters.first),
+            style: RythoText.display(14, color: RythoColors.lilac)),
+      ),
+      title: ad,
+      subtitle: altSatir,
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         // Tepki: kart açılmadan, iki dokunuş (⚡ → seçim).
         IconButton(
           tooltip: l10n.sendReaction,
           visualDensity: VisualDensity.compact,
-          icon: const Text('⚡', style: TextStyle(fontSize: 16)),
+          icon: Text('⚡', style: RythoText.emoji(16)),
           onPressed: () => showReactionSheet(context, ref, friend),
         ),
         // İlişki eksenleri (R2-L1) satırdan tek dokunuş uzakta.
         IconButton(
           tooltip: l10n.relationshipOpen,
           visualDensity: VisualDensity.compact,
-          icon: const Text('🪐', style: TextStyle(fontSize: 15)),
+          icon: Text('🪐', style: RythoText.emoji(15)),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => RelationshipScreen(friend: friend))),
         ),
       ]),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => FriendDetailScreen(friend: friend))),
     );
   }
 }
 
-class _RequestTile extends ConsumerWidget {
+/// Gelen davet satırı: Yoksay / Kabul et.
+///
+/// Kabul artık geri bildirim veriyor: düğme meşgul olur, sonuç SnackBar'la
+/// söylenir. Eski hâli ateşle-unut idi — hata yutuluyor, kullanıcı
+/// dokunuşun bir şey yaptığını ancak liste yenilenince anlıyordu.
+/// Yoksay onaysız: davet yıkıcı değil, karşı taraf yeniden gönderebilir.
+class _RequestTile extends ConsumerStatefulWidget {
   const _RequestTile({required this.friend});
 
   final Friend friend;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_RequestTile> createState() => _RequestTileState();
+}
+
+class _RequestTileState extends ConsumerState<_RequestTile> {
+  bool _busy = false;
+
+  Future<void> _kabul() async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final dio = ref.read(apiProvider);
+    final ad = widget.friend.ad(l10n);
+    setState(() => _busy = true);
+    try {
+      await acceptFriendRequest(widget.friend.uid);
+      // Kabul push'u (OB2): Firestore yazımı bitince daveti GÖNDERENE
+      // haber ver. UI beklemez; push bir ek, kabulün kendisi değil.
+      unawaited(notifyInviteAccepted(dio, widget.friend.uid));
+      messenger.showSnackBar(
+          SnackBar(content: Text(l10n.friendAcceptedSnack(ad))));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, l10n))));
+    } finally {
+      // Kabul edilen satır akış yenilenince yerini arkadaş satırına
+      // bırakır — bu durum artık yaşamıyor olabilir.
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return GlassPanel(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      margin: const EdgeInsets.symmetric(
+          horizontal: RythoSpace.lg, vertical: RythoSpace.xs + 1),
       // Ad + iki düğme esnemeyen bir `Row`du: kullanıcı adının uzunluğu
       // bizim denetimimizde değil, üstelik "Yoksay" + sabit 104 px "Kabul
       // et" dar ekranda tek başına satırı dolduruyordu. `Wrap`: sığdığında
@@ -563,20 +612,20 @@ class _RequestTile extends ConsumerWidget {
       child: SizedBox(
         width: double.infinity,
         child: Wrap(
-          spacing: 8,
-          runSpacing: 6,
+          spacing: RythoSpace.sm,
+          runSpacing: RythoSpace.xs + RythoSpace.xxs,
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text(friend.name, style: RythoText.display(16)),
+            Text(widget.friend.ad(l10n), style: RythoType.cardTitle),
             Wrap(
-              spacing: 4,
-              runSpacing: 4,
+              spacing: RythoSpace.xs,
+              runSpacing: RythoSpace.xs,
               alignment: WrapAlignment.end,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 TextButton(
-                  onPressed: () => removeFriend(friend.uid),
+                  onPressed: _busy ? null : () => removeFriend(widget.friend.uid),
                   child: Text(l10n.ignore,
                       style:
                           RythoText.label(12, color: RythoColors.parchmentDim)),
@@ -584,15 +633,7 @@ class _RequestTile extends ConsumerWidget {
                 SizedBox(
                   width: 104,
                   child: GoldButton(
-                    text: l10n.accept,
-                    onPressed: () {
-                      // Kabul push'u (OB2): Firestore yazımı bitince daveti
-                      // GÖNDERENE haber ver. UI beklemez; hata yutulur.
-                      final dio = ref.read(apiProvider);
-                      unawaited(acceptFriendRequest(friend.uid)
-                          .then((_) => notifyInviteAccepted(dio, friend.uid)));
-                    },
-                  ),
+                      text: l10n.accept, busy: _busy, onPressed: _kabul),
                 ),
               ],
             ),
@@ -603,6 +644,7 @@ class _RequestTile extends ConsumerWidget {
   }
 }
 
+/// Gönderilmiş, yanıt bekleyen davet.
 class _PendingTile extends StatelessWidget {
   const _PendingTile({required this.friend});
 
@@ -611,26 +653,18 @@ class _PendingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return GlassPanel(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      child: Row(children: [
-        Expanded(
-          child: Text(friend.name,
-              style: RythoText.body(14.5, color: RythoColors.parchmentDim)),
-        ),
-        // "Beklemede" esnemiyordu: soldaki `Expanded` sıfıra inse bile bu
-        // metin + geri çekme ikonu dar ekranda satırı taşırıyordu.
-        Flexible(
-          child: Text(l10n.pending,
-              style: RythoText.label(11, color: RythoColors.parchmentDim)),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          tooltip: l10n.withdrawInvite,
-          icon: const Icon(Icons.close_rounded, size: 18),
-          onPressed: () => removeFriend(friend.uid),
-        ),
-      ]),
+    return ListeSatiri(
+      margin: const EdgeInsets.symmetric(
+          horizontal: RythoSpace.lg, vertical: RythoSpace.xs),
+      leading: const Icon(Icons.hourglass_top_rounded,
+          size: 20, color: RythoColors.parchmentDim),
+      title: friend.ad(l10n),
+      subtitle: l10n.pending,
+      trailing: IconButton(
+        tooltip: l10n.withdrawInvite,
+        icon: const Icon(Icons.close_rounded, size: 18),
+        onPressed: () => removeFriend(friend.uid),
+      ),
     );
   }
 }
@@ -641,11 +675,14 @@ class _PendingTile extends StatelessWidget {
 
 /// Bekleyen daveti ekleme sayfasını açarak ele alır.
 ///
+/// Kullanıcı adı YOKKEN niyet TEMİZLENMEZ: panel daveti söyler
+/// (`_UsernameSetupPanel.davetBekliyor`), ad alınınca profil akışı yeniden
+/// kurar ve bu kapı sayfayı açar. Burada temizlemek daveti kaybederdi.
+///
 /// Kendi davetini açmak anlamsız olduğu için sessizce yok sayılır — kullanıcı
 /// kendi bağlantısını test ederken hata mesajıyla karşılaşmamalı.
 void _handlePendingInvite(
-    BuildContext context, WidgetRef ref, String? myUsername) {
-  final invite = ref.watch(pendingInviteProvider);
+    BuildContext context, WidgetRef ref, String? myUsername, String? invite) {
   if (invite == null || myUsername == null) return;
 
   // Durum değişikliği build sırasında yapılamaz.
@@ -657,6 +694,30 @@ void _handlePendingInvite(
   });
 }
 
+/// Kişi formuna giden TEK kapı: önce kontenjan, sonra form.
+Future<void> _kisiEkle(BuildContext context, WidgetRef ref) async {
+  final kontenjan = ref.read(personSlotsProvider).value;
+  if (kisiKontenjaniDolu(kontenjan)) {
+    // Abone değilse daha çok kişi abonelikle gelir → satış ekranı (dokunuş
+    // yolu, kesinti değil). Aboneyse ya da ayna bilinmiyorsa kontenjan
+    // gerçekten dolu demektir → cümle; satış ekranı B10'un kusuruydu
+    // (ödemiş kullanıcıya paywall). Sunucu 402'sindeki `paywallHedefi`
+    // kuralının aynısı.
+    if (ref.read(aboneAynasiProvider) == false) {
+      await acPaywall(context,
+          kaynak: PaywallKaynak.kilitKarti, ozellik: PlusOzellik.people);
+      return;
+    }
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            l10n.peopleSlotsOver(kontenjan!.limit, kontenjan.used))));
+    return;
+  }
+  await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PersonFormScreen()));
+}
+
 /// "+" düğmesinin açtığı SEÇİM sayfası (P-turu).
 ///
 /// Eskiden düğme doğrudan kullanıcı adı sayfasını açıyordu. Artık iki
@@ -664,50 +725,42 @@ void _handlePendingInvite(
 /// karşılıklı onaydır ve karşı tarafın ham doğum verisi asla görülmez;
 /// eklenen kişi ise kullanıcının kendi girdiği veridir. Bu farkı bir
 /// açılır menüye gömmek yerine seçim anında yazıyoruz.
-Future<void> _showAddChooser(BuildContext context, String? myUsername) {
+Future<void> _showAddChooser(
+    BuildContext context, WidgetRef ref, String? myUsername) {
   final l10n = AppLocalizations.of(context);
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: RythoColors.inkLight,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      side: BorderSide(color: RythoColors.glassStroke),
-    ),
-    builder: (sheetContext) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-            RythoSpace.xl, RythoSpace.xl, RythoSpace.xl, RythoSpace.lg),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(l10n.addChooserTitle, style: RythoText.display(19)),
-          const SizedBox(height: RythoSpace.lg),
-          _EkleSecenegi(
-            icon: Icons.alternate_email_rounded,
-            title: l10n.addChooserFriend,
-            body: l10n.addChooserFriendBody,
-            onTap: () {
-              Navigator.of(sheetContext).pop();
-              if (myUsername == null) {
-                // Devre dışı düğme yerine SEBEBİ söyleyen düğme (R6).
-                ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.addFriendNeedsUsername)));
-                return;
-              }
-              _showAddFriendSheet(context, myUsername);
-            },
-          ),
-          const SizedBox(height: RythoSpace.md),
-          _EkleSecenegi(
-            icon: Icons.person_add_alt_rounded,
-            title: l10n.addChooserPerson,
-            body: l10n.addChooserPersonBody,
-            onTap: () {
-              Navigator.of(sheetContext).pop();
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const PersonFormScreen()));
-            },
-          ),
-        ]),
-      ),
+  return showRythoSheet<void>(
+    context,
+    baslik: l10n.addChooserTitle,
+    builder: (sheetContext) => Padding(
+      padding: const EdgeInsets.fromLTRB(
+          RythoSpace.lg, RythoSpace.lg, RythoSpace.lg, RythoSpace.lg),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        _EkleSecenegi(
+          icon: Icons.alternate_email_rounded,
+          title: l10n.addChooserFriend,
+          body: l10n.addChooserFriendBody,
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            if (myUsername == null) {
+              // Devre dışı düğme yerine SEBEBİ söyleyen düğme (R6).
+              ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.addFriendNeedsUsername)));
+              return;
+            }
+            _showAddFriendSheet(context, myUsername);
+          },
+        ),
+        const SizedBox(height: RythoSpace.md),
+        _EkleSecenegi(
+          icon: Icons.person_add_alt_rounded,
+          title: l10n.addChooserPerson,
+          body: l10n.addChooserPersonBody,
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _kisiEkle(context, ref);
+          },
+        ),
+      ]),
     ),
   );
 }
@@ -727,29 +780,22 @@ class _EkleSecenegi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Pressable(
+    return GlassPanel(
+      tone: GlassTone.raised,
+      margin: EdgeInsets.zero,
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(RythoSpace.lg),
-        decoration: BoxDecoration(
-          color: RythoColors.inkLighter,
-          border: Border.all(color: RythoColors.glassStroke),
-          borderRadius: BorderRadius.circular(RythoRadius.md),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 20, color: RythoColors.lilac),
+        const SizedBox(width: RythoSpace.md),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            Text(title, style: RythoText.body(15, w: FontWeight.w700)),
+            const SizedBox(height: RythoSpace.xs),
+            Text(body, style: RythoType.caption),
+          ]),
         ),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 20, color: RythoColors.lilac),
-          const SizedBox(width: RythoSpace.md),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-              Text(title, style: RythoText.body(15, w: FontWeight.w700)),
-              const SizedBox(height: 4),
-              Text(body,
-                  style: RythoText.body(12, color: RythoColors.parchmentDim)),
-            ]),
-          ),
-        ]),
-      ),
+      ]),
     );
   }
 }
@@ -769,45 +815,38 @@ class _PeopleSection extends ConsumerWidget {
     final kontenjan = ref.watch(personSlotsProvider).value;
 
     if (kisiler.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
-        child: Pressable(
-          onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PersonFormScreen())),
-          child: Container(
-            padding: const EdgeInsets.all(RythoSpace.lg),
-            decoration: BoxDecoration(
-              color: RythoColors.inkLighter,
-              border: Border.all(
-                  color: RythoColors.lilac.withValues(alpha: 0.35)),
-              borderRadius: BorderRadius.circular(RythoRadius.md),
-            ),
-            child: Row(children: [
-              const Icon(Icons.favorite_rounded,
-                  size: 20, color: RythoColors.lilac),
-              const SizedBox(width: RythoSpace.md),
-              Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l10n.circleEmptyTitle,
-                          style: RythoText.body(14.5, w: FontWeight.w700)),
-                      const SizedBox(height: 3),
-                      Text(l10n.circleEmptyBody,
-                          style: RythoText.body(12,
-                              color: RythoColors.parchmentDim)),
-                    ]),
-              ),
-            ]),
+      return GlassPanel(
+        tone: GlassTone.raised,
+        margin: const EdgeInsets.fromLTRB(
+            RythoSpace.xl, RythoSpace.xl + RythoSpace.xs, RythoSpace.xl, 0),
+        onTap: () => _kisiEkle(context, ref),
+        child: Row(children: [
+          const Icon(Icons.favorite_rounded,
+              size: 20, color: RythoColors.lilac),
+          const SizedBox(width: RythoSpace.md),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.circleEmptyTitle,
+                      style: RythoText.body(14.5, w: FontWeight.w700)),
+                  const SizedBox(height: RythoSpace.xxs + 1),
+                  Text(l10n.circleEmptyBody, style: RythoType.caption),
+                ]),
           ),
-        ),
+        ]),
       );
     }
+
+    final beyan = kontenjan == null || kontenjan.limit <= 0
+        ? null
+        : kontenjanBeyani(l10n, used: kontenjan.used, limit: kontenjan.limit);
 
     return Column(children: [
       const SectionDivider(),
       Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 2),
+        padding: const EdgeInsets.fromLTRB(
+            RythoSpace.xl, RythoSpace.xs, RythoSpace.xl, RythoSpace.xxs),
         // `Row` + `Spacer` ile iki esnemeyen metin: uzun bölüm başlığı +
         // kontenjan sayacı dar ekranda satırı taşırıyordu (SectionHeader
         // ile aynı kusur sınıfı). `Wrap` sığdığında aynı görünür, aksi
@@ -816,29 +855,34 @@ class _PeopleSection extends ConsumerWidget {
         child: SizedBox(
           width: double.infinity,
           child: Wrap(
-            spacing: 12,
-            runSpacing: 2,
+            spacing: RythoSpace.md,
+            runSpacing: RythoSpace.xxs,
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.end,
             children: [
-              Text(l10n.circlePeopleSection,
-                  style: RythoText.mono(11, color: RythoColors.parchmentDim)),
-              if (kontenjan != null && kontenjan.limit > 0)
-                Text(l10n.peopleSlots(kontenjan.used, kontenjan.limit),
-                    style: RythoText.mono(11, color: RythoColors.parchmentDim)),
+              Text(l10n.circlePeopleSection, style: RythoType.label),
+              if (beyan != null) Text(beyan.sayac, style: RythoType.label),
             ],
           ),
         ),
       ),
+      // Aşım beyanı: sayı gizlenmez, adı düzelir (bkz. `kontenjanBeyani`).
+      if (beyan?.asim case final asim?)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              RythoSpace.xl, RythoSpace.xs, RythoSpace.xl, RythoSpace.xs),
+          child: Text(asim,
+              style: RythoType.caption.copyWith(color: RythoColors.caution)),
+        ),
       for (final (i, kisi) in kisiler.indexed)
-        _PersonTile(person: kisi)
-            .animate(delay: Duration(milliseconds: 40 * i))
-            .fadeIn(duration: 300.ms),
+        RythoReveal(index: i, child: _PersonTile(person: kisi)),
     ]);
   }
 }
 
-/// Kişi satırı: tür ikonu + etiket + burç çipi + 🪐 ilişki.
+/// Kişi satırı: tür ikonu + etiket + burç. Satırın kendisi kişi ekranını
+/// açar; sağda chevron (`ListeSatiri` varsayılanı). Eski 🪐/`public`
+/// ikonu düğme DEĞİLDİ — dokunulmaz bir ikon, eylem vaat ediyordu.
 class _PersonTile extends StatelessWidget {
   const _PersonTile({required this.person});
 
@@ -849,77 +893,41 @@ class _PersonTile extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final ad = person.label ?? relationLabel(l10n, person.relation);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-      child: Pressable(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => PersonDetailScreen(person: person))),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: RythoSpace.lg, vertical: 12),
-          decoration: BoxDecoration(
-            color: RythoColors.inkLighter,
-            border: Border.all(color: RythoColors.glassStroke),
-            borderRadius: BorderRadius.circular(RythoRadius.md),
-          ),
-          child: Row(children: [
-            Container(
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: RythoColors.lilac.withValues(alpha: 0.18),
-              ),
-              child: Icon(relationIcon(person.relation),
-                  size: 17, color: RythoColors.lilac),
-            ),
-            const SizedBox(width: RythoSpace.md),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(ad,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: RythoText.body(14.5, w: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Text(
-                      person.sunSign != null
-                          ? localizedSignName(l10n, person.sunSign)
-                          : relationLabel(l10n, person.relation),
-                      style: RythoText.body(11.5,
-                          color: RythoColors.parchmentDim),
-                    ),
-                  ]),
-            ),
-            const Icon(Icons.public_rounded,
-                size: 18, color: RythoColors.lilac),
-          ]),
+    return ListeSatiri(
+      margin: const EdgeInsets.symmetric(
+          horizontal: RythoSpace.lg, vertical: RythoSpace.xs),
+      leading: Container(
+        width: 34,
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: RythoColors.lilac.withValues(alpha: 0.18),
         ),
+        child: Icon(relationIcon(person.relation),
+            size: 17, color: RythoColors.lilac),
       ),
+      title: ad,
+      subtitle: person.sunSign != null
+          ? localizedSignName(l10n, person.sunSign)
+          : relationLabel(l10n, person.relation),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => PersonDetailScreen(person: person))),
     );
   }
 }
 
 Future<void> _showAddFriendSheet(BuildContext context, String myUsername,
     {String? prefill}) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: RythoColors.inkLight,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      side: BorderSide(color: RythoColors.glassStroke),
-    ),
-    // viewInsets sayfanın KENDİ context'inden okunmalı: dıştaki context
-    // klavye açılınca yeniden kurulmuyor, dolayısıyla dolgu 0 kalıyor ve
-    // giriş alanı klavyenin altında gizleniyordu.
-    builder: (sheetContext) => Padding(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
-      child: _AddFriendSheet(myUsername: myUsername, prefill: prefill),
-    ),
+  final l10n = AppLocalizations.of(context);
+  // Kabuk tek (`showRythoSheet`): klavye dolgusu sayfanın kendi
+  // context'inden okunur (`klavyeyeUy`) — eski kopya dıştaki context'ten
+  // okuyup 0 kalıyordu ve giriş alanı klavyenin altında gizleniyordu.
+  return showRythoSheet<void>(
+    context,
+    baslik: l10n.addFriend,
+    klavyeyeUy: true,
+    builder: (_) => _AddFriendSheet(myUsername: myUsername, prefill: prefill),
   );
 }
 
@@ -964,6 +972,9 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
       _busy = true;
       _message = null;
     });
+    // Kullanıcı adı ASCII'ye zorlanmış (`kUsernamePattern`): `toLowerCase`
+    // burada DOĞRU araç, `trKucuk` değil — "ISIK" → "ısık" geçersiz ad
+    // üretirdi. turkce_harf_test allowlist gerekçesi bu satır.
     final username = _controller.text.trim().toLowerCase();
     try {
       if (username == widget.myUsername) {
@@ -994,87 +1005,109 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(l10n.addFriend.toUpperCase(),
-              style: RythoText.mono(11, color: RythoColors.parchmentDim)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            autocorrect: false,
-            enableSuggestions: false,
-            maxLength: 20,
-            style: RythoText.body(15),
-            onSubmitted: (_) => _send(),
-            decoration: InputDecoration(
-              prefixText: '@',
-              hintText: l10n.usernameHint,
-              counterText: '',
-              errorText: _message,
-              hintStyle: RythoText.body(15, color: RythoColors.parchmentDim),
-            ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          RythoSpace.lg, RythoSpace.md, RythoSpace.lg, RythoSpace.xl),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(
+          controller: _controller,
+          autofocus: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          maxLength: 20,
+          style: RythoText.body(15),
+          onSubmitted: (_) => _send(),
+          decoration: InputDecoration(
+            prefixText: '@',
+            hintText: l10n.usernameHint,
+            counterText: '',
+            errorText: _message,
+            hintStyle: RythoText.body(15, color: RythoColors.parchmentDim),
           ),
-          const SizedBox(height: 12),
-          GoldButton(text: l10n.sendInvite, busy: _busy, onPressed: _send),
-          const SizedBox(height: 10),
-          TextButton.icon(
-            onPressed: () async {
-              await Clipboard.setData(
-                  ClipboardData(text: inviteLinkFor(widget.myUsername)));
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            icon: const Icon(Icons.link_rounded, size: 18),
-            label: Text(l10n.shareInviteInstead,
-                style: RythoText.label(12)),
-          ),
-        ]),
-      ),
+        ),
+        const SizedBox(height: RythoSpace.md),
+        GoldButton(text: l10n.sendInvite, busy: _busy, onPressed: _send),
+        const SizedBox(height: RythoSpace.sm + RythoSpace.xxs),
+        TextButton.icon(
+          onPressed: () async {
+            await Clipboard.setData(
+                ClipboardData(text: inviteLinkFor(widget.myUsername)));
+            if (context.mounted) Navigator.of(context).pop();
+          },
+          icon: const Icon(Icons.link_rounded, size: 18),
+          label: Text(l10n.shareInviteInstead, style: RythoText.label(12)),
+        ),
+      ]),
     );
   }
 }
 
-/// Arkadaş menüsü: şikayet ve engelleme akışları korunur.
-Future<void> showFriendSafetySheet(BuildContext context, Friend friend) async {
+/// Güvenlik menüsündeki seçim — sayfa yalnız SEÇİMİ döndürür, eylem
+/// sayfa kapandıktan sonra ve onaydan geçerek yapılır.
+enum _GuvenlikSecimi { cikar, engelle, sikayet }
+
+/// Arkadaş menüsü: çıkarma, engelleme, şikâyet.
+///
+/// `true` döner: arkadaş çıkarıldı ya da engellendi (çağıran ekranı
+/// kapatır). Çıkarma ve engelleme ONAYLI (`onayla`, yıkıcı): eski hâli
+/// tek dokunuşla iki tarafın kenarını siliyordu — geri dönüşü olmayan
+/// eylem, onay sorusu olmadan.
+Future<bool> showFriendSafetySheet(BuildContext context, Friend friend) async {
   final l10n = AppLocalizations.of(context);
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: RythoColors.inkLight,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      side: BorderSide(color: RythoColors.glassStroke),
-    ),
-    builder: (sheetContext) => SafeArea(
+  final ad = friend.ad(l10n);
+  final secim = await showRythoSheet<_GuvenlikSecimi>(
+    context,
+    builder: (sheetContext) => Padding(
+      padding: const EdgeInsets.only(bottom: RythoSpace.sm),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(
           leading: const Icon(Icons.person_remove_rounded, size: 20),
-          title: Text(l10n.removeFriend, style: RythoText.body(14)),
-          onTap: () {
-            Navigator.of(sheetContext).pop();
-            removeFriend(friend.uid);
-          },
+          title: Text(l10n.removeFriend, style: RythoType.body),
+          onTap: () => Navigator.of(sheetContext).pop(_GuvenlikSecimi.cikar),
         ),
         ListTile(
           leading: const Icon(Icons.block_rounded, size: 20),
-          title: Text(l10n.blockUser, style: RythoText.body(14)),
-          onTap: () async {
-            Navigator.of(sheetContext).pop();
-            await removeFriend(friend.uid);
-            await blockUser(friend.uid);
-          },
+          title: Text(l10n.blockUser, style: RythoType.body),
+          onTap: () =>
+              Navigator.of(sheetContext).pop(_GuvenlikSecimi.engelle),
         ),
         ListTile(
           leading: const Icon(Icons.flag_outlined, size: 20),
-          title: Text(l10n.reportUser, style: RythoText.body(14)),
-          onTap: () {
-            Navigator.of(sheetContext).pop();
-            showReportSheet(context, targetType: 'user', targetId: friend.uid);
-          },
+          title: Text(l10n.reportUser, style: RythoType.body),
+          onTap: () =>
+              Navigator.of(sheetContext).pop(_GuvenlikSecimi.sikayet),
         ),
-        const SizedBox(height: 8),
       ]),
     ),
   );
+  if (secim == null || !context.mounted) return false;
+
+  switch (secim) {
+    case _GuvenlikSecimi.cikar:
+      final tamam = await onayla(
+        context,
+        title: l10n.removeFriendConfirmTitle,
+        body: l10n.removeFriendConfirmBody(ad),
+        confirmLabel: l10n.removeFriend,
+        destructive: true,
+      );
+      if (!tamam) return false;
+      await removeFriend(friend.uid);
+      return true;
+    case _GuvenlikSecimi.engelle:
+      final tamam = await onayla(
+        context,
+        title: l10n.blockUserConfirmTitle,
+        body: l10n.blockUserConfirmBody(ad),
+        confirmLabel: l10n.blockUser,
+        destructive: true,
+      );
+      if (!tamam) return false;
+      await removeFriend(friend.uid);
+      await blockUser(friend.uid);
+      return true;
+    case _GuvenlikSecimi.sikayet:
+      showReportSheet(context, targetType: 'user', targetId: friend.uid);
+      return false;
+  }
 }

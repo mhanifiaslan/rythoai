@@ -23,11 +23,14 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:app_settings/app_settings.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart' show AstrolabeSpinner;
+import '../../widgets/motion.dart' show reduceMotion;
 import 'face_detection.dart';
 import 'face_geometry.dart';
 import 'face_hairline.dart';
@@ -92,10 +95,13 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
   /// kilit olmadan kuyruk birikiyor ve önizleme donuyor.
   bool _isliyor = false;
 
+  /// Kılavuz halkasının nefesi. Döngü BURADA başlatılmaz — kapı
+  /// [_nabziKapila]'da: sistem "animasyonları azalt" diyorsa halka tek
+  /// karede durur (eski hâl kapısız sonsuz döngüydü, §2 hareket disiplini).
   late final AnimationController _nabiz = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 3),
-  )..repeat();
+    duration: RythoMotion.breath,
+  );
 
   late final AnimationController _tarama = AnimationController(
     vsync: this,
@@ -226,6 +232,22 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _asama == _Asama.izinYok) {
       _yenidenDene();
+    }
+  }
+
+  /// `reduceMotion` context ister; `initState`te okunamaz, bağımlılık
+  /// değişince (tercih anlık değişebilir) yeniden sorulur.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _nabziKapila();
+  }
+
+  void _nabziKapila() {
+    if (reduceMotion(context)) {
+      _nabiz.stop();
+    } else if (!_nabiz.isAnimating) {
+      _nabiz.repeat();
     }
   }
 
@@ -956,31 +978,27 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
                         ? l10n.faceGuideForehead
                         : _yonerge(l10n, _kalite),
                     key: ValueKey(_alinUyarisi ? 'alin' : _kalite),
-                    style: const TextStyle(
-                      color: RythoColors.parchment,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: RythoText.body(16, w: FontWeight.w500),
                   ),
                 ),
+                // Ölçüm satırları (yalnız geliştirme derlemesi): veri rolü.
                 if (kDebugMode && _olcum != null) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: RythoSpace.xs),
                   Text(_olcum!,
-                      style: const TextStyle(
-                          color: RythoColors.parchmentDim, fontSize: 11)),
+                      style: RythoText.mono(11,
+                          color: RythoColors.parchmentDim)),
                 ],
                 if (kDebugMode && _bolgeler != null) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: RythoSpace.xxs),
                   Text(_bolgeler!,
-                      style: const TextStyle(
-                          color: RythoColors.parchmentDim, fontSize: 11)),
+                      style: RythoText.mono(11,
+                          color: RythoColors.parchmentDim)),
                 ],
                 if (kDebugMode && _segOlcum != null) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: RythoSpace.xxs),
                   Text(_segOlcum!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: ScanPalette.node, fontSize: 10)),
+                      style: RythoText.mono(10, color: ScanPalette.node)),
                 ],
                 const SizedBox(height: 22),
                 // Deklanşör ortada; yanlarında galeri ve lens çevirme.
@@ -1052,13 +1070,11 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
             children: [
               const AstrolabeSpinner(),
               const SizedBox(height: 18),
+              // Geniş harf aralığı tarama sahnesinin kendi dili; rol
+              // gövde, aralık üstüne ekleniyor.
               Text(l10n.faceStillAnalyzing,
-                  style: const TextStyle(
-                    color: RythoColors.parchment,
-                    fontSize: 15,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w500,
-                  )),
+                  style: RythoText.body(15, w: FontWeight.w500)
+                      .copyWith(letterSpacing: 1.2)),
             ],
           ),
         ),
@@ -1145,12 +1161,8 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
                         metin,
                         key: ValueKey(sira),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: RythoColors.parchment,
-                          fontSize: 15,
-                          letterSpacing: 1.6,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: RythoText.body(15, w: FontWeight.w500)
+                            .copyWith(letterSpacing: 1.6),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -1189,29 +1201,39 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen>
                       ? l10n.faceCameraDenied
                       : l10n.faceDetectFailed,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      color: RythoColors.parchment, fontSize: 16),
+                  style: RythoText.body(16),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: RythoSpace.lg),
                 // Tekrar denemek HER İKİ hata durumunda da mümkün.
                 //
                 // Önce yalnızca `hata` durumunda vardı; izin reddedildiğinde
                 // ekranda ne düğme ne çıkış kalıyordu. Yeniden çekimde
                 // hareket ölçümü de sıfırlanır — önceki denemenin kareleri
                 // yeni okumaya karışmamalı.
-                FilledButton(
-                  onPressed: _yenidenDene,
-                  child: Text(_asama == _Asama.izinYok
-                      ? l10n.faceOpenSettings
-                      : l10n.faceRetake),
-                ),
                 if (_asama == _Asama.izinYok) ...[
-                  const SizedBox(height: 10),
+                  // İzin reddinde "Ayarları aç" GERÇEKTEN ayarları açar.
+                  // Bir dönem bu etiketli düğme yalnız yeniden deniyordu:
+                  // kalıcı reddeden kullanıcı (diyalog bir daha çıkmaz)
+                  // düğmeye basıp aynı ekrana düşüyordu. Ayarlardan dönüş
+                  // `didChangeAppLifecycleState` ile kendiliğinden denenir;
+                  // el ile deneme yine de ikinci düğmede duruyor.
+                  FilledButton(
+                    onPressed: () => AppSettings.openAppSettings(),
+                    child: Text(l10n.faceOpenSettings),
+                  ),
+                  const SizedBox(height: RythoSpace.sm),
+                  TextButton(
+                    onPressed: _yenidenDene,
+                    child: Text(l10n.retry),
+                  ),
+                  const SizedBox(height: RythoSpace.sm),
                   Text(l10n.faceCameraDeniedHint,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: RythoColors.parchmentDim, fontSize: 13)),
-                ],
+                      textAlign: TextAlign.center, style: RythoType.bodyDim),
+                ] else
+                  FilledButton(
+                    onPressed: _yenidenDene,
+                    child: Text(l10n.faceRetake),
+                  ),
               ],
             ),
           ),

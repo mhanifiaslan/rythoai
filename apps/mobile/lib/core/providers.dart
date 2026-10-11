@@ -531,8 +531,12 @@ final birthHexagramProvider =
   final dio = ref.watch(apiProvider);
   final response = await dio.post('/api/v1/reports/birth-hexagram',
       data: birthPayload(profile));
-  Analytics.reportGenerated('birth_hexagram');
-  return Map<String, dynamic>.from(response.data['data']);
+  final veri = Map<String, dynamic>.from(response.data['data']);
+  // Fırlatılmıyor (BaZi emsali): kapı/çizgi/boylam deterministik ve ücreti
+  // ödendi; düşen yalnız okuma. Ekran bayrağı `okumaDurumuFromYanit` ile
+  // okur. Sayaç yine susar — yedek metin "üretildi" sayılırsa ölçüm yalan.
+  if (veri['fallback'] != true) Analytics.reportGenerated('birth_hexagram');
+  return veri;
 });
 
 /// Yıl Haritası — Rytho+ (T5). Aktif güneş dönüşü + LLM yıl okuması.
@@ -545,8 +549,11 @@ final solarReturnProvider =
   final dio = ref.watch(apiProvider);
   final response = await dio.post('/api/v1/reports/solar-return',
       data: birthPayload(profile));
-  Analytics.reportGenerated('solar_return');
-  return Map<String, dynamic>.from(response.data['data']);
+  final veri = Map<String, dynamic>.from(response.data['data']);
+  // Dönüş anı ve SR kimliği deterministik; yalnız okuma düşmüş olabilir
+  // (bayrağı ekran `okumaDurumuFromYanit` ile okur). Sayaç bayrağa bağlı.
+  if (veri['fallback'] != true) Analytics.reportGenerated('solar_return');
+  return veri;
 });
 
 /// İç Takvim — Rytho+ (T5). İki uç paralel: progresyon okuması (LLM,
@@ -562,10 +569,14 @@ final innerCalendarProvider =
     dio.post('/api/v1/reports/progressions', data: birthPayload(profile)),
     dio.get('/api/v1/astrology/transit-calendar'),
   ]);
-  Analytics.reportGenerated('progressions');
+  final progresyon = Map<String, dynamic>.from(sonuclar[0].data['data']);
+  // Bayrak progresyon gövdesinde (`/progressions` D0'dan beri taşıyor);
+  // takvim ucu jetonsuz ve bayraksız. Sayaç bayrağa bağlı.
+  if (progresyon['fallback'] != true) {
+    Analytics.reportGenerated('progressions');
+  }
   return {
-    'progressions':
-        Map<String, dynamic>.from(sonuclar[0].data['data']),
+    'progressions': progresyon,
     'calendar': Map<String, dynamic>.from(sonuclar[1].data['data']),
   };
 });

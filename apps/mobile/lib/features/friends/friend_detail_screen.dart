@@ -1,23 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/analytics.dart';
 import '../../core/api.dart';
 import '../../core/discovery.dart';
 import '../../core/friends.dart';
+import '../../core/okuma_durumu.dart';
 import '../../core/sound.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/liste_satiri.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart' show Pressable, localizedSignName;
+import '../../widgets/okuma_kabi.dart';
 import '../../widgets/star_burst.dart';
 import '../chat/chat_screen.dart' show ChatScreen;
+import '../paywall/bedel_rozeti.dart';
+import '../paywall/ozellik_katalogu.dart';
 import 'friends_screen.dart' show showFriendSafetySheet;
 import 'relationship_screen.dart';
+
+/// Geri bildirim kanalındaki ekran kodu (`FeedbackScreen.screen` kapalı
+/// kümesi): arkadaş ekranı Çevrem sekmesinin altında yaşar.
+const String kArkadasEkranKodu = 'circle';
+
+/// Kutlama görünür kalma süresi — hareket token'ı DEĞİL, ölçülmüş bir UX
+/// bekleme süresi: seçim kalıcı kalınca ikinci dürtme için ekrandan çıkıp
+/// girmek gerekiyordu (iç test bulgusu); `celebrate` (400 ms) patlamanın
+/// süresi, bu ise kullanıcının kutlamayı GÖRDÜĞÜ süre.
+const Duration kTepkiKutlamaSuresi = Duration(milliseconds: 1200);
 
 /// Arkadaş detayı: bugüne özgü ikili dinamik + hazır tepki gönderme.
 ///
@@ -34,9 +49,10 @@ class FriendDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
-  String? _reading;
-  String? _error;
-  bool _busy = false;
+  /// Okumanın durumu — `fallback` bayrağı yalnız `okumaDurumuFromYanit`te
+  /// okunur. Eski hâli `reading as String?` idi ve şablon paragrafı rapor
+  /// gibi gösteriyordu (jeton iadesi de hiç söylenmiyordu).
+  OkumaDurumu _durum = const OkumaYukleniyor();
   String? _sentReaction;
 
   @override
@@ -44,28 +60,29 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
     super.initState();
     // OB4: çevreden birine bakmak keşif halkasının üçüncü dilimi.
     ref.read(discoveryProvider.notifier).mark(DiscoveryTask.circle);
+    // ⚠️ Bedel (dyad, 3 kredi) burada OTOMATİK harcanıyor — dokunuşsuz.
+    // Harcama öncesi onay kapısı (`kOnayEsigi`) D7 kararı; rozet
+    // (`BedelRozeti`) bedeli en azından görünür kılıyor.
     _loadDyad();
   }
 
   Future<void> _loadDyad() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _durum = const OkumaYukleniyor());
     try {
       final dio = ref.read(apiProvider);
       final response = await dio.post('/api/v1/reports/dyad',
           data: {'friend_uid': widget.friend.uid});
       if (!mounted) return;
-      setState(() => _reading = response.data['data']['reading'] as String?);
-      Analytics.reportGenerated('dyad');
+      final veri = response.data['data'] is Map
+          ? Map<String, dynamic>.from(response.data['data'] as Map)
+          : null;
+      final durum = okumaDurumuFromYanit(veri, alan: 'reading');
+      setState(() => _durum = durum);
+      // Analitik yalnız GERÇEK üretimde: şablon düşüşü "rapor üretildi"
+      // sayılırsa sayaç bir ay boyunca yeşil yalan söyler (CLAUDE.md §6).
+      if (durum is OkumaHazir) Analytics.reportGenerated('dyad');
     } catch (e) {
-      if (mounted) {
-        setState(() =>
-            _error = friendlyError(e, AppLocalizations.of(context)));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _durum = OkumaHata(e));
     }
   }
 
@@ -87,10 +104,9 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
             content: Text(AppLocalizations.of(context)
                 .reactionSent(kReactions[key]!))));
       }
-      // Kutlama görünsün, sonra çipler yeniden açılsın (iç test bulgusu:
-      // seçim kalıcı kalınca ikinci dürtme için ekrandan çıkıp girmek
-      // gerekiyordu — kilit yalnız gönderim anlığı içindir).
-      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      // Kutlama görünsün, sonra çipler yeniden açılsın — kilit yalnız
+      // gönderim anlığı içindir (bkz. `kTepkiKutlamaSuresi`).
+      await Future<void>.delayed(kTepkiKutlamaSuresi);
       if (mounted) setState(() => _sentReaction = null);
     } catch (e) {
       if (mounted) {
@@ -101,21 +117,36 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
     }
   }
 
+  Future<void> _guvenlikMenusu() async {
+    final gitti = await showFriendSafetySheet(context, widget.friend);
+    // Çıkarılan/engellenen arkadaşın ekranında kalmak, artık var olmayan
+    // bir ilişkiyi göstermek olurdu.
+    if (gitti && mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final friend = widget.friend;
+    final ad = friend.ad(l10n);
     return CosmicScaffold(
       appBar: AppBar(
-        title: Text(friend.name),
+        title: Text(ad),
         actions: [
           IconButton(
+            // ⚠️ Menünün kendi adı için ARB anahtarı yok (çıkar/engelle/
+            // şikâyet = gizlilik eylemleri); kalemlerden birinin adını
+            // bütüne vermek ekran okuyucuyu yanıltırdı, "Gizlilik" üçünü
+            // de kapsıyor. D8 ARB turunda `friendMenuTooltip` ister.
+            tooltip: l10n.privacy,
             icon: const Icon(Icons.more_vert, size: 20),
-            onPressed: () => showFriendSafetySheet(context, friend),
+            onPressed: _guvenlikMenusu,
           ),
         ],
       ),
-      body: ListView(padding: const EdgeInsets.only(bottom: 40), children: [
+      body: ListView(
+          padding: const EdgeInsets.only(bottom: RythoSpace.xxl),
+          children: [
         GlassPanel(
           label: l10n.friendLabel,
           child: Row(children: [
@@ -123,14 +154,14 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(friend.name, style: RythoText.display(20)),
+                    Text(ad, style: RythoText.display(20)),
                     if (friend.username != null) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: RythoSpace.xxs),
                       Text('@${friend.username}',
                           style: RythoText.body(12.5,
                               color: RythoColors.parchmentDim)),
                     ],
-                    const SizedBox(height: 8),
+                    const SizedBox(height: RythoSpace.sm),
                     if (friend.streakVisible)
                       Text(
                         friend.readToday
@@ -149,11 +180,11 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
             ),
             if (friend.sunSign != null)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: RythoSpace.md, vertical: RythoSpace.sm),
                 decoration: BoxDecoration(
                   color: RythoColors.lilac.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(RythoRadius.pill),
                   border: Border.all(
                       color: RythoColors.lilac.withValues(alpha: 0.3)),
                 ),
@@ -163,69 +194,44 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
           ]),
         ),
         _DyadPanel(
-          busy: _busy,
-          reading: _reading,
-          error: _error,
-          onRetry: _loadDyad,
-        ),
-        // Bağlamlı sohbet (R4-2): bu arkadaş hakkında soru — sunucu ilişki
-        // eksenlerini fısıldar, cevap İKİ KİŞİYE özel olur.
-        GlassPanel(
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => ChatScreen(friendUid: friend.uid))),
-          child: Row(children: [
-            const Text('✦', style: TextStyle(fontSize: 16)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(l10n.askAboutFriend(friend.name),
-                  style: RythoText.body(14, w: FontWeight.w600)),
-            ),
-            const Icon(Icons.chevron_right,
-                size: 18, color: RythoColors.parchmentDim),
-          ]),
+          durum: _durum,
+          onTekrarDene: _loadDyad,
+          // Bağlamlı sohbet (R4-2): bu arkadaş hakkında soru — sunucu
+          // ilişki eksenlerini fısıldar, cevap İKİ KİŞİYE özel olur. Tohum
+          // ÖN-DOLDURUR, göndermez; eski boş kutu sohbeti boş açıyordu.
+          onSor: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ChatScreen(
+                  friendUid: friend.uid,
+                  initialText: l10n.askAboutFriendPrefill(ad)))),
         ),
         // İlişki eksenleri (R2-L1): günlük ikili okuma "bugün"ü anlatır,
         // bu giriş ilişkinin KALICI zeminini açar. Skor yok — dört eksende
         // nitel okuma + dayanağı.
-        GlassPanel(
+        ListeSatiri(
+          leading: Text('🪐', style: RythoText.emoji(18)),
+          title: l10n.relationshipOpen,
+          subtitle: l10n.relationshipOpenSubtitle,
+          subtitleLines: 2,
+          margin: const EdgeInsets.symmetric(
+              horizontal: RythoSpace.lg, vertical: RythoSpace.xs),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => RelationshipScreen(friend: friend))),
-          child: Row(children: [
-            const Text('🪐', style: TextStyle(fontSize: 18)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.relationshipOpen,
-                        style: RythoText.body(14, w: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Text(l10n.relationshipOpenSubtitle,
-                        style: RythoText.body(11.5,
-                            color: RythoColors.parchmentDim)),
-                  ]),
-            ),
-            const Icon(Icons.chevron_right,
-                size: 18, color: RythoColors.parchmentDim),
-          ]),
         ),
         const SectionDivider(),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+          padding: const EdgeInsets.fromLTRB(
+              RythoSpace.xl, RythoSpace.xs, RythoSpace.xl, RythoSpace.sm),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(l10n.sendReaction, style: RythoText.display(17)),
-            const SizedBox(height: 4),
-            Text(
-              l10n.sendReactionBody,
-              style: RythoText.body(12.5, color: RythoColors.parchmentDim),
-            ),
+            Text(l10n.sendReaction, style: RythoType.sheetTitle),
+            const SizedBox(height: RythoSpace.xs),
+            Text(l10n.sendReactionBody, style: RythoType.caption),
           ]),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
           child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: RythoSpace.sm,
+            runSpacing: RythoSpace.sm,
             children: [
               for (final entry in kReactions.entries)
                 // Seçilen çipin üstünde 8 kıvılcımlık mini patlama
@@ -287,19 +293,19 @@ String reactionLabel(AppLocalizations l10n, String key) => switch (key) {
       _ => key,
     };
 
-
+/// "Bugün aranızda" paneli — okumanın KABI `OkumaKabi` (tek kap, dokuz
+/// yüzey). Paylaşım BİLEREK yok: ikili okuma üçüncü bir kişi hakkında
+/// (sahip kararı). Hazır dalda altta günlük geçerlilik notu.
 class _DyadPanel extends StatelessWidget {
   const _DyadPanel({
-    required this.busy,
-    required this.reading,
-    required this.error,
-    required this.onRetry,
+    required this.durum,
+    required this.onTekrarDene,
+    required this.onSor,
   });
 
-  final bool busy;
-  final String? reading;
-  final String? error;
-  final VoidCallback onRetry;
+  final OkumaDurumu durum;
+  final VoidCallback onTekrarDene;
+  final VoidCallback onSor;
 
   @override
   Widget build(BuildContext context) {
@@ -308,27 +314,22 @@ class _DyadPanel extends StatelessWidget {
       label: l10n.dyadLabel,
       glow: true,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (busy)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 26),
-            child: Center(child: AstrolabeSpinner()),
-          )
-        else if (error != null) ...[
-          Text(l10n.dyadFailed, style: RythoText.body(14)),
-          const SizedBox(height: 6),
-          Text(error!,
-              style: RythoText.body(11.5, color: RythoColors.parchmentDim)),
-          const SizedBox(height: 12),
-          GoldButton(text: l10n.retry, onPressed: onRetry, filled: false),
-        ] else ...[
-          Text(reading ?? '', style: RythoText.body(14.5, height: 1.6))
-              .animate()
-              .fadeIn(duration: 420.ms),
-          const SizedBox(height: 12),
-          Text(
-            l10n.dyadDisclaimer,
-            style: RythoText.body(11.5, color: RythoColors.parchmentDim),
-          ),
+        // Bedel rozeti: okuma otomatik harcıyor, en azından bedeli söyler.
+        // Cüzdan bilinmiyorsa rozet kendini çizmez (ölçülmeyen söylenmez).
+        const Align(
+          alignment: Alignment.centerRight,
+          child: BedelRozeti(PlusOzellik.dyad, kucuk: true),
+        ),
+        OkumaKabi(
+          durum: durum,
+          ekranKodu: kArkadasEkranKodu,
+          onTekrarDene: onTekrarDene,
+          onSor: onSor,
+          beklemeAsamalari: [l10n.onboardingStage1],
+        ),
+        if (durum is OkumaHazir) ...[
+          const SizedBox(height: RythoSpace.md),
+          Text(l10n.dyadDisclaimer, style: RythoType.caption),
         ],
       ]),
     );
@@ -353,12 +354,13 @@ class _ReactionChip extends StatelessWidget {
     return Pressable(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        padding: const EdgeInsets.symmetric(
+            horizontal: RythoSpace.md, vertical: RythoSpace.sm),
         decoration: BoxDecoration(
           color: selected
               ? RythoColors.gold.withValues(alpha: 0.18)
               : RythoColors.glassFill,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(RythoRadius.pill),
           border: Border.all(
             color: selected
                 ? RythoColors.gold.withValues(alpha: 0.5)
@@ -366,8 +368,8 @@ class _ReactionChip extends StatelessWidget {
           ),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(emoji, style: const TextStyle(fontSize: 15)),
-          const SizedBox(width: 6),
+          Text(emoji, style: RythoText.emoji(15)),
+          const SizedBox(width: RythoSpace.xs),
           // Çip etiketi (ilişki türü) dile bağlı ve esnemiyordu; çip
           // `Wrap` içinde gevşek kısıt aldığı için uzun etiket kendi
           // satırından taşıyordu. `Flexible` sarmasına izin verir.

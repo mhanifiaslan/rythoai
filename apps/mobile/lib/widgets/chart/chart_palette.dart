@@ -6,12 +6,20 @@
 /// mevcut tema tonlarını kullanır. Eski çarkın kusuru buradan da
 /// görülür: magenta AYNI ANDA kare + karşıt + retro demekti — üç anlam
 /// tek renk. Renk artık tek anlam taşır; sert/yumuşak/minör ayrımı AYRICA
-/// çizgi stiliyle (düz/kesik) verilir — renk körlüğünde de okunur.
+/// çizgi diliyle verilir ([aspectDashFor]: sert düz, yumuşak uzun kesik,
+/// minör kısa kesik) — renk körlüğünde de okunur. D6'ya kadar bu cümle
+/// yanlıştı: yumuşak da düz çiziliyordu, yalnız minör kesikti.
+///
+/// Çizgi dili TEK tanımdır ve üç tüketicisi vardır: ressam (`wheel_painter`),
+/// lejant ve açı tablosu hücresi (`aci_lejanti`). Üçü de [drawAspectLine]
+/// ile çizer; ayrışırlarsa lejant çarkta olmayan bir çizgiyi anlatır.
 library;
 
+import 'dart:math' as math;
 import 'dart:ui';
 
 import '../../theme/rytho_theme.dart';
+import 'chart_data.dart';
 
 /// Açı türü → renk. Anahtarlar sunucuyla aynı (küçük-harf, HA1).
 const Map<String, Color> kAspectColors = {
@@ -42,11 +50,35 @@ const Color kInnerGlyphColor = RythoColors.parchment;
 const Color kOuterTransitColor = RythoColors.lilac;
 const Color kOuterPartnerColor = Color(0xFFFFD98A);
 
+/// Halkanın glif rengi — TEK kural. Ressam, konum tablosu, lejant,
+/// açı tablosu başlığı ve paylaşım kartı hepsi buradan okur.
+///
+/// NEDEN: kural altı yerde kopyalanmıştı ve ikisi yanlıştı (ölçüldü,
+/// 2026-10-10): konum tablosu sinastri partnerini lila çizerken çark altın
+/// çiziyordu; açı tablosu bi-wheel transit sütununu altın başlıklarken çark
+/// lila çiziyordu. Lejant "dış: Ayşe" deyip bir rengi gösteriyor, çark
+/// başka bir rengi — ölçülen, yanlış adla sunuluyordu.
+Color ringGlyphColor(ChartData data, int ring) {
+  if (ring == 0 || ring >= data.rings.length) return kInnerGlyphColor;
+  return data.rings[ring].kind == ChartRingKind.partner
+      ? kOuterPartnerColor
+      : kOuterTransitColor;
+}
+
 /// Yapı çizgileri.
 const Color kRingLine = Color(0x387B62B8);      // lila ~%22
 const Color kTickColor = Color(0x66B79CFF);     // cetvel işaretleri
 const Color kAxisColor = Color(0xD9B79CFF);     // AC/MC eksenleri
 const Color kGlyphDisc = Color(0xE614091E);     // glif altı mürekkep diski
+
+/// Açı tablosu hücre kenarı: `RythoColors.line` %8 alfa. Sabit olarak
+/// burada çünkü `const DecoratedBox` içinde `withValues` kullanılamıyor;
+/// aynı literal iki hücre dalında yazılıydı.
+const Color kAspectGridLine = Color(0x142C1F40);
+
+/// Seçili gezegenin halkası (izole modu). Diğerleri 0,3 alfaya düşer ama
+/// tek gezegenli çarkta solacak kimse yoktu — seçim GÖRÜNMEZDİ (ölçüldü).
+const Color kSelectedGlyphRing = RythoColors.lilac;
 
 /// Açı çizgisi görünümü: orb daraldıkça kalınlaşır ve belirginleşir
 /// (Astrodienst konvansiyonu). [selected] izole modunda vurgulanan uç.
@@ -65,3 +97,61 @@ const Color kGlyphDisc = Color(0xE614091E);     // glif altı mürekkep diski
 
 Color aspectColor(String kind) =>
     kAspectColors[kind] ?? kMinorAspectColor;
+
+/// Açı sınıfının çizgi dili. Üç sınıf, üç çizgi; renk körü de ayırır.
+enum AspectDash {
+  /// Sert (karşıt, kare) ve kavuşum: düz.
+  solid,
+
+  /// Yumuşak (üçgen, altmışlık): uzun kesik.
+  long,
+
+  /// Minör: kısa kesik.
+  short;
+
+  /// Kesik uzunluğu (zoom 1, mantıksal px). Düz çizgide 0.
+  double get dash => switch (this) {
+        AspectDash.solid => 0,
+        AspectDash.long => 7,
+        AspectDash.short => 3,
+      };
+
+  /// Kesikler arası boşluk (zoom 1). Düz çizgide 0.
+  double get gap => switch (this) {
+        AspectDash.solid => 0,
+        AspectDash.long => 4,
+        AspectDash.short => 3,
+      };
+}
+
+/// Açı türü → çizgi dili. Kavuşum "sert" sınıfında değil ama düz: çarkta
+/// zaten kiriş değil jant braketi olarak çizilir, kesik bir braket okunmaz.
+AspectDash aspectDashFor(String kind) {
+  if (kHardAspects.contains(kind) || kind == 'conjunction') {
+    return AspectDash.solid;
+  }
+  if (kSoftAspects.contains(kind)) return AspectDash.long;
+  return AspectDash.short;
+}
+
+/// [a]→[b] arasına açı çizgisini verilen dilde çizer. [zoom] kesik
+/// uzunluklarını geometriyle birlikte büyütür ("zoom = geometriyi büyüt"
+/// stratejisi, metin gibi kesik de ölçekle keskin kalır).
+void drawAspectLine(Canvas canvas, Offset a, Offset b, Paint paint,
+    AspectDash dil, {double zoom = 1.0}) {
+  if (dil == AspectDash.solid) {
+    canvas.drawLine(a, b, paint);
+    return;
+  }
+  final toplam = (b - a).distance;
+  if (toplam <= 0) return;
+  final yon = (b - a) / toplam;
+  final dash = dil.dash * zoom;
+  final gap = dil.gap * zoom;
+  var m = 0.0;
+  while (m < toplam) {
+    final son = math.min(m + dash, toplam);
+    canvas.drawLine(a + yon * m, a + yon * son, paint);
+    m = son + gap;
+  }
+}

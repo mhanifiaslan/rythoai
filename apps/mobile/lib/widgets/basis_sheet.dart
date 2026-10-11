@@ -4,6 +4,7 @@ import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
 import '../theme/rytho_tokens.dart';
 import 'alt_sayfa.dart' show showRythoSheet;
+import 'atlas_widgets.dart' show RythoyaSor;
 import 'motion.dart' show reduceMotion;
 import 'nebula_widgets.dart' show Pressable;
 
@@ -217,12 +218,10 @@ class _BasisSheetState extends State<_BasisSheet> {
               // Eski hâli `OutlinedButton.icon`du — Material teması kendi
               // rengini/gölgesini dayatır, §9c bunu zaten reddediyor.
               // Alt sayfada hangi biçimin daha iyi olduğu ÖLÇÜLMEDİ.
-              Pressable(
-                onTap: widget.onAsk,
-                child: Text('✦ ${l10n.signalAsk} →',
-                    style: RythoText.body(13,
-                        color: RythoColors.lilac, w: FontWeight.w600)),
-              ),
+              // Tek kapı (D6 dikişi): "Rytho'ya sor" beş kopyadan tek tanıma
+              // indi; satır içi '✦ … →' biçimi burada kalsaydı altıncı kopya
+              // olurdu (anlam_once_bes_ekran_test bu dosyayı da tarar).
+              RythoyaSor(onTap: widget.onAsk!),
             ],
           ],
         ),

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show DioException;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -11,16 +12,21 @@ import '../../core/discovery.dart';
 import '../../core/friends.dart';
 import '../../core/people.dart';
 import '../../core/sound.dart';
-import '../../core/wallet.dart';
+import '../../core/tr_metin.dart' show trBuyuk;
 import '../people/person_form_screen.dart' show relationEmoji, relationLabel;
+import '../share/share_card.dart' show shareReportCard;
 import 'mention.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/common.dart' show ErrorCard;
 import '../../widgets/cosmic_scaffold.dart';
-import '../../widgets/motion.dart' show reduceMotion;
+import '../../widgets/liste_satiri.dart';
+import '../../widgets/markdown_text.dart' show MarkdownText, markdownToPlain;
+import '../../widgets/motion.dart' show RythoReveal, kapili, reduceMotion;
 import '../../widgets/nebula_widgets.dart';
-import '../paywall/token_store_screen.dart';
+import '../../widgets/okuma_kabi.dart' show bugununEtiketi;
+import '../../widgets/token_chip.dart';
 import '../../l10n/app_localizations.dart';
 
 /// Rytho AI sohbeti — v4 (Revize R4): KONU bazlı.
@@ -43,9 +49,72 @@ import '../../l10n/app_localizations.dart';
 /// kapısı (arkadaşlık değil sahiplik) ve kişinin adıyla değil ilişkisiyle
 /// anılması — sunucu o adı zaten bilmiyor.
 
-/// Bakiye bu sayının altına inince çip bakır renge döner (R2-F2): aylık
-/// hakkın (300) yaklaşık %10'u — "bitmek üzere" uyarısı, panik değil.
-const int _kDusukBakiye = 30;
+/// Sohbet satırının türü.
+///
+/// NEDEN dört tür: eski model yalnız `sender` dizesi taşıyordu ve HER
+/// hata Rytho'nun ağzından bir balon olarak basılıyordu — "Bağlantı
+/// kurulamadı" cümlesi mor degradede, Rytho'nun sözü gibi; üstelik bir
+/// sonraki mesajla birlikte GEÇMİŞ olarak sunucuya gidiyordu (model kendi
+/// "cevabı" sanıp ona göre devam ediyordu). Tür ayrılınca ekrana ne
+/// çizileceği ve tele ne gideceği aynı yerden okunur.
+enum MesajTuru {
+  /// Kullanıcının yazdığı — tel üstünde `USER`.
+  kullanici,
+
+  /// Rytho'nun cevabı ya da açılış sorusu — tel üstünde `AI`.
+  rytho,
+
+  /// Gönderim düştü: ekranda kalır, sunucuya GİTMEZ, "Tekrar dene" taşır.
+  hata,
+
+  /// Ekranın kendi notu (arşiv tohumu yüklenemedi): ekranda kalır,
+  /// sunucuya GİTMEZ.
+  sistem,
+}
+
+/// Tek sohbet satırı.
+class SohbetMesaji {
+  const SohbetMesaji(this.tur, this.text);
+
+  final MesajTuru tur;
+  final String text;
+
+  /// Bu satır sunucuya geçmiş olarak gider mi? Hata ve sistem satırları
+  /// ekranın kendi notlarıdır; modele "konuşmanın parçası" diye verilmez.
+  bool get sunucuyaGider =>
+      tur == MesajTuru.kullanici || tur == MesajTuru.rytho;
+
+  /// Arşivdeki `sender` dizesinden tür. `AI` dışındaki her şey kullanıcı:
+  /// arşiv yalnız `USER`/`AI` yazar, tanınmayan değerde emniyetli taraf
+  /// "bunu kullanıcı yazdı"dır (Rytho'ya söylemediği söz yüklenmez).
+  static MesajTuru turuCoz(String sender) =>
+      sender == 'AI' ? MesajTuru.rytho : MesajTuru.kullanici;
+}
+
+/// Sunucunun gördüğü bağlam penceresi (sunucu zaten son 20 turla
+/// sınırlıyor; uzun arşivli konuda tamamını taşımak boşuna bant genişliği).
+const int kSohbetPenceresi = 20;
+
+/// Sunucuya giden geçmiş — SAF, test edilebilir.
+///
+/// [mesajlar] gönderilmekte olan mesaj HARİÇ ekrandaki satırlar. Hata ve
+/// sistem satırları dışarıda kalır; tel üstündeki sözleşme eskisiyle
+/// birebir: `{'sender': 'USER'|'AI', 'text'}`. Pencere SÜZDÜKTEN SONRA
+/// uygulanır ki bir dizi hata satırı gerçek turları pencereden itmesin.
+List<Map<String, String>> chatHistoryPayload(Iterable<SohbetMesaji> mesajlar,
+    {int pencere = kSohbetPenceresi}) {
+  final gecmis = [
+    for (final m in mesajlar)
+      if (m.sunucuyaGider)
+        {
+          'sender': m.tur == MesajTuru.rytho ? 'AI' : 'USER',
+          'text': m.text,
+        },
+  ];
+  return gecmis.length > pencere
+      ? gecmis.sublist(gecmis.length - pencere)
+      : gecmis;
+}
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen(
@@ -81,10 +150,24 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
-  final List<({String sender, String text})> _messages = [];
+  final List<SohbetMesaji> _messages = [];
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   bool _busy = false;
+
+  /// Liste hücrelerinin anahtarları — indeks başına SABİT.
+  ///
+  /// NEDEN: cevap gelince uzun cevabın BAŞI üstte olsun diye hücre
+  /// `ensureVisible(alignment: 0)` ile getiriliyor ve o bir BuildContext
+  /// ister. Anahtar balonun kendisine konamaz: balon giriş animasyonu ve
+  /// hücre morph'u (noktalar → balon) ölçek/kaydırma DÖNÜŞÜMÜ taşıyor,
+  /// animasyonun ilk karesinde ölçülen konum son konumdan sapar ve cevabın
+  /// ilk satırları görünür alanın üstünde kalırdı. Hücrenin kökü
+  /// (`AnimatedSwitcher`) dönüşümsüzdür. Anahtar hücre İÇERİĞİNE değil
+  /// indekse bağlı: noktaların durduğu hücreye aynı anahtarla balon gelir,
+  /// `AnimatedSwitcher` durumu korunur ve morph oynar.
+  final Map<int, GlobalKey> _hucreler = {};
+  GlobalKey _hucreAnahtari(int i) => _hucreler.putIfAbsent(i, GlobalKey.new);
 
   /// Sürdürülen konunun kimliği; ilk yanıtta sunucudan gelir.
   String? _conversationId;
@@ -179,7 +262,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       setState(() {
         if (gecmis.isNotEmpty) {
           _messages.insertAll(
-              0, gecmis.map((m) => (sender: m.sender, text: m.text)));
+              0,
+              gecmis.map((m) =>
+                  SohbetMesaji(SohbetMesaji.turuCoz(m.sender), m.text)));
           return;
         }
         // SS-turu: arşiv BOŞ döndü. Rytho'nun sorduğu soru bildirimin
@@ -190,18 +275,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         // Başa eklenir, "liste boşsa" diye sorulmaz: kullanıcı tohum
         // yüklenirken hızlıca yazdıysa mesajı zaten 0'da durur ve soru
         // onun ÜSTÜNE girmelidir. `_seed` bir kez koştuğu için ikizleme
-        // riski yok.
+        // riski yok. Yedek bir HATA değil, Rytho'nun kendi sorusu: türü
+        // `rytho`, geçmişe de o sıfatla girer.
         final yedek = widget.seedFallback;
         if (yedek != null && yedek.isNotEmpty) {
-          _messages.insert(0, (sender: 'AI', text: yedek));
+          _messages.insert(0, SohbetMesaji(MesajTuru.rytho, yedek));
         }
       });
       _scrollDown();
     } catch (e) {
       debugPrint('Konu tohumu yüklenemedi: $e');
+      if (!mounted) return;
+      // Eskiden yalnız log'a düşüyordu ve ekran BOŞ kalıyordu: kullanıcı
+      // konusunun silindiğini sanırdı. Sistem satırı ne olduğunu söyler ve
+      // yeniden deneme yolu verir; sunucuya gitmez.
+      setState(() => _messages.add(SohbetMesaji(
+          MesajTuru.sistem, AppLocalizations.of(context).chatSeedFailed)));
     } finally {
       if (mounted) setState(() => _seeding = false);
     }
+  }
+
+  /// Sistem satırının "Tekrar dene"si: satır kalkar, tohum yeniden yüklenir.
+  void _tohumuYenidenDene(SohbetMesaji satir) {
+    if (_seeding) return;
+    setState(() => _messages.remove(satir));
+    _seedFuture = _seed();
   }
 
   /// Yeni konu: yerel durum sıfırlanır; ilk mesaj sunucuda yeni konu açar.
@@ -235,27 +334,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _controller.clear();
     HapticFeedback.lightImpact();
     SoundFx.send();
+    final mesaj = SohbetMesaji(MesajTuru.kullanici, text);
     setState(() {
-      _messages.add((sender: 'USER', text: text));
+      _messages.add(mesaj);
       _busy = true;
     });
     _scrollDown();
+    await _gonder(mesaj);
+  }
 
+  /// Hata satırının "Tekrar dene"si: satır kalkar, ondan önceki kullanıcı
+  /// mesajı yeniden gönderilir. Yeni balon eklenmez — mesaj ekranda zaten
+  /// duruyor; ikinci kopyası "iki kez sordum" görüntüsü verirdi.
+  Future<void> _tekrarDene(SohbetMesaji hata) async {
+    if (_busy) return;
+    final hi = _messages.indexOf(hata);
+    if (hi < 0) return;
+    final ki = _messages.lastIndexWhere(
+        (m) => m.tur == MesajTuru.kullanici, hi - 1);
+    if (ki < 0) return;
+    final mesaj = _messages[ki];
+    HapticFeedback.lightImpact();
+    setState(() {
+      _messages.removeAt(hi);
+      _busy = true;
+    });
+    await _gonder(mesaj);
+  }
+
+  /// [mesaj] ekranda duran kullanıcı satırı; geçmiş ondan BAŞKA her şeyden
+  /// kurulur. Kimlikle (indeksle değil) ayıklanıyor: `_seedFuture` beklenirken
+  /// tohum listenin BAŞINA giriyor ve indeksler kayıyor.
+  Future<void> _gonder(SohbetMesaji mesaj) async {
+    final text = mesaj.text;
     try {
       // SS-turu: tohum yüklemesi bitmeden geçmiş KURULMAZ. Kullanıcı
       // bildirime dokunup hemen cevap yazarsa Rytho'nun sorusu henüz
       // arşivden gelmemiş olur ve model neye cevap verildiğini göremezdi.
       await _seedFuture;
       final dio = ref.read(apiProvider);
-      // Bağlam penceresi: sunucu zaten son 20 turla sınırlıyor; uzun
-      // arşivli konuda tamamını taşımak boşuna bant genişliği.
-      final history = _messages
-          .map((m) => {'sender': m.sender, 'text': m.text})
-          .toList()
-        ..removeLast();
-      final son20 = history.length > 20
-          ? history.sublist(history.length - 20)
-          : history;
+      final son20 = chatHistoryPayload(
+          _messages.where((m) => !identical(m, mesaj)));
       // KA6: ekrandan bağlam gelmediyse mesaj cihazdaki kişi adlarına
       // karşı taranır — "Ayşe'yle aram nasıl?" ana sekmeden sorulsa da
       // doğru kişinin ölçümü sohbete girer. Ad sunucuya GİTMEZ, yalnız
@@ -283,27 +402,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         // KA-turu: check-in cevabı tek mesajlık da olsa hafızaya işlensin.
         if (widget.source != null) 'source': widget.source,
       });
+      if (!mounted) return;
       if (_mentionName != null) _clearMention();
       // OB4: başarılı sohbet turu keşif halkasının ikinci dilimi.
       ref.read(discoveryProvider.notifier).mark(DiscoveryTask.chat);
       final veri = response.data as Map;
+      final cevapIndeksi = _messages.length;
       setState(() {
-        _messages.add((sender: 'AI', text: veri['reply'] ?? ''));
+        _messages.add(
+            SohbetMesaji(MesajTuru.rytho, (veri['reply'] as String?) ?? ''));
         // Yeni konunun kimliği ilk yanıtla gelir; sonraki mesajlar aynı
         // konuya yazılır ve liste ekranında görünür.
         _conversationId =
             (veri['conversation_id'] as String?) ?? _conversationId;
       });
       SoundFx.receive();
+      _cevabinBasinaKaydir(cevapIndeksi);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      if (e.response?.statusCode == kPaywallStatus) {
+        // 402'nin TEK yolu mağaza/paywall ve onu interceptor zaten açtı
+        // (core/api.dart). Eskiden sunucunun `detail` cümlesi bir de
+        // Rytho balonu olarak düşüyordu ve kullanıcının yazdığı metin
+        // gönderimden önce silindiği için KAYBOLUYORDU. Gönderilmemiş
+        // mesaj ekrandan kalkar ve giriş alanına geri yazılır: bakiye
+        // dolunca tek dokunuşla gider (emsal: iching_tab 402 dalı).
+        setState(() => _messages.remove(mesaj));
+        _controller.text = text;
+        return;
+      }
+      setState(() => _messages.add(SohbetMesaji(
+          MesajTuru.hata, friendlyError(e, AppLocalizations.of(context)))));
+      _scrollDown();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _messages.add((
-            sender: 'AI',
-            text: friendlyError(e, AppLocalizations.of(context))
-          )));
+      setState(() => _messages.add(SohbetMesaji(
+          MesajTuru.hata, friendlyError(e, AppLocalizations.of(context)))));
+      _scrollDown();
     } finally {
       if (mounted) setState(() => _busy = false);
-      _scrollDown();
     }
   }
 
@@ -317,16 +454,107 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.dispose();
   }
 
+  /// En alta: kullanıcının kendi mesajı ve "yazıyor" noktaları için.
   void _scrollDown() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-        );
+      if (!mounted || !_scrollController.hasClients) return;
+      final hedef = _scrollController.position.maxScrollExtent;
+      // `animateTo` sıfır süreyi reddeder (bkz. motion.kapili); hareket
+      // azaltmada doğru fiil `jumpTo`.
+      final sure = kapili(context, RythoMotion.base);
+      if (sure == Duration.zero) {
+        _scrollController.jumpTo(hedef);
+      } else {
+        _scrollController.animateTo(hedef,
+            duration: sure, curve: RythoMotion.enter);
       }
     });
+  }
+
+  /// Rytho'nun cevabı geldiğinde cevabın BAŞI görünür alanın üstüne gelir.
+  ///
+  /// NEDEN en alta değil: uzun bir cevapta "en alta kaydır" kullanıcıyı
+  /// cevabın SONUNA bırakıyordu; okumaya başlamak için yukarı kaydırması
+  /// gerekiyordu. Kısa cevapta `ensureVisible` zaten uç sınırda durur
+  /// (listenin sonundan öteye kaydıramaz), yani kısa cevap eskisi gibi en
+  /// altta görünür. Hücre henüz çizilmemişse (ekran dışı) en alta düşülür.
+  void _cevabinBasinaKaydir(int indeks) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final hucre = _hucreler[indeks]?.currentContext;
+      if (hucre == null) {
+        _scrollDown();
+        return;
+      }
+      Scrollable.ensureVisible(hucre,
+          alignment: 0,
+          duration: kapili(context, RythoMotion.base),
+          curve: RythoMotion.enter);
+    });
+  }
+
+  /// Rytho cevabını paylaşım kartına basar (uzun basış).
+  ///
+  /// Kullanıcının kendi mesajı paylaşılmaz: kart "Rytho ile sohbetimden"
+  /// diyor ve sohbetin sorusu çoğu zaman kişisel. Gövde markdown'dan
+  /// arındırılır; tarih kartın ÜRETİM günü (doğum verisi değil).
+  Future<void> _paylas(String metin) {
+    HapticFeedback.mediumImpact();
+    return shareReportCard(
+      context,
+      title: AppLocalizations.of(context).chatShareCardTitle,
+      body: markdownToPlain(metin),
+      dateLabel: bugununEtiketi(),
+      glyph: '✦',
+    );
+  }
+
+  /// Satırın giriş animasyonu — balon dili (hafif taşmalı canlılık).
+  /// Hareket azaltmada çocuk çıplak döner.
+  Widget _belir(Widget child, {bool olcek = false}) {
+    if (reduceMotion(context)) return child;
+    var zincir = child
+        .animate()
+        .fadeIn(duration: RythoMotion.base)
+        .slideY(begin: 0.2, curve: RythoMotion.pop);
+    if (olcek) {
+      zincir = zincir.scale(
+          begin: const Offset(0.92, 0.92),
+          curve: RythoMotion.pop,
+          duration: RythoMotion.base);
+    }
+    return zincir;
+  }
+
+  Widget _satir(SohbetMesaji m) {
+    switch (m.tur) {
+      case MesajTuru.hata:
+        // Hata kartı TEK bileşen (ErrorCard): madder ikon + metin + Tekrar
+        // dene. "Bu ekranı bildir" kapalı — her düşen mesajın altında iki
+        // düğme sohbeti forma çevirirdi; bildirim yolu profilde duruyor.
+        return ErrorCard(
+          message: m.text,
+          onRetry: () => _tekrarDene(m),
+          reportable: false,
+        );
+      case MesajTuru.sistem:
+        return ErrorCard(
+          message: m.text,
+          onRetry: () => _tohumuYenidenDene(m),
+          screen: 'chat',
+        );
+      case MesajTuru.kullanici:
+      case MesajTuru.rytho:
+        final mine = m.tur == MesajTuru.kullanici;
+        return Align(
+          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+          child: SohbetBalonu(
+            text: m.text,
+            mine: mine,
+            onLongPress: mine ? null : () => _paylas(m.text),
+          ),
+        );
+    }
   }
 
   @override
@@ -343,70 +571,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               shape: BoxShape.circle,
               gradient: RythoColors.primaryGradient,
             ),
-            child: const Text('✦',
-                style: TextStyle(fontSize: 14, color: Colors.white)),
+            child: Text('✦',
+                style: RythoText.glyph(14, color: RythoColors.onGradient)),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: RythoSpace.sm),
           // Başlık esnemiyordu: `AppBar` eylemleri (bakiye çipi) yer
           // aldıktan sonra kalan darlıkta uzun çeviri + büyük ölçekte
           // başlık sağdan kırpılıyordu.
-          Flexible(child: Text(AppLocalizations.of(context).chatTitle)),
+          Flexible(child: Text(l10n.chatTitle)),
         ]),
-        actions: [
-          // Bakiye çipi — "kalan hakkın" ilk kez bir yüzeye kavuşuyor.
-          // Dokununca token mağazası: bakiyeyi GÖREN kullanıcı, bitmeden
-          // doldurabilmeli. KT4: 0 bakiyede de GÖRÜNÜR (token_chip.dart
-          // kendi kuralı) — çipin en gerekli olduğu an tam da bakiyenin
-          // bittiği andır; kaybolması mağazaya giden yolu da kaybettiriyordu.
-          Consumer(builder: (context, ref, _) {
-            final cuzdan = ref.watch(walletProvider).value;
-            if (cuzdan == null) {
-              return const SizedBox.shrink();
-            }
-            return Padding(
-              padding: const EdgeInsets.only(right: RythoSpace.md),
-              child: Pressable(
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const TokenStoreScreen(),
-                  fullscreenDialog: true,
-                )),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: RythoSpace.md, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: RythoColors.inkLighter,
-                    borderRadius: BorderRadius.circular(RythoRadius.pill),
-                    border: Border.all(color: RythoColors.glassStroke),
-                  ),
-                  // R2-F2: sayaç SAKİN. Bakiye görünür kalır (sürpriz yok
-                  // ilkesi), ama her mesajda aşağı kayan animasyon sohbeti
-                  // bir oyun ekonomisine çeviriyordu — duygusal güven
-                  // isteyen bir üründe yanlış his. Vurgu yalnız bakiye
-                  // AZALDIĞINDA (<%10) renkle geri geliyor.
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('✦', style: TextStyle(fontSize: 12)),
-                    const SizedBox(width: RythoSpace.xs),
-                    // Okunamadıysa sayı yerine "—" ve DÜŞÜK BAKİYE RENGİ
-                    // DE YOK: `total` o hâlde 0 olduğu için bakır uyarı
-                    // kendiliğinden yanıyordu, yani dolu cüzdanlı kullanıcı
-                    // "jetonun bitmek üzere" rengini görüyordu.
-                    // Bkz. WalletStatus.bilinmiyor.
-                    Text(
-                      cuzdan.bilinmiyor
-                          ? '—'
-                          : AppLocalizations.of(context)
-                              .tokenBalanceChip(cuzdan.total),
-                      style: RythoType.dataSmall.copyWith(
-                          color: !cuzdan.bilinmiyor &&
-                                  cuzdan.total <= _kDusukBakiye
-                              ? RythoColors.copper
-                              : null),
-                    ),
-                  ]),
-                ),
-              ),
-            );
-          }),
+        actions: const [
+          // Bakiye çipi TEK bileşen (`TokenChip`): üç hâli, düşük bakiye
+          // eşiği ve hedefi (mağaza) orada. Sohbetin kendi çipi ✦ simgesi,
+          // elle 30 eşiği ve ayrı rotasıyla ondan üç yerde ayrışmıştı.
+          Padding(
+            padding: EdgeInsets.only(right: RythoSpace.md),
+            child: TokenChip(),
+          ),
         ],
       ),
       body: Column(children: [
@@ -414,10 +595,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           child: _seeding
               ? const Center(child: AstrolabeSpinner())
               : _messages.isEmpty
-              ? _EmptyState(onSuggestion: (s) => _send(s))
+              ? const _EmptyState()
               : ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(RythoSpace.lg),
                   itemCount: _messages.length + (_busy ? 1 : 0),
                   itemBuilder: (_, i) {
                     // Dots → balon morph'u (R12-C2): yanıt geldiğinde
@@ -431,36 +612,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     final Widget icerik;
                     if (i == _messages.length) {
                       anahtar = const ValueKey('dots');
-                      icerik = const Align(
+                      icerik = _belir(const Align(
                         alignment: Alignment.centerLeft,
                         child: Padding(
-                          padding: EdgeInsets.only(bottom: 12),
+                          padding: EdgeInsets.only(bottom: RythoSpace.md),
                           child: TypingDots(),
                         ),
-                      )
-                          .animate()
-                          .fadeIn(duration: 220.ms)
-                          .slideY(begin: 0.2, curve: Curves.easeOutBack);
+                      ));
                     } else {
-                      final m = _messages[i];
-                      final mine = m.sender != 'AI';
                       anahtar = ValueKey('m-$i');
-                      icerik = Align(
-                        alignment: mine
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: _Bubble(text: m.text, mine: mine)
-                            .animate()
-                            .fadeIn(duration: 240.ms)
-                            .slideY(begin: 0.25, curve: Curves.easeOutBack)
-                            .scale(
-                                begin: const Offset(0.92, 0.92),
-                                curve: Curves.easeOutBack,
-                                duration: 300.ms),
-                      );
+                      icerik = _belir(_satir(_messages[i]), olcek: true);
                     }
                     return AnimatedSwitcher(
-                      duration: RythoMotion.base,
+                      key: _hucreAnahtari(i),
+                      duration: kapili(context, RythoMotion.base),
                       transitionBuilder: (child, anim) => FadeTransition(
                         opacity: anim,
                         child: ScaleTransition(
@@ -494,9 +659,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             height: 42,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
               itemCount: _suggestions(l10n).length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: RythoSpace.sm),
               itemBuilder: (_, i) => Center(
                 child: SuggestionChip(
                   text: _suggestions(l10n)[i],
@@ -508,15 +673,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         // Ekli bağlam çipi: bahsedilen kişi/arkadaş bu MESAJA iliştirildi.
         if (_mentionName != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            padding: const EdgeInsets.fromLTRB(
+                RythoSpace.lg, RythoSpace.xs, RythoSpace.lg, 0),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                    horizontal: RythoSpace.sm, vertical: RythoSpace.xs),
                 decoration: BoxDecoration(
                   color: RythoColors.lilac.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(RythoRadius.pill),
                   border: Border.all(
                       color: RythoColors.lilac.withValues(alpha: 0.34)),
                 ),
@@ -530,7 +696,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         style: RythoType.dataSmall
                             .copyWith(color: RythoColors.lilac)),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: RythoSpace.xs),
                   Pressable(
                     onTap: _clearMention,
                     child: Tooltip(
@@ -543,10 +709,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
           ),
-        const SizedBox(height: 8),
+        const SizedBox(height: RythoSpace.sm),
         // Giriş alanı: + / metin / degrade gönder
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          padding: const EdgeInsets.fromLTRB(
+              RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.sm),
           child: SafeArea(
             child: Row(children: [
               // "+" = YENİ KONU. Bir dönem handler'sız çıplak Container'dı
@@ -569,27 +736,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: RythoSpace.sm),
               Expanded(
                 child: TextField(
                   controller: _controller,
-                  style: RythoText.body(15),
+                  style: RythoType.body,
                   minLines: 1,
                   maxLines: 4,
                   decoration: InputDecoration(
                     hintText: l10n.chatHint,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(RythoRadius.card),
                       borderSide:
                           const BorderSide(color: RythoColors.glassStroke),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(RythoRadius.card),
                       borderSide:
                           const BorderSide(color: RythoColors.glassStroke),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(RythoRadius.card),
                       borderSide:
                           const BorderSide(color: RythoColors.purple),
                     ),
@@ -597,23 +764,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   onSubmitted: (_) => _send(),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: RythoSpace.sm),
+              // İkon-tek düğme: ekran okuyucu etiketi `Pressable`dan.
+              // Etiket `feedbackSend` ("Gönder") anahtarından ödünç — sohbete
+              // özel anahtar ARB kilitliyken eklenemedi (D8: `chatSend`).
               Pressable(
                 onTap: _send,
+                semanticLabel: l10n.feedbackSend,
                 child: Container(
                   width: 46,
                   height: 46,
                   alignment: Alignment.center,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: RythoColors.primaryGradient,
+                    // K5: ikon taşıyan dolu düğme → kontrastı ölçülü CTA
+                    // degradesi.
+                    gradient: RythoColors.ctaGradient,
                     boxShadow: [
                       BoxShadow(
                           color: RythoColors.goldGlow, blurRadius: 16),
                     ],
                   ),
                   child: const Icon(Icons.send_rounded,
-                      size: 20, color: Colors.white),
+                      size: 20, color: RythoColors.onGradient),
                 ),
               ),
             ]),
@@ -625,100 +798,138 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 }
 
 /// Sohbet balonu: kullanıcı beyaz (koyu metin), Rytho mor degrade (beyaz).
-class _Bubble extends StatelessWidget {
-  const _Bubble({required this.text, required this.mine});
+///
+/// Rytho'nun metni `MarkdownText` ile çizilir: model `**kalın**` ve madde
+/// işareti üretiyor ve düz `Text` onları ham işaret olarak basıyordu.
+/// Kullanıcının metni düz kalır — onun yazdığı yıldız yıldızdır.
+/// [onLongPress] yalnız Rytho balonunda: uzun basış paylaşım kartı.
+class SohbetBalonu extends StatelessWidget {
+  const SohbetBalonu({
+    super.key,
+    required this.text,
+    required this.mine,
+    this.onLongPress,
+  });
+
   final String text;
   final bool mine;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+    final l10n = AppLocalizations.of(context);
+    final govde = Container(
+      margin: const EdgeInsets.only(bottom: RythoSpace.md),
+      // Rytho balonunda alt dolgu YOK: `MarkdownText` son paragrafın altına
+      // kendi `md` boşluğunu koyuyor; ikisi üst üste binince balon alttan
+      // şişiyordu.
+      padding: EdgeInsets.fromLTRB(RythoSpace.lg, RythoSpace.md,
+          RythoSpace.lg, mine ? RythoSpace.md : 0),
       constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.78),
       decoration: BoxDecoration(
-        color: mine ? Colors.white : null,
-        gradient: mine ? null : RythoColors.primaryGradient,
+        color: mine ? RythoColors.onGradient : null,
+        // K5: metin taşıyan degrade yüzey → kontrastı ölçülü CTA degradesi.
+        gradient: mine ? null : RythoColors.ctaGradient,
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(20),
-          topRight: const Radius.circular(20),
-          bottomLeft: Radius.circular(mine ? 20 : 6),
-          bottomRight: Radius.circular(mine ? 6 : 20),
+          topLeft: const Radius.circular(RythoRadius.card),
+          topRight: const Radius.circular(RythoRadius.card),
+          bottomLeft:
+              Radius.circular(mine ? RythoRadius.card : RythoRadius.xs),
+          bottomRight:
+              Radius.circular(mine ? RythoRadius.xs : RythoRadius.card),
         ),
         boxShadow: [
           BoxShadow(
             color: mine
-                ? Colors.black.withValues(alpha: 0.25)
+                ? RythoColors.ink.withValues(alpha: 0.25)
                 : RythoColors.goldGlow,
             blurRadius: 12,
             offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Text(
-        text,
-        style: RythoText.body(14.5,
-            color: mine ? const Color(0xFF1D1230) : Colors.white,
-            height: 1.5),
+      child: mine
+          ? Text(text, style: RythoType.body.copyWith(color: RythoColors.ink))
+          : MarkdownText(text,
+              baseStyle:
+                  RythoType.body.copyWith(color: RythoColors.onGradient)),
+    );
+    if (onLongPress == null) return govde;
+    // `Pressable` uzun basış bilmez (basma tepkisi + tek dokunuş); balon
+    // dokununca hiçbir şey yapmaz, yalnız uzun basışta paylaşır. Ekran
+    // okuyucu için eylem `Semantics.onLongPress` ile duyurulur — görünmez
+    // bir jest tek başına keşfedilemez.
+    return Semantics(
+      onLongPress: onLongPress,
+      onLongPressHint: l10n.shareReading,
+      child: GestureDetector(
+        onLongPress: onLongPress,
+        child: govde,
       ),
     );
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onSuggestion});
-  final ValueChanged<String> onSuggestion;
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Builder(builder: (context) {
-            final hero = Container(
-              width: 76,
-              height: 76,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RythoColors.primaryGradient,
-                boxShadow: [
-                  BoxShadow(color: RythoColors.magentaGlow, blurRadius: 34),
-                ],
+      child: RythoReveal(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Builder(builder: (context) {
+              // Boş-durum küresi DEKORATİF: `primaryGradient`'ta kalır
+              // (K5 yalnız metin taşıyan yüzeyleri koyulaştırır).
+              final hero = Container(
+                width: 76,
+                height: 76,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RythoColors.primaryGradient,
+                  boxShadow: [
+                    BoxShadow(
+                        color: RythoColors.magentaGlow, blurRadius: 34),
+                  ],
+                ),
+                child: Text('✦',
+                    style:
+                        RythoText.glyph(32, color: RythoColors.onGradient)),
+              );
+              // OT5 sürüklenme onarımı: bu nabız reduceMotion kapısı
+              // OLMAYAN tek döngülü animasyondu. Süresi dock merkezinin
+              // nefesiyle aynı token: iki "nefes" iki hızda atmasın.
+              if (reduceMotion(context)) return hero;
+              return hero
+                  .animate(onPlay: (c) => c.repeat(reverse: true))
+                  .scale(
+                      begin: const Offset(1, 1),
+                      end: const Offset(1.06, 1.06),
+                      duration: RythoMotion.breath,
+                      curve: Curves.easeInOut);
+            }),
+            const SizedBox(height: RythoSpace.lg),
+            // Marka başlığı ARB'den (`chatTitle` = "Rytho AI", AppBar'la
+            // aynı kaynak): literal beşinci kopya olurdu.
+            Text(l10n.chatTitle, style: RythoType.heroSmall),
+            const SizedBox(height: RythoSpace.sm),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: RythoSpace.xxl),
+              child: Text(
+                l10n.chatEmptyBody,
+                textAlign: TextAlign.center,
+                style: RythoType.bodyDim,
               ),
-              child: const Text('✦',
-                  style: TextStyle(fontSize: 32, color: Colors.white)),
-            );
-            // OT5 sürüklenme onarımı: bu nabız reduceMotion kapısı OLMAYAN
-            // tek döngülü animasyondu (motion_test bekçisi artık tutuyor).
-            if (reduceMotion(context)) return hero;
-            return hero
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .scale(
-                    begin: const Offset(1, 1),
-                    end: const Offset(1.06, 1.06),
-                    duration: 1400.ms,
-                    curve: Curves.easeInOut);
-          }),
-          const SizedBox(height: 18),
-          Text('Rytho AI', style: RythoText.display(24)),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 48),
-            child: Text(
-              l10n.chatEmptyBody,
-              textAlign: TextAlign.center,
-              style: RythoText.body(14, color: RythoColors.parchmentDim),
             ),
-          ),
-        ],
-      )
-          .animate()
-          .fadeIn(duration: 400.ms)
-          .slideY(begin: 0.06, curve: Curves.easeOutCubic),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -751,7 +962,7 @@ class _MentionBand extends ConsumerWidget {
 /// doğrudan test edilir (GT6'daki "IconData(U+…)" hatası bandı çizen
 /// tek bir test olmadığı için sızmıştı).
 ///
-/// Satır anatomisi `_PersonTile` çekirdeği: 34px daire (kişide ilişki
+/// Satır `ListeSatiri` (D3 tek liste satırı): 34px daire (kişide ilişki
 /// EMOJİSİ — IconData değil; arkadaşta baş harf), ad, soluk alt satır
 /// (kişi: burç ya da ilişki adı; arkadaş: @kullanıcıadı · burç).
 class MentionCandidateList extends StatelessWidget {
@@ -774,11 +985,11 @@ class MentionCandidateList extends StatelessWidget {
         ),
       );
     }
-    return ListView.separated(
+    return ListView.builder(
       shrinkWrap: true,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+          horizontal: RythoSpace.lg, vertical: RythoSpace.xs),
       itemCount: candidates.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 2),
       itemBuilder: (_, i) {
         final aday = candidates[i];
         final burc = localizedSignName(l10n, aday.sunSign);
@@ -788,55 +999,29 @@ class MentionCandidateList extends StatelessWidget {
                 if (aday.username != null) '@${aday.username}',
                 if (burc.isNotEmpty) burc,
               ].join(' · ');
-        return Pressable(
-          onTap: () => onSelect(aday),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        return ListeSatiri(
+          leading: Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: RythoColors.inkLight.withValues(alpha: 0.55),
-              borderRadius: BorderRadius.circular(14),
+              shape: BoxShape.circle,
+              color: RythoColors.lilac.withValues(alpha: 0.14),
             ),
-            child: Row(children: [
-              Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: RythoColors.lilac.withValues(alpha: 0.14),
-                ),
-                child: aday.relation != null
-                    ? Text(relationEmoji(aday.relation!),
-                        style: const TextStyle(fontSize: 16))
-                    : Text(
-                        aday.display.isEmpty
-                            ? '@'
-                            : aday.display[0].toUpperCase(),
-                        style: RythoText.body(14,
-                            color: RythoColors.lilac,
-                            w: FontWeight.w700)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(aday.display,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: RythoText.body(13.5, w: FontWeight.w600)),
-                    if (altSatir.isNotEmpty)
-                      Text(altSatir,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: RythoText.body(11,
-                              color: RythoColors.parchmentDim)),
-                  ],
-                ),
-              ),
-            ]),
+            child: aday.relation != null
+                ? Text(relationEmoji(aday.relation!),
+                    style: RythoText.emoji(16))
+                // Baş harf Türkçe büyütülür: "ilknur" → "İ", "I" değil.
+                : Text(
+                    aday.display.isEmpty ? '@' : trBuyuk(aday.display[0]),
+                    style: RythoType.body.copyWith(
+                        color: RythoColors.lilac, fontWeight: FontWeight.w700)),
           ),
+          title: aday.display,
+          subtitle: altSatir.isEmpty ? null : altSatir,
+          // Chevron YOK: seçim bir yere götürmez, adı metne ekler.
+          trailing: const SizedBox.shrink(),
+          onTap: () => onSelect(aday),
         );
       },
     );

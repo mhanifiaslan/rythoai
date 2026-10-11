@@ -49,7 +49,9 @@ Future<void> showReactionSheet(
             ),
           ),
           const SizedBox(height: 12),
-          Text(l10n.reactionSheetTitle(friend.name),
+          // `friend.name` kartsız arkadaşta BOŞ döner (D6: 'Gezgin' modelden
+          // çıktı, yedek sözcük l10n'de) — başlık yedekli adla kurulur.
+          Text(l10n.reactionSheetTitle(friend.ad(l10n)),
               style: RythoText.display(15, w: FontWeight.w600)),
           const SizedBox(height: 14),
           Wrap(

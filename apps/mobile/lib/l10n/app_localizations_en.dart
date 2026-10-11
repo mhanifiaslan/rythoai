@@ -523,7 +523,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get streakHidden => 'Streak hidden';
 
   @override
-  String get friendLabel => 'YOUR FRIEND';
+  String get friendLabel => 'Your friend';
 
   @override
   String get streakHiddenByFriend => 'Keeps their streak private';
@@ -532,7 +532,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get readTodayDone => 'Has done today\'s reading';
 
   @override
-  String get dyadLabel => 'BETWEEN YOU TODAY';
+  String get dyadLabel => 'Between you today';
 
   @override
   String get dyadDisclaimer =>
@@ -807,6 +807,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get retry => 'Try again';
+
+  @override
+  String retryAfterSeconds(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: 'Try again in $n seconds',
+      one: 'Try again in 1 second',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get delete => 'Delete';
+
+  @override
+  String get discard => 'Discard';
+
+  @override
+  String get feedbackDiscardTitle => 'Discard what you wrote';
+
+  @override
+  String get feedbackDiscardBody => 'Your feedback won\'t be saved.';
 
   @override
   String get errorGeneric =>
@@ -1215,6 +1238,15 @@ class AppLocalizationsEn extends AppLocalizations {
       '○ old yang (9) · × old yin (6) — the turning lines';
 
   @override
+  String get iChingShiTag => 'subject';
+
+  @override
+  String get iChingYingTag => 'response';
+
+  @override
+  String get iChingTapToSkip => 'Tap to skip the fall';
+
+  @override
   String iChingLineLabel(int n) {
     return 'line $n';
   }
@@ -1270,6 +1302,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String baziNourish(Object elements) {
     return 'Element to nourish: $elements';
   }
+
+  @override
+  String get baziLuckDirectionUnknown =>
+      'Gender wasn\'t specified, so the direction of the luck pillars isn\'t computed; both possible sequences are below.';
+
+  @override
+  String get baziLuckCandidatesLabel => 'Two possible sequences';
 
   @override
   String get baziLuckPillars => 'Luck Pillars (Da Yun)';
@@ -1384,7 +1423,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String quietHoursRange(Object from, Object to) {
-    return '$from – $to';
+    return '$from:00 – $to:00';
   }
 
   @override
@@ -1452,6 +1491,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareReading => 'Share';
+
+  @override
+  String get shareText =>
+      'Rytho — the AI astrologer that knows your birth chart and watches the sky every day.';
+
+  @override
+  String get chatShareCardTitle => 'From my chat with Rytho';
+
+  @override
+  String get chatSeedFailed => 'Couldn\'t load the topic.';
 
   @override
   String get shareCardTagline => 'from real ephemeris calculation';
@@ -1635,11 +1684,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get faceOpenSettings => 'Try again';
+  String get faceOpenSettings => 'Open settings';
 
   @override
   String get faceCameraDeniedHint =>
       'If you declined, you can enable camera access for Rytho in your phone settings and come back.';
+
+  @override
+  String get birthHexagramWaitStage1 => 'Placing the Sun at your birth';
+
+  @override
+  String get birthHexagramWaitStage2 => 'Reading the gate and line';
+
+  @override
+  String get readingCardReadMore => 'Keep reading';
 
   @override
   String get save => 'Save';
@@ -2104,6 +2162,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signalAsk => 'Ask Rytho';
 
   @override
+  String get atlasAskPrefill =>
+      'I\'m looking at the readings on my Atlas page. Which one should I lean into today?';
+
+  @override
+  String get faceAskPrefill =>
+      'I\'ve seen my face reading. What does it say together with today\'s sky?';
+
+  @override
+  String get planetsAskPrefill =>
+      'I\'m looking at my planet placements. Which one shapes me the most?';
+
+  @override
+  String get traitsAskPrefill =>
+      'I\'m looking at my traits. Which one stands out these days?';
+
+  @override
+  String get aspectsAskPrefill =>
+      'I\'m looking at the aspects in my chart. Which one do I feel the most?';
+
+  @override
+  String pointAskPrefill(String name) {
+    return 'Let\'s talk about my $name placement. How does it show up in me?';
+  }
+
+  @override
+  String aspectAskPrefill(String label) {
+    return 'Let\'s talk about the \"$label\" aspect in my chart. How do I live it?';
+  }
+
+  @override
+  String askAboutFriendPrefill(String name) {
+    return 'Let\'s talk about the dynamic between $name and me.';
+  }
+
+  @override
   String signalAskPrefill(String card) {
     return 'My home screen shows this signal today: \"$card\" Can you unpack it for me?';
   }
@@ -2272,6 +2365,39 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get removeFriendConfirmTitle => 'Remove friend';
+
+  @override
+  String removeFriendConfirmBody(String name) {
+    return '$name leaves your list and shared readings close. You can add them again later.';
+  }
+
+  @override
+  String get blockUserConfirmTitle => 'Block';
+
+  @override
+  String blockUserConfirmBody(String name) {
+    return '$name won\'t be able to find you or send invites. You can undo this in Circle settings.';
+  }
+
+  @override
+  String peopleSlotsOver(int limit, int used) {
+    return 'Your limit is $limit; $used people are saved — remove one to add someone new.';
+  }
+
+  @override
+  String get inviteNeedsUsername =>
+      'An invite is waiting — pick a username first.';
+
+  @override
+  String get inviteNeedsUsernameAction => 'Pick a username';
+
+  @override
+  String friendAcceptedSnack(String name) {
+    return '$name is now your friend.';
+  }
+
+  @override
   String get diaryQuickTitle => 'My Journal';
 
   @override
@@ -2360,7 +2486,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String relationshipAskPrefill(String name, String axis) {
-    return 'Let\'s talk about the $axis axis in my relationship with $name.';
+    return 'Let\'s talk about the \"$axis\" axis in my relationship with $name.';
   }
 
   @override
@@ -2968,6 +3094,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String chartModeSynastry(String name) {
     return 'You & $name';
   }
+
+  @override
+  String chartAskPrefillNatal(String name) {
+    return 'I\'m looking at the chart wheel for $name. What should I pay most attention to?';
+  }
+
+  @override
+  String get chartAskPrefillSky =>
+      'I\'m looking at the current sky wheel. What affects me most today?';
+
+  @override
+  String get chartAskPrefillBiwheel =>
+      'I\'m looking at my chart layered with today\'s sky. Which touch stands out?';
+
+  @override
+  String chartAskPrefillSynastry(String name) {
+    return 'I\'m looking at the synastry wheel with $name. Which bond defines us most?';
+  }
+
+  @override
+  String get chartMovementLegend => 'A applying · S separating';
+
+  @override
+  String get chartLoading => 'Preparing the wheel…';
+
+  @override
+  String get chartSelectionClear => 'Clear selection';
 
   @override
   String chartAsOf(String time) {

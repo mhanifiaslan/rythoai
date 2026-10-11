@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart' show friendlyError;
+import '../../core/okuma_durumu.dart';
 import '../../core/providers.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/common.dart' show ErrorCard;
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
-import '../../widgets/markdown_text.dart' show markdownToPlain;
 import '../../widgets/motion.dart';
+import '../../widgets/okuma_kabi.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
-import '../share/share_card.dart' show shareReportCard;
 
 /// Yıl Haritası (T5): aktif güneş dönüşü — Güneş'in natal boylamına tam
 /// döndüğü ana kurulan harita, bir sonraki doğum gününe kadar geçerli
@@ -32,7 +34,8 @@ class SolarReturnScreen extends ConsumerWidget {
     if (kapi == PlusHali.bilinmiyor) {
       return CosmicScaffold(
         appBar: AppBar(title: Text(l10n.solarReturnTitle)),
-        body: const _Iskelet(),
+        // Ne kilit ne içerik: ikisi de bir hüküm ve o hüküm henüz yok.
+        body: const SkeletonList(),
       );
     }
     final veri = ref.watch(solarReturnProvider);
@@ -45,19 +48,22 @@ class SolarReturnScreen extends ConsumerWidget {
           l10n.solarReturnWaitStage1,
           l10n.solarReturnWaitStage2,
         ]),
+        // Çıplak metin ÇIKMAZ SOKAKTI: bu sayfada aşağı çekme yok, hatayı
+        // gören kullanıcı geri dönüp yeniden girmek zorundaydı.
         error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Text(friendlyError(e, l10n),
-                style: RythoText.body(14, color: RythoColors.parchmentDim)),
+          child: ErrorCard(
+            message: friendlyError(e, l10n),
+            screen: 'atlas',
+            onRetry: () => ref.invalidate(solarReturnProvider),
           ),
         ),
         data: (data) {
           if (data == null) {
+            const ozellik = PlusOzellik.solarReturn;
             return PlusLockedCard(
-              emoji: '🌞',
-              title: l10n.solarReturnTitle,
-              description: l10n.solarReturnLockedBody,
+              ozellik: ozellik,
+              title: ozellik.baslik(l10n),
+              description: ozellik.kilitGovdesi(l10n),
               centered: true,
             );
           }
@@ -74,19 +80,11 @@ class SolarReturnScreen extends ConsumerWidget {
           final gunesEvi =
               evHam is int ? evHam : int.tryParse('${evHam ?? ''}');
 
-          var sira = 0;
-          Duration gecikme() => Duration(milliseconds: 130 * sira++);
-          Widget blok(Widget w) => w
-              .animate(delay: gecikme())
-              .fadeIn(duration: 380.ms)
-              .slideY(begin: 0.06, curve: Curves.easeOutCubic);
-
           final ascMetni = asc != null
               ? '${asc['sign_local'] ?? asc['sign']} ${asc['position']}°'
               : null;
           final ayMetni =
               '${sr['sr_moon_local'] ?? sr['sr_moon_sign'] ?? '-'}';
-          final rapor = (data['report'] ?? '') as String;
 
           // Paylaşım rozetleri: yılın üç ölçülen işareti. Saat bilinmiyorsa
           // Yükselen/ev HİÇ hesaplanmıyor — o rozetler de kurulmaz.
@@ -98,7 +96,8 @@ class SolarReturnScreen extends ConsumerWidget {
           ];
 
           return ListView(
-            padding: const EdgeInsets.only(top: 8, bottom: 120),
+            padding: const EdgeInsets.only(
+                top: RythoSpace.sm, bottom: RythoSpace.dockClearance),
             children: [
               // ⚠️ OKUMA ÖNDE, ÖLÇÜM ARKADA (sahip kararı, lifestyle turu).
               //
@@ -108,29 +107,50 @@ class SolarReturnScreen extends ConsumerWidget {
               // ARKASINA alındı: "bu yıl bana ne getiriyor" önce,
               // "hangi dakikada başlıyor" sonra.
               //
-              // Boşsa hiç çizilmiyor; aşağıdaki paylaşım düğmesi de aynı
-              // koşula bakıyor, yani iki yüzey tek kaynaktan karar alıyor.
-              if (rapor.trim().isNotEmpty) ...[
-                blok(Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child:
-                      MarginNote(title: l10n.solarReturnNote, text: rapor),
-                )),
-                blok(const SectionDivider()),
-              ],
+              // Kap `OkumaKabi`: paylaşım yalnız hazır okumada kurulur.
+              // Eski hâl `fallback` bayrağını okumuyor ve sunucunun şablon
+              // paragrafını paylaşım KARTINA bile basıyordu (ölçüldü).
+              RythoReveal(
+                index: 0,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
+                  child: OkumaKabi(
+                    durum: okumaDurumuFromYanit(data),
+                    ekranKodu: 'atlas',
+                    baslik: l10n.solarReturnNote,
+                    onTekrarDene: () => ref.invalidate(solarReturnProvider),
+                    onSor: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                            initialText: l10n.solarReturnAskPrefill))),
+                    paylasim: PaylasimTarifi(
+                      title: l10n.solarReturnTitle,
+                      // Kartın tarihi yılın AÇILIŞ anı — üretim günü değil;
+                      // yıl haritası o tarihle anılır.
+                      dateLabel: _tarih(sr['return_at_local']),
+                      badges: rozetler,
+                      glyph: PlusOzellik.solarReturn.emoji,
+                    ),
+                  ),
+                ),
+              ),
+              const RythoReveal(index: 1, child: SectionDivider()),
               // Dönüş anı — yılın açılış anı, ekranın en büyük tipografisi.
               // Dakika hassasiyetli bir hesap; büyük yazılması hak edilmiş.
-              blok(_DonusKarti(
-                label: l10n.solarReturnMoment,
-                tarih: _tarih(sr['return_at_local']),
-                saat: _saat(sr['return_at_local']),
-                altYazi:
-                    l10n.solarReturnNext(_an(sr['next_return_at_local'])),
-              )),
+              RythoReveal(
+                index: 2,
+                child: _DonusKarti(
+                  label: l10n.solarReturnMoment,
+                  tarih: _tarih(sr['return_at_local']),
+                  saat: _saat(sr['return_at_local']),
+                  altYazi:
+                      l10n.solarReturnNext(_an(sr['next_return_at_local'])),
+                ),
+              ),
               // Yılın kimliği: üç rozet yan yana. Eskiden etiket–değer
               // satırlarıydı; yılın işaretleri bir bakışta okunmalı.
-              blok(Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+              RythoReveal(
+                index: 3,
                 child: GlassPanel(
                   label: l10n.solarReturnIdentity,
                   child: Row(
@@ -141,49 +161,33 @@ class SolarReturnScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-              )),
+              ),
               // Saatsizlik/şehir beyanı — natal ekrandaki bakır dil.
               // Rozetlerin ALTINDA: hangi şehre kurulduğu, ancak neyin
               // hesaplandığı görüldükten sonra anlam taşıyor.
               if (beyanlar.isNotEmpty)
-                blok(Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                  child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 2, right: 8),
-                          child: Icon(Icons.place_outlined,
-                              size: 14, color: RythoColors.copper),
-                        ),
-                        Expanded(
-                          child: Text(beyanlar.join('\n\n'),
-                              style: RythoText.body(11.5,
-                                  color: RythoColors.copper, height: 1.5)),
-                        ),
-                      ]),
-                )),
-              if (rapor.trim().isNotEmpty)
-                blok(Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.ios_share_rounded, size: 18),
-                    label: Text(l10n.shareReading),
-                    onPressed: () => shareReportCard(
-                      context,
-                      title: l10n.solarReturnTitle,
-                      body: markdownToPlain(rapor),
-                      dateLabel: _tarih(sr['return_at_local']),
-                      badges: rozetler,
-                      glyph: '🌞',
-                    ),
+                RythoReveal(
+                  index: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(RythoSpace.lg,
+                        RythoSpace.sm, RythoSpace.lg, RythoSpace.xs),
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(
+                                top: RythoSpace.xxs, right: RythoSpace.sm),
+                            child: Icon(Icons.place_outlined,
+                                size: 14, color: RythoColors.copper),
+                          ),
+                          Expanded(
+                            child: Text(beyanlar.join('\n\n'),
+                                style: RythoText.body(11.5,
+                                    color: RythoColors.copper, height: 1.5)),
+                          ),
+                        ]),
                   ),
-                )),
-              // Sayfanın birincil eylemi en alt kenarda (tasarım doktrini).
-              blok(RythoyaSor(
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ChatScreen(
-                          initialText: l10n.solarReturnAskPrefill))))),
+                ),
             ],
           );
         },
@@ -225,43 +229,46 @@ class _DonusKarti extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GlassPanel(
-        label: label,
-        glow: true,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              const Text('🌞', style: TextStyle(fontSize: 34)),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(tarih,
-                        style: RythoText.display(26,
-                            color: RythoColors.goldBright)),
-                    if (saat.isNotEmpty)
-                      Text(saat,
-                          style: RythoText.mono(15,
-                              color: RythoColors.parchmentDim)),
-                  ],
-                ),
+    return GlassPanel(
+      label: label,
+      glow: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            // Bilinçli renkli emoji: katalogdaki yıl haritası simgesi.
+            Text(PlusOzellik.solarReturn.emoji, style: RythoText.emoji(34)),
+            const SizedBox(width: RythoSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(tarih,
+                      style: RythoText.display(26,
+                          color: RythoColors.goldBright)),
+                  if (saat.isNotEmpty)
+                    Text(saat,
+                        style: RythoText.mono(15,
+                            color: RythoColors.parchmentDim)),
+                ],
               ),
-            ]),
-            const SizedBox(height: 12),
-            Text(altYazi,
-                style: RythoText.body(12, color: RythoColors.parchmentDim)),
-          ],
-        ),
+            ),
+          ]),
+          const SizedBox(height: RythoSpace.md),
+          Text(altYazi,
+              style: RythoText.body(12, color: RythoColors.parchmentDim)),
+        ],
       ),
     );
   }
 }
 
 /// Yılın kimliğindeki tek rozet: küçük etiket + altın değer.
+///
+/// Etiket BÜYÜK HARFE ÇEVRİLMEZ: eski hâl `toUpperCase()` çağırıyordu ve
+/// Türkçe'de `i` → `I` düşüyordu ("Güneş'in yıl evi" → "GÜNEŞ'IN YIL EVI",
+/// ölçüldü). Rol tipografisi (`RythoType.label`) etiket ağırlığını zaten
+/// taşıyor.
 class _Rozet extends StatelessWidget {
   const _Rozet({required this.etiket, required this.deger});
 
@@ -273,33 +280,12 @@ class _Rozet extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(etiket.toUpperCase(),
-            style: RythoText.label(9, color: RythoColors.parchmentDim)),
-        const SizedBox(height: 6),
+        Text(etiket, style: RythoType.label),
+        const SizedBox(height: RythoSpace.xs),
         Text(deger,
             style: RythoText.body(14,
                 w: FontWeight.w700, color: RythoColors.goldBright)),
       ],
     );
   }
-}
-
-/// Kapı BİLİNMİYORken çizilen iskelet (P2).
-///
-/// Ne kilit ne içerik: ikisi de bir hüküm ve o hüküm henüz yok. Bloklar
-/// sayfanın gerçek bölüm hacimlerini taklit ediyor, böylece cevap gelince
-/// düzen zıplamıyor. Shimmer `SkeletonPanel`in içinde ve reduce-motion'da
-/// kendiliğinden kapanıyor.
-class _Iskelet extends StatelessWidget {
-  const _Iskelet();
-
-  @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.only(top: 8, bottom: 120),
-        children: const [
-          SkeletonPanel(height: 150),
-          SkeletonPanel(height: 110),
-          SkeletonPanel(height: 90),
-        ],
-      );
 }

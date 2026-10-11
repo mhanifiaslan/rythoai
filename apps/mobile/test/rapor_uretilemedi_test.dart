@@ -24,6 +24,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/core/api.dart';
+import 'package:rytho/core/okuma_durumu.dart';
 import 'package:rytho/core/providers.dart';
 import 'package:rytho/features/face/face_api.dart';
 import 'package:rytho/features/face/face_capture_screen.dart';
@@ -37,6 +38,7 @@ import 'package:rytho/l10n/app_localizations_tr.dart';
 import 'package:rytho/main.dart' show rythoRetry;
 import 'package:rytho/widgets/atlas_widgets.dart' show MarginNote;
 import 'package:rytho/widgets/common.dart' show ErrorCard;
+import 'package:rytho/widgets/okuma_kabi.dart' show PaylasKapisi;
 import 'package:rytho/features/profile/feedback_screen.dart'
     show kFeedbackScreens;
 
@@ -250,24 +252,38 @@ void main() {
 
   // -------------------------------------------------------------------------
   group('fetchFirasaReading', () {
-    test('fallback bayraklı yanıt okuma DÖNDÜRMEZ, fırlatır', () async {
-      await expectLater(
-        fetchFirasaReading(
-            _dio(_SahteAdapter('{"status":"success","reading":"Hazir para'
-                'graf.","cached":false,"fallback":true,"refunded":true}')),
-            _cekim()),
-        throwsA(isA<RaporUretilemedi>()
-            .having((e) => e.jetonIadeEdildi, 'jetonIadeEdildi', isTrue)),
-      );
+    // D6: uç fonksiyonu bayrağı OKUMAZ, gövdeyi döndürür; tek okuyucu
+    // `okumaDurumuFromYanit(veri, alan: 'reading')`. Eski hâl burada
+    // fırlatıyordu — dokuz yüzeyden ikisinin kendi mekanizması vardı ve
+    // kalan beşi bayrağı hiç okumuyordu.
+    test('fallback bayraklı yanıt "üretilemedi, iadeli" okunur', () async {
+      final veri = await fetchFirasaReading(
+          _dio(_SahteAdapter('{"status":"success","reading":"Hazir para'
+              'graf.","cached":false,"fallback":true,"refunded":true}')),
+          _cekim());
+      expect(
+          okumaDurumuFromYanit(veri, alan: 'reading'),
+          isA<OkumaUretilemedi>()
+              .having((d) => d.iadeli, 'iadeli', isTrue));
     });
 
-    test('normal yanıt aynen döner', () async {
-      final metin = await fetchFirasaReading(
+    test('normal yanıt hazır okuma olur', () async {
+      final veri = await fetchFirasaReading(
           _dio(_SahteAdapter('{"status":"success","reading":"Gerçek okuma.",'
               '"cached":false,"fallback":false}')),
           _cekim());
 
-      expect(metin, 'Gerçek okuma.');
+      expect(okumaDurumuFromYanit(veri, alan: 'reading'),
+          isA<OkumaHazir>().having((d) => d.metin, 'metin', 'Gerçek okuma.'));
+    });
+
+    test('boş metin de okuma SAYILMAZ (boş panel çizilmez)', () async {
+      final veri = await fetchFirasaReading(
+          _dio(_SahteAdapter(
+              '{"status":"success","reading":"  ","cached":false}')),
+          _cekim());
+      expect(okumaDurumuFromYanit(veri, alan: 'reading'),
+          isA<OkumaUretilemedi>().having((d) => d.iadeli, 'iadeli', isFalse));
     });
   });
 
@@ -304,6 +320,88 @@ void main() {
           contains("if (veri['fallback'] != true) "
               "Analytics.reportGenerated('bazi')"),
           reason: 'yedek metin "üretildi" sayılırsa ölçüm yalan söyler');
+    });
+
+    // D6: üç uç daha BaZi kalıbında — gövde deterministik (kapı/çizgi,
+    // dönüş anı, progres Ay), düşen yalnız okuma; sağlayıcı fırlatmaz,
+    // sayaç bayrağa bağlı, bayrağı ekran `okumaDurumuFromYanit` ile okur.
+    // Eski hâl üçünde de sayacı KOŞULSUZ artırıyordu: şablon paragraf
+    // "üretildi" sayılıyordu.
+    for (final (yol, ad, degisken) in const [
+      ('birth-hexagram', 'birth_hexagram', 'veri'),
+      ('solar-return', 'solar_return', 'veri'),
+      ('progressions', 'progressions', 'progresyon'),
+    ]) {
+      test('$ad: sayaç bayrağa bağlı, fırlatma yok', () {
+        final post = kaynak.indexOf("'/api/v1/reports/$yol'");
+        expect(post, isNonNegative);
+        final sonrasi = kaynak.substring(post, kaynak.indexOf('});', post));
+        expect(sonrasi, isNot(contains('throw RaporUretilemedi')),
+            reason: 'fırlatmak ölçülmüş gövdeyi de götürür');
+        expect(sonrasi, contains("$degisken['fallback'] != true"),
+            reason: 'sayaç bayrağa bakmıyor');
+        expect(sonrasi, contains("Analytics.reportGenerated('$ad')"));
+        expect(sonrasi.indexOf("$degisken['fallback'] != true"),
+            lessThan(sonrasi.indexOf("Analytics.reportGenerated('$ad')")),
+            reason: 'koşul sayaçtan SONRA geliyor');
+      });
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  group('bayrağı okuyan TEK nokta: okumaDurumuFromYanit', () {
+    // Dokuz okuma yüzeyinin bu kümedeki yedisi. Her biri bayrağı ne kendi
+    // `['fallback']` okumasıyla ne `RaporUretilemedi` fırlatarak okur —
+    // `okumaDurumuFromYanit(` çağırır ve `OkumaKabi(` ile çizer. Paylaşım
+    // yalnız kabın `Hazir` dalında kurulur; ekranlarda `shareReportCard(`
+    // çağrısı YOK (Yıl Haritası bir dönem şablonu karta basıyordu).
+    const yuzeyler = [
+      'lib/features/oracle/bazi_tab.dart',
+      'lib/features/oracle/iching_tab.dart',
+      'lib/features/atlas/solar_return_screen.dart',
+      'lib/features/atlas/inner_calendar_screen.dart',
+      'lib/features/atlas/birth_hexagram_screen.dart',
+      'lib/features/face/face_reading_flow.dart',
+    ];
+
+    for (final yol in yuzeyler) {
+      test('$yol: tek okuyucu + kap, paylaşım kapta', () {
+        final k = _yorumsuz(yol);
+        expect(k, contains('okumaDurumuFromYanit('),
+            reason: 'bayrak tek noktadan okunmuyor');
+        expect(k, contains('OkumaKabi('), reason: 'okuma kabı yok');
+        expect(k, isNot(contains("['fallback']")),
+            reason: 'bayrağın ikinci okuyucusu doğmuş');
+        expect(k, isNot(contains('shareReportCard(')),
+            reason: 'paylaşım kabın dışında — şablon karta basılabilir');
+      });
+    }
+
+    test('Atlas tam raporu: data dalı aynı okuyucudan geçiyor', () {
+      // Bayrak bu yüzeyde sağlayıcıda fırlatılıyor (natal, yukarıda
+      // çivili); `data` dalı yine de tek okuyucuyu kullanır — ikinci bir
+      // `['fallback']` okuması doğmasın.
+      final k = _yorumsuz('lib/features/atlas/atlas_screen.dart');
+      expect(k, contains('okumaDurumuFromYanit(veri)'));
+      expect(k, isNot(contains("['fallback']")));
+    });
+
+    test('kap: shareReportCard yalnız Hazir dalında', () {
+      final k = _yorumsuz('lib/widgets/okuma_kabi.dart');
+      final hazir = k.indexOf('Widget _hazir(');
+      final paylas = k.indexOf('shareReportCard(');
+      expect(hazir, isNonNegative);
+      expect(paylas, greaterThan(hazir),
+          reason: 'paylaşım hazır okumanın dışına çıkmış');
+      // Tek çağrı: ikinci bir paylaşım yolu (ör. üretilemedi dalında) yok.
+      expect(k.split('shareReportCard(').length - 1, 1);
+    });
+
+    test('face_api bayrağı okumuyor, gövdeyi döndürüyor', () {
+      final k = _yorumsuz('lib/features/face/face_api.dart');
+      expect(k, isNot(contains('RaporUretilemedi')));
+      expect(k, isNot(contains("['fallback']")));
+      expect(k, contains('Future<Map<String, dynamic>> fetchFirasaReading('));
     });
   });
 
@@ -393,6 +491,10 @@ void main() {
 
       expect(find.text(_tr.reportUnavailableRefunded), findsOneWidget);
       expect(adapter.istekSayisi, 1);
+      // Şablon PAYLAŞILAMAZ: kabın üretilemedi dalında paylaş kapısı yok.
+      expect(find.byType(PaylasKapisi), findsNothing,
+          reason: 'şablon paragraf paylaşım kartına basılabilir');
+      expect(find.byType(MarginNote), findsNothing);
 
       // `late final` future yeniden kurulamıyordu: metin "tekrar dene" diyor
       // ama tek çıkış ekrandan çıkıp YÜZÜ BAŞTAN ÇEKMEKTİ.
@@ -401,11 +503,26 @@ void main() {
       expect(adapter.istekSayisi, 2, reason: 'tekrar dene isteği kurmuyor');
     });
 
+    testWidgets('gerçek okumada paylaş kapısı VAR, hata kartı yok',
+        (tester) async {
+      final adapter = _SahteAdapter('{"status":"success","reading":"Gerçek '
+          'firaset okuması.","cached":false,"fallback":false}');
+      await tester.pumpWidget(_sar(
+        FaceReadingScreen(result: _cekim()),
+        overrides: [apiProvider.overrideWithValue(_dio(adapter))],
+      ));
+      await _bekle(tester);
+
+      expect(find.textContaining('Gerçek firaset okuması.'), findsOneWidget);
+      expect(find.byType(PaylasKapisi), findsOneWidget);
+      expect(find.byType(ErrorCard), findsNothing);
+    });
+
     test('kaynakta yeniden kurulabilir future var', () {
       final kaynak = _yorumsuz('lib/features/face/face_reading_flow.dart');
-      expect(kaynak, isNot(contains('late final Future<String> _okuma')),
+      expect(kaynak, isNot(contains('late final Future')),
           reason: 'sabit future yeniden kurulamaz; tekrar dene yalan olur');
-      expect(kaynak, contains('onRetry: _tekrarDene'));
+      expect(kaynak, contains('onTekrarDene: _tekrarDene'));
     });
   });
 
@@ -425,26 +542,32 @@ void main() {
           reason: 'sabit alt satır dürüst cümlenin yerini alıyor');
       // Kusurun kendisi tek satırdı: `error: (_, _) =>` hata nesnesini
       // BAĞLAMIYOR, yani hangi hata olduğu ekrana hiç ulaşmıyordu.
-      expect(kaynak, isNot(contains('error: (_, _) => _AtlasRow(')));
-      expect(kaynak, contains('error: (e, _) => _AtlasRow('));
+      // Satır D6'da `ListeSatiri` (paylaşılan liste satırı).
+      expect(kaynak, isNot(contains('error: (_, _) => ListeSatiri(')));
+      expect(kaynak, contains('error: (e, _) => ListeSatiri('));
     });
 
     test('alt satır iade cümlesini KIRPMIYOR', () {
       // Tek satır + ellipsis tam da söylenmesi gereken yeri kesiyordu.
+      // Tavan satırda (`subtitleLines: 3`), uygulayan bileşen
+      // `ListeSatiri` — iki parça iki dosyada.
       expect(kaynak, contains('subtitleLines: 3'));
-      expect(kaynak, contains('maxLines: subtitleLines'));
+      expect(_yorumsuz('lib/widgets/liste_satiri.dart'),
+          contains('maxLines: subtitleLines'));
     });
   });
 
   // -------------------------------------------------------------------------
   test('hata kartlarının ekran kodu KAPALI KÜMEDEN', () {
     // `screen` kümede değilse `FeedbackScreen` onu sessizce düşürüyor —
-    // 'bazi' yazmak bildirimi ekransız bırakırdı.
+    // 'bazi' yazmak bildirimi ekransız bırakırdı. Okuma kabı aynı kodu
+    // `ekranKodu:` adıyla taşır (OkumaKabi → ErrorCard.screen); iki ad da
+    // sayılır, yoksa göç bekçiyi "kod yok" diye boşa düşürürdü.
     for (final dosya in [
       'lib/features/oracle/bazi_tab.dart',
       'lib/features/face/face_reading_flow.dart',
     ]) {
-      final kodlar = RegExp(r"screen: '([a-z_]+)'")
+      final kodlar = RegExp(r"(?:screen|ekranKodu): '([a-z_]+)'")
           .allMatches(_yorumsuz(dosya))
           .map((m) => m.group(1)!)
           .toList();

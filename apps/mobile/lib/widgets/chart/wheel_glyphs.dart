@@ -2,10 +2,11 @@
 ///
 /// ♈-♓ (U+2648-2653) Unicode'da `Emoji_Presentation=Yes` taşır: birçok
 /// Android cihazda burç halkası RENKLİ EMOJİ karikatürlerine dönüşür ve
-/// VS15 (︎) Skia'da güvenilir değildir. ⚹ (altmışlık), ⚷ (Kiron),
-/// ⚸ (Lilith) ise birçok fontta hiç yoktur. Bu küme bu yüzden VEKTÖR
-/// Path olarak çizilir (star_burst ressamı emsali) — cihazdan bağımsız,
-/// markaya uygun, degrade/kalınlık kontrolü ressamda.
+/// VS15 (︎) Skia'da güvenilir değildir. ⚷ (Kiron) ve ⚸ (Lilith) ise
+/// birçok fontta hiç yoktur. Bu küme bu yüzden VEKTÖR Path olarak çizilir
+/// (star_burst ressamı emsali) — cihazdan bağımsız, markaya uygun,
+/// degrade/kalınlık kontrolü ressamda. (⚹ altmışlık D6'da metin glifine
+/// geçti — çarkta hiç çizilmiyordu, tek tüketicisi tablo hücresiydi.)
 ///
 /// ⚠️ Gezegen glifleri "güvenli metin kümesi" DEĞİLDİ — bu dosyanın eski
 /// gerekçesi yanlıştı ve mağaza karesiyle ölçüldü (shot-2-chart.png: ♀
@@ -168,20 +169,13 @@ Path signGlyphPath(int signIndex, Offset center, double size) =>
     _signPaths[signIndex % 12].transform(_scaleTranslate(
         size, center.dx - size / 2, center.dy - size / 2));
 
-/// Özel glifler: sextile ⚹ / Kiron ⚷ / Lilith ⚸ — fontlarda güvenilmez.
+/// Özel glifler: Kiron ⚷ / Lilith ⚸ — çarkın 13 px bandında çizgi
+/// kalınlığı ressamda kontrol edilsin diye vektör. Altmışlık ⚹ artık
+/// burada DEĞİL: açı glifi çarkta basılmaz, tablo hücresi metin glifini
+/// basar (`kAspectTextGlyphs`, gerekçesi `rytho_glyphs.dart`'ta).
 Path specialGlyphPath(String name, Offset center, double size) {
   final Path birim;
   switch (name) {
-    case 'sextile':
-      // 6 kollu yıldız işareti.
-      birim = _unit((p) {
-        p.moveTo(0.50, 0.08);
-        p.lineTo(0.50, 0.92);
-        p.moveTo(0.14, 0.29);
-        p.lineTo(0.86, 0.71);
-        p.moveTo(0.86, 0.29);
-        p.lineTo(0.14, 0.71);
-      });
     case 'Chiron':
       // Anahtar formu: üstte K çatalı, altta halka.
       birim = _unit((p) => p

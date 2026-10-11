@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart' show friendlyError;
+import '../../core/okuma_durumu.dart';
 import '../../core/providers.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/common.dart' show ErrorCard;
 import '../../widgets/cosmic_scaffold.dart';
-import '../../widgets/glass.dart' show SkeletonPanel;
+import '../../widgets/glass.dart';
+import '../../widgets/motion.dart';
+import '../../widgets/okuma_kabi.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 
 /// Doğum Heksagramı ekranı (Revize İ5): doğum anındaki Güneş'in 64 kapı
@@ -28,7 +33,8 @@ class BirthHexagramScreen extends ConsumerWidget {
     if (kapi == PlusHali.bilinmiyor) {
       return CosmicScaffold(
         appBar: AppBar(title: Text(l10n.birthHexagramTitle)),
-        body: const _Iskelet(),
+        // Ne kilit ne içerik: ikisi de bir hüküm ve o hüküm henüz yok.
+        body: const SkeletonList(),
       );
     }
     final veri = ref.watch(birthHexagramProvider);
@@ -36,20 +42,28 @@ class BirthHexagramScreen extends ConsumerWidget {
     return CosmicScaffold(
       appBar: AppBar(title: Text(l10n.birthHexagramTitle)),
       body: veri.when(
-        loading: () => const Center(child: AstrolabeSpinner()),
+        // Dört kardeş ekran sahneli bekliyor, burası çıplak usturlaptı;
+        // okuma LLM üretimi ve bekleyiş aynı uzunlukta.
+        loading: () => StagedWaiting(stages: [
+          l10n.birthHexagramWaitStage1,
+          l10n.birthHexagramWaitStage2,
+        ]),
+        // Çıplak metin ÇIKMAZ SOKAKTI: bu sayfada aşağı çekme yok, hatayı
+        // gören kullanıcı geri dönüp yeniden girmek zorundaydı.
         error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Text(friendlyError(e, l10n),
-                style: RythoText.body(14, color: RythoColors.parchmentDim)),
+          child: ErrorCard(
+            message: friendlyError(e, l10n),
+            screen: 'atlas',
+            onRetry: () => ref.invalidate(birthHexagramProvider),
           ),
         ),
         data: (data) {
           if (data == null) {
+            const ozellik = PlusOzellik.birthHexagram;
             return PlusLockedCard(
-              emoji: '☯',
-              title: l10n.birthHexagramTitle,
-              description: l10n.birthHexagramLockedBody,
+              ozellik: ozellik,
+              title: ozellik.baslik(l10n),
+              description: ozellik.kilitGovdesi(l10n),
               centered: true,
             );
           }
@@ -59,45 +73,45 @@ class BirthHexagramScreen extends ConsumerWidget {
               ? Map<String, dynamic>.from(data['alternate_hexagram'])
               : null;
           final cizgi = konum['line'] as int?;
-
-          var sira = 0;
-          Duration gecikme() => Duration(milliseconds: 130 * sira++);
-          Widget blok(Widget w) => w
-              .animate(delay: gecikme())
-              .fadeIn(duration: 380.ms)
-              .slideY(begin: 0.06, curve: Curves.easeOutCubic);
+          final kapiAdi =
+              '${hexagram['name_local'] ?? hexagram['name_tr']}';
 
           return ListView(
-              padding: const EdgeInsets.only(top: 8, bottom: 120),
+              padding: const EdgeInsets.only(
+                  top: RythoSpace.sm, bottom: RythoSpace.dockClearance),
               children: [
-                blok(Plaque(
-                  label: cizgi != null
-                      ? l10n.birthHexagramGateLine(
-                          konum['gate'] as int, cizgi)
-                      : l10n.birthHexagramGateOnly(konum['gate'] as int),
-                  child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(hexagram['unicode'] ?? '',
-                            style: const TextStyle(
-                                fontSize: 56,
-                                color: RythoColors.goldBright)),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                    '${hexagram['name_local'] ?? hexagram['name_tr']}',
-                                    style: RythoText.display(24)),
-                                Text(
-                                    '${hexagram['name']} ${hexagram['name_cn']}',
-                                    style: RythoText.body(12.5,
-                                        color: RythoColors.parchmentDim)),
-                              ]),
-                        ),
-                      ]),
-                )),
+                RythoReveal(
+                  index: 0,
+                  child: GlassPanel(
+                    label: cizgi != null
+                        ? l10n.birthHexagramGateLine(
+                            konum['gate'] as int, cizgi)
+                        : l10n.birthHexagramGateOnly(konum['gate'] as int),
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Tek başına duran glif: glif rolü, çıplak
+                          // `TextStyle` değil (Android'de emoji fontuna
+                          // düşmesin).
+                          Text(hexagram['unicode'] ?? '',
+                              style: RythoText.glyph(56,
+                                  color: RythoColors.goldBright)),
+                          const SizedBox(width: RythoSpace.lg),
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(kapiAdi, style: RythoType.heroSmall),
+                                  Text(
+                                      '${hexagram['name']} ${hexagram['name_cn']}',
+                                      style: RythoText.body(12.5,
+                                          color: RythoColors.parchmentDim)),
+                                ]),
+                          ),
+                        ]),
+                  ),
+                ),
                 // ⚠️ AD ÖNDE KALDI, ÖLÇÜM ARKAYA GİTTİ — ayrım bilinçli.
                 //
                 // Lifestyle turunda diğer dört ekranda okuma en başa alındı;
@@ -112,104 +126,120 @@ class BirthHexagramScreen extends ConsumerWidget {
                 // dayanak (boylam + sınır) → klasik kaynak metinleri.
                 // "Bugün" önce geliyor çünkü kullanıcı bu ekranı bugün açtı;
                 // kalıcı doku onun arkasında, çünkü o her gün aynı.
-                if ((data['report'] as String? ?? '').trim().isNotEmpty)
-                  blok(Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: MarginNote(
-                        title: l10n.birthHexagramNote,
-                        text: data['report'] as String),
-                  )),
+                //
+                // Kap `OkumaKabi`: `fallback` bayrağı tek noktadan okunur,
+                // şablon paylaşılamaz. Eski hâl bayrağı hiç okumuyordu.
+                RythoReveal(
+                  index: 1,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: RythoSpace.lg),
+                    child: OkumaKabi(
+                      durum: okumaDurumuFromYanit(data),
+                      ekranKodu: 'atlas',
+                      baslik: l10n.birthHexagramNote,
+                      onTekrarDene: () =>
+                          ref.invalidate(birthHexagramProvider),
+                      onSor: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                  initialText:
+                                      l10n.birthHexagramAskPrefill))),
+                      paylasim: PaylasimTarifi(
+                        title: l10n.birthHexagramTitle,
+                        dateLabel: bugununEtiketi(),
+                        // Rozet ölçülmüş olan: kapının numarası ve adı.
+                        badges: [
+                          (
+                            l10n.birthHexagramGateOnly(konum['gate'] as int),
+                            kapiAdi
+                          ),
+                        ],
+                        glyph: PlusOzellik.birthHexagram.emoji,
+                      ),
+                    ),
+                  ),
+                ),
                 // Kapının Dokusu (İ8): Rytho'nun kapıya özgü karakter
                 // aktarımı — gölgesiyle birlikte. Her gün aynı: ölçülmüş
                 // sabit çekirdek, bugüne ait olan değil.
                 if ((data['gate_text'] as String?)?.isNotEmpty ?? false)
-                  blok(Plaque(
-                    label: l10n.birthHexagramGatePassage,
-                    child: Text(data['gate_text'] as String,
-                        style: RythoText.body(14,
-                            color: RythoColors.parchment)),
-                  )),
-                blok(const SectionDivider()),
+                  RythoReveal(
+                    index: 2,
+                    child: GlassPanel(
+                      label: l10n.birthHexagramGatePassage,
+                      child: Text(data['gate_text'] as String,
+                          style: RythoText.body(14,
+                              color: RythoColors.parchment)),
+                    ),
+                  ),
+                const RythoReveal(index: 3, child: SectionDivider()),
                 // Dayanak: Güneş'in boylamı ve — gerekiyorsa — sınır beyanı.
                 // Glif panelinden buraya indi; "bilginin geldiği yer"
                 // okumanın ALTINDA durur (sahibin istediği sıra).
-                blok(Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                            l10n.birthHexagramSunAt(
-                                '${konum['longitude']}'),
-                            style: RythoText.mono(10.5,
-                                color: RythoColors.parchmentDim)),
-                        // Sınır beyanı: saatsiz doğumda kapı kesin
-                        // bildirilemezse İKİ aday da söylenir — kesinlik
-                        // yanılsaması yok.
-                        if (alternatif != null) ...[
-                          const SizedBox(height: 6),
+                RythoReveal(
+                  index: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.xs),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                              l10n.birthHexagramBoundary(
-                                  konum['gate'] as int,
-                                  konum['alternate_gate'] as int),
-                              style: RythoText.body(11.5,
-                                  color: RythoColors.copper)),
-                        ],
-                      ]),
-                )),
-                blok(Plaque(
-                  label: l10n.iChingJudgmentTitle,
-                  child: Text(hexagram['judgment'] ?? '',
-                      style: RythoText.body(14,
-                          color: RythoColors.parchment)),
-                )),
-                blok(Plaque(
-                  label: l10n.iChingImageTitle,
-                  child: Text(hexagram['image'] ?? '',
-                      style: RythoText.body(13.5,
-                          color: RythoColors.parchmentDim)),
-                )),
+                              l10n.birthHexagramSunAt(
+                                  '${konum['longitude']}'),
+                              style: RythoText.mono(10.5,
+                                  color: RythoColors.parchmentDim)),
+                          // Sınır beyanı: saatsiz doğumda kapı kesin
+                          // bildirilemezse İKİ aday da söylenir — kesinlik
+                          // yanılsaması yok.
+                          if (alternatif != null) ...[
+                            const SizedBox(height: RythoSpace.xs),
+                            Text(
+                                l10n.birthHexagramBoundary(
+                                    konum['gate'] as int,
+                                    konum['alternate_gate'] as int),
+                                style: RythoText.body(11.5,
+                                    color: RythoColors.copper)),
+                          ],
+                        ]),
+                  ),
+                ),
+                RythoReveal(
+                  index: 5,
+                  child: GlassPanel(
+                    label: l10n.iChingJudgmentTitle,
+                    child: Text(hexagram['judgment'] ?? '',
+                        style: RythoText.body(14,
+                            color: RythoColors.parchment)),
+                  ),
+                ),
+                RythoReveal(
+                  index: 6,
+                  child: GlassPanel(
+                    label: l10n.iChingImageTitle,
+                    child: Text(hexagram['image'] ?? '',
+                        style: RythoText.body(13.5,
+                            color: RythoColors.parchmentDim)),
+                  ),
+                ),
                 // Doğum çizgisinin metni (İ1 verisi) — saat biliniyorsa.
                 if (cizgi != null &&
                     (hexagram['line_texts'] as List?)?.length == 6)
-                  blok(Plaque(
-                    label: l10n.iChingLineLabel(cizgi),
-                    child: Text(
-                        (hexagram['line_texts'] as List)[cizgi - 1]
-                            as String,
-                        style: RythoText.body(13.5,
-                            color: RythoColors.parchment)),
-                  )),
-                // Sayfanın birincil eylemi en alt kenarda (tasarım doktrini).
-                blok(RythoyaSor(
-                    onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => ChatScreen(
-                                initialText:
-                                    l10n.birthHexagramAskPrefill))))),
+                  RythoReveal(
+                    index: 7,
+                    child: GlassPanel(
+                      label: l10n.iChingLineLabel(cizgi),
+                      child: Text(
+                          (hexagram['line_texts'] as List)[cizgi - 1]
+                              as String,
+                          style: RythoText.body(13.5,
+                              color: RythoColors.parchment)),
+                    ),
+                  ),
               ]);
         },
       ),
     );
   }
-}
-
-/// Kapı BİLİNMİYORken çizilen iskelet (P2).
-///
-/// Ne kilit ne içerik: ikisi de bir hüküm ve o hüküm henüz yok. Bloklar
-/// sayfanın gerçek bölüm hacimlerini taklit ediyor, böylece cevap gelince
-/// düzen zıplamıyor. Shimmer `SkeletonPanel`in içinde ve reduce-motion'da
-/// kendiliğinden kapanıyor.
-class _Iskelet extends StatelessWidget {
-  const _Iskelet();
-
-  @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.only(top: 8, bottom: 120),
-        children: const [
-          SkeletonPanel(height: 150),
-          SkeletonPanel(height: 110),
-          SkeletonPanel(height: 90),
-        ],
-      );
 }

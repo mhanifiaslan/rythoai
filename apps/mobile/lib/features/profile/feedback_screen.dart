@@ -133,10 +133,14 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
     if (didPop) return;
     final gezgin = Navigator.of(context);
     final l10n = AppLocalizations.of(context);
+    // Ödünç "Kapat" etiketi gitti (D5 dikişi): vazgeçmek yazılanı
+    // kaybeder, o yüzden yıkıcı düğme ve ne kaybedileceğini söyleyen gövde.
     final tamam = await onayla(
       context,
-      title: l10n.feedbackClose,
-      confirmLabel: l10n.feedbackClose,
+      title: l10n.feedbackDiscardTitle,
+      body: l10n.feedbackDiscardBody,
+      confirmLabel: l10n.discard,
+      destructive: true,
     );
     if (tamam) gezgin.pop();
   }

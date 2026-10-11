@@ -1,9 +1,14 @@
+import 'dart:async' show TimeoutException;
+
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
-import '../features/paywall/paywall_screen.dart';
+import '../features/paywall/ozellik_katalogu.dart' show PlusOzellik;
+import '../features/paywall/paywall_acilis.dart'
+    show PaywallKaynak, acPaywall;
 import '../features/paywall/token_store_screen.dart';
 import '../l10n/app_localizations.dart';
 import 'app_config.dart'
@@ -30,6 +35,36 @@ final GlobalKey<NavigatorState> rythoNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Kilitli özellik için sunucunun döndürdüğü HTTP kodu.
 const int kPaywallStatus = 402;
+
+/// Kota/hız sınırı: sunucu `Retry-After` (saniye) ile birlikte döner.
+const int kKotaStatus = 429;
+
+/// Sunucunun 429 ile bildirdiği bekleme süresinin BİTİŞ ANI; `null` =
+/// bekleme yok.
+///
+/// SADE `StateProvider` — `cuzdanTazelemeProvider` ile aynı gerekçe:
+/// yazan taraf `apiProvider`'ın interceptor'ı; `apiProvider`'ı izleyen bir
+/// sağlayıcıya oradan dokunmak çalışma anında `CircularDependencyError`
+/// fırlatır (bulgu B10). Bu sağlayıcı hiçbir şeyi izlemez; okuyan yüzey
+/// (ör. "{n} sn sonra tekrar dene" rozeti) kendi tarafından bağlanır.
+///
+/// Süre değil AN tutuluyor: "30 saniye" yazıldığı andan itibaren eskir;
+/// bitiş anı okuyan yüzeye kalan süreyi istediği zaman hesaplatır.
+final kotaBeklemeProvider = StateProvider<DateTime?>((_) => null);
+
+/// `Retry-After` başlığını saniyeye çevirir; yoksa/sayı değilse `null`.
+///
+/// HTTP tarihi biçimi (`Wed, 21 Oct 2015 07:28:00 GMT`) BİLEREK
+/// çözülmüyor: sunucumuz yalnız saniye yazar (`core/ratelimit.py`
+/// `str(retry_after)`, `api/partners.py` `"2"`); tarih gelen bir başlık
+/// bizim değildir (vekil/CDN), onu "0 sn" diye okumak yanlış bir vaat
+/// olurdu.
+int? retryAfterSaniye(Headers? basliklar) {
+  final ham = basliklar?.value('retry-after')?.trim();
+  if (ham == null) return null;
+  final sn = int.tryParse(ham);
+  return sn == null || sn <= 0 ? null : sn;
+}
 
 /// Tek cihaz kilidinin çakışma kodu (X-Device-Conflict başlığıyla birlikte).
 /// İşleyişi core/device_session.dart'ta: kapı kapanır, oturum AÇIK kalır.
@@ -88,23 +123,38 @@ PaywallHedefi paywallHedefi(String? sebep, {required bool? abone}) {
 }
 
 /// Sunucu 402 döndüğünde doğru yüzeyi açar.
-Future<void> _showPaywall(String? reason, PaywallHedefi hedef) async {
+///
+/// [ozellik] sunucunun `X-Paywall-Feature` başlığından (`require_plus`
+/// adı): satış ekranı "{özellik} için Rytho+" diyebilsin. Eskiden başlık
+/// hiç okunmuyordu ve ekran her kilitte aynı genel cümleyi gösteriyordu.
+///
+/// Abonelik yolu `acPaywall` (TEK açılış noktası, `PaywallKaynak.kilit402`
+/// = kesinti → tam ekran diyalog); `_paywallOpen` yeniden giriş kapısı
+/// BURADA kalır — gerekçesi `paywall_acilis.dart` başında. Jeton mağazası
+/// `acPaywall`ın kapsamında değil (o yalnız satış ekranını açar); aynı
+/// kesinti rotası elle kurulur.
+Future<void> _showPaywall(String? reason, PaywallHedefi hedef,
+    {PlusOzellik? ozellik}) async {
   if (hedef == PaywallHedefi.mesaj) {
     _sunucuMesajiniGoster(reason);
     return;
   }
   if (_paywallOpen) return;
   final navigator = rythoNavigatorKey.currentState;
-  if (navigator == null) return;
+  final context = rythoNavigatorKey.currentContext;
+  if (navigator == null || context == null) return;
 
   _paywallOpen = true;
   try {
-    await navigator.push(MaterialPageRoute(
-      builder: (_) => hedef == PaywallHedefi.jetonMagazasi
-          ? TokenStoreScreen(reason: reason)
-          : PaywallScreen(reason: reason),
-      fullscreenDialog: true,
-    ));
+    if (hedef == PaywallHedefi.jetonMagazasi) {
+      await navigator.push(MaterialPageRoute(
+        builder: (_) => TokenStoreScreen(reason: reason),
+        fullscreenDialog: true,
+      ));
+    } else {
+      await acPaywall(context,
+          kaynak: PaywallKaynak.kilit402, ozellik: ozellik, reason: reason);
+    }
   } finally {
     _paywallOpen = false;
   }
@@ -242,12 +292,24 @@ final apiProvider = Provider<Dio>((ref) {
           final detay = govde is Map ? govde['detail'] : null;
           final sebep = yanit.headers.value('x-paywall-reason');
           _showPaywall(detay is String ? detay : null,
-              paywallHedefi(sebep, abone: ref.read(aboneAynasiProvider)));
+              paywallHedefi(sebep, abone: ref.read(aboneAynasiProvider)),
+              ozellik:
+                  PlusOzellik.bul(yanit.headers.value('x-paywall-feature')));
+        }
+        // 429: sunucu "yavaşla" dedi. Bitiş anı not edilir; başlıksız
+        // 429'da not YOK — süresi bilinmeyen bir bekleme ilan etmek
+        // uydurma olurdu.
+        if (yanit?.statusCode == kKotaStatus) {
+          final sn = retryAfterSaniye(yanit!.headers);
+          if (sn != null) {
+            ref.read(kotaBeklemeProvider.notifier).state =
+                DateTime.now().add(Duration(seconds: sn));
+          }
         }
       } catch (e) {
         // Yan etkideki bir hata sunucunun KENDİ hatasının yerine geçmemeli:
         // 402'nin detayı ve paywall kararı kaybolurdu.
-        debugPrint('402 yan etkisi düştü: $e');
+        debugPrint('402/429 yan etkisi düştü: $e');
       }
       handler.next(error);
     },
@@ -309,7 +371,17 @@ String friendlyError(Object error, AppLocalizations l10n) {
         ? l10n.reportUnavailableRefunded
         : l10n.reportUnavailable;
   }
+  // `Future.timeout` ile kesilen akislar (profil yuklemesi, 12 sn) Dio
+  // disinda duser; "beklenmeyen sorun" degil, baglanti yok demektir.
+  if (error is TimeoutException) return l10n.errorConnection;
   if (error is DioException) {
+    // 429 + Retry-After: sunucunun soyledigi sure, genel `detail`
+    // cumlesinden daha dogru — kullanici NE ZAMAN deneyecegini ogrenir.
+    // Basliksiz 429 asagidaki `detail` yoluna duser (sure uydurulmaz).
+    if (error.response?.statusCode == kKotaStatus) {
+      final sn = retryAfterSaniye(error.response?.headers);
+      if (sn != null) return l10n.retryAfterSeconds(sn);
+    }
     // Sunucunun `detail` alani zaten kullanicinin dilinde uretiliyor
     // (Accept-Language ile), o yuzden oldugu gibi gosterilir — cerceveden
     // gelenler HARIC.
@@ -328,7 +400,14 @@ String friendlyError(Object error, AppLocalizations l10n) {
 }
 
 /// Kullanıcının doğum verisini backend'in beklediği gövdeye çevirir.
-Map<String, dynamic> birthPayload(Map<String, dynamic> profile) {
+///
+/// [varsayilanAd]: profilde ad yoksa sunucuya giden ad — çağıran
+/// `l10n.defaultUserName` geçer ("Gezgin"/"Traveller"). Verilmezse alan
+/// HİÇ gönderilmez ve sunucunun kendi varsayılanı işler: eskiden burada
+/// `'Gezgin'` sabitti ve İngilizce kullanıcı promptta "Gezgin" diye
+/// anılıyordu — aynı sabitin istemcide ikinci kopyası olmasın.
+Map<String, dynamic> birthPayload(Map<String, dynamic> profile,
+    {String? varsayilanAd}) {
   final birthDate = (profile['birthDate'] as String?) ?? '2000-01-01';
   // birthTime alanı YOKSA saat bilinmiyor demektir (Revize B1): 12:00
   // yalnızca saat gerektiren uçlar (natal) için teknik dolgu, hour_known
@@ -336,8 +415,9 @@ Map<String, dynamic> birthPayload(Map<String, dynamic> profile) {
   final birthTime = profile['birthTime'] as String?;
   final dateParts = birthDate.split('-').map(int.parse).toList();
   final timeParts = (birthTime ?? '12:00').split(':').map(int.parse).toList();
+  final ad = (profile['displayName'] as String?) ?? varsayilanAd;
   return {
-    'name': profile['displayName'] ?? 'Gezgin',
+    'name': ?ad,
     'year': dateParts[0],
     'month': dateParts[1],
     'day': dateParts[2],
@@ -346,6 +426,9 @@ Map<String, dynamic> birthPayload(Map<String, dynamic> profile) {
     'hour_known': birthTime != null,
     'city': profile['birthCity'] ?? 'Istanbul',
     'nation': profile['birthNation'],
-    'gender': profile['gender'] ?? 'female',
+    // Belirtilmemiş cinsiyet BELİRTİLMEMİŞTİR: eski `'female'` önseçimi
+    // BaZi'de şans yönünü kadın varsayımıyla ölçtürüyordu. Sunucu
+    // `unspecified` ile yönü "ölçülemez" sayar (D0).
+    'gender': profile['gender'] ?? 'unspecified',
   };
 }

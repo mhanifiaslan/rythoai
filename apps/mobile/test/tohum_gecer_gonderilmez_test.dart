@@ -107,7 +107,7 @@ bool onDoldurulurGonderilmez(String kaynak) {
 const _kKisiIyi = '''
 ChatScreen(
     personId: person.id,
-    initialText: l10n.chartAskPrefill(ad))
+    initialText: l10n.chartAskPrefillNatal(ad))
 ''';
 
 const _kKisiTohumsuz = '''
@@ -179,11 +179,15 @@ void main() {
     });
 
     test('tohum ekranın KENDİ konusundan geliyor', () {
-      // Bu ekranın gövdesi kişinin çarkı; tohum da çark sorusu olmalı.
-      // Aynı anahtarı kişinin tam ekran çarkı da kullanıyor, yani iki
-      // giriş aynı cümleyi üretiyor.
+      // Bu ekranın gövdesi kişinin NATAL çarkı; tohum da natal kipin
+      // kendi anahtarından gelir (D6: kip başına anahtar — eski tek
+      // `chartAskPrefill(title)` "Şu an {title} çarkını" kalıbı her kipte
+      // aynı cümleyi üretiyordu). Kişinin tam ekran çarkı aynı kipte
+      // aynı anahtarı kullanır.
       final s = _yorumsuz(File(_kKisiYolu).readAsStringSync());
-      expect(s, contains('initialText: l10n.chartAskPrefill(ad)'));
+      expect(s, contains('initialText: l10n.chartAskPrefillNatal(ad)'));
+      expect(s, isNot(contains('chartAskPrefill(ad)')),
+          reason: 'kipsiz eski anahtar geri geldi');
     });
 
     test('kişi kimliği tohumla birlikte KALIYOR', () {

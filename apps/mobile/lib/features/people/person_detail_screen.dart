@@ -10,6 +10,12 @@
 ///
 /// Çark, Büyük Üçlü ve yerleşimler: hepsi LLM'siz hesap, hepsi ücretsiz
 /// ("hesap bedava, yorum paralı"). Kilitlenen yalnız YORUM.
+///
+/// ## Sıra: anlam önce, ölçüm sonra (lifestyle kuralı)
+///
+/// Ekran üç tablo + çarkla açılıyordu, tek cümle yoktu. Artık ilk görünen
+/// şey haritanın KENDİ ölçümünden seçilen bir anlam cümlesi
+/// (`kisiAnlamCumlesi`), sonra Büyük Üçlü ve çark; en altta "Rytho'ya sor".
 library;
 
 import 'package:flutter/material.dart';
@@ -22,17 +28,29 @@ import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/basis_sheet.dart' show OlcumSatiri;
+import '../../widgets/chart/chart_data.dart';
+import '../../widgets/chart/chart_wheel.dart';
+import '../../widgets/chart/wheel_painter.dart' show WheelAspectFilter;
 import '../../widgets/common.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
-import '../../widgets/chart/chart_data.dart';
-import '../../widgets/chart/chart_wheel.dart';
-import '../../widgets/nebula_widgets.dart' show Pressable, localizedSignName;
+import '../../widgets/liste_satiri.dart';
+import '../../widgets/nebula_widgets.dart' show localizedSignName;
+import '../../widgets/onay.dart' show onayla;
 import '../atlas/atlas_detail_screens.dart'
-    show showAspectSheet, showPointSheet;
+    show
+        aspectMeaningText,
+        baskinElement,
+        elementLine,
+        elementName,
+        showAspectSheet,
+        showDagilimSheet,
+        temperamentLine;
 import '../atlas/chart_inspector_screen.dart';
 import '../chat/chat_screen.dart';
 import '../friends/relationship_screen.dart' show RelationshipScreen;
+import '../share/share_card.dart' show shareChartCard;
 import 'person_form_screen.dart' show PersonFormScreen, relationLabel;
 
 /// Kişinin haritası. Anahtar kişinin kimliği + doğum verisi: kullanıcı
@@ -45,6 +63,66 @@ final personChartProvider =
   return Map<String, dynamic>.from(response.data['data'] as Map);
 });
 
+/// Geri bildirim kanalındaki ekran kodu (`FeedbackScreen.screen` kapalı
+/// kümesi): kişi ekranı Çevrem sekmesinin altında yaşar.
+const String kKisiEkranKodu = 'circle';
+
+/// Gömülü çarkın filtre/orb/minör ayarı — anlam cümlesinin "görünür açı"
+/// kapısı bu üçlüyle AYNI olmak zorunda, yoksa çizilmeyen bir açı ekranın
+/// başında anlatılır.
+const WheelAspectFilter _kCarkFiltre = WheelAspectFilter.all;
+const double _kCarkOrb = 8.0;
+const bool _kCarkMinor = false;
+
+/// Kişi ekranının anlam cümlesi: etiket + cümle + dayanağı.
+///
+/// [element] doluysa dayanak element dağılımı sayfası, [aci] doluysa açı
+/// sayfası. İkisi birden asla dolu değil.
+class KisiAnlam {
+  const KisiAnlam._(
+      {required this.etiket, required this.cumle, this.element, this.aci});
+
+  final String etiket;
+  final String cumle;
+  final String? element;
+  final ChartAspect? aci;
+}
+
+/// Haritanın KENDİ ölçümünden seçilen tek cümle — Harita İnceleme'nin
+/// `_AnlamKatmani`sıyla aynı iki kural, aynı saf fonksiyonlar:
+///
+/// 1. Sunucunun kanonik element sayımında KESİN baskınlık varsa
+///    (`baskinElement`, eşitlikte null) element cümlesi.
+/// 2. Yoksa en dar GÖRÜNÜR açı (`liderGorunurAci`, çarkın kendi filtresi ve
+///    orbuyla) ve o açının anlam cümlesi; minör açıya cümle UYDURULMAZ
+///    (`aspectMeaningText` null döner).
+///
+/// Hiçbiri yoksa null → panel hiç çizilmez. Boş yer, uydurma cümleden
+/// iyidir. Saf: ekran ağdan beslendiği için kural burada çivilenir
+/// (emsal: `liderGorunurAci`nin kendisi).
+KisiAnlam? kisiAnlamCumlesi(
+    AppLocalizations l10n, Map<String, dynamic> chart, ChartData veri) {
+  final element = baskinElement(Map<String, dynamic>.from(
+      chart['element_distribution'] as Map? ?? const {}));
+  if (element != null) {
+    return KisiAnlam._(
+      etiket: elementName(l10n, element),
+      cumle: elementLine(l10n, element),
+      element: element,
+    );
+  }
+  final aci =
+      liderGorunurAci(veri, _kCarkFiltre, _kCarkOrb, showMinors: _kCarkMinor);
+  if (aci == null) return null;
+  final cumle = aspectMeaningText(l10n, aci.kind);
+  if (cumle == null) return null;
+  return KisiAnlam._(
+    etiket: aci.localLabel ?? '${aci.p1} — ${aci.p2}',
+    cumle: cumle,
+    aci: aci,
+  );
+}
+
 class PersonDetailScreen extends ConsumerWidget {
   const PersonDetailScreen({super.key, required this.person});
 
@@ -52,23 +130,16 @@ class PersonDetailScreen extends ConsumerWidget {
 
   Future<void> _sil(BuildContext context, WidgetRef ref) async {
     final l10n = AppLocalizations.of(context);
-    final onay = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        backgroundColor: RythoColors.inkLight,
-        content: Text(l10n.peopleRemoveConfirm, style: RythoText.body(14)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(c).pop(false),
-              child: Text(l10n.cancel)),
-          TextButton(
-              onPressed: () => Navigator.of(c).pop(true),
-              child: Text(l10n.peopleRemove,
-                  style: const TextStyle(color: RythoColors.copper))),
-        ],
-      ),
+    // Yıkıcı eylem tek kapıdan (`onayla`): başlık eylemin adı, gövde
+    // bedeli ("geri alınamaz"), onay düğmesi madder.
+    final onay = await onayla(
+      context,
+      title: l10n.peopleRemove,
+      body: l10n.peopleRemoveConfirm,
+      confirmLabel: l10n.peopleRemove,
+      destructive: true,
     );
-    if (onay != true || !context.mounted) return;
+    if (!onay || !context.mounted) return;
 
     final gezgin = Navigator.of(context);
     final mesajci = ScaffoldMessenger.of(context);
@@ -86,7 +157,9 @@ class PersonDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final ad = person.label ?? relationLabel(l10n, person.relation);
+    final iliskiEtiketi = relationLabel(l10n, person.relation);
     final harita = ref.watch(personChartProvider(person));
+    final chart = harita.value;
 
     // OB4: çevreden birine bakmak keşif halkasının üçüncü dilimi.
     // build İÇİNDE provider değiştirilemez; kare sonrasına ertelenir
@@ -101,7 +174,25 @@ class PersonDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(ad),
         actions: [
+          // Çark görüntüsü paylaşımı AppBar'da kalır (tek beyanlı istisna;
+          // plan §7). Karta kişinin ADI değil ilişki etiketi basılır:
+          // ad cihazda kalan bir sırdır, kart dışarı gider.
           IconButton(
+            tooltip: l10n.shareReading,
+            icon: const Icon(Icons.ios_share_rounded, size: 20),
+            onPressed: chart == null
+                ? null
+                : () => shareChartCard(
+                      context,
+                      data: ChartData.fromNatal(chart, label: iliskiEtiketi),
+                      title: iliskiEtiketi,
+                      filter: _kCarkFiltre,
+                      maxOrb: _kCarkOrb,
+                      showMinors: _kCarkMinor,
+                    ),
+          ),
+          IconButton(
+            tooltip: l10n.edit,
             icon: const Icon(Icons.edit_outlined, size: 20),
             onPressed: () async {
               final degisti = await Navigator.of(context).push<bool>(
@@ -111,31 +202,30 @@ class PersonDetailScreen extends ConsumerWidget {
             },
           ),
           IconButton(
+            tooltip: l10n.peopleRemove,
             icon: const Icon(Icons.delete_outline_rounded, size: 20),
             onPressed: () => _sil(context, ref),
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 60),
+        padding: const EdgeInsets.only(bottom: RythoSpace.xxl),
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 RythoSpace.lg, RythoSpace.md, RythoSpace.lg, 0),
-            child: Text(relationLabel(l10n, person.relation),
-                style: RythoText.mono(11.5, color: RythoColors.parchmentDim)),
+            // İlişki adı bir ölçüm değil AD; mono (veri) rolü yanlıştı.
+            child: Text(iliskiEtiketi, style: RythoType.label),
           ),
           const SizedBox(height: RythoSpace.md),
 
           harita.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.only(top: 60),
-              child: Center(child: AstrolabeSpinner()),
-            ),
+            loading: () => const SkeletonPanel(height: 320),
             error: (e, _) => Padding(
               padding: const EdgeInsets.all(RythoSpace.lg),
               child: ErrorCard(
                   message: friendlyError(e, l10n),
+                  screen: kKisiEkranKodu,
                   onRetry: () =>
                       ref.invalidate(personChartProvider(person))),
             ),
@@ -146,44 +236,35 @@ class PersonDetailScreen extends ConsumerWidget {
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
-            child: Column(children: [
-              _EylemSatiri(
-                icon: Icons.public_rounded,
-                label: l10n.relationshipTitle(ad),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) =>
-                        RelationshipScreen.forPerson(person: person))),
-              ),
-              const SizedBox(height: RythoSpace.sm),
-              _EylemSatiri(
-                icon: Icons.auto_awesome_rounded,
-                label: l10n.signalAsk,
-                // TOHUM: etiket "Rytho'ya sor" diyordu ama sohbet BOŞ
-                // açılıyordu — çağrı vardı, soru yoktu. `initialText`
-                // giriş alanını ÖN-DOLDURUR, GÖNDERMEZ
-                // (`chat_screen.dart`: "son söz onun"), yani tohum bir
-                // teklif; kullanıcı silip kendi sorusunu yazabilir.
-                //
-                // NEDEN yeni bir dize değil `chartAskPrefill`: bu
-                // ekranın gövdesi kişinin ÇARKI (Büyük Üçlü +
-                // `ChartWheel`) ve aynı çarkı tam ekran açan düğme
-                // ZATEN bu anahtarı bu adla kullanıyor — oraya
-                // `titleOverride: ad` geçiyor, `ChartInspectorScreen._sor`
-                // da `chartAskPrefill(_baslik)` kuruyor. Yani aynı
-                // kişinin iki girişi aynı cümleyi üretiyor; ayrı bir
-                // dize ikisini sebepsiz AYRIŞTIRIRDI.
-                //
-                // `ad` = `person.label ?? relationLabel(...)`: kullanıcı
-                // bir ad yazmadıysa ilişki sözcüğü geçer, yani tohum her
-                // hâlde ekranın başlığında okunan sözcüğü kullanır ve
-                // sohbete yeni bir sözlük sokmaz. `personId` KALIYOR:
-                // yetki kapısı ve bağlam fısıltısı tohumdan bağımsız.
+            child: ListeSatiri(
+              leading: const Icon(Icons.public_rounded,
+                  size: 18, color: RythoColors.lilac),
+              title: l10n.relationshipTitle(ad),
+              margin: EdgeInsets.zero,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) =>
+                      RelationshipScreen.forPerson(person: person))),
+            ),
+          ),
+          // TOHUM: giriş alanını ÖN-DOLDURUR, GÖNDERMEZ (`chat_screen.dart`:
+          // "son söz onun"). Kip başına anahtar: eski `chartAskPrefill(ad)`
+          // "Şu an {title} çarkını" kalıbıyla her kipte aynı cümleyi
+          // üretiyordu; natal kipin kendi anahtarı var. `ad` = etiket ya da
+          // ilişki sözcüğü, yani tohum ekranın başlığında okunan sözcüğü
+          // kullanır. `personId` KALIYOR: yetki kapısı ve bağlam fısıltısı
+          // tohumdan bağımsız.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                RythoSpace.sm, RythoSpace.sm, RythoSpace.lg, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: RythoyaSor(
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => ChatScreen(
                         personId: person.id,
-                        initialText: l10n.chartAskPrefill(ad)))),
+                        initialText: l10n.chartAskPrefillNatal(ad)))),
               ),
-            ]),
+            ),
           ),
         ],
       ),
@@ -202,26 +283,41 @@ class _HaritaBolumu extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final ad = person.label ?? relationLabel(l10n, person.relation);
     final veri = ChartData.fromNatal(chart, label: ad);
+    final anlam = kisiAnlamCumlesi(l10n, chart, veri);
+
+    // Gömülü çark SALT ÖNİZLEME: dokunuş İnceleme'yi açar, gezegen/açı
+    // alt-sayfaları yalnız orada. Eski hâli iki etkileşim modeli
+    // taşıyordu (gezegene dokun → alt-sayfa, altındaki düğme → İnceleme)
+    // ve dokunan kişi hangisini aldığını bilemiyordu (sky_now emsali).
+    void incelemeyiAc() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ChartInspectorScreen(
+            mode: ChartInspectorMode.natal,
+            person: person,
+            natalOverride: chart,
+            titleOverride: ad)));
 
     return Column(children: [
+      // ANLAM ÖNCE: cümle varsa ekranın ilk kartı; dokununca dayanağı açar.
+      if (anlam != null)
+        _AnlamKarti(anlam: anlam, chart: chart),
       // Büyük Üçlü: Yükselen saatsizken sunucu ZATEN üretmiyor, bu yüzden
-      // burada "—" değil, satır hiç çizilmiyor ve altta beyan duruyor.
+      // burada "—" değil, satır hiç çizilmiyor ve altta beyan duruyor
+      // (`OlcumSatiri` boş değerde kendini gizler).
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
         child: GlassPanel(
           label: l10n.bigThreeTitle,
           child: Column(children: [
-            _MuhurSatiri(
+            OlcumSatiri(
                 etiket: l10n.bigThreeSun,
                 deger: localizedSignName(l10n, chart['sun_sign'] as String?)),
-            _MuhurSatiri(
+            OlcumSatiri(
                 etiket: l10n.bigThreeMoon,
                 deger: localizedSignName(l10n, chart['moon_sign'] as String?)),
-            if ((chart['ascendant'] as String?) != null)
-              _MuhurSatiri(
-                  etiket: l10n.bigThreeAscendant,
-                  deger:
-                      localizedSignName(l10n, chart['ascendant'] as String?)),
+            OlcumSatiri(
+                etiket: l10n.bigThreeAscendant,
+                deger:
+                    localizedSignName(l10n, chart['ascendant'] as String?)),
           ]),
         ),
       ),
@@ -230,7 +326,7 @@ class _HaritaBolumu extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
           child: Text(l10n.peopleHourUnknownBadge,
-              style: RythoText.body(11.5, color: RythoColors.copper)),
+              style: RythoType.caption.copyWith(color: RythoColors.caution)),
         ),
       ],
       const SizedBox(height: RythoSpace.lg),
@@ -240,15 +336,16 @@ class _HaritaBolumu extends StatelessWidget {
             data: veri,
             size: 320,
             interactive: false,
-            onPlanetTap: (g) =>
-                showPointSheet(context, pointSheetMap(g.point)),
-            onAspectTap: (a) =>
-                showAspectSheet(context, aspectSheetMap(a)),
+            filter: _kCarkFiltre,
+            maxOrb: _kCarkOrb,
+            showMinors: _kCarkMinor,
+            onTap: incelemeyiAc,
           ),
         ),
         // Harita İnceleme girişleri (HI-turu): kişinin kendi çarkı tam
-        // ekran + kullanıcıyla İKİLİ (sinastri) çark — her ikisi de
-        // kullanıcının kendi girdiği veriyle (gizlilik sözleşmesi aynı).
+        // ekran (çarkın kendisiyle aynı kapı) + kullanıcıyla İKİLİ
+        // (sinastri) çark — her ikisi de kullanıcının kendi girdiği
+        // veriyle (gizlilik sözleşmesi aynı).
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
           // İki düğme esnemeyen bir `Row`daydı ve etiketlerden biri KİŞİ
@@ -262,30 +359,24 @@ class _HaritaBolumu extends StatelessWidget {
                 alignment: WrapAlignment.end,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-            TextButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => ChartInspectorScreen(
-                          mode: ChartInspectorMode.synastry,
-                          person: person))),
-              icon: const Icon(Icons.join_left_rounded, size: 15),
-              label: Text(l10n.chartModeSynastry(ad),
-                  style: RythoText.label(11, color: RythoColors.lilac)),
-            ),
-            TextButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => ChartInspectorScreen(
-                          mode: ChartInspectorMode.natal,
-                          person: person,
-                          natalOverride: chart,
-                          titleOverride: ad))),
-              icon: const Icon(Icons.open_in_full_rounded, size: 15),
-              label: Text(l10n.chartExpandTooltip,
-                  style:
-                      RythoText.label(11, color: RythoColors.goldBright)),
-            ),
-          ]),
+              TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => ChartInspectorScreen(
+                            mode: ChartInspectorMode.synastry,
+                            person: person))),
+                icon: const Icon(Icons.join_left_rounded, size: 15),
+                label: Text(l10n.chartModeSynastry(ad),
+                    style: RythoText.label(11, color: RythoColors.lilac)),
+              ),
+              TextButton.icon(
+                onPressed: incelemeyiAc,
+                icon: const Icon(Icons.open_in_full_rounded, size: 15),
+                label: Text(l10n.chartExpandTooltip,
+                    style:
+                        RythoText.label(11, color: RythoColors.goldBright)),
+              ),
+            ]),
           ),
         ),
       ],
@@ -293,67 +384,44 @@ class _HaritaBolumu extends StatelessWidget {
   }
 }
 
-class _MuhurSatiri extends StatelessWidget {
-  const _MuhurSatiri({required this.etiket, required this.deger});
+/// Anlam kartı: etiket + cümle; dokunuş dayanağı açar (element dağılımı
+/// ya da açı sayfası). Cümle burada SEÇİLMİYOR — `kisiAnlamCumlesi` seçti;
+/// bu widget yalnız çizer ve dayanak sayfasını bağlar.
+class _AnlamKarti extends StatelessWidget {
+  const _AnlamKarti({required this.anlam, required this.chart});
 
-  final String etiket;
-  final String? deger;
-
-  @override
-  Widget build(BuildContext context) {
-    if (deger == null || deger!.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      // `Row` + `Spacer` ile iki esnemeyen metin: uzun etiket + uzun değer
-      // dar ekranda satırı taşırıyordu. `Wrap` sığdığında eski görünümü
-      // korur, sığmadığında değeri alt satıra indirir; metin kırpılmaz.
-      // `SizedBox`: Wrap gevşek kısıtta büzülür, `spaceBetween` işlemez.
-      child: SizedBox(
-        width: double.infinity,
-        child: Wrap(
-          spacing: 12,
-          runSpacing: 2,
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.end,
-          children: [
-            Text(etiket, style: RythoType.label),
-            Text(deger!, style: RythoText.body(14, w: FontWeight.w600)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EylemSatiri extends StatelessWidget {
-  const _EylemSatiri(
-      {required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
+  final KisiAnlam anlam;
+  final Map<String, dynamic> chart;
 
   @override
   Widget build(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: RythoSpace.lg, vertical: 14),
-        decoration: BoxDecoration(
-          color: RythoColors.inkLighter,
-          border: Border.all(color: RythoColors.glassStroke),
-          borderRadius: BorderRadius.circular(RythoRadius.md),
-        ),
-        child: Row(children: [
-          Icon(icon, size: 18, color: RythoColors.lilac),
-          const SizedBox(width: RythoSpace.md),
-          Expanded(
-              child: Text(label, style: RythoText.body(14.5))),
-          const Icon(Icons.chevron_right_rounded,
-              size: 18, color: RythoColors.parchmentDim),
-        ]),
-      ),
+    final l10n = AppLocalizations.of(context);
+    final element = anlam.element;
+    final aci = anlam.aci;
+    return GlassPanel(
+      label: anlam.etiket,
+      margin: const EdgeInsets.fromLTRB(
+          RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.sm),
+      onTap: () {
+        if (element != null) {
+          showDagilimSheet(
+            context,
+            baslik: elementName(l10n, element),
+            aciklama: elementLine(l10n, element),
+            klasik: temperamentLine(l10n, element),
+            uyeler: List<String>.from(
+                (chart['element_members'] as Map?)?[element] as List? ??
+                    const []),
+            points: [
+              for (final p in (chart['points'] as List? ?? const []))
+                Map<String, dynamic>.from(p as Map),
+            ],
+          );
+        } else if (aci != null) {
+          showAspectSheet(context, aspectSheetMap(aci));
+        }
+      },
+      child: Text(anlam.cumle, style: RythoType.body),
     );
   }
 }

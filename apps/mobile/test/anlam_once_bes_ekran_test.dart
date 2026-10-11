@@ -91,9 +91,10 @@ Widget _sar(Widget govde,
     );
 
 /// `pumpAndSettle` KULLANILMAZ: yıldız alanı ve `AstrolabeSpinner` sürekli
-/// animatör, hiç dönmez. Ayrıca `flutter_animate` kademeli gecikmeleri
-/// `disableAnimations`a bakmıyor — `slideY` bitmeden ölçülen `dy` yanlış
-/// olurdu. En uzun zincir 130 ms × ~9 blok + 380 ms; 3 sn fazlasıyla yeter.
+/// animatör, hiç dönmez. Kademeli giriş `RythoReveal` ve `disableAnimations`
+/// açıkken hiç kurulmuyor; yine de 3 sn beklenir — kabın içindeki
+/// `AnimatedSize`/geçişler ve ileride eklenecek bir gecikme ölçümü
+/// yanıltmasın.
 Future<void> _yerles(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 1500));
@@ -423,9 +424,12 @@ void main() {
       return k.substring(bas, son);
     }
 
+    // Okumanın işareti `OkumaKabi(` (D6): `MarginNote` artık kabın içinde
+    // kuruluyor, kaynakta görünmüyor. Kap `fallback` bayrağını tek
+    // noktadan okur; bu dosyanın sıra iddiası kabın konumuna bağlı.
     test('okuma klasik metinlerin ve Liu Yao tablosunun ÜSTÜNDE', () {
       final g = govde();
-      final okuma = g.indexOf('MarginNote(');
+      final okuma = g.indexOf('OkumaKabi(');
       expect(okuma, greaterThanOrEqualTo(0), reason: 'okuma ekrandan düşmüş');
       // Üç bağımsız işaret: biri yer değiştirse diğerleri yine yakalar.
       for (final sonra in const [
@@ -443,7 +447,7 @@ void main() {
       final g = govde();
       final glif = g.indexOf('_HexagramGlyph(');
       expect(glif, greaterThanOrEqualTo(0));
-      expect(glif, lessThan(g.indexOf('MarginNote(')),
+      expect(glif, lessThan(g.indexOf('OkumaKabi(')),
           reason: 'çekimin cevabı sayfadan aşağı itilmiş');
     });
 
@@ -452,7 +456,7 @@ void main() {
       // geliyordu. Taşınmaları bu turun asıl işi; geri dönerlerse
       // ekran yine ölçümle açılır.
       final g = govde();
-      final okuma = g.indexOf('MarginNote(');
+      final okuma = g.indexOf('OkumaKabi(');
       for (final olcum in const [
         'iChingTrigramsLabel',
         'iChingNuclearLabel',
@@ -466,7 +470,9 @@ void main() {
 
     test('"Rytho\'ya sor" var ve tohum KULLANICININ SORUSUNU taşıyor', () {
       final g = govde();
-      expect(g, contains('RythoyaSor('));
+      // Kapı kabın `onSor` yuvasından geçiyor (`OkumaKabi` onu `RythoyaSor`
+      // olarak çizer); ekran kendi `RythoyaSor(` çağrısını yazmaz.
+      expect(g, contains('onSor:'));
       expect(g, contains('iChingAskPrefill('),
           reason: 'boş sohbet açılırsa kehanetin bağlamı kaybolur');
       // Tohumun içine giren şey çekimin kendi `question` alanı olmalı —
@@ -505,23 +511,31 @@ void main() {
           reason: '$yol: okumanın ÜSTÜNE başka bir blok girmiş');
     }
 
+    // İzinli kalemler D6'dan sonra: kademeli giriş `RythoReveal(index: 0,`
+    // (eski `blok(Padding(` kopyası silindi) ve kap `OkumaKabi(`. Boş
+    // okuma koşulu (`if (okuma.isNotEmpty)`) da gitti — kap boş metni
+    // kendi "üretilemedi" dalında karşılıyor, ekranın koşulu kalmadı.
     test('İç Takvim: okuma listenin ilk kalemi', () {
       ilkKalem('lib/features/atlas/inner_calendar_screen.dart',
-          'MarginNote(',
+          'OkumaKabi(',
           izinli: const [
-            'if (okuma.isNotEmpty) ...[',
-            'blok(Padding(',
-            'padding: const EdgeInsets.symmetric(horizontal: 16),',
+            'RythoReveal(',
+            'index: 0,',
+            'child: Padding(',
+            'padding:',
+            'const EdgeInsets.symmetric(horizontal: RythoSpace.lg),',
             'child:',
           ]);
     });
 
     test('Yıl Haritası: okuma listenin ilk kalemi', () {
-      ilkKalem('lib/features/atlas/solar_return_screen.dart', 'MarginNote(',
+      ilkKalem('lib/features/atlas/solar_return_screen.dart', 'OkumaKabi(',
           izinli: const [
-            'if (rapor.trim().isNotEmpty) ...[',
-            'blok(Padding(',
-            'padding: const EdgeInsets.symmetric(horizontal: 16),',
+            'RythoReveal(',
+            'index: 0,',
+            'child: Padding(',
+            'padding:',
+            'const EdgeInsets.symmetric(horizontal: RythoSpace.lg),',
             'child:',
           ]);
     });
@@ -531,7 +545,7 @@ void main() {
       // Üçüncü bir kalem girerse — tablo, rozet, hüküm — bu test düşer.
       final k = _yorumsuz('lib/features/oracle/bazi_tab.dart');
       final cocuklar = k.indexOf('children: [');
-      final okuma = k.indexOf('MarginNote(', cocuklar);
+      final okuma = k.indexOf('OkumaKabi(', cocuklar);
       expect(okuma, greaterThan(cocuklar));
       final arasi = k.substring(cocuklar, okuma);
       expect(arasi, contains('l10n.baziHeadline'));
@@ -560,6 +574,12 @@ void main() {
       expect(bas, greaterThanOrEqualTo(0), reason: 'paylaşılan kapı silinmiş');
       expect(w.substring(bas), contains('l10n.signalAsk'));
 
+      // D6: beş ekran kapıyı `OkumaKabi(onSor:)` üzerinden kuruyor; kap
+      // onu `RythoyaSor` olarak çizer (okuma_kabi.dart). Ekranda çıplak
+      // `RythoyaSor(` YOK — ikinci bir kapı biçimi doğmasın.
+      final kap = _yorumsuz('lib/widgets/okuma_kabi.dart');
+      expect(kap, contains('RythoyaSor(onTap: sor)'),
+          reason: 'kap sohbet kapısını paylaşılan bileşenle çizmiyor');
       for (final yol in const [
         'lib/features/atlas/inner_calendar_screen.dart',
         'lib/features/atlas/solar_return_screen.dart',
@@ -568,10 +588,47 @@ void main() {
         'lib/features/oracle/iching_tab.dart',
       ]) {
         final k = _yorumsuz(yol);
-        expect(k, contains('RythoyaSor('), reason: '$yol: kapı yok');
+        expect(k, contains('onSor:'), reason: '$yol: kapı yok');
+        expect(k, isNot(contains('RythoyaSor(')),
+            reason: '$yol: kabın dışında ikinci bir sohbet kapısı');
         expect(k, isNot(contains("'✦ ")),
             reason: '$yol: etiketin kendi kopyası doğmuş');
       }
+      // Kap kullanmayan iki yüzey kapıyı DOĞRUDAN paylaşılan bileşenle
+      // çizer (D6 dikişi: Harita İnceleme ve dayanak alt sayfası); satır içi
+      // '✦ … →' kopyası burada da doğmaz — beş kopyanın dördü böyle ayrışmıştı.
+      for (final yol in const [
+        'lib/features/atlas/chart_inspector_screen.dart',
+        'lib/widgets/basis_sheet.dart',
+      ]) {
+        final k = _yorumsuz(yol);
+        expect(k, contains('RythoyaSor('), reason: '$yol: paylaşılan kapı yok');
+        expect(k, isNot(contains("'✦ ")),
+            reason: '$yol: etiketin kendi kopyası doğmuş');
+      }
+    });
+
+    test('Kişi detayı: anlam cümlesi harita bölümünün ilk kalemi', () {
+      // Altıncı ekran (D6, ajan C): dy ölçümü kisi_detay_test'te; burası ikinci
+      // bağımsız işaret — `_HaritaBolumu` listesinde anlamın ÜSTÜNE adsız bir
+      // blok eklenemez. Dosyanın ilk `children: [`'ı başka bir widget'a ait
+      // olduğu için `ilkKalem` yerine sınıf gövdesine daraltılmış arama.
+      final k = _yorumsuz('lib/features/people/person_detail_screen.dart');
+      final bas = k.indexOf('class _HaritaBolumu');
+      final son = k.indexOf('class _AnlamKarti');
+      expect(bas, greaterThanOrEqualTo(0));
+      expect(son, greaterThan(bas));
+      final govde = k.substring(bas, son);
+      final cocuklar = govde.indexOf('children: [');
+      final anlam = govde.indexOf('_AnlamKarti(', cocuklar);
+      expect(cocuklar, greaterThanOrEqualTo(0));
+      expect(anlam, greaterThan(cocuklar), reason: 'anlam kartı listede yok');
+      var arasi = govde.substring(cocuklar + 'children: ['.length, anlam);
+      expect(arasi, contains('if (anlam != null)'),
+          reason: 'anlam koşulu kaybolmuş');
+      arasi = arasi.replaceFirst('if (anlam != null)', '');
+      expect(arasi.replaceAll(RegExp(r'[\s(),\[\]]'), ''), isEmpty,
+          reason: 'anlamın ÜSTÜNE başka bir blok girmiş');
     });
 
     test('tohum ÖN-DOLDURUR, GÖNDERMEZ', () {

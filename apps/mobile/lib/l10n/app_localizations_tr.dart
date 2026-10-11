@@ -523,7 +523,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get streakHidden => 'Serisi gizli';
 
   @override
-  String get friendLabel => 'ARKADAŞIN';
+  String get friendLabel => 'Arkadaşın';
 
   @override
   String get streakHiddenByFriend => 'Serisini gizli tutuyor';
@@ -532,7 +532,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get readTodayDone => 'Bugünkü okumasını yaptı';
 
   @override
-  String get dyadLabel => 'BUGÜN ARANIZDA';
+  String get dyadLabel => 'Bugün aranızda';
 
   @override
   String get dyadDisclaimer =>
@@ -806,6 +806,23 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get retry => 'Tekrar dene';
+
+  @override
+  String retryAfterSeconds(int n) {
+    return '$n sn sonra tekrar dene';
+  }
+
+  @override
+  String get delete => 'Sil';
+
+  @override
+  String get discard => 'Bırak';
+
+  @override
+  String get feedbackDiscardTitle => 'Yazdıklarını bırak';
+
+  @override
+  String get feedbackDiscardBody => 'Geri bildirim kaydedilmeyecek.';
 
   @override
   String get errorGeneric =>
@@ -1214,6 +1231,15 @@ class AppLocalizationsTr extends AppLocalizations {
       '○ eski yang (9) · × eski yin (6) — dönen çizgiler';
 
   @override
+  String get iChingShiTag => 'özne';
+
+  @override
+  String get iChingYingTag => 'karşılık';
+
+  @override
+  String get iChingTapToSkip => 'İnişi atlamak için dokun';
+
+  @override
   String iChingLineLabel(int n) {
     return '$n. çizgi';
   }
@@ -1269,6 +1295,13 @@ class AppLocalizationsTr extends AppLocalizations {
   String baziNourish(Object elements) {
     return 'Beslenecek element: $elements';
   }
+
+  @override
+  String get baziLuckDirectionUnknown =>
+      'Cinsiyet belirtilmediği için şans sütunlarının yönü hesaplanmadı; iki olası dizi aşağıda.';
+
+  @override
+  String get baziLuckCandidatesLabel => 'Olası iki dizi';
 
   @override
   String get baziLuckPillars => 'Şans Sütunları (Da Yun)';
@@ -1452,6 +1485,16 @@ class AppLocalizationsTr extends AppLocalizations {
   String get shareReading => 'Paylaş';
 
   @override
+  String get shareText =>
+      'Rytho — doğum haritanı bilen, gökyüzünü her gün izleyen AI astrolog.';
+
+  @override
+  String get chatShareCardTitle => 'Rytho ile sohbetimden';
+
+  @override
+  String get chatSeedFailed => 'Konu yüklenemedi.';
+
+  @override
   String get shareCardTagline => 'gerçek gökyüzü hesabıyla';
 
   @override
@@ -1632,11 +1675,20 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
-  String get faceOpenSettings => 'Tekrar dene';
+  String get faceOpenSettings => 'Ayarları aç';
 
   @override
   String get faceCameraDeniedHint =>
       'İzni reddettiysen, telefon ayarlarından Rytho için kamera iznini açıp buraya dönebilirsin.';
+
+  @override
+  String get birthHexagramWaitStage1 => 'Doğum anındaki Güneş konumlanıyor';
+
+  @override
+  String get birthHexagramWaitStage2 => 'Kapı ve çizgi okunuyor';
+
+  @override
+  String get readingCardReadMore => 'Okumaya devam et';
 
   @override
   String get save => 'Kaydet';
@@ -2101,6 +2153,41 @@ class AppLocalizationsTr extends AppLocalizations {
   String get signalAsk => 'Rytho\'ya sor';
 
   @override
+  String get atlasAskPrefill =>
+      'Atlas sayfamdaki okumalara bakıyorum. Bugün için en çok hangisine eğilmeliyim?';
+
+  @override
+  String get faceAskPrefill =>
+      'Yüz okumamı gördüm. Bugünkü gökyüzüyle birlikte bana ne söylüyor?';
+
+  @override
+  String get planetsAskPrefill =>
+      'Gezegenlerimin yerleşimine bakıyorum. En belirleyici olanını bana anlatır mısın?';
+
+  @override
+  String get traitsAskPrefill =>
+      'Kişilik özelliklerime bakıyorum. Hangisi bugünlerde daha öne çıkıyor?';
+
+  @override
+  String get aspectsAskPrefill =>
+      'Haritamdaki açılara bakıyorum. En çok hangisini hissederim?';
+
+  @override
+  String pointAskPrefill(String name) {
+    return '$name yerleşimim hakkında konuşalım. Bu bana nasıl yansıyor?';
+  }
+
+  @override
+  String aspectAskPrefill(String label) {
+    return 'Haritamdaki \"$label\" açısı hakkında konuşalım. Bunu nasıl yaşarım?';
+  }
+
+  @override
+  String askAboutFriendPrefill(String name) {
+    return '$name ile aramızdaki dinamik hakkında konuşalım.';
+  }
+
+  @override
   String signalAskPrefill(String card) {
     return 'Bugün ana ekranımda şu sinyal var: \"$card\" Bunu benim için biraz açar mısın?';
   }
@@ -2268,6 +2355,39 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
+  String get removeFriendConfirmTitle => 'Arkadaşlıktan çıkar';
+
+  @override
+  String removeFriendConfirmBody(String name) {
+    return '$name listenden çıkar; ortak okumalar kapanır. İstersen yeniden ekleyebilirsin.';
+  }
+
+  @override
+  String get blockUserConfirmTitle => 'Engelle';
+
+  @override
+  String blockUserConfirmBody(String name) {
+    return '$name seni bulamaz ve davet gönderemez. Bunu Çevrem ayarlarından geri alabilirsin.';
+  }
+
+  @override
+  String peopleSlotsOver(int limit, int used) {
+    return 'Kontenjanın $limit; $used kişi kayıtlı — yeni kişi eklemek için birini çıkar.';
+  }
+
+  @override
+  String get inviteNeedsUsername =>
+      'Bir davet bekliyor — önce kullanıcı adı seç.';
+
+  @override
+  String get inviteNeedsUsernameAction => 'Kullanıcı adı seç';
+
+  @override
+  String friendAcceptedSnack(String name) {
+    return '$name artık arkadaşın.';
+  }
+
+  @override
   String get diaryQuickTitle => 'Günlüğüm';
 
   @override
@@ -2356,7 +2476,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String relationshipAskPrefill(String name, String axis) {
-    return '$name ile ilişkimizde $axis ekseni hakkında konuşalım.';
+    return '$name ile ilişkimizde \"$axis\" ekseni hakkında konuşalım.';
   }
 
   @override
@@ -2954,6 +3074,33 @@ class AppLocalizationsTr extends AppLocalizations {
   String chartModeSynastry(String name) {
     return 'Sen & $name';
   }
+
+  @override
+  String chartAskPrefillNatal(String name) {
+    return 'Şu an $name haritasının çarkını inceliyorum. En çok dikkat etmem gereken ne?';
+  }
+
+  @override
+  String get chartAskPrefillSky =>
+      'Şu anki gökyüzü çarkını inceliyorum. Bugün beni en çok ne etkiliyor?';
+
+  @override
+  String get chartAskPrefillBiwheel =>
+      'Haritamla bugünkü gökyüzünü üst üste inceliyorum. En çok hangi dokunuş öne çıkıyor?';
+
+  @override
+  String chartAskPrefillSynastry(String name) {
+    return '$name ile ikili çarkımızı inceliyorum. Aramızda en belirleyici bağ hangisi?';
+  }
+
+  @override
+  String get chartMovementLegend => 'Y yaklaşan · A ayrılan';
+
+  @override
+  String get chartLoading => 'Çark hazırlanıyor…';
+
+  @override
+  String get chartSelectionClear => 'Seçimi kaldır';
 
   @override
   String chartAsOf(String time) {

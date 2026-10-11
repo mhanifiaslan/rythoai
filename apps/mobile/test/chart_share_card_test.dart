@@ -66,6 +66,49 @@ void main() {
         reason: 'kullanıcı metni trBuyuk ile büyür (İKIZLER kusuru)');
   });
 
+  test('paylaşım metni kullanıcının dilinde (shareText), logo yazısı değil',
+      () {
+    // Görselin yanındaki metin "RYTHO" idi — paylaşım sayfasında bağlamsız
+    // bir sözcük. Tanıtım cümlesi ARB'den, iki dilde.
+    final k = _yorumsuz('lib/features/share/share_card.dart');
+    expect(k, contains('text: l10n.shareText'));
+    expect(k, isNot(contains('text: kMarkaYazi')));
+    expect(_tr.shareText, contains(kMarka));
+  });
+
+  test('kart glifleri glif fontundan — ailesiz TextStyle yok', () {
+    // ♈–♓ Emoji_Presentation=Yes: ailesiz stil kartta renkli emoji
+    // basıyordu (rytho_glyphs.dart). Üç kartın glifi RythoText.glyph.
+    final k = _yorumsuz('lib/features/share/share_card.dart');
+    expect(k, isNot(contains('TextStyle(\n                        fontSize')));
+    expect(RegExp(r'const TextStyle\(').hasMatch(k), isFalse,
+        reason: 'ailesiz glif stili geri gelmiş');
+    expect('RythoText.glyph('.allMatches(k).length, greaterThanOrEqualTo(2));
+  });
+
+  test('1080-px tuval dolguları adlı — üç kart aynı üst/alt payı kullanır',
+      () {
+    final k = _yorumsuz('lib/features/share/share_card.dart');
+    expect(k, contains('_kTuvalDolgu'));
+    expect(k, isNot(contains('fromLTRB(96, 150, 96, 110)')),
+        reason: 'çıplak tuval dolgusu geri gelmiş');
+  });
+
+  test('halka lejantı çarkla aynı kuraldan (ringGlyphColor)', () {
+    final k = _yorumsuz('lib/features/share/share_card.dart');
+    expect(k, contains('ringGlyphColor(data, 1)'));
+    expect(k, isNot(contains('kOuterPartnerColor')));
+  });
+
+  test('çark kartının tek tüketicisi: chart_inspector shareChartCard çağırır',
+      () {
+    final k = _yorumsuz('lib/features/atlas/chart_inspector_screen.dart');
+    expect(k, contains('shareChartCard('));
+    expect(k, isNot(contains("'RYTHO'")),
+        reason: 'bu bekçi yalnız share_card.dart\'ı tarıyordu; literal '
+            'chart_inspector\'da yaşıyordu (ölçüldü)');
+  });
+
   testWidgets('ChartShareCard 1080×1920 tuval; çark, lejant ve marka satırı',
       (tester) async {
     tester.view.physicalSize = const Size(1080, 1920);

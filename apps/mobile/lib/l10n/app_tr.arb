@@ -242,10 +242,10 @@
   "readToday": "Bugün okumasını yaptı",
   "notReadToday": "Bugün henüz okumadı",
   "streakHidden": "Serisi gizli",
-  "friendLabel": "ARKADAŞIN",
+  "friendLabel": "Arkadaşın",
   "streakHiddenByFriend": "Serisini gizli tutuyor",
   "readTodayDone": "Bugünkü okumasını yaptı",
-  "dyadLabel": "BUGÜN ARANIZDA",
+  "dyadLabel": "Bugün aranızda",
   "dyadDisclaimer": "Bu okuma yalnızca bugün için geçerlidir ve yarın değişir. Kalıcı bir uyum puanı vermiyoruz.",
   "dyadFailed": "Okuma alınamadı.",
   "sendReaction": "Bir tepki gönder",
@@ -354,6 +354,12 @@
   "birthTimeUnknown": "Doğum saatimi bilmiyorum",
   "birthCity": "Şehir",
   "retry": "Tekrar dene",
+  "retryAfterSeconds": "{n} sn sonra tekrar dene",
+  "@retryAfterSeconds": {"placeholders": {"n": {"type": "int"}}},
+  "delete": "Sil",
+  "discard": "Bırak",
+  "feedbackDiscardTitle": "Yazdıklarını bırak",
+  "feedbackDiscardBody": "Geri bildirim kaydedilmeyecek.",
   "errorGeneric": "Beklenmeyen bir sorun oluştu. Lütfen biraz sonra tekrar dene.",
   "errorConnection": "Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.",
   "errorSkyUnavailable": "Gökyüzüne şu an ulaşılamıyor.",
@@ -544,6 +550,9 @@
     }
   },
   "iChingLegend": "○ eski yang (9) · × eski yin (6) — dönen çizgiler",
+  "iChingShiTag": "özne",
+  "iChingYingTag": "karşılık",
+  "iChingTapToSkip": "İnişi atlamak için dokun",
   "iChingLineLabel": "{n}. çizgi",
   "@iChingLineLabel": {
     "placeholders": {
@@ -606,6 +615,8 @@
   "baziPillarYear": "YIL",
   "baziElementBalance": "Element Terazisi",
   "baziNourish": "Beslenecek element: {elements}",
+  "baziLuckDirectionUnknown": "Cinsiyet belirtilmediği için şans sütunlarının yönü hesaplanmadı; iki olası dizi aşağıda.",
+  "baziLuckCandidatesLabel": "Olası iki dizi",
   "@baziNourish": {
     "placeholders": {
       "elements": {
@@ -742,6 +753,9 @@
   "cancel": "Vazgeç",
   "insightDisclaimer": "Rytho gerçek gökyüzü hesabına dayanır ama yorum bir öngörü yöntemi değildir. Okumalar içgörü içindir; tıbbi, hukuki veya finansal tavsiye yerine geçmez. 13 yaş ve üzeri içindir.",
   "shareReading": "Paylaş",
+  "shareText": "Rytho — doğum haritanı bilen, gökyüzünü her gün izleyen AI astrolog.",
+  "chatShareCardTitle": "Rytho ile sohbetimden",
+  "chatSeedFailed": "Konu yüklenemedi.",
   "shareCardTagline": "gerçek gökyüzü hesabıyla",
   "shareFailed": "Paylaşım kartı oluşturulamadı.",
   "signInWithApple": "Apple ile giriş",
@@ -809,8 +823,11 @@
       }
     }
   },
-  "faceOpenSettings": "Tekrar dene",
+  "faceOpenSettings": "Ayarları aç",
   "faceCameraDeniedHint": "İzni reddettiysen, telefon ayarlarından Rytho için kamera iznini açıp buraya dönebilirsin.",
+  "birthHexagramWaitStage1": "Doğum anındaki Güneş konumlanıyor",
+  "birthHexagramWaitStage2": "Kapı ve çizgi okunuyor",
+  "readingCardReadMore": "Okumaya devam et",
   "save": "Kaydet",
   "edit": "Düzenle",
   "birthRecordRowSubtitle": "Tüm okumaların temeli",
@@ -1017,6 +1034,17 @@
   "signalsSection": "Bugün gökyüzünde senin için",
   "signalWhy": "Neye dayanıyor?",
   "signalAsk": "Rytho'ya sor",
+  "atlasAskPrefill": "Atlas sayfamdaki okumalara bakıyorum. Bugün için en çok hangisine eğilmeliyim?",
+  "faceAskPrefill": "Yüz okumamı gördüm. Bugünkü gökyüzüyle birlikte bana ne söylüyor?",
+  "planetsAskPrefill": "Gezegenlerimin yerleşimine bakıyorum. En belirleyici olanını bana anlatır mısın?",
+  "traitsAskPrefill": "Kişilik özelliklerime bakıyorum. Hangisi bugünlerde daha öne çıkıyor?",
+  "aspectsAskPrefill": "Haritamdaki açılara bakıyorum. En çok hangisini hissederim?",
+  "pointAskPrefill": "{name} yerleşimim hakkında konuşalım. Bu bana nasıl yansıyor?",
+  "@pointAskPrefill": {"placeholders": {"name": {"type": "String"}}},
+  "aspectAskPrefill": "Haritamdaki \"{label}\" açısı hakkında konuşalım. Bunu nasıl yaşarım?",
+  "@aspectAskPrefill": {"placeholders": {"label": {"type": "String"}}},
+  "askAboutFriendPrefill": "{name} ile aramızdaki dinamik hakkında konuşalım.",
+  "@askAboutFriendPrefill": {"placeholders": {"name": {"type": "String"}}},
   "signalAskPrefill": "Bugün ana ekranımda şu sinyal var: \"{card}\" Bunu benim için biraz açar mısın?",
   "@signalAskPrefill": {
     "placeholders": {
@@ -1095,6 +1123,18 @@
   "profileFeedback": "Geri bildirim gönder",
   "feedbackReportThisScreen": "Bu ekranı bildir",
   "askAboutFriend": "{name} hakkında Rytho'ya sor",
+  "removeFriendConfirmTitle": "Arkadaşlıktan çıkar",
+  "removeFriendConfirmBody": "{name} listenden çıkar; ortak okumalar kapanır. İstersen yeniden ekleyebilirsin.",
+  "@removeFriendConfirmBody": {"placeholders": {"name": {"type": "String"}}},
+  "blockUserConfirmTitle": "Engelle",
+  "blockUserConfirmBody": "{name} seni bulamaz ve davet gönderemez. Bunu Çevrem ayarlarından geri alabilirsin.",
+  "@blockUserConfirmBody": {"placeholders": {"name": {"type": "String"}}},
+  "peopleSlotsOver": "Kontenjanın {limit}; {used} kişi kayıtlı — yeni kişi eklemek için birini çıkar.",
+  "@peopleSlotsOver": {"placeholders": {"limit": {"type": "int"}, "used": {"type": "int"}}},
+  "inviteNeedsUsername": "Bir davet bekliyor — önce kullanıcı adı seç.",
+  "inviteNeedsUsernameAction": "Kullanıcı adı seç",
+  "friendAcceptedSnack": "{name} artık arkadaşın.",
+  "@friendAcceptedSnack": {"placeholders": {"name": {"type": "String"}}},
   "@askAboutFriend": {
     "placeholders": {
       "name": {
@@ -1142,7 +1182,7 @@
   "atlasSectionTime": "Zaman",
   "atlasSectionOther": "Diğer sistemler",
   "atlasFreeChartNote": "Çarkın, yerleşimlerin ve açıların ücretsiz. Rytho'nun derin okuması Rytho+ ile açılır.",
-  "relationshipAskPrefill": "{name} ile ilişkimizde {axis} ekseni hakkında konuşalım.",
+  "relationshipAskPrefill": "{name} ile ilişkimizde \"{axis}\" ekseni hakkında konuşalım.",
   "@relationshipAskPrefill": {
     "placeholders": {
       "name": {
@@ -1383,6 +1423,15 @@
   "chartHousesOther": "Evler: {name}",
   "@chartHousesOther": { "placeholders": { "name": { "type": "String" } } },
   "chartModeSynastry": "Sen & {name}",
+  "chartAskPrefillNatal": "Şu an {name} haritasının çarkını inceliyorum. En çok dikkat etmem gereken ne?",
+  "@chartAskPrefillNatal": {"placeholders": {"name": {"type": "String"}}},
+  "chartAskPrefillSky": "Şu anki gökyüzü çarkını inceliyorum. Bugün beni en çok ne etkiliyor?",
+  "chartAskPrefillBiwheel": "Haritamla bugünkü gökyüzünü üst üste inceliyorum. En çok hangi dokunuş öne çıkıyor?",
+  "chartAskPrefillSynastry": "{name} ile ikili çarkımızı inceliyorum. Aramızda en belirleyici bağ hangisi?",
+  "@chartAskPrefillSynastry": {"placeholders": {"name": {"type": "String"}}},
+  "chartMovementLegend": "Y yaklaşan · A ayrılan",
+  "chartLoading": "Çark hazırlanıyor…",
+  "chartSelectionClear": "Seçimi kaldır",
   "@chartModeSynastry": { "placeholders": { "name": { "type": "String" } } },
   "chartAsOf": "{time} itibarıyla",
   "@chartAsOf": { "placeholders": { "time": { "type": "String" } } },

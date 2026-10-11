@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/app_localizations.dart';
 import 'providers.dart';
 
 /// Arkadaş katmanı veri erişimi.
@@ -69,7 +70,16 @@ class Friend {
   final bool streakVisible;
   final String? lastSeenDaily;
 
-  String get name => displayName ?? username ?? 'Gezgin';
+  /// Veri katmanının adı: kart yoksa BOŞ. Ekrana basılacak ad [ad]'dan
+  /// alınır — eski hâli burada `'Gezgin'` yazıyordu ve İngilizce cihazda
+  /// kartsız arkadaş Türkçe bir sözcükle görünüyordu. Yedek sözcük bir
+  /// çeviri işidir, modelin işi değil (`api.dart friendlyError` emsali:
+  /// l10n'siz yedek metin gövdeye gömülmez).
+  String get name => displayName ?? username ?? '';
+
+  /// Ekranda görünen ad; kart yoksa dilin yedeği (`defaultUserName`).
+  String ad(AppLocalizations l10n) =>
+      displayName ?? username ?? l10n.defaultUserName;
 
   /// Arkadaş bugünkü okumasını yaptı mı? Seri gizliyse bilinmez.
   bool get readToday {

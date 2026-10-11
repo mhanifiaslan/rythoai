@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart' show friendlyError;
+import '../../core/okuma_durumu.dart';
 import '../../core/providers.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/common.dart' show ErrorCard;
 import '../../widgets/cosmic_scaffold.dart';
-import '../../widgets/glass.dart' show SkeletonPanel;
+import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
+import '../../widgets/okuma_kabi.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 
 /// **İç mevsim** (T5, R5-6'da yeniden adlandırıldı): ikincil progresyon.
@@ -35,7 +39,8 @@ class InnerCalendarScreen extends ConsumerWidget {
     if (kapi == PlusHali.bilinmiyor) {
       return CosmicScaffold(
         appBar: AppBar(title: Text(l10n.innerCalendarTitle)),
-        body: const _Iskelet(),
+        // Ne kilit ne içerik: ikisi de bir hüküm ve o hüküm henüz yok.
+        body: const SkeletonList(),
       );
     }
     final veri = ref.watch(innerCalendarProvider);
@@ -47,19 +52,22 @@ class InnerCalendarScreen extends ConsumerWidget {
           l10n.innerCalendarWaitStage1,
           l10n.innerCalendarWaitStage2,
         ]),
+        // Çıplak metin ÇIKMAZ SOKAKTI: bu sayfada aşağı çekme yok, hatayı
+        // gören kullanıcı geri dönüp yeniden girmek zorundaydı.
         error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Text(friendlyError(e, l10n),
-                style: RythoText.body(14, color: RythoColors.parchmentDim)),
+          child: ErrorCard(
+            message: friendlyError(e, l10n),
+            screen: 'atlas',
+            onRetry: () => ref.invalidate(innerCalendarProvider),
           ),
         ),
         data: (data) {
           if (data == null) {
+            const ozellik = PlusOzellik.progressions;
             return PlusLockedCard(
-              emoji: '🌗',
-              title: l10n.innerCalendarTitle,
-              description: l10n.innerCalendarLockedBody,
+              ozellik: ozellik,
+              title: ozellik.baslik(l10n),
+              description: ozellik.kilitGovdesi(l10n),
               centered: true,
             );
           }
@@ -77,18 +85,12 @@ class InnerCalendarScreen extends ConsumerWidget {
                 progresyon['disclosure_texts'] ?? const []),
             ...List<String>.from(takvim['disclosure_texts'] ?? const []),
           };
-
-          var sira = 0;
-          Duration gecikme() => Duration(milliseconds: 110 * sira++);
-          Widget blok(Widget w) => w
-              .animate(delay: gecikme())
-              .fadeIn(duration: 380.ms)
-              .slideY(begin: 0.06, curve: Curves.easeOutCubic);
-
-          final okuma = (prog['report'] as String? ?? '').trim();
+          final ayMetni =
+              '${ay['sign_local'] ?? ay['sign']} ${ay['position']}°';
 
           return ListView(
-            padding: const EdgeInsets.only(top: 8, bottom: 120),
+            padding: const EdgeInsets.only(
+                top: RythoSpace.sm, bottom: RythoSpace.dockClearance),
             children: [
               // ⚠️ OKUMA ÖNDE, ÖLÇÜM ARKADA — ve bu sıra bir sahip kararı.
               //
@@ -99,69 +101,88 @@ class InnerCalendarScreen extends ConsumerWidget {
               // bir yapıya gidilmeli." Ölçüm KALDIRILMADI — yalnız sıra
               // tersine döndü: ne olduğu önce, nasıl ölçüldüğü sonra.
               //
-              // NEDEN boşsa hiç çizilmiyor: okuma üretilemediğinde (LLM
-              // reddi) üstte boş bir blok kalırdı ve sayfa yine bir sayıyla
-              // açılırdı — ama bu kez bir de boşlukla. Boş yer, uydurulmuş
-              // cümleden iyidir; uydurulmuş BOŞLUKTAN da iyidir.
-              //
-              // ⚠️ Burada `fallback` bayrağı OKUNAMIYOR çünkü bu uç onu
-              // HİÇ DÖNDÜRMÜYOR (altı uçtan biri; bkz. CLAUDE.md). BaZi
-              // sekmesindeki dürüst `ErrorCard` dalı burada kurulamaz —
-              // kurmak, gönderilmeyen bir bayrağa dayanmak olurdu.
-              if (okuma.isNotEmpty) ...[
-                blok(Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: MarginNote(
-                      title: l10n.innerCalendarNote, text: okuma),
-                )),
-                blok(const SectionDivider()),
-              ],
+              // Kap `OkumaKabi`: `fallback` bayrağını okuyan tek nokta
+              // `okumaDurumuFromYanit` — sunucu şablona düştüğünde dürüst
+              // cümle + tekrar dene gelir, paylaşım kurulmaz. Eski hâl
+              // bayrağı HİÇ okumuyordu ve gerekçesi "bu uç bayrak
+              // döndürmüyor" diye çivilenmişti; D0'dan beri döndürüyor.
+              RythoReveal(
+                index: 0,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
+                  child: OkumaKabi(
+                    durum: okumaDurumuFromYanit(prog),
+                    ekranKodu: 'atlas',
+                    baslik: l10n.innerCalendarNote,
+                    onTekrarDene: () => ref.invalidate(innerCalendarProvider),
+                    onSor: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                            initialText: l10n.innerCalendarAskPrefill))),
+                    paylasim: PaylasimTarifi(
+                      title: l10n.innerCalendarTitle,
+                      dateLabel: bugununEtiketi(),
+                      // Rozet ÖLÇÜLMÜŞ bir değer: progres Ay'ın konumu.
+                      badges: [(l10n.innerCalendarProgMoon, ayMetni)],
+                      glyph: PlusOzellik.progressions.emoji,
+                    ),
+                  ),
+                ),
+              ),
+              const RythoReveal(index: 1, child: SectionDivider()),
               // Progres Ay — iç mevsimin omurgası.
-              blok(Plaque(
-                label: l10n.innerCalendarProgMoon,
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                          '${ay['sign_local'] ?? ay['sign']} '
-                          '${ay['position']}°',
-                          style: RythoText.display(24)),
-                      const SizedBox(height: 4),
-                      Text('${ay['phase_local'] ?? ay['phase'] ?? ''}',
-                          style: RythoText.body(13,
-                              color: RythoColors.lilac)),
-                      const SizedBox(height: 6),
-                      Text(
-                          l10n.innerCalendarNextSign(
-                              '${ay['next_sign_at']}'),
-                          style: RythoText.mono(11.5,
-                              color: RythoColors.parchmentDim)),
-                    ]),
-              )),
+              RythoReveal(
+                index: 2,
+                child: GlassPanel(
+                  label: l10n.innerCalendarProgMoon,
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(ayMetni, style: RythoType.heroSmall),
+                        const SizedBox(height: RythoSpace.xs),
+                        Text('${ay['phase_local'] ?? ay['phase'] ?? ''}',
+                            style: RythoText.body(13,
+                                color: RythoColors.lilac)),
+                        const SizedBox(height: RythoSpace.xs),
+                        Text(
+                            l10n.innerCalendarNextSign(
+                                '${ay['next_sign_at']}'),
+                            style: RythoText.mono(11.5,
+                                color: RythoColors.parchmentDim)),
+                      ]),
+                ),
+              ),
               if (beyanlar.isNotEmpty)
-                blok(Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                  child: Text(beyanlar.join('\n'),
-                      style:
-                          RythoText.body(11.5, color: RythoColors.copper)),
-                )),
+                RythoReveal(
+                  index: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.xs),
+                    child: Text(beyanlar.join('\n'),
+                        style: RythoText.body(11.5,
+                            color: RythoColors.copper)),
+                  ),
+                ),
               // Şu an etkin açılar: yaklaşan lila, ayrılan soluk.
               if (aktif.isNotEmpty)
-                blok(Plaque(
-                  label: l10n.innerCalendarActive,
-                  child: Column(
-                      children: aktif
-                          .map((a) => _AcikSatir(
-                                metin: '${a['transit_local']} '
-                                    '${a['aspect_local']} '
-                                    '${a['natal_local']}',
-                                ek: '${a['orb']}°',
-                                renk: a['movement'] == 'applying'
-                                    ? RythoColors.lilac
-                                    : RythoColors.parchmentDim,
-                              ))
-                          .toList()),
-                )),
+                RythoReveal(
+                  index: 4,
+                  child: GlassPanel(
+                    label: l10n.innerCalendarActive,
+                    child: Column(
+                        children: aktif
+                            .map((a) => _AcikSatir(
+                                  metin: '${a['transit_local']} '
+                                      '${a['aspect_local']} '
+                                      '${a['natal_local']}',
+                                  ek: '${a['orb']}°',
+                                  renk: a['movement'] == 'applying'
+                                      ? RythoColors.lilac
+                                      : RythoColors.parchmentDim,
+                                ))
+                            .toList()),
+                  ),
+                ),
               // 30 günlük olay listesi BURADAN KALKTI (R5-6): aynı veri
               // artık ana ekrandaki yatay takvim şeridinde yaşıyor.
               // Kullanıcı "önündeki günler"i görmek için bu ekranı
@@ -170,27 +191,24 @@ class InnerCalendarScreen extends ConsumerWidget {
               //
               // Yaşam yayı: solar arc kesinleşmeleri (yıl/ay hassasiyeti).
               if (vurgular.isNotEmpty)
-                blok(Plaque(
-                  label: l10n.innerCalendarArc,
-                  child: Column(
-                      children: vurgular
-                          .map((h) => _AcikSatir(
-                                metin: '${h['directed_local']} '
-                                    '${h['aspect_local']} '
-                                    '${h['natal_local']}',
-                                // Gün değil AY hassasiyeti: doktrin gereği
-                                // tarihi yıl-ay olarak kırpıyoruz.
-                                ek: '${h['exact_on']}'.substring(0, 7),
-                                renk: RythoColors.parchmentDim,
-                              ))
-                          .toList()),
-                )),
-              // Sayfanın birincil eylemi en alt kenarda (tasarım doktrini):
-              // kullanıcı okumayı ve ölçümü gördükten SONRA soruyla gelir.
-              blok(RythoyaSor(
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ChatScreen(
-                          initialText: l10n.innerCalendarAskPrefill))))),
+                RythoReveal(
+                  index: 5,
+                  child: GlassPanel(
+                    label: l10n.innerCalendarArc,
+                    child: Column(
+                        children: vurgular
+                            .map((h) => _AcikSatir(
+                                  metin: '${h['directed_local']} '
+                                      '${h['aspect_local']} '
+                                      '${h['natal_local']}',
+                                  // Gün değil AY hassasiyeti: doktrin gereği
+                                  // tarihi yıl-ay olarak kırpıyoruz.
+                                  ek: '${h['exact_on']}'.substring(0, 7),
+                                  renk: RythoColors.parchmentDim,
+                                ))
+                            .toList()),
+                  ),
+                ),
             ],
           );
         },
@@ -211,7 +229,7 @@ class _AcikSatir extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
       child: Row(children: [
         Expanded(child: Text(metin, style: RythoText.body(13, color: renk))),
         // Sağdaki ek (tarih/derece) esnemiyordu: `Expanded` sıfıra inse
@@ -223,24 +241,4 @@ class _AcikSatir extends StatelessWidget {
       ]),
     );
   }
-}
-
-/// Kapı BİLİNMİYORken çizilen iskelet (P2).
-///
-/// Ne kilit ne içerik: ikisi de bir hüküm ve o hüküm henüz yok. Bloklar
-/// sayfanın gerçek bölüm hacimlerini taklit ediyor, böylece cevap gelince
-/// düzen zıplamıyor. Shimmer `SkeletonPanel`in içinde ve reduce-motion'da
-/// kendiliğinden kapanıyor.
-class _Iskelet extends StatelessWidget {
-  const _Iskelet();
-
-  @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.only(top: 8, bottom: 120),
-        children: const [
-          SkeletonPanel(height: 150),
-          SkeletonPanel(height: 110),
-          SkeletonPanel(height: 90),
-        ],
-      );
 }

@@ -10,13 +10,19 @@
 /// girince eski harita tasarımıyla karşılaşıyorum."
 ///
 /// Artık sayfa doğum haritası analiziyle AYNI dili konuşuyor: ortak çark
-/// (derece cetveli, orb-ağırlıklı açı ağı, dokunulabilir), gruplanmış açı
-/// listesi ve konum tablosu. Dokunuş her yerde aynı alt-sayfa ailesini açar.
+/// (derece cetveli, orb-ağırlıklı açı ağı), gruplanmış açı listesi ve konum
+/// tablosu. Gömülü çark SALT ÖNİZLEME (D6): dokunuş Harita İnceleme'yi
+/// açar; gezegen/açı alt-sayfaları yalnız orada — aynı yüzeyde iki fiil
+/// (gezegene dokun → alt-sayfa, altındaki düğme → İnceleme) bire indi.
+/// Açı LİSTESİ satırı ise yine alt-sayfa açar: o satır tek bir açıyı
+/// adlandırıyor, dayanağı bir dokunuş uzakta olmalı.
 ///
 /// Değişmeyen doktrin: gökyüzü çarkı EVSİZDİR. Ev ve Yükselen konuma
 /// bağlıdır; konumsuz gökyüzüne ev çizmek ölçülmemiş şeyi göstermek olurdu.
 /// Çarkın altındaki not bunu söyler.
 library;
+
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,22 +33,19 @@ import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/chart/aci_lejanti.dart' show AciCizgiOrnegi;
 import '../../widgets/chart/chart_data.dart';
-import '../../widgets/chart/chart_palette.dart' show aspectColor;
+import '../../widgets/chart/chart_palette.dart'
+    show aspectColor, aspectDashFor;
 import '../../widgets/chart/chart_positions.dart';
 import '../../widgets/chart/chart_wheel.dart';
 import '../../widgets/common.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/nebula_widgets.dart' show InfoChip, Pressable;
-import '../atlas/atlas_detail_screens.dart'
-    show showAspectSheet, showPointSheet;
+import '../atlas/atlas_detail_screens.dart' show showAspectSheet;
 import '../atlas/chart_inspector_screen.dart'
-    show
-        ChartInspectorMode,
-        ChartInspectorScreen,
-        aspectSheetMap,
-        pointSheetMap;
+    show ChartInspectorMode, ChartInspectorScreen, aspectSheetMap, kCarkTavani;
 
 /// Açı türü -> grup. Atlas'ın "Açılar" ekranıyla AYNI tasnif: kullanıcı iki
 /// ekranda aynı açıyı aynı başlık altında bulmalı.
@@ -91,7 +94,10 @@ class _Govde extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final veri = ChartData.fromSky(sky, label: l10n.chartLegendSkyNow);
     final retros = List<String>.from(sky['retrogrades'] ?? []);
-    final boyut = MediaQuery.of(context).size.width - 72;
+
+    void incelemeyiAc() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) =>
+            const ChartInspectorScreen(mode: ChartInspectorMode.sky)));
 
     // Gruplama + sıralama: en dar orb en güçlü açıdır, başta durur.
     final gruplar = <String, List<ChartAspect>>{
@@ -130,19 +136,22 @@ class _Govde extends StatelessWidget {
 
         // ---------- Çark: Atlas'takiyle AYNI bileşen ----------
         GlassPanel(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(RythoSpace.sm),
           child: Column(children: [
-            Center(
-              child: ChartWheel(
-                data: veri,
-                size: boyut,
-                interactive: false,
-                onPlanetTap: (g) =>
-                    showPointSheet(context, pointSheetMap(g.point)),
-                onAspectTap: (a) =>
-                    showAspectSheet(context, aspectSheetMap(a)),
-              ),
-            ),
+            // Boyut GERÇEK kısıttan: `genişlik - 72` panelin kendi
+            // dolgularını (liste 32 + kart kenarı 32 + iç 16 = 80) 8 px
+            // eksik sayıyordu ve ClipRect çarkı sessizce kırpıyordu
+            // (ölçüldü). LayoutBuilder dolgu varsayımını kaldırır.
+            LayoutBuilder(builder: (context, kisit) {
+              return Center(
+                child: ChartWheel(
+                  data: veri,
+                  size: math.min(kisit.maxWidth, kCarkTavani),
+                  interactive: false,
+                  onTap: incelemeyiAc,
+                ),
+              );
+            }),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 2, 10, 6),
               child: Text(l10n.atlasSkyWheelNote,
@@ -152,9 +161,7 @@ class _Govde extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const ChartInspectorScreen(
-                        mode: ChartInspectorMode.sky))),
+                onPressed: incelemeyiAc,
                 icon: const Icon(Icons.open_in_full_rounded, size: 15),
                 label: Text(l10n.chartExpandTooltip,
                     style: RythoText.label(11, color: RythoColors.goldBright)),
@@ -212,8 +219,9 @@ class _AnSeridi extends StatelessWidget {
     final moon = sky['moon_phase'] as Map<String, dynamic>? ?? {};
     return GlassPanel(
       child: Row(children: [
-        Text(moon['emoji'] as String? ?? '🌙',
-            style: const TextStyle(fontSize: 34)),
+        // Ay evresi BİLİNÇLİ renkli emoji (sunucu evre simgesini veriyor);
+        // rol adı niyeti kodda görünür kılar — çıplak TextStyle değil.
+        Text(moon['emoji'] as String? ?? '🌙', style: RythoText.emoji(34)),
         const SizedBox(width: RythoSpace.md),
         Expanded(
           child: Column(
@@ -250,6 +258,10 @@ class _AnSeridi extends StatelessWidget {
 }
 
 /// Tek açı satırı — dokununca dayanak alt-sayfası açılır.
+///
+/// Başta açı SINIFININ çizgi örneği (ressam ve lejantla aynı
+/// `aspectDashFor`): renk noktası sınıfı yalnız renkle ayırıyordu, çarkta
+/// çizilen düz/kesik dili satırda görünmüyordu.
 class _AciSatiri extends StatelessWidget {
   const _AciSatiri({required this.aspect});
 
@@ -263,11 +275,10 @@ class _AciSatiri extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 7),
         child: Row(children: [
-          Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.only(right: RythoSpace.sm),
-            decoration: BoxDecoration(color: renk, shape: BoxShape.circle),
+          Padding(
+            padding: const EdgeInsets.only(right: RythoSpace.sm),
+            child: AciCizgiOrnegi(
+                dil: aspectDashFor(aspect.kind), renk: renk),
           ),
           Expanded(
             child: Text(
@@ -321,8 +332,7 @@ class SkyNowSummary extends StatelessWidget {
           .push(MaterialPageRoute(builder: (_) => const SkyNowScreen())),
       child: Row(
         children: [
-          Text(moon['emoji'] as String? ?? '🌙',
-              style: const TextStyle(fontSize: 26)),
+          Text(moon['emoji'] as String? ?? '🌙', style: RythoText.emoji(26)),
           const SizedBox(width: RythoSpace.md),
           Expanded(
             child: Column(

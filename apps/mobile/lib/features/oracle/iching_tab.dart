@@ -1,54 +1,41 @@
 
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dio/dio.dart';
 
 import '../../core/analytics.dart';
 import '../../core/api.dart';
+import '../../core/okuma_durumu.dart';
 import '../../core/sound.dart';
 import '../../core/providers.dart' show PlusHali, aboneHaliProvider;
+import '../../core/tr_metin.dart' show trKucuk;
 import '../../core/wallet.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/bedel_rozeti.dart';
+import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/coin_toss.dart';
-import '../../widgets/glass.dart' show SkeletonPanel;
+import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart';
+import '../../widgets/okuma_kabi.dart';
 
-/// Çekim hakkı durumu (İ6): "bugünkü hak 1/1" rozeti — kota yalnız 402'de,
-/// yani hak BİTİNCE görünür oluyordu. Salt-okur uç, hak düşmez.
-final ichingStatusProvider =
-    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
-  final dio = ref.watch(apiProvider);
-  final yanit = await dio.get('/api/v1/reports/iching/status');
-  return Map<String, dynamic>.from(yanit.data['data'] as Map);
-});
-
-/// Çekim bedeli — SUNUCUNUN söylediği sayı, yoksa `null`.
+/// `/reports/iching/status`un `token_cost`unu okuyan saf işlev — D6'dan
+/// beri OKUYUCUSUZ: rozet `BedelRozeti`ye geçti ve bedeli cüzdan yanıtının
+/// `costs` haritasından alıyor; `token_cost` aynı sunucu tablosunun
+/// (`TOKEN_COSTS`) ikinci kopyasıydı ve iki uç iki sayı gösterebilirdi.
+/// Durum sağlayıcısı (`ichingStatusProvider`) da onunla gitti — kimse
+/// izlemiyordu, yalnız çekim sonrası tazeleniyordu.
 ///
-/// NEDEN saf bir işlev olarak ayrı: rozet `IChingTab`ın içinde yaşıyor ve o
-/// ağaç Firebase oturumu + profil sağlayıcıları istiyor, yani kararın
-/// bekçisi widget testiyle yazılamazdı (depodaki `plusHaliniOku` ve
-/// `abonelikDurumunuOku` aynı gerekçeyle saf).
-///
-/// NEDEN elle yazılmış bir yedek sayı YOK: burada bir dönem `?? 2` vardı ve
-/// o, bedel gerçeğinin istemcideki İKİNCİ kopyasıydı — hiçbir bekçi onu
-/// sunucudaki `TOKEN_COSTS['iching']`e bağlamıyordu. Sunucu bedeli 3 yapıp
-/// alanı göndermeyi bıraktığında (eski derleme, 503 sonrası eksik gövde,
-/// alan adı değişikliği) rozet "2 kredi" der, çekim 3 düşerdi. Bu ekran
-/// bedeli HARCAMADAN ÖNCE gösteren TEK yüzey, yani yalanın en pahalı yeri.
-///
-/// NEDEN sıfır ve negatif de `null`: "0 kredi" bedava demektir ve
-/// gönderilmemiş bir alanla aynı şey değil; bozuk bir gövdeden bedava
-/// sözü üretmek, susmaktan kötü. Tür de sorulur — JSON `2.0` ya da `"2"`
-/// gönderirse `as int?` SESSİZCE null döndürmez, FIRLATIR; burada
-/// `is int` ile sorulduğu için rozet yalnız çizilmez.
+/// Burada duruyor çünkü `iching_bedel_test` saf kuralları (sıfır/negatif/
+/// yanlış tür → `null`, elle yazılmış `?? 2` yedeği yok) onun üstünden
+/// çiviliyor; işlevi silmek o dosyayı derlenemez yapar. Kaldırma kararı
+/// D8 ölü-kod temizliğinin (işlev + test + sunucudaki alan birlikte).
 int? ichingBedeli(Map<String, dynamic>? durum) {
   final ham = durum?['token_cost'];
   if (ham is! int || ham <= 0) return null;
@@ -137,10 +124,9 @@ class _IChingTabState extends ConsumerState<IChingTab> {
       setState(() => _result = Map<String, dynamic>.from(response.data['data']));
       basarili = true;
       Analytics.ichingCast(_method);
-      // Abone çekimi cüzdandan 2 token düşer; sohbetteki bakiye çipi
-      // bayat kalmasın (İ0). Kota rozeti de tazelensin (İ6).
+      // Abone çekimi cüzdandan kredi düşer; sohbetteki bakiye çipi ve
+      // bedel rozeti (ikisi de cüzdanı izler) bayat kalmasın (İ0).
       ref.invalidate(walletProvider);
-      ref.invalidate(ichingStatusProvider);
     } on DioException catch (e) {
       // 402'de interceptor zaten paywall'ı açıyor; arkasına bir de
       // SnackBar basmak aynı mesajı iki kez göstermekti (İ0).
@@ -181,20 +167,15 @@ class _IChingTabState extends ConsumerState<IChingTab> {
     final kapi = ref.watch(aboneHaliProvider);
     if (kapi == PlusHali.bilinmiyor) {
       // Cevap gelmeden ne kilit ne soru alanı: iskelet içeriğin hacmini
-      // gösterir, hükmünü vermez.
-      return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
-          children: const [
-            SkeletonPanel(height: 64, margin: EdgeInsets.only(bottom: 12)),
-            SkeletonPanel(height: 88, margin: EdgeInsets.only(bottom: 12)),
-            SkeletonPanel(height: 42, margin: EdgeInsets.only(bottom: 12)),
-          ]);
+      // gösterir, hükmünü vermez (başlık + soru alanı + yöntem seçici).
+      return const SkeletonList(heights: [64, 88, 42]);
     }
     if (kapi == PlusHali.aboneDegil) {
+      const ozellik = PlusOzellik.iching;
       return PlusLockedCard(
-        emoji: '🪙',
-        title: l10n.iChingLockedTitle,
-        description: l10n.iChingLockedBody,
+        ozellik: ozellik,
+        title: ozellik.baslik(l10n),
+        description: ozellik.kilitGovdesi(l10n),
         centered: true,
       );
     }
@@ -218,69 +199,32 @@ class _IChingTabState extends ConsumerState<IChingTab> {
           counterText: '',
         ),
       ),
-      const SizedBox(height: 12),
-      Row(children: [
-        for (final m in [
-          ('coins', l10n.iChingMethodCoins),
-          ('yarrow', l10n.iChingMethodYarrow)
-        ]) ...[
-          Expanded(
-            // Pressable (İ6): basılınca ölçeklenir + haptik — çıplak
-            // GestureDetector bunların ikisini de vermiyordu. Süreler
-            // RythoMotion token'larından.
-            child: Pressable(
-              onTap: () => setState(() => _method = m.$1),
-              child: AnimatedContainer(
-                duration: RythoMotion.base,
-                curve: Curves.easeOutCubic,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient:
-                      _method == m.$1 ? RythoColors.primaryGradient : null,
-                  color: _method == m.$1 ? null : RythoColors.inkLight,
-                  border: Border.all(
-                      color: _method == m.$1
-                          ? Colors.white.withValues(alpha: 0.2)
-                          : RythoColors.glassStroke),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(m.$2,
-                    style: RythoText.label(12,
-                        color: _method == m.$1
-                            ? Colors.white
-                            : RythoColors.parchmentDim)),
-              ),
-            ),
-          ),
-          if (m.$1 == 'coins') const SizedBox(width: 8),
-        ],
-      ]),
-      const SizedBox(height: 16),
+      const SizedBox(height: RythoSpace.md),
+      // Yöntem seçici bir DURUM göstergesi, eylem değil: eski hâl seçili
+      // yöntemi `primaryGradient` ile çiziyordu — hemen altındaki altın
+      // düğmeyle aynı görsel muamele, "yönteme basınca çekim yapılır"
+      // hissi (GlassSegments gerekçesi). Kabuk kenar dolgusu seçicinin
+      // kendisinden (sabit lg); liste dolgusuyla birlikte 32 dp içeride —
+      // `GlassSegments.margin` seçeneği D8'de.
+      GlassSegments(
+        compact: true,
+        labels: [l10n.iChingMethodCoins, l10n.iChingMethodYarrow],
+        index: _method == 'yarrow' ? 1 : 0,
+        onChanged: (i) =>
+            setState(() => _method = i == 1 ? 'yarrow' : 'coins'),
+      ),
+      const SizedBox(height: RythoSpace.lg),
       GoldButton(text: l10n.iChingCastAction, busy: _busy, onPressed: _cast),
-      // Bedel rozeti (İ6→V2): ekran artık yalnız aboneye açık; rozet çekim
-      // başına token bedelini ÖNCEDEN gösterir (bedel yalnız 402'de görünür
-      // olmasın diye).
-      Consumer(builder: (context, ref, _) {
-        final durum = ref.watch(ichingStatusProvider).value;
-        if (durum == null) return const SizedBox(height: 8);
-        // Bedel SUNUCUDAN gelir, elle YAZILMAZ — gerekçe [ichingBedeli]'nde.
-        //
-        // Alan yoksa rozet HİÇ çizilmez: ölçülmeyen söylenmez. Yüksekliğin
-        // `durum == null` dalıyla aynı tutulması bilinçli — rozetin
-        // yokluğu düğmenin altındaki boşluğu zıplatmaz.
-        final bedel = ichingBedeli(durum);
-        if (bedel == null) return const SizedBox(height: 8);
-        final metin = l10n.iChingQuotaTokens(bedel);
-        return Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Center(
-            child: Text(metin,
-                style:
-                    RythoText.mono(10.5, color: RythoColors.parchmentDim)),
-          ),
-        );
-      }),
+      // Bedel rozeti (İ6→V2→D6): çekim başına bedeli HARCAMADAN ÖNCE
+      // söyler. Kaynak artık cüzdan yanıtının `costs` haritası
+      // (`BedelRozeti`) — `/reports/iching/status`un `token_cost`u aynı
+      // sunucu tablosunun (`TOKEN_COSTS`) ikinci kopyasıydı; iki uç iki
+      // sayı gösteremesin diye tek kaynağa çekildi. Bilinmiyorsa rozet
+      // hiç çizilmez; yükseklik sabit ki düğmenin altı zıplamasın.
+      const SizedBox(
+        height: 36,
+        child: Center(child: BedelRozeti(PlusOzellik.iching)),
+      ),
       // Paralar → çizgiler nedenselliği (R12-C2 → PBZ): eskiden paralar
       // sonuç gelince sönüp heksagramla değişiyordu; hangi paranın nasıl
       // düştüğü hiç görünmüyordu. Şimdi CastScene atışı OYNATIR: yanıt
@@ -288,15 +232,16 @@ class _IChingTabState extends ConsumerState<IChingTab> {
       // her iniş alttan bir çizgiyi çizer; bitince aynı switcher hücresinde
       // sonuç büyüyerek gelir.
       AnimatedSwitcher(
-        duration: reduceMotion(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 400),
+        duration: kapili(context, RythoMotion.celebrate),
         switchInCurve: RythoMotion.enter,
         switchOutCurve: RythoMotion.settle,
         transitionBuilder: (child, anim) => FadeTransition(
           opacity: anim,
           child: ScaleTransition(
-            scale: Tween(begin: 0.85, end: 1.0).animate(anim),
+            // `drive`: `Tween.animate` ile aynı eğri. `.animate(` imzası
+            // bu dosyada flutter_animate'in kapısız yolu demek ve hareket
+            // bekçisi onu arıyor; Flutter'ın kendi API'si o adla durmasın.
+            scale: anim.drive(Tween(begin: 0.85, end: 1.0)),
             child: child,
           ),
         ),
@@ -314,14 +259,11 @@ class _IChingTabState extends ConsumerState<IChingTab> {
             : _result != null
                 ? Column(key: const ValueKey('sonuc'), children: [
                     const SectionDivider(),
-                    _HexagramView(result: _result!)
-                        .animate(delay: 150.ms)
-                        .fadeIn(duration: 500.ms)
-                        .slideY(begin: 0.04, curve: Curves.easeOutCubic),
+                    _HexagramView(result: _result!, onTekrarDene: _cast),
                   ])
                 : const SizedBox.shrink(key: ValueKey('bos')),
       ),
-      const SizedBox(height: 32),
+      const SizedBox(height: RythoSpace.xxl),
     ]);
   }
 }
@@ -337,10 +279,11 @@ const _dolguKelimeler = {
 
 /// Soru gerçek bir niyet taşıyor mu — dolgu kelimeler ayıklandıktan sonra
 /// en az iki kelime kalmalı. Günde tek çekim hakkı selamla harcanmasın.
+///
+/// Küçültme `trKucuk`: çıplak `toLowerCase` `İ`yi `i + U+0307`'ye açıyor
+/// ve burada bir dönem o birleşik nokta elle ayıklanıyordu (tr_metin).
 bool _meaningfulQuestion(String question) {
-  final kelimeler = question
-      .toLowerCase()
-      .replaceAll('̇', '') // İ küçülünce kalan birleşik nokta
+  final kelimeler = trKucuk(question)
       .split(RegExp(r"[^\p{L}\p{N}']+", unicode: true));
   final anlamli =
       kelimeler.where((k) => k.isNotEmpty && !_dolguKelimeler.contains(k));
@@ -550,20 +493,33 @@ class CastSceneState extends State<CastScene> {
           revealedCount: _acilan,
         ),
       ]),
-      const SizedBox(height: 12),
+      const SizedBox(height: RythoSpace.md),
       Text(etiket,
           style: RythoText.mono(12, color: RythoColors.parchmentDim)),
+      // İniş atlanabilir ve bu artık GÖRÜNÜR: tepsiye dokunma bir dönem
+      // yalnız kodda yazılı, ekranda sessiz bir jestti — bilmeyen altı
+      // inişi bekliyordu. Etiket yalnız dokunmanın işe yaradığı fazda.
+      if (_faz == _CastPhase.landing) ...[
+        const SizedBox(height: RythoSpace.xs),
+        Text(l10n.iChingTapToSkip, style: RythoType.caption),
+      ],
     ]);
   }
 }
 
-/// Çekim sonucu sahnesi (İ6): BaZi sekmesiyle aynı Plaque dilinde —
+/// Çekim sonucu sahnesi (İ6): BaZi sekmesiyle aynı cam panel dilinde —
 /// çift glif, hüküm/imge metinleri, hareketli çizgi pasajları, Liu Yao
 /// dökümü ve gün bağlamı. Eski hâli yalnız ad + LLM yorumu gösteriyordu;
 /// hüküm ve imge sunucudan geldiği hâlde ekrana hiç çıkmıyordu.
 class _HexagramView extends StatelessWidget {
-  const _HexagramView({required this.result});
+  const _HexagramView({required this.result, required this.onTekrarDene});
   final Map<String, dynamic> result;
+
+  /// Okuma üretilemediyse "Tekrar dene": aynı soru ve yöntemle YENİ bir
+  /// çekim. Sunucuda "bu çekimin okumasını yeniden üret" ucu yok — çekim
+  /// rastgele, her istek yeni bir heksagram; bu kapı kullanıcının zaten
+  /// yapacağı şeyi (üstteki düğmeye yeniden basmak) karttan sunar.
+  final VoidCallback onTekrarDene;
 
   @override
   Widget build(BuildContext context) {
@@ -589,74 +545,70 @@ class _HexagramView extends StatelessWidget {
         List<String>.from(primary['line_texts'] as List? ?? const []);
     final lower = Map<String, dynamic>.from(primary['lower_trigram'] ?? {});
     final upper = Map<String, dynamic>.from(primary['upper_trigram'] ?? {});
-
-    var sira = 0;
-    Duration gecikme() => Duration(milliseconds: 140 * sira++);
-    Widget blok(Widget w) => w
-        .animate(delay: gecikme())
-        .fadeIn(duration: 380.ms)
-        .slideY(begin: 0.06, curve: Curves.easeOutCubic);
+    final heksagramAdi = '${primary['name_local'] ?? primary['name_tr']}';
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      blok(Plaque(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        label: l10n.iChingHexagramLabel(primary['number']),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            // Çizgiler çekim sahnesinde (CastScene) iniş iniş çizildi;
-            // burada tamamı hazır durur.
-            _HexagramGlyph(lines: lines, moving: moving, values: values),
-            if (transformed != null) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Icon(Icons.arrow_forward_rounded,
-                    size: 18, color: RythoColors.parchmentDim),
+      RythoReveal(
+        index: 0,
+        child: GlassPanel(
+          margin: const EdgeInsets.symmetric(vertical: RythoSpace.sm),
+          label: l10n.iChingHexagramLabel(primary['number']),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              // Çizgiler çekim sahnesinde (CastScene) iniş iniş çizildi;
+              // burada tamamı hazır durur.
+              _HexagramGlyph(lines: lines, moving: moving, values: values),
+              if (transformed != null) ...[
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: RythoSpace.md),
+                  child: Icon(Icons.arrow_forward_rounded,
+                      size: 18, color: RythoColors.parchmentDim),
+                ),
+                _HexagramGlyph(
+                    lines: List<int>.from(cast['lines'] ?? [])
+                        .asMap()
+                        .entries
+                        .map((e) =>
+                            moving.contains(e.key + 1) ? 1 - e.value : e.value)
+                        .toList(),
+                    moving: const []),
+              ],
+              const SizedBox(width: RythoSpace.lg),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(heksagramAdi, style: RythoType.heroSmall),
+                      Text('${primary['name']} ${primary['name_cn']}',
+                          style: RythoText.body(12.5,
+                              color: RythoColors.parchmentDim)),
+                      if (transformed != null) ...[
+                        const SizedBox(height: RythoSpace.xs),
+                        Text(
+                          l10n.iChingTransformedTo(
+                              transformed['name_local'] ??
+                                  transformed['name_tr'],
+                              transformed['number']),
+                          style: RythoText.mono(11.5,
+                              color: RythoColors.copper),
+                        ),
+                      ],
+                    ]),
               ),
-              _HexagramGlyph(
-                  lines: List<int>.from(cast['lines'] ?? [])
-                      .asMap()
-                      .entries
-                      .map((e) =>
-                          moving.contains(e.key + 1) ? 1 - e.value : e.value)
-                      .toList(),
-                  moving: const []),
+            ]),
+            // Lejant glif panelinde KALDI: hareketli çizgi işaretlerini
+            // çözen tek şey o ve glifin kendisini okutuyor — dayanak değil,
+            // glifin alt yazısı. Trigram ve nükleer satırları ise ölçüm;
+            // aşağıdaki dayanak bölümüne indiler.
+            if (moving.isNotEmpty) ...[
+              const SizedBox(height: RythoSpace.sm),
+              Text(l10n.iChingLegend,
+                  style: RythoText.mono(10, color: RythoColors.parchmentDim)),
             ],
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${primary['name_local'] ?? primary['name_tr']}',
-                        style: RythoText.display(24)),
-                    Text('${primary['name']} ${primary['name_cn']}',
-                        style: RythoText.body(12.5,
-                            color: RythoColors.parchmentDim)),
-                    if (transformed != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.iChingTransformedTo(
-                            transformed['name_local'] ??
-                                transformed['name_tr'],
-                            transformed['number']),
-                        style: RythoText.mono(11.5,
-                            color: RythoColors.copper),
-                      ),
-                    ],
-                  ]),
-            ),
           ]),
-          // Lejant glif panelinde KALDI: hareketli çizgi işaretlerini
-          // çözen tek şey o ve glifin kendisini okutuyor — dayanak değil,
-          // glifin alt yazısı. Trigram ve nükleer satırları ise ölçüm;
-          // aşağıdaki dayanak bölümüne indiler.
-          if (moving.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(l10n.iChingLegend,
-                style: RythoText.mono(10, color: RythoColors.parchmentDim)),
-          ],
-        ]),
-      )),
+        ),
+      ),
       // ⚠️ OKUMA GLİFİN HEMEN ALTINDA — ve glifin ÜSTÜNE alınmadı.
       //
       // Lifestyle turunda diğer dört ekranda okuma en başa alındı; burada
@@ -667,102 +619,134 @@ class _HexagramView extends StatelessWidget {
       //
       // Taşınan şey ÖLÇÜM: trigram+element satırı ve nükleer heksagram
       // panelin içindeydi, şimdi dayanak bölümünde. Sıra: glif → okuma →
-      // klasik kaynak metinleri → dayanak → Rytho'ya sor.
-      if ((result['report'] as String? ?? '').trim().isNotEmpty) ...[
-        blok(MarginNote(
-            title: l10n.iChingOracleNote, text: result['report'] as String)),
-        blok(const SectionDivider()),
-      ],
-      blok(Plaque(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        label: l10n.iChingJudgmentTitle,
-        child: Text(primary['judgment'] ?? '',
-            style: RythoText.body(14, color: RythoColors.parchment)),
-      )),
-      blok(Plaque(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        label: l10n.iChingImageTitle,
-        child: Text(primary['image'] ?? '',
-            style: RythoText.body(13.5, color: RythoColors.parchmentDim)),
-      )),
-      // Hareketli çizgi METİNLERİ — okumanın ağırlık merkezi (İ1 verisi).
-      if (moving.isNotEmpty && lineTexts.length == 6)
-        blok(Plaque(
-          label: l10n.iChingMovingTitle,
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final n in moving)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color:
-                                  RythoColors.copper.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(l10n.iChingLineLabel(n),
-                                style: RythoText.mono(10,
-                                    color: RythoColors.copper)),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(lineTexts[n - 1],
-                                style: RythoText.body(13,
-                                    color: RythoColors.parchment)),
-                          ),
-                        ]),
-                  ),
-              ]),
-        )),
-      if (liuYao != null)
-        blok(Plaque(
-          label: l10n.iChingLiuYaoTitle,
-          child: _LiuYaoTable(l10n: l10n, liuYao: liuYao, moving: moving),
-        )),
-      // Dayanak: çekimin ölçülen yapısı — glif panelinden buraya indi.
-      // "Bilginin geldiği yer" okumanın ALTINDA durur (sahibin sırası).
-      blok(Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-          Text(
-              l10n.iChingTrigramsLabel(
-                  '${lower['name'] ?? ''} (${lower['element'] ?? ''})',
-                  '${upper['name'] ?? ''} (${upper['element'] ?? ''})'),
-              style: RythoText.body(11.5, color: RythoColors.parchmentDim)),
-          if (nuclear != null)
-            Text(
-                l10n.iChingNuclearLabel(
-                    nuclear['name_local'] ?? nuclear['name_tr'] ?? '',
-                    nuclear['number'] as int),
-                style:
-                    RythoText.body(11.5, color: RythoColors.parchmentDim)),
-          if ((context_?['day_pillar']?['label'] as String?)?.isNotEmpty ??
-              false)
-            Text(
-                l10n.iChingDayLabel(
-                    context_!['day_pillar']['label'] as String),
-                style:
-                    RythoText.mono(10.5, color: RythoColors.parchmentDim)),
-        ]),
-      )),
-      // Sayfanın birincil eylemi en alt kenarda (tasarım doktrini).
+      // klasik kaynak metinleri → dayanak.
       //
-      // ⚠️ Tohum KULLANICININ KENDİ SORUSUNU taşıyor, uydurulmuş bir soru
-      // değil: `cast['question']` sunucunun geri döndürdüğü ham metin
-      // (`iching_service.py`). Beş ekranın en güçlü tohumu bu — kehanet
-      // zaten bir soruya verilmiş cevap, sohbet o soruyla sürüyor.
-      blok(RythoyaSor(
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+      // Kap `OkumaKabi`: `fallback` bayrağı tek noktadan okunur (eski hâl
+      // bayrağı HİÇ okumuyordu, şablon paragraf kehanet notu gibi
+      // duruyordu). Paylaşım kartına SORU METNİ GİRMEZ: kart yalnız okumayı
+      // taşır (`PaylasimTarifi.body` varsayılanı), soru kullanıcının
+      // mahremi. "Rytho'ya sor" tohumu ise KULLANICININ KENDİ SORUSUNU
+      // taşıyor, uydurulmuş bir soru değil: `cast['question']` sunucunun
+      // geri döndürdüğü ham metin (`iching_service.py`) — kehanet zaten bir
+      // soruya verilmiş cevap, sohbet o soruyla sürüyor.
+      RythoReveal(
+        index: 1,
+        child: OkumaKabi(
+          durum: okumaDurumuFromYanit(result),
+          ekranKodu: 'oracle',
+          baslik: l10n.iChingOracleNote,
+          onTekrarDene: onTekrarDene,
+          onSor: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => ChatScreen(
                   initialText: l10n.iChingAskPrefill(
-                      '${cast['question'] ?? ''}')))))),
+                      '${cast['question'] ?? ''}')))),
+          paylasim: PaylasimTarifi(
+            title: l10n.iChingLockedTitle,
+            dateLabel: bugununEtiketi(),
+            badges: [
+              (l10n.iChingHexagramLabel(primary['number']), heksagramAdi),
+            ],
+            glyph: PlusOzellik.iching.emoji,
+          ),
+        ),
+      ),
+      const RythoReveal(index: 2, child: SectionDivider()),
+      RythoReveal(
+        index: 3,
+        child: GlassPanel(
+          margin: const EdgeInsets.symmetric(vertical: RythoSpace.sm),
+          label: l10n.iChingJudgmentTitle,
+          child: Text(primary['judgment'] ?? '',
+              style: RythoText.body(14, color: RythoColors.parchment)),
+        ),
+      ),
+      RythoReveal(
+        index: 4,
+        child: GlassPanel(
+          margin: const EdgeInsets.symmetric(vertical: RythoSpace.sm),
+          label: l10n.iChingImageTitle,
+          child: Text(primary['image'] ?? '',
+              style: RythoText.body(13.5, color: RythoColors.parchmentDim)),
+        ),
+      ),
+      // Hareketli çizgi METİNLERİ — okumanın ağırlık merkezi (İ1 verisi).
+      if (moving.isNotEmpty && lineTexts.length == 6)
+        RythoReveal(
+          index: 5,
+          child: GlassPanel(
+            label: l10n.iChingMovingTitle,
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final n in moving)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: RythoSpace.sm),
+                      child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: RythoSpace.sm, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: RythoColors.copper
+                                    .withValues(alpha: 0.14),
+                                borderRadius:
+                                    BorderRadius.circular(RythoRadius.pill),
+                              ),
+                              child: Text(l10n.iChingLineLabel(n),
+                                  style: RythoText.mono(10,
+                                      color: RythoColors.copper)),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(lineTexts[n - 1],
+                                  style: RythoText.body(13,
+                                      color: RythoColors.parchment)),
+                            ),
+                          ]),
+                    ),
+                ]),
+          ),
+        ),
+      if (liuYao != null)
+        RythoReveal(
+          index: 6,
+          child: GlassPanel(
+            label: l10n.iChingLiuYaoTitle,
+            child: _LiuYaoTable(l10n: l10n, liuYao: liuYao, moving: moving),
+          ),
+        ),
+      // Dayanak: çekimin ölçülen yapısı — glif panelinden buraya indi.
+      // "Bilginin geldiği yer" okumanın ALTINDA durur (sahibin sırası).
+      RythoReveal(
+        index: 7,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+              RythoSpace.lg, RythoSpace.sm, RythoSpace.lg, RythoSpace.xs),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            Text(
+                l10n.iChingTrigramsLabel(
+                    '${lower['name'] ?? ''} (${lower['element'] ?? ''})',
+                    '${upper['name'] ?? ''} (${upper['element'] ?? ''})'),
+                style: RythoText.body(11.5, color: RythoColors.parchmentDim)),
+            if (nuclear != null)
+              Text(
+                  l10n.iChingNuclearLabel(
+                      nuclear['name_local'] ?? nuclear['name_tr'] ?? '',
+                      nuclear['number'] as int),
+                  style:
+                      RythoText.body(11.5, color: RythoColors.parchmentDim)),
+            if ((context_?['day_pillar']?['label'] as String?)?.isNotEmpty ??
+                false)
+              Text(
+                  l10n.iChingDayLabel(
+                      context_!['day_pillar']['label'] as String),
+                  style:
+                      RythoText.mono(10.5, color: RythoColors.parchmentDim)),
+          ]),
+        ),
+      ),
     ]);
   }
 }
@@ -823,10 +807,13 @@ class _LiuYaoTable extends StatelessWidget {
                 runSpacing: 2,
                 alignment: WrapAlignment.end,
                 children: [
+                  // Etiketler çevrilir: "shi/ying" çıplak pinyin ekranda
+                  // kimseye bir şey söylemiyordu (saray satırı zaten
+                  // "özne/karşılık" diyor; iki dil tek sayfada çelişiyordu).
                   if (c['position'] == shi)
-                    _tag('shi', RythoColors.goldBright)
+                    _tag(l10n.iChingShiTag, RythoColors.goldBright)
                   else if (c['position'] == ying)
-                    _tag('ying', RythoColors.lilac),
+                    _tag(l10n.iChingYingTag, RythoColors.lilac),
                   if (c['void'] == true)
                     _tag(l10n.iChingVoidTag, RythoColors.parchmentDim),
                   if (c['clash'] == true)
@@ -840,11 +827,12 @@ class _LiuYaoTable extends StatelessWidget {
   }
 
   Widget _tag(String metin, Color renk) => Container(
-        margin: const EdgeInsets.only(left: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        margin: const EdgeInsets.only(left: RythoSpace.xs),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 6, vertical: RythoSpace.xxs),
         decoration: BoxDecoration(
           border: Border.all(color: renk.withValues(alpha: 0.5)),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(RythoRadius.pill),
         ),
         child: Text(metin, style: RythoText.mono(8.5, color: renk)),
       );

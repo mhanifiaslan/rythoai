@@ -13,6 +13,12 @@
 /// Saat "bilmiyorum" birinci sınıf bir seçenek: eklenen kişilerin çoğunda
 /// saat gerçekten bilinmiyor. Boş bırakıldığında sunucu Yükselen ve ev
 /// üretmez ve bunu beyan eder (bkz. core/birth_record.dart baş yorumu).
+///
+/// Form parçaları (`SecimSatiri`, `CinsiyetSecici`, `SaatBilinmiyorKutusu`)
+/// sihirbaz ve doğum kaydıyla ORTAK (`widgets/dogum_formu.dart`): üç kopya
+/// üç ayrı dolgu/punto taşıyordu ve cinsiyet seçicisi burada `'female'`
+/// önseçiliydi — kullanıcı dokunmadan geçince üçüncü bir kişi adına
+/// "kadın" beyan ediliyordu.
 library;
 
 import 'package:dio/dio.dart' show DioException;
@@ -21,6 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/api.dart';
+import '../../core/birth_record.dart' show dogumSaatiGecerli, saatMetni;
 import '../../core/people.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
@@ -28,7 +35,9 @@ import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/city_search_field.dart';
 import '../../widgets/cosmic_scaffold.dart';
-import '../../widgets/nebula_widgets.dart' show Pressable;
+import '../../widgets/dogum_formu.dart';
+import '../../widgets/glass.dart';
+import '../../widgets/nebula_widgets.dart' show SuggestionChip;
 
 /// Türün ekrandaki adı. Sunucu bu adı bilmiyor — orada yalnız anahtar var.
 String relationLabel(AppLocalizations l10n, String relation) =>
@@ -83,11 +92,18 @@ class _PersonFormScreenState extends ConsumerState<PersonFormScreen> {
       TextEditingController(text: widget.existing?.label ?? '');
   late String _tur = widget.existing?.relation ?? 'partner';
   late DateTime _tarih = _ilkTarih();
-  late TimeOfDay _saat = _ilkSaat();
+
+  /// Null = saat seçilmedi. Eski hâli `12:00` uyduruyordu; sunucuya
+  /// sızmıyordu (bayrak null taşıyordu) ama "biliyorum" deyip saat seçmeden
+  /// kaydedince o uydurma saat gerçek gibi yazılırdı. Kapı `dogumSaatiGecerli`.
+  late TimeOfDay? _saat = _ilkSaat();
   late bool _saatBiliniyor = widget.existing?.birthTime != null;
   late String _sehir = widget.existing?.birthCity ?? '';
   late String? _ulke = widget.existing?.birthNation;
-  late String _cinsiyet = widget.existing?.gender ?? 'female';
+
+  /// Önseçim YOK: null hiçbir segmenti dolu göstermez. Düzenleme kipinde
+  /// kayıtta beyan yoksa da null kalır (`Person.gender` belgesi).
+  late String? _cinsiyet = widget.existing?.gender;
   bool _mesgul = false;
 
   DateTime _ilkTarih() {
@@ -99,9 +115,9 @@ class _PersonFormScreenState extends ConsumerState<PersonFormScreen> {
         int.tryParse(p[2]) ?? 1);
   }
 
-  TimeOfDay _ilkSaat() {
+  TimeOfDay? _ilkSaat() {
     final ham = widget.existing?.birthTime;
-    if (ham == null) return const TimeOfDay(hour: 12, minute: 0);
+    if (ham == null) return null;
     final p = ham.split(':');
     return TimeOfDay(
         hour: int.tryParse(p.first) ?? 12,
@@ -125,7 +141,9 @@ class _PersonFormScreenState extends ConsumerState<PersonFormScreen> {
   }
 
   Future<void> _saatSec() async {
-    final secilen = await showTimePicker(context: context, initialTime: _saat);
+    final secilen = await showTimePicker(
+        context: context,
+        initialTime: _saat ?? const TimeOfDay(hour: 12, minute: 0));
     if (secilen != null) {
       setState(() {
         _saat = secilen;
@@ -152,14 +170,16 @@ class _PersonFormScreenState extends ConsumerState<PersonFormScreen> {
         birthDate: '${_tarih.year.toString().padLeft(4, '0')}-'
             '${_tarih.month.toString().padLeft(2, '0')}-'
             '${_tarih.day.toString().padLeft(2, '0')}',
-        birthTime: _saatBiliniyor
-            ? '${_saat.hour.toString().padLeft(2, '0')}:'
-                '${_saat.minute.toString().padLeft(2, '0')}'
-            : null,
+        birthTime: _saatBiliniyor ? saatMetni(_saat) : null,
         birthCity: _sehir.trim(),
         birthNation: _ulke,
         gender: _cinsiyet,
       );
+
+  /// Kaydet kapısı: "biliyorum" deyip saat seçmemiş form kaydedilmez
+  /// (sihirbaz ve doğum kaydıyla aynı kural, tek fonksiyon).
+  bool get _kaydedilebilir =>
+      dogumSaatiGecerli(biliniyor: _saatBiliniyor, saat: _saat);
 
   Future<void> _kaydet() async {
     final l10n = AppLocalizations.of(context);
@@ -187,6 +207,8 @@ class _PersonFormScreenState extends ConsumerState<PersonFormScreen> {
       // KT4: 402'de interceptor ZATEN paywall açıyor — üstüne snackbar
       // basmak çift tepkiydi (iching_tab bu çakışmayı baştan engelliyordu,
       // burası engellemiyordu). Diğer hatalar friendlyError ile görünür.
+      // Kontenjan dolu hâli artık buraya nadiren düşer: Çevrem, formu
+      // açmadan ÖNCE kontenjanı okuyor (`friends_screen.kisiKontenjaniDolu`).
       if (e is! DioException || e.response?.statusCode != 402) {
         mesajci.showSnackBar(
             SnackBar(content: Text(friendlyError(e, l10n))));
@@ -198,6 +220,8 @@ class _PersonFormScreenState extends ConsumerState<PersonFormScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final dil = Localizations.localeOf(context).toLanguageTag();
+    final tarihMetni = DateFormat('d MMMM yyyy', dil).format(_tarih);
+    final saatMetin = _saatBiliniyor ? (saatMetni(_saat) ?? '—') : '—';
 
     return CosmicScaffold(
       appBar: AppBar(
@@ -222,10 +246,13 @@ class _PersonFormScreenState extends ConsumerState<PersonFormScreen> {
             ),
             const SizedBox(height: RythoSpace.sm),
             Text(l10n.peopleLabelNote,
-                style: RythoText.body(11.5, color: RythoColors.copper)),
+                style: RythoType.caption.copyWith(color: RythoColors.caution)),
             const SizedBox(height: RythoSpace.xl),
 
             // --- İlişki türü: eksen adlarını ve AI çerçevesini belirler ---
+            // Seçili çip DEGRADE DEĞİL: degrade eyleme ait (K5), çip bir
+            // durum gösterir; `SuggestionChip.selected` geri bildirim ve
+            // günlükle aynı "seçili çip" dili.
             Text(l10n.peopleRelation, style: RythoType.label),
             const SizedBox(height: RythoSpace.sm),
             Wrap(
@@ -233,207 +260,69 @@ class _PersonFormScreenState extends ConsumerState<PersonFormScreen> {
               runSpacing: RythoSpace.sm,
               children: [
                 for (final tur in kRelations)
-                  _TurCipi(
-                    secili: _tur == tur,
-                    icon: relationIcon(tur),
-                    label: relationLabel(l10n, tur),
+                  SuggestionChip(
+                    text: relationLabel(l10n, tur),
+                    selected: _tur == tur,
                     onTap: () => setState(() => _tur = tur),
                   ),
               ],
             ),
             const SizedBox(height: RythoSpace.xl),
 
-            _AlanSatiri(
+            SecimSatiri(
               label: l10n.birthDate,
-              value: DateFormat('d MMMM yyyy', dil).format(_tarih),
+              value: tarihMetni,
               onTap: _tarihSec,
             ),
             const SizedBox(height: RythoSpace.md),
-            _AlanSatiri(
+            SecimSatiri(
               label: l10n.birthTime,
-              value: !_saatBiliniyor
-                  ? '—'
-                  : '${_saat.hour.toString().padLeft(2, '0')}:'
-                      '${_saat.minute.toString().padLeft(2, '0')}',
+              value: saatMetin,
               onTap: _saatSec,
             ),
-            CheckboxListTile(
-              value: !_saatBiliniyor,
-              onChanged: (v) => setState(() => _saatBiliniyor = !(v ?? false)),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: Text(l10n.birthTimeUnknown,
-                  style: RythoText.body(13, color: RythoColors.parchmentDim)),
+            SaatBilinmiyorKutusu(
+              bilinmiyor: !_saatBiliniyor,
+              onChanged: (bilinmiyor) =>
+                  setState(() => _saatBiliniyor = !bilinmiyor),
             ),
             const SizedBox(height: RythoSpace.md),
-            _AlanSatiri(
+            SecimSatiri(
               label: l10n.onboardingCity,
-              value: _sehir.isEmpty ? '—' : _sehir,
+              value: sehirEtiketi(_sehir, _ulke),
               onTap: _sehirSec,
             ),
             const SizedBox(height: RythoSpace.lg),
 
-            Row(
-              children: [
-                for (final g in [
-                  ('female', l10n.genderFemale),
-                  ('male', l10n.genderMale),
-                  ('other', l10n.genderOther),
-                ]) ...[
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _cinsiyet = g.$1),
-                      child: AnimatedContainer(
-                        duration: RythoMotion.base,
-                        curve: Curves.easeOutCubic,
-                        height: 46,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          gradient: _cinsiyet == g.$1
-                              ? RythoColors.primaryGradient
-                              : null,
-                          color: _cinsiyet == g.$1 ? null : RythoColors.inkLight,
-                          border: Border.all(
-                              color: _cinsiyet == g.$1
-                                  ? Colors.white.withValues(alpha: 0.2)
-                                  : RythoColors.glassStroke),
-                          borderRadius: BorderRadius.circular(RythoRadius.md),
-                        ),
-                        child: Text(g.$2,
-                            style: RythoText.body(14,
-                                w: FontWeight.w600,
-                                color: _cinsiyet == g.$1
-                                    ? Colors.white
-                                    : RythoColors.parchmentDim)),
-                      ),
-                    ),
-                  ),
-                  if (g.$1 != 'other') const SizedBox(width: RythoSpace.sm),
-                ],
-              ],
+            // Dört seçenek, önseçim yok; "Belirtmedim" de bir seçimdir.
+            CinsiyetSecici(
+              secili: _cinsiyet,
+              onSec: (v) => setState(() => _cinsiyet = v),
             ),
             const SizedBox(height: RythoSpace.xl),
 
             // --- Rıza beyanı: bu kişi kullanıcı değil, onayı alınamıyor ---
-            Container(
-              padding: const EdgeInsets.all(RythoSpace.lg),
-              decoration: BoxDecoration(
-                color: RythoColors.inkLighter,
-                border: Border.all(
-                    color: RythoColors.copper.withValues(alpha: 0.35)),
-                borderRadius: BorderRadius.circular(RythoRadius.md),
+            GlassPanel(
+              tone: GlassTone.raised,
+              margin: EdgeInsets.zero,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      size: 18, color: RythoColors.caution),
+                  const SizedBox(width: RythoSpace.sm),
+                  Expanded(
+                    child: Text(l10n.peopleConsent, style: RythoType.caption),
+                  ),
+                ],
               ),
-              child: Text(l10n.peopleConsent,
-                  style:
-                      RythoText.body(12, color: RythoColors.parchmentDim)),
             ),
             const SizedBox(height: RythoSpace.xl),
 
             GoldButton(
               text: l10n.save,
               busy: _mesgul,
-              onPressed: _kaydet,
+              onPressed: _kaydedilebilir ? _kaydet : null,
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TurCipi extends StatelessWidget {
-  const _TurCipi({
-    required this.secili,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final bool secili;
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: RythoMotion.base,
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(
-            horizontal: RythoSpace.lg, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: secili ? RythoColors.primaryGradient : null,
-          color: secili ? null : RythoColors.inkLight,
-          border: Border.all(
-              color: secili
-                  ? Colors.white.withValues(alpha: 0.2)
-                  : RythoColors.glassStroke),
-          borderRadius: BorderRadius.circular(RythoRadius.pill),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon,
-              size: 15,
-              color: secili ? Colors.white : RythoColors.lilac),
-          const SizedBox(width: 6),
-          // Çip etiketi (ilişki türü) dile bağlı ve esnemiyordu; çip
-          // `Wrap` içinde gevşek kısıt aldığından uzun etiket kendi
-          // satırından taşıyordu.
-          Flexible(
-            child: Text(label,
-                style: RythoText.body(13,
-                    w: FontWeight.w600,
-                    color: secili ? Colors.white : RythoColors.parchmentDim)),
-          ),
-        ]),
-      ),
-    );
-  }
-}
-
-class _AlanSatiri extends StatelessWidget {
-  const _AlanSatiri(
-      {required this.label, required this.value, required this.onTap});
-
-  final String label;
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(RythoRadius.md),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: RythoSpace.lg, vertical: 14),
-        decoration: BoxDecoration(
-          color: RythoColors.inkLighter,
-          border: Border.all(color: RythoColors.glassStroke),
-          borderRadius: BorderRadius.circular(RythoRadius.md),
-        ),
-        child: Row(
-          children: [
-            // Etiket + değer `Row` + `Spacer` ile esnemiyordu: uzun etiket
-            // ("Doğum yeri") + uzun değer ("İstanbul, Türkiye") dar ekranda
-            // kalemi dışarı itiyordu. `Expanded` içindeki `Wrap` sığdığında
-            // eski görünümü verir, sığmadığında değeri alt satıra indirir.
-            Expanded(
-              child: Wrap(
-                spacing: RythoSpace.md,
-                runSpacing: 2,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.end,
-                children: [
-                  Text(label, style: RythoType.label),
-                  Text(value, style: RythoText.mono(14)),
-                ],
-              ),
-            ),
-            const SizedBox(width: RythoSpace.sm),
-            const Icon(Icons.edit_outlined, size: 15, color: RythoColors.lilac),
           ],
         ),
       ),

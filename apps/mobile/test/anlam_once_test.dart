@@ -72,9 +72,15 @@ Widget _sar(Widget child, {String dil = 'tr'}) => MaterialApp(
 
 /// Yildiz alani ve `AstrolabeSpinner` surekli animasyonlu —
 /// `pumpAndSettle` hicbir zaman donmez.
+///
+/// 600 ms: detay iskeleti bloklari `RythoReveal(index:)` ile kademeli
+/// acar ve flutter_animate gecikmeyi `Future.delayed` ile kurar — 8. blok
+/// 7 × 70 = 490 ms sonra baslar. 400 ms'lik bekleme D6'da sohbet kapisi
+/// eklenince (7. blok) "A Timer is still pending" ile dusuyordu; urun
+/// hatasi degil, bekleme gecikmenin tavanini asmali.
 Future<void> _bekle(WidgetTester tester) async {
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump(const Duration(milliseconds: 600));
 }
 
 /// `GradillegentProgressBar` benzeri cubuklar her satiri gecikmeyle
@@ -304,19 +310,19 @@ void main() {
       }
       // Dayanak basligi da anlamdan SONRA.
       expect(_dy(tester, anlam),
-          lessThan(_dy(tester, find.text(_tr.signalWhy.toUpperCase()))));
+          lessThan(_dy(tester, find.text(_tr.signalWhy))));
     });
 
     testWidgets('olcum satirlari KAYBOLMADI', (tester) async {
       // Sirayi tersine cevirmek olcumu gizlemek DEGILDIR: "olculmeyen
       // soylenmez"in tersi de gecerli, olculen saklanmaz.
       await _sayfaAc(tester, (c) => showPointSheet(c, nokta));
-      // `_OlcumSatiri` etiketi buyuk harfe cevirerek ciziyor; bekci de
-      // AYNI cagriyi yapiyor, elle yazilmis bir kopya DEGIL — Turkce
-      // noktali I'nin nasil buyudugune dair varsayim kurulmasin.
-      expect(find.text(_tr.planetDegree.toUpperCase()), findsOneWidget);
-      expect(find.text(_tr.planetHouse.toUpperCase()), findsOneWidget);
-      expect(find.text(_tr.planetSpeed.toUpperCase()), findsOneWidget);
+      // Etiketler `OlcumSatiri` (basis_sheet) ile BIREBIR: buyuk harfe
+      // cevrilmiyor (D6) — `toUpperCase` Turkce bilmiyordu, rol
+      // tipografisi etiket agirligini zaten tasiyor.
+      expect(find.text(_tr.planetDegree), findsOneWidget);
+      expect(find.text(_tr.planetHouse), findsOneWidget);
+      expect(find.text(_tr.planetSpeed), findsOneWidget);
     });
 
     testWidgets('DAR ve KISA ekranda tasma yok', (tester) async {
@@ -352,7 +358,7 @@ void main() {
       expect(tester.takeException(), isNull);
       // Kirpilma olmadiginin ikinci isareti: en alttaki olcum satiri
       // gercekten agacta ve kaydirilabilir.
-      expect(find.text(_tr.planetSpeed.toUpperCase()), findsOneWidget);
+      expect(find.text(_tr.planetSpeed), findsOneWidget);
     });
 
     test('DURUSTLUK DIPNOTU basiliyor ve KONUM BEYANI tasimiyor', () {
@@ -463,8 +469,8 @@ void main() {
       expect(anlam, findsOneWidget);
       for (final olcum in [
         find.text('1.50°'),
-        find.text(_tr.basisOrb.toUpperCase()),
-        find.text(_tr.basisAspect.toUpperCase()),
+        find.text(_tr.basisOrb),
+        find.text(_tr.basisAspect),
       ]) {
         expect(olcum, findsOneWidget);
         expect(_dy(tester, anlam), lessThan(_dy(tester, olcum)));
@@ -482,7 +488,7 @@ void main() {
       // burada degil). Baslik anlam ile olcumu ayiran gorunur cizgi;
       // dusmesi "once anlam, sonra dayanak" sozunu sessizce bozar.
       expect(_dy(tester, find.text(_tr.movementMeaningApplying)),
-          lessThan(_dy(tester, find.text(_tr.signalWhy.toUpperCase()))));
+          lessThan(_dy(tester, find.text(_tr.signalWhy))));
     });
 
     testWidgets('BUYUK YAZIDA ve dar ekranda tasma yok', (tester) async {
@@ -553,7 +559,7 @@ void main() {
       // Uc bagimsiz isaret agacta: baslik, uye etiketi ve bir cip.
       expect(find.text(_tr.traitsSheetTitle(elementName(_tr, 'fire'))),
           findsOneWidget);
-      expect(find.text(_tr.traitsMembersLabel.toUpperCase()),
+      expect(find.text(_tr.traitsMembersLabel),
           findsOneWidget);
       expect(find.text(_tr.pointAscendant), findsOneWidget);
     });

@@ -1,25 +1,32 @@
 /// Harita İnceleme (HI-turu HA7) — astrolog gözü için tam ekran çark.
 ///
 /// Dört kip tek ekranda: natal | gökyüzü | bi-wheel | sinastri (Çevrem).
-/// İçerik: veri başlığı (ad/tarih/ev sistemi — güven, ev sistemini
-/// görmekle başlar), lejant, filtre çipleri + orb kaydırıcısı, etkileşimli
-/// çark (dokun→seç/izole, tekrar dokun→alt-sayfa, pinch-zoom), açı
-/// tablosu (aspectarian: tekilde üçgen, sinastride TAM dikdörtgen),
-/// konum tablosu (erişilebilir temsil), "Rytho'ya sor" ve PNG paylaşım.
+/// İçerik: anlam cümlesi, veri başlığı (ad/tarih/ev sistemi — güven, ev
+/// sistemini görmekle başlar), etkileşimli çark (dokun→seç/izole, tekrar
+/// dokun→alt-sayfa, pinch-zoom), seçim çubuğu, lejant (halka + açı sınıfı
+/// çizgi dili), filtre çipleri + orb kaydırıcısı, açı tablosu (aspectarian:
+/// tekilde üçgen, sinastride TAM dikdörtgen), konum tablosu (erişilebilir
+/// temsil), en altta "Rytho'ya sor"; PNG paylaşım AppBar'da (tek beyanlı
+/// istisna — çark görüntüsü okumanın altına inmez).
 ///
 /// "Ölçülmeyen söylenmez": saatsiz haritada evler/eksenler çizilmez ve
 /// beyan görünür; transit gezegene ev iddia edilmez; arkadaş sinastri
 /// çarkı bilinçli yok (kullanıcı kararı — Çevrem v1).
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/api.dart' show friendlyError;
 import '../../core/people.dart';
 import '../../core/providers.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
+import '../../widgets/atlas_widgets.dart' show RythoyaSor;
+import '../../widgets/chart/aci_lejanti.dart';
 import '../../widgets/chart/chart_data.dart';
 import '../../widgets/chart/chart_palette.dart';
 import '../../widgets/chart/chart_positions.dart';
@@ -27,13 +34,14 @@ import '../../widgets/chart/chart_wheel.dart';
 import '../../widgets/chart/wheel_glyphs.dart';
 import '../../widgets/chart/wheel_layout.dart';
 import '../../widgets/chart/wheel_painter.dart';
+import '../../widgets/common.dart' show ErrorCard;
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/motion.dart' show StagedWaiting;
 import '../../widgets/nebula_widgets.dart' show kSignNamesTr;
 import '../chat/chat_screen.dart';
 import '../people/person_form_screen.dart' show relationLabel;
-import '../share/share_card.dart' show shareRenderedCard;
+import '../share/share_card.dart' show shareChartCard;
 import 'atlas_detail_screens.dart'
     show
         aspectMeaningText,
@@ -46,6 +54,10 @@ import 'atlas_detail_screens.dart'
         temperamentLine;
 
 enum ChartInspectorMode { natal, sky, biwheel, synastry }
+
+/// Tam ekran çarkın üst tavanı: daha büyüğü tablet genişliğinde glifleri
+/// seyreltiyor, parmak hedefleri zaten 22 px yarıçapta.
+const double kCarkTavani = 460.0;
 
 /// [ChartPoint] → mevcut `showPointSheet` yükü (atlas alt-sayfa ailesi
 /// `sign_tr`/`name_tr` alanlarını okur — planetSignLabel sözleşmesi).
@@ -122,59 +134,86 @@ class _ChartInspectorScreenState
   // Veri kurulumu
   // ---------------------------------------------------------------------
 
-  /// (veri, yükleniyor-mu). Yükleniyorsa bi-wheel SESSİZCE tek halkaya
-  /// düşmez (eski atlas kusuru) — bekleme durumu gösterilir.
-  (ChartData?, bool) _buildData(AppLocalizations l10n) {
+  /// (veri, yükleniyor-mu, hata). Yükleniyorsa bi-wheel SESSİZCE tek
+  /// halkaya düşmez (eski atlas kusuru) — bekleme durumu gösterilir.
+  ///
+  /// Hata nesnesi de TAŞINIR: eski üçlü yalnız `value == null`a bakıyor,
+  /// sağlayıcının hatasını DÜŞÜRÜYOR ve ekran boş bir gövdeyle
+  /// (`SizedBox.shrink`) açılıyordu — hata ≠ boş. Gövde artık
+  /// `ErrorCard(onRetry)`; mesaj `friendlyError` ile sağlayıcının kendi
+  /// hatasından, hata nesnesi yoksa (profil tamamlanmamış, yük null) genel
+  /// cümleden gelir.
+  (ChartData?, bool, Object?) _buildData(AppLocalizations l10n) {
     final sen = l10n.chartLegendYou;
     switch (widget.mode) {
       case ChartInspectorMode.natal:
         if (widget.natalOverride != null) {
           return (
             ChartData.fromNatal(widget.natalOverride!, label: _personAd()),
-            false
+            false,
+            null
           );
         }
         final natal = ref.watch(natalChartProvider);
-        if (natal.isLoading) return (null, true);
+        if (natal.isLoading) return (null, true, null);
         final veri = natal.value;
         return (
           veri == null ? null : ChartData.fromNatal(veri, label: sen),
-          false
+          false,
+          natal.error
         );
       case ChartInspectorMode.sky:
         final sky = ref.watch(skyNowProvider);
-        if (sky.isLoading) return (null, true);
+        if (sky.isLoading) return (null, true, null);
         final veri = sky.value;
         return (
           veri == null
               ? null
               : ChartData.fromSky(veri, label: l10n.chartLegendSkyNow),
-          false
+          false,
+          sky.error
         );
       case ChartInspectorMode.biwheel:
         final natal = ref.watch(natalChartProvider);
         final transits = ref.watch(transitsProvider);
-        if (natal.isLoading || transits.isLoading) return (null, true);
+        if (natal.isLoading || transits.isLoading) return (null, true, null);
         if (natal.value == null || transits.value == null) {
-          return (null, false);
+          return (null, false, natal.error ?? transits.error);
         }
         return (
           ChartData.fromTransits(natal.value!, transits.value!,
               innerLabel: sen, outerLabel: l10n.chartLegendSkyNow),
-          false
+          false,
+          null
         );
       case ChartInspectorMode.synastry:
         final synastry =
             ref.watch(synastryChartProvider(widget.person!));
-        if (synastry.isLoading) return (null, true);
-        if (synastry.value == null) return (null, false);
+        if (synastry.isLoading) return (null, true, null);
+        if (synastry.value == null) return (null, false, synastry.error);
         return (
           ChartData.fromSynastry(synastry.value!,
               innerLabel: sen,
               outerLabel: _personAd(),
               useInnerHouses: _housesInner),
-          false
+          false,
+          null
         );
+    }
+  }
+
+  /// Hata kartının "tekrar dene"si: kipin okuduğu sağlayıcı(lar) tazelenir.
+  void _tekrarDene() {
+    switch (widget.mode) {
+      case ChartInspectorMode.natal:
+        ref.invalidate(natalChartProvider);
+      case ChartInspectorMode.sky:
+        ref.invalidate(skyNowProvider);
+      case ChartInspectorMode.biwheel:
+        ref.invalidate(natalChartProvider);
+        ref.invalidate(transitsProvider);
+      case ChartInspectorMode.synastry:
+        ref.invalidate(synastryChartProvider(widget.person!));
     }
   }
 
@@ -217,6 +256,16 @@ class _ChartInspectorScreenState
     };
   }
 
+  /// Bekleme aşaması: dış halka yalnız çift halkalı kiplerde var.
+  /// Natal/gökyüzü "Dış halka yükleniyor…" diyordu — olmayan bir şeyin
+  /// beklendiğini beyan ediyordu (ölçüldü, app_tr.arb `chartOuterLoading`).
+  String _beklemeMetni(AppLocalizations l10n) => switch (widget.mode) {
+        ChartInspectorMode.biwheel ||
+        ChartInspectorMode.synastry =>
+          l10n.chartOuterLoading,
+        _ => l10n.chartLoading,
+      };
+
   // ---------------------------------------------------------------------
   // Etkileşim
   // ---------------------------------------------------------------------
@@ -248,30 +297,21 @@ class _ChartInspectorScreenState
 
   Map<String, dynamic> _aspectAsMap(ChartAspect a) => aspectSheetMap(a);
 
-  Future<void> _paylas(ChartData data) async {
-    const boyut = 700.0;
-    await shareRenderedCard(
-      context,
-      Container(
-        color: RythoColors.ink,
-        padding: const EdgeInsets.all(30),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ChartWheel(
-              data: data,
-              size: boyut - 60,
-              interactive: false,
-              animate: false,
-              filter: _filter,
-              maxOrb: _maxOrb,
-              showMinors: _showMinors),
-          const SizedBox(height: 10),
-          Text('RYTHO',
-              style: RythoText.label(13, color: RythoColors.lilac)),
-        ]),
-      ),
-      const Size(boyut, boyut + 40),
-    );
-  }
+  /// Sohbet tohumu kip başına ayrı anahtar: tek anahtar `{title}` ile
+  /// "Şu an **Şu an gökyüzü** çarkını" ve "Şu an **Sen & Ayşe** çarkını"
+  /// üretiyordu (ölçüldü). Kendi natal haritası için adsız bir anahtar
+  /// henüz yok; `chartAskPrefill(atlasWheelNatal)` orada kalır
+  /// ("Şu an Haritam çarkını inceliyorum") — D8 sözlük turu karar verir.
+  /// Tohum ÖN-DOLDURUR, göndermez (`chat_screen.dart` doktrini).
+  String _tohum(AppLocalizations l10n) => switch (widget.mode) {
+        ChartInspectorMode.natal => widget.person == null
+            ? l10n.chartAskPrefill(l10n.atlasWheelNatal)
+            : l10n.chartAskPrefillNatal(_personAd()),
+        ChartInspectorMode.sky => l10n.chartAskPrefillSky,
+        ChartInspectorMode.biwheel => l10n.chartAskPrefillBiwheel,
+        ChartInspectorMode.synastry =>
+          l10n.chartAskPrefillSynastry(_personAd()),
+      };
 
   void _sor(AppLocalizations l10n) {
     Navigator.of(context).push(MaterialPageRoute(
@@ -279,7 +319,7 @@ class _ChartInspectorScreenState
               personId: widget.mode == ChartInspectorMode.synastry
                   ? widget.person?.id
                   : null,
-              initialText: l10n.chartAskPrefill(_baslik(l10n)),
+              initialText: _tohum(l10n),
             )));
   }
 
@@ -288,9 +328,7 @@ class _ChartInspectorScreenState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final (veri, yukleniyor) = _buildData(l10n);
-    final genislik = MediaQuery.of(context).size.width;
-    final carkBoyu = (genislik - RythoSpace.xl * 2).clamp(280.0, 460.0);
+    final (veri, yukleniyor, hata) = _buildData(l10n);
 
     return CosmicScaffold(
       appBar: AppBar(
@@ -300,49 +338,65 @@ class _ChartInspectorScreenState
             IconButton(
               tooltip: l10n.chartShareTooltip,
               icon: const Icon(Icons.ios_share_rounded, size: 20),
-              onPressed: () => _paylas(veri),
+              onPressed: () => shareChartCard(context,
+                  data: veri,
+                  title: _baslik(l10n),
+                  filter: _filter,
+                  maxOrb: _maxOrb,
+                  showMinors: _showMinors),
             ),
         ],
       ),
       body: yukleniyor
-          ? Center(
-              child: StagedWaiting(stages: [l10n.chartOuterLoading]))
+          ? Center(child: StagedWaiting(stages: [_beklemeMetni(l10n)]))
           : veri == null
-              ? const SizedBox.shrink()
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(RythoSpace.xl, 0,
-                      RythoSpace.xl, RythoSpace.xxl),
-                  children: [
-                    // ANLAM ÖNCE (48-turu). Bu ekran ölçülen en kötü
-                    // yüzeydi: gezegen tablosu + ev tablosu + açı
-                    // ızgarası, SIFIR anlam cümlesi. Sıra artık
-                    // `basis_sheet` deseniyle aynı — önce bir insan
-                    // cümlesi, sonra ölçüm, dayanak bir dokunuş uzakta.
-                    _AnlamKatmani(
-                      mode: widget.mode,
-                      data: veri,
-                      natalYuk: _natalYuk(),
-                      filter: _filter,
-                      maxOrb: _maxOrb,
-                      showMinors: _showMinors,
-                    ),
-                    _Baslik(mode: widget.mode, data: veri,
-                        personAd: _personAd()),
-                    if (!veri.hourKnown &&
-                        widget.mode != ChartInspectorMode.sky)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(l10n.chartHourUnknownNote,
-                            style: RythoText.body(11.5,
-                                color: RythoColors.copper)),
+              ? Padding(
+                  padding: const EdgeInsets.all(RythoSpace.xl),
+                  child: ErrorCard(
+                    message: hata == null
+                        ? l10n.errorGeneric
+                        : friendlyError(hata, l10n),
+                    onRetry: _tekrarDene,
+                    // Geri bildirim ekran kodu: gökyüzü kipi Gökyüzü
+                    // sekmesinden, öteki üçü Atlas'tan açılır.
+                    screen: widget.mode == ChartInspectorMode.sky
+                        ? 'sky'
+                        : 'atlas',
+                  ),
+                )
+              // Çark boyu GERÇEK kısıttan: `MediaQuery` genişliği + 280
+              // tabanı 320 dp'nin altında ve büyük yazı ölçeğinde çarkı
+              // kenar dolgusuna taşırıp kırptırıyordu (ClipRect sessiz).
+              : LayoutBuilder(builder: (context, kisit) {
+                  final carkBoyu = math.min(
+                      kisit.maxWidth - RythoSpace.xl * 2, kCarkTavani);
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(RythoSpace.xl, 0,
+                        RythoSpace.xl, RythoSpace.xxl),
+                    children: [
+                      // ANLAM ÖNCE (48-turu). Bu ekran ölçülen en kötü
+                      // yüzeydi: gezegen tablosu + ev tablosu + açı
+                      // ızgarası, SIFIR anlam cümlesi. Sıra artık
+                      // `basis_sheet` deseniyle aynı — önce bir insan
+                      // cümlesi, sonra ölçüm, dayanak bir dokunuş uzakta.
+                      _AnlamKatmani(
+                        mode: widget.mode,
+                        data: veri,
+                        natalYuk: _natalYuk(),
+                        filter: _filter,
+                        maxOrb: _maxOrb,
                       ),
-                    // Dokunulan yeri temizlemek için çark dışına dokunma.
-                    GestureDetector(
-                      onTap: _selection.isEmpty
-                          ? null
-                          : () => setState(
-                              () => _selection = WheelSelection.none),
-                      child: Center(
+                      _Baslik(mode: widget.mode, data: veri,
+                          personAd: _personAd()),
+                      if (!veri.hourKnown &&
+                          widget.mode != ChartInspectorMode.sky)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(l10n.chartHourUnknownNote,
+                              style: RythoText.body(11.5,
+                                  color: RythoColors.caution)),
+                        ),
+                      Center(
                         child: ChartWheel(
                           data: veri,
                           size: carkBoyu,
@@ -354,65 +408,64 @@ class _ChartInspectorScreenState
                           onAspectTap: _onAspectTap,
                         ),
                       ),
-                    ),
-                    _SecimCubugu(
-                        selection: _selection,
-                        data: veri,
-                        onDetail: () {
-                          if (_selection.aspect != null) {
-                            showAspectSheet(
-                                context, _aspectAsMap(_selection.aspect!));
-                          } else if (_selection.pointName != null) {
-                            final p = veri.resolve(_selection.pointName!,
-                                _selection.pointRing ?? 0);
-                            if (p != null) {
-                              showPointSheet(context, _pointAsMap(p));
+                      _SecimCubugu(
+                          selection: _selection,
+                          data: veri,
+                          onDetail: () {
+                            if (_selection.aspect != null) {
+                              showAspectSheet(context,
+                                  _aspectAsMap(_selection.aspect!));
+                            } else if (_selection.pointName != null) {
+                              final p = veri.resolve(_selection.pointName!,
+                                  _selection.pointRing ?? 0);
+                              if (p != null) {
+                                showPointSheet(context, _pointAsMap(p));
+                              }
                             }
-                          }
-                        }),
-                    _Lejant(data: veri),
-                    const SizedBox(height: RythoSpace.md),
-                    _FiltreCubugu(
-                      filter: _filter,
-                      maxOrb: _maxOrb,
-                      showMinors: _showMinors,
-                      onFilter: (f) => setState(() => _filter = f),
-                      onOrb: (o) => setState(() => _maxOrb = o),
-                      onMinors: (v) => setState(() => _showMinors = v),
-                    ),
-                    if (widget.mode == ChartInspectorMode.synastry &&
-                        (widget.person?.hourKnown ?? false))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: FilterChip(
-                            label: Text(_housesInner
-                                ? l10n.chartHousesYou
-                                : l10n.chartHousesOther(_personAd())),
-                            selected: !_housesInner,
-                            onSelected: (_) => setState(
-                                () => _housesInner = !_housesInner),
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: RythoSpace.lg),
-                    _Aspectarian(
-                        data: veri,
+                          },
+                          onClear: () => setState(
+                              () => _selection = WheelSelection.none)),
+                      _Lejant(data: veri, showMinors: _showMinors),
+                      const SizedBox(height: RythoSpace.md),
+                      _FiltreCubugu(
                         filter: _filter,
                         maxOrb: _maxOrb,
-                        showMinors: _showMinors),
-                    const SizedBox(height: RythoSpace.lg),
-                    ChartPositionsTable(data: veri),
-                    const SizedBox(height: RythoSpace.lg),
-                    OutlinedButton.icon(
-                      onPressed: () => _sor(l10n),
-                      icon: const Text('✦',
-                          style: TextStyle(fontSize: 14)),
-                      label: Text(l10n.signalAsk),
-                    ),
-                  ],
-                ),
+                        showMinors: _showMinors,
+                        onFilter: (f) => setState(() => _filter = f),
+                        onOrb: (o) => setState(() => _maxOrb = o),
+                        onMinors: (v) => setState(() => _showMinors = v),
+                      ),
+                      if (widget.mode == ChartInspectorMode.synastry &&
+                          (widget.person?.hourKnown ?? false))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FilterChip(
+                              label: Text(_housesInner
+                                  ? l10n.chartHousesYou
+                                  : l10n.chartHousesOther(_personAd())),
+                              selected: !_housesInner,
+                              onSelected: (_) => setState(
+                                  () => _housesInner = !_housesInner),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: RythoSpace.lg),
+                      _Aspectarian(
+                          data: veri,
+                          filter: _filter,
+                          maxOrb: _maxOrb,
+                          showMinors: _showMinors),
+                      const SizedBox(height: RythoSpace.lg),
+                      ChartPositionsTable(data: veri),
+                      const SizedBox(height: RythoSpace.lg),
+                      // Davet en altta, tek bileşenden (beş kopyanın dördü
+                      // ayrışır): etiket `RythoyaSor` içinde `l10n.signalAsk`.
+                      RythoyaSor(onTap: () => _sor(l10n)),
+                    ],
+                  );
+                }),
     );
   }
 }
@@ -500,6 +553,15 @@ ChartAspect? liderGorunurAci(
 /// tablosu doğmuyor ve seçim harita başına değiştiği için iki kullanıcı
 /// aynı cümleyi görmüyor — jenerikliğin kaynağı tam olarak buydu.
 ///
+/// ## Lider açı MAJÖRLER arasından seçilir
+/// `liderGorunurAci` çağrısı `showMinors: false` ile yapılır, kullanıcı
+/// minörleri açmış olsa bile. NEDEN: minör açıların anlam cümlesi YOK
+/// (`aspectMeaningText` null döner, uydurulmaz) ve minörler açıkken en dar
+/// görünür açı bir quincunx çıkınca panel sessizce KAYBOLUYORDU (ölçüldü)
+/// — çarkta çizili bir üçgen dururken ekranın tek cümlesi yok oluyordu.
+/// Majörler her zaman çizildiği için seçilen açı yine görünür bir açıdır;
+/// "çizilmeyeni anlatma" kuralı bozulmaz.
+///
 /// ## Hiçbir şey ölçülemezse
 /// Hiç çizilmez. Boş bir yer, uydurulmuş bir cümleden iyidir.
 class _AnlamKatmani extends StatelessWidget {
@@ -509,7 +571,6 @@ class _AnlamKatmani extends StatelessWidget {
     required this.natalYuk,
     required this.filter,
     required this.maxOrb,
-    required this.showMinors,
   });
 
   final ChartInspectorMode mode;
@@ -517,7 +578,6 @@ class _AnlamKatmani extends StatelessWidget {
   final Map<String, dynamic>? natalYuk;
   final WheelAspectFilter filter;
   final double maxOrb;
-  final bool showMinors;
 
   /// Baskın element — sunucunun kanonik sayımından.
   ///
@@ -572,8 +632,7 @@ class _AnlamKatmani extends StatelessWidget {
       }
     }
 
-    final aci = liderGorunurAci(data, filter, maxOrb,
-        showMinors: showMinors);
+    final aci = liderGorunurAci(data, filter, maxOrb, showMinors: false);
     if (aci != null) {
       final cumle = aspectMeaningText(l10n, aci.kind);
       // Minör açıların anlam cümlesi YOK; olmayan cümle uydurulmaz.
@@ -645,11 +704,14 @@ class _Baslik extends ConsumerWidget {
   }
 }
 
-/// Halkaları adlandıran lejant — adsız bi-wheel'e astrolog güvenmez.
+/// Lejant: halka rozetleri (adsız bi-wheel'e astrolog güvenmez) + açı
+/// sınıfı çizgi dili + Y/A dipnotu. Halka rengi çarkla AYNI kuraldan
+/// (`ringGlyphColor`); açı satırı ressamla aynı `drawAspectLine`.
 class _Lejant extends StatelessWidget {
-  const _Lejant({required this.data});
+  const _Lejant({required this.data, required this.showMinors});
 
   final ChartData data;
+  final bool showMinors;
 
   @override
   Widget build(BuildContext context) {
@@ -673,30 +735,42 @@ class _Lejant extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(top: RythoSpace.md),
-      child: Wrap(spacing: RythoSpace.lg, runSpacing: 4, children: [
-        rozet(kInnerGlyphColor,
-            l10n.chartLegendInner(data.rings.first.label)),
-        if (data.isBiWheel)
-          rozet(
-              data.rings[1].kind == ChartRingKind.partner
-                  ? kOuterPartnerColor
-                  : kOuterTransitColor,
-              l10n.chartLegendOuter(data.rings[1].label)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: RythoSpace.lg, runSpacing: 4, children: [
+          rozet(ringGlyphColor(data, 0),
+              l10n.chartLegendInner(data.rings.first.label)),
+          if (data.isBiWheel)
+            rozet(ringGlyphColor(data, 1),
+                l10n.chartLegendOuter(data.rings[1].label)),
+        ]),
+        const SizedBox(height: RythoSpace.xs),
+        AciSinifiLejanti(
+          showMinors: showMinors,
+          // Y/A harfi yalnız `movement` taşıyan açılarda basılır; hiçbiri
+          // taşımıyorsa (natal/sinastri yükü) dipnot da basılmaz.
+          hareketVar: data.aspects.any((a) => a.applying != null),
+        ),
       ]),
     );
   }
 }
 
-/// Seçili gezegen/açı bilgisi + "Detay →".
+/// Seçili gezegen/açı bilgisi + "Detay →" + "Seçimi kaldır".
+///
+/// Kaldırma düğmesi GÖRÜNÜR: eski yol çarkı saran çıplak bir
+/// `GestureDetector`dı — ekran okuyucuya hiç duyurulmayan, görmeyen
+/// kullanıcı için var olmayan bir eylem (semantik rolü yok).
 class _SecimCubugu extends StatelessWidget {
   const _SecimCubugu(
       {required this.selection,
       required this.data,
-      required this.onDetail});
+      required this.onDetail,
+      required this.onClear});
 
   final WheelSelection selection;
   final ChartData data;
   final VoidCallback onDetail;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -728,6 +802,13 @@ class _SecimCubugu extends StatelessWidget {
               child: Text(metin,
                   style: RythoText.mono(11.5,
                       color: RythoColors.parchment))),
+          IconButton(
+            tooltip: l10n.chartSelectionClear,
+            onPressed: onClear,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close_rounded,
+                size: 16, color: RythoColors.parchmentDim),
+          ),
           // Düğme esnemiyordu: soldaki `Expanded` sıfıra inse bile uzun
           // düğme etiketi + iç dolgu dar ekranda satırı taşırıyordu.
           Flexible(
@@ -815,7 +896,8 @@ class _FiltreCubugu extends StatelessWidget {
 }
 
 /// Aspectarian: tekil haritada alt-üçgen, sinastride TAM dikdörtgen
-/// (satır = iç halka, sütun = dış halka). Hücre: açı glifi + orb + Y/A.
+/// (satır = iç halka, sütun = dış halka). Hücre: açı glifi + çizgi dili
+/// örneği + orb + Y/A.
 class _Aspectarian extends StatelessWidget {
   const _Aspectarian(
       {required this.data,
@@ -862,12 +944,16 @@ class _Aspectarian extends StatelessWidget {
           child: Center(
             child: kPlanetTextGlyphs.containsKey(p.name)
                 ? Text(kPlanetTextGlyphs[p.name]!,
-                    style: RythoText.body(13, color: renk))
+                    style: RythoText.glyph(13, color: renk))
                 : CustomPaint(
                     size: const Size(13, 13),
                     painter: MiniGlyphPainter(p.name, renk)),
           ),
         );
+
+    // Sütun başlığı dış halkanın GERÇEK rengi (ringGlyphColor): bi-wheel
+    // transit sütunu altın başlıklanırken çark lila çiziyordu.
+    final sutunRengi = ringGlyphColor(data, cross ? 1 : 0);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(l10n.chartAspectarianTitle,
@@ -878,13 +964,11 @@ class _Aspectarian extends StatelessWidget {
         child: Column(children: [
           Row(children: [
             const SizedBox(width: kenar, height: kenar),
-            for (final s in sutunlar)
-              baslikHucre(
-                  s, cross ? kOuterPartnerColor : kInnerGlyphColor),
+            for (final s in sutunlar) baslikHucre(s, sutunRengi),
           ]),
           for (var i = 0; i < satirlar.length; i++)
             Row(children: [
-              baslikHucre(satirlar[i], kInnerGlyphColor),
+              baslikHucre(satirlar[i], ringGlyphColor(data, 0)),
               for (var j = 0; j < sutunlar.length; j++)
                 SizedBox(
                   width: kenar,
@@ -918,7 +1002,7 @@ class _AspectCell extends StatelessWidget {
       return const DecoratedBox(
           decoration: BoxDecoration(
               border: Border.fromBorderSide(
-                  BorderSide(color: Color(0x142C1F40)))));
+                  BorderSide(color: kAspectGridLine))));
     }
     final renk = aspectColor(a.kind);
     final harf = a.applying == null
@@ -930,17 +1014,20 @@ class _AspectCell extends StatelessWidget {
       decoration: BoxDecoration(
         color: renk.withValues(alpha: 0.08),
         border: const Border.fromBorderSide(
-            BorderSide(color: Color(0x142C1F40))),
+            BorderSide(color: kAspectGridLine)),
       ),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        a.kind == 'sextile'
-            ? CustomPaint(
-                size: const Size(10, 10),
-                painter: MiniGlyphPainter('sextile', renk))
-            : Text(kAspectTextGlyphs[a.kind] ?? '·',
-                style: TextStyle(fontSize: 11, color: renk)),
+        // Beş majör glifin beşi de glif fontundan (⚹ dahil): aile
+        // verilmeyen `TextStyle` sistem fontuna, Android'de emojiye
+        // düşüyordu; ⚹ için ayrı bir vektör dalı ikinci bir yoldu.
+        Text(kAspectTextGlyphs[a.kind] ?? '·',
+            style: RythoText.glyph(11, color: renk)),
+        // Sınıf, renkten BAĞIMSIZ okunsun: çarktaki çizginin kendisi.
+        AciCizgiOrnegi(
+            dil: aspectDashFor(a.kind), renk: renk, genislik: 16, kalinlik: 1.2),
         Text('${a.orb.toStringAsFixed(1)}$harf',
-            style: RythoText.mono(6.8, color: RythoColors.parchmentDim)),
+            style: RythoType.chartMicro
+                .copyWith(color: RythoColors.parchmentDim)),
       ]),
     );
   }

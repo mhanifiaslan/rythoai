@@ -13,8 +13,6 @@
 // Onarım yönü "yedeği doğru sayıya güncellemek" DEĞİL: ölçülmeyen
 // söylenmez, alan yoksa rozet hiç çizilmez.
 
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/features/oracle/iching_tab.dart';
 
@@ -56,34 +54,10 @@ void main() {
     });
   });
 
-  group('rozet dikişi', () {
-    test('ekran kararı saf işlevden okunuyor, elle yazılmış yedek YOK', () {
-      // Saf işlev doğru olup EKRANIN onu çağırmaması, bu bulgunun kendi
-      // kırılma yolu: rozet `IChingTab`ın içinde ve o ağacın widget testi
-      // Firebase oturumu istiyor, yani davranışla sınanamaz.
-      //
-      // Yorumlar eşleşmeden ÖNCE atılıyor: yukarıdaki gerekçe metni eski
-      // `?? 2` yazımını ANLATIYOR ve atılmazsa bu bekçi kendi açıklamasına
-      // takılıp onarım sökülse bile kırmızı kalırdı (depoda iki kez oldu).
-      final kaynak = File('lib/features/oracle/iching_tab.dart')
-          .readAsStringSync()
-          .split('\n')
-          .where((s) => !s.trimLeft().startsWith('//'))
-          .join('\n');
-
-      expect(kaynak, contains('ichingBedeli(durum)'),
-          reason: 'rozet kararı saf işlevden gelmeli');
-
-      // Bağımsız İKİNCİ işaret: `token_cost` alanı artık YALNIZ saf işlevin
-      // içinde okunabilir. Ekranın kendisi okumaya dönerse yedek sayı da
-      // geri gelebilir.
-      expect(kaynak.split('token_cost').length - 1, 1,
-          reason: "`token_cost` yalnız `ichingBedeli` içinde okunmalı");
-
-      // Üçüncü işaret, tek bir yazıma bağlı DEĞİL: `?? <sayı>` kalıbının
-      // hiçbir biçimi bu dosyada bedel yolunda olmamalı.
-      expect(RegExp(r'token_cost.{0,40}\?\?').hasMatch(kaynak), isFalse,
-          reason: 'elle yazılmış bedel yedeği geri gelmiş');
-    });
-  });
+  // 'rozet dikişi' grubu D6'da KALDIRILDI: ekran bedeli artık tek kaynaktan
+  // (`BedelRozeti(PlusOzellik.iching)`, cüzdanın `costs` alanı) okuyor;
+  // `ichingBedeli(durum)` ve `/reports/iching/status` `token_cost` ikinci
+  // kaynak olmaktan çıktı. Ters çapa test/kehanet_iching_test.dart'ta
+  // ("bedel tek kaynaktan"). Saf işlev ve bu dosyanın üst grubu D8 ölü-kod
+  // kararına kadar duruyor (backend alanının kaderiyle birlikte).
 }

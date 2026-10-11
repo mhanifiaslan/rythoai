@@ -53,6 +53,19 @@ class PaylasimTarifi {
   final String? glyph;
 }
 
+/// Paylaşım kartının tarih satırı: okumanın ÜRETİM günü.
+///
+/// Doğum tarihi DEĞİL — kartın gizlilik kuralı ham doğum verisini dışarıda
+/// tutar; bu satır yalnız "bu okuma ne zaman alındı"yı söyler. BURADA
+/// duruyor çünkü dört kehanet yüzeyi de aynı etiketi istiyor ve Atlas'taki
+/// eski kopyasını içe almak `atlas_screen → oracle_screen → bazi_tab`
+/// zincirini döngüye sokuyordu.
+String bugununEtiketi() {
+  final t = DateTime.now();
+  return '${t.year}-${t.month.toString().padLeft(2, '0')}-'
+      '${t.day.toString().padLeft(2, '0')}';
+}
+
 class OkumaKabi extends StatelessWidget {
   const OkumaKabi({
     super.key,
@@ -142,7 +155,7 @@ class OkumaKabi extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               if (tarif != null)
-                _PaylasKapisi(
+                PaylasKapisi(
                   onTap: () => shareReportCard(
                     context,
                     title: tarif.title,
@@ -165,8 +178,12 @@ class OkumaKabi extends StatelessWidget {
 /// değil (o, satın alma/onay gibi birincil eylemlere ayrılmış). Dokunma
 /// alanı dikey dolguyla ≥ 44 px'e çıkarılır; metin tek başına 20 px'lik bir
 /// hedef bırakırdı.
-class _PaylasKapisi extends StatelessWidget {
-  const _PaylasKapisi({required this.onTap});
+///
+/// Dışa açık: `ReadingScreen` (Atlas tam raporu) aynı kapıyı sayfa sonunda
+/// çiziyor — AppBar'daki ikon oraya indi ve ikinci bir paylaş düğmesi
+/// biçimi doğmasın diye bu sınıf tek kaynak.
+class PaylasKapisi extends StatelessWidget {
+  const PaylasKapisi({super.key, required this.onTap});
 
   final VoidCallback onTap;
 

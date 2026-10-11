@@ -93,19 +93,16 @@ class ChartPositionsTable extends StatelessWidget {
                 child: Row(children: [
                   SizedBox(
                     width: 22,
+                    // Halka rengi çarkla AYNI kuraldan (ringGlyphColor):
+                    // tablo sinastri partnerini lila, çark altın çiziyordu.
                     child: kPlanetTextGlyphs.containsKey(p.name)
                         ? Text(kPlanetTextGlyphs[p.name]!,
-                            style: RythoText.body(13,
-                                color: r == 0
-                                    ? kInnerGlyphColor
-                                    : kOuterTransitColor))
+                            style: RythoText.glyph(13,
+                                color: ringGlyphColor(data, r)))
                         : CustomPaint(
                             size: const Size(13, 13),
                             painter: MiniGlyphPainter(
-                                p.name,
-                                r == 0
-                                    ? kInnerGlyphColor
-                                    : kOuterTransitColor)),
+                                p.name, ringGlyphColor(data, r))),
                   ),
                   Expanded(
                       child: Text(p.localName, style: RythoText.body(13))),
@@ -116,8 +113,7 @@ class ChartPositionsTable extends StatelessWidget {
                   Flexible(
                       child: Text(
                     '${signDisplayName(l10n, p.signIndex)} '
-                    "${p.degreeInSign.floor()}°"
-                    "${(((p.degreeInSign - p.degreeInSign.floor()) * 60).round()).toString().padLeft(2, '0')}'"
+                    '${formatDegree(p.degreeInSign)}'
                     '${p.houseNo != null ? ' · ${p.houseNo}' : ''}'
                     '${p.retrograde ? ' · R' : ''}',
                     style: RythoText.mono(11, color: RythoColors.lilac),

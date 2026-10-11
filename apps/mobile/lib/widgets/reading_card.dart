@@ -25,6 +25,7 @@ import 'fade_through_route.dart';
 import 'glass.dart';
 import 'markdown_text.dart';
 import 'motion.dart';
+import 'okuma_kabi.dart' show PaylasKapisi;
 
 /// Uzun metnin akıştaki temsilcisi: başlık + üç satır + "devamı".
 class ReadingCard extends StatelessWidget {
@@ -90,7 +91,8 @@ class ReadingCard extends StatelessWidget {
               spacing: RythoSpace.xs,
               runSpacing: RythoSpace.xs,
               children: [
-                Text(_devami(context), style: RythoType.button),
+                Text(AppLocalizations.of(context).readingCardReadMore,
+                    style: RythoType.button),
                 const Icon(Icons.arrow_forward_rounded,
                     size: 15, color: RythoColors.parchment),
               ],
@@ -113,11 +115,6 @@ class ReadingCard extends StatelessWidget {
       ),
     ));
   }
-
-  static String _devami(BuildContext context) =>
-      Localizations.localeOf(context).languageCode == 'en'
-          ? 'Read'
-          : 'Okumaya devam et';
 }
 
 /// Uzun metnin kendi sayfası.
@@ -139,7 +136,11 @@ class ReadingScreen extends StatelessWidget {
   final String? label;
   final Widget? trailing;
 
-  /// Verilirse başlıkta paylaş düğmesi çıkar.
+  /// Verilirse okumanın SONUNDA paylaş kapısı çıkar — AppBar'da değil.
+  ///
+  /// Paylaşımın tek konumu okumanın alt satırı (`OkumaKabi` ile aynı
+  /// yer, aynı kapı); AppBar ikonu dokuz yüzeyde ikinci bir paylaş
+  /// biçimiydi. Tek beyanlı istisna çark görüntüsü (Harita İnceleme).
   final Future<void> Function(BuildContext)? onShare;
 
   @override
@@ -151,18 +152,9 @@ class ReadingScreen extends StatelessWidget {
     // Paragraf canlanması (R12-B2) korunur: ilk altı blok kademeli belirir,
     // gerisi ANINDA görünür — hızlı kaydıran okur bekletilmez.
     final bloklar = parseBlocks(body);
+    final paylas = onShare;
     return CosmicScaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          if (onShare != null)
-            IconButton(
-              icon: const Icon(Icons.ios_share_rounded, size: 20),
-              tooltip: AppLocalizations.of(context).shareReading,
-              onPressed: () => onShare!(context),
-            ),
-        ],
-      ),
+      appBar: AppBar(title: Text(title)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
@@ -181,9 +173,18 @@ class ReadingScreen extends StatelessWidget {
                 )
               else
                 markdownBlockWidget(bloklar[i], RythoType.reading),
-            if (trailing != null) ...[
+            if (paylas != null || trailing != null) ...[
               const SizedBox(height: RythoSpace.xl),
-              trailing!,
+              // Paylaş kapısı ve çağıranın ek içeriği (ör. Rytho'ya sor)
+              // yan yana; dar ekran + büyük yazıda `Wrap` alt alta diziyor.
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (paylas != null)
+                    PaylasKapisi(onTap: () => paylas(context)),
+                  ?trailing,
+                ],
+              ),
             ],
           ],
         ),

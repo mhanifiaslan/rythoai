@@ -11,6 +11,10 @@
 /// layout/sn); burç bandının süpürme fazı diğer katmanlardan farklıydı;
 /// kavuşum kiriş olarak çiziliyordu; açı çizgisi orb'dan bağımsız tek
 /// kalınlıktı; magenta üç anlam taşıyordu.
+///
+/// Yazı boyutları `RythoType.chartLabel` (9) ve `chartMicro` (8) tabanından
+/// `z` ile çarpılır — ressam 6,5–8,5 arası beş çıplak boyut kullanıyordu ve
+/// mikro bile 8'in altına inmez (ölçüldü: 248 px çarkta 6,8 px okunmuyordu).
 library;
 
 import 'dart:math' as math;
@@ -19,6 +23,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../theme/rytho_theme.dart';
+import '../../theme/rytho_tokens.dart';
 import 'chart_data.dart';
 import 'chart_palette.dart';
 import 'wheel_glyphs.dart';
@@ -43,6 +48,12 @@ class WheelSelection {
       pointName != null &&
       ((a.p1 == pointName && a.p1Ring == pointRing) ||
           (a.p2 == pointName && a.p2Ring == pointRing));
+
+  /// Bu yerleşim seçili gezegenin kendisi mi (lila halka onun etrafına).
+  bool isPoint(GlyphPlacement g) =>
+      pointName != null &&
+      g.point.name == pointName &&
+      g.ring == pointRing;
 }
 
 /// Açı görünür mü? Ressam, aspectarian ve testler AYNI kuralı kullanır.
@@ -59,13 +70,46 @@ bool aspectVisible(ChartAspect a, WheelAspectFilter filter, double maxOrb,
   };
 }
 
-/// TextPainter önbelleği — anahtar `metin|boyut|renk`.
+/// Derece etiketlerinin gizlendiği ham çark boyutu (zoom'suz, mantıksal px)
+/// ve etiketleri geri getiren zoom eşiği.
+const double kDereceEtiketiBoyutEsigi = 320.0;
+const double kDereceEtiketiZoomEsigi = 1.5;
+
+/// Derece etiketleri küçük çarkta ve yakınlaştırma yokken GİZLİ.
+///
+/// NEDEN: 248 px'lik gömülü çarkta 6,8 px etiket okunmuyordu ve 8 px
+/// tabana çıkarmak glif diskleriyle çakışmayı artırırdı. Ham çark
+/// ([rawSize] = `layout.size / zoom`) eşiğin altındaysa VE kullanıcı
+/// yakınlaştırmadıysa etiket çizilmez; pinch ile 1,5× üstünde geri gelir.
+/// Konum tablosu her boyutta tam dereceyi zaten yazıyor — bilgi kaybolmaz.
+bool dereceEtiketleriGorunur({required double rawSize, required double zoom}) =>
+    !(rawSize < kDereceEtiketiBoyutEsigi && zoom < kDereceEtiketiZoomEsigi);
+
+/// Çark yazı rolleri — tokenden okunur, `z` ile büyür. `fontSize` tokende
+/// her zaman dolu (RythoText.mono boyut ister); `!` o sözleşmeye yaslanır.
+TextStyle _carkEtiketi(double z, {required Color color}) =>
+    RythoType.chartLabel.copyWith(
+        fontSize: RythoType.chartLabel.fontSize! * z, color: color);
+
+TextStyle _carkMikro(double z, {required Color color, FontWeight? w}) =>
+    RythoType.chartMicro.copyWith(
+        fontSize: RythoType.chartMicro.fontSize! * z,
+        color: color,
+        fontWeight: w);
+
+/// TextPainter önbelleği — anahtar metin + stilin ölçüme giren alanları.
+///
+/// Anahtar `fontFamilyFallback` ve `fontWeight`'i de taşır: aynı aile
+/// farklı yedek zinciriyle (ya da aynı metin farklı ağırlıkla) istenirse
+/// önbellek bayat ölçü döndürürdü. Bugün tek yedek var; yarın ikinci bir
+/// glif fontu eklendiğinde bu satır sessiz bir kusuru önler.
 class GlyphTextCache {
   final _cache = <String, TextPainter>{};
 
   TextPainter get(String text, TextStyle style) {
     final key = '$text|${style.fontSize}|${style.color?.toARGB32()}'
-        '|${style.fontFamily}';
+        '|${style.fontFamily}|${style.fontFamilyFallback?.join(',')}'
+        '|${style.fontWeight?.value}';
     return _cache.putIfAbsent(key, () {
       final tp = TextPainter(
         text: TextSpan(text: text, style: style),
@@ -200,7 +244,7 @@ ui.Picture recordStaticLayer(WheelLayout l, GlyphTextCache metin) {
       metin.paintCentered(
           canvas,
           '${i + 1}',
-          RythoText.mono(8.5 * z,
+          _carkEtiketi(z,
               color: RythoColors.parchmentDim.withValues(alpha: 0.75)),
           l.onCircle(orta % 360, (l.houseInner + l.aspectRadius) / 2));
     }
@@ -213,11 +257,11 @@ ui.Picture recordStaticLayer(WheelLayout l, GlyphTextCache metin) {
       final konum = l.onCircle(lon, l.aspectRadius - 13.0 * z);
       canvas.drawCircle(konum, 10.0 * z, Paint()..color = kGlyphDisc);
       metin.paintCentered(
-          canvas, ad, RythoText.mono(7.5 * z, color: kAxisColor), konum);
+          canvas, ad, _carkEtiketi(z, color: kAxisColor), konum);
       metin.paintCentered(
           canvas,
           '${(lon % 30).floor()}°',
-          RythoText.mono(6.5 * z,
+          _carkMikro(z,
               color: RythoColors.parchmentDim.withValues(alpha: 0.8)),
           l.onCircle(lon, l.aspectRadius - 13.0 * z) +
               Offset(0, 12.0 * z));
@@ -307,15 +351,16 @@ class RythoWheelPainter extends CustomPainter {
           continue;
         }
 
-        if (!s.aspect.isMajor) {
-          _dashedLine(canvas, s.a, s.b, boya, 4.0 * z, 3.0 * z);
-        } else if (s.aspect.isSoft) {
-          canvas.drawLine(s.a, s.b, boya..strokeWidth = stil.width * z * 0.85);
-        } else {
-          canvas.drawLine(s.a, s.b, boya);
-        }
+        // Çizgi dili TEK tanımdan (chart_palette): lejant ve açı tablosu
+        // aynı fonksiyonla çizer, ressam ayrı bir kural tutmaz.
+        drawAspectLine(canvas, s.a, s.b, boya, aspectDashFor(s.aspect.kind),
+            zoom: z);
       }
     }
+
+    // Derece etiketleri: ham boyut küçük ve zoom yokken çizilmez.
+    final dereceGorunur = dereceEtiketleriGorunur(
+        rawSize: layout.size.shortestSide / z, zoom: z);
 
     // --- Glifler + işaretçiler ---
     for (final ring in layout.placements) {
@@ -325,16 +370,11 @@ class RythoWheelPainter extends CustomPainter {
             ((g.trueLon - layout.ascLon) % 360 + 360) % 360 / 360.0;
         if (progress < 1.0 && rel > progress) continue;
 
-        final soluk = selection.pointName != null &&
-            !(g.point.name == selection.pointName &&
-                g.ring == selection.pointRing);
+        final secili = selection.isPoint(g);
+        final soluk = selection.pointName != null && !secili;
         final alfa = soluk ? 0.3 : 1.0;
 
-        final halkaRengi = g.ring == 0
-            ? kInnerGlyphColor
-            : (layout.data.rings[g.ring].kind == ChartRingKind.partner
-                ? kOuterPartnerColor
-                : kOuterTransitColor);
+        final halkaRengi = ringGlyphColor(layout.data, g.ring);
         final renk = halkaRengi.withValues(alpha: alfa);
 
         // Gerçek dereceye işaretçi (yelpaze dürüstlüğü).
@@ -349,6 +389,18 @@ class RythoWheelPainter extends CustomPainter {
         canvas.drawCircle(g.center, 10.5 * z,
             Paint()..color = kGlyphDisc.withValues(alpha: 0.9 * alfa));
 
+        // Seçili gezegene lila halka — seçim yalnız ötekileri
+        // soldurarak gösteriliyordu; tek gezegenli çarkta görünmezdi.
+        if (secili) {
+          canvas.drawCircle(
+              g.center,
+              12.0 * z,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.2 * z
+                ..color = kSelectedGlyphRing);
+        }
+
         final vektor =
             planetGlyphPathOrNull(g.point.name, g.center, 13.0 * z);
         if (vektor != null) {
@@ -360,50 +412,40 @@ class RythoWheelPainter extends CustomPainter {
                 ..strokeCap = StrokeCap.round
                 ..color = renk);
         } else {
+          // Doğrudan glif fontu: Manrope ♀♂ taşımıyor, yedek zinciri
+          // çalışır ama ölçü ana fontun satır yüksekliğinden geliyordu.
           textCache.paintCentered(
               canvas,
               kPlanetTextGlyphs[g.point.name] ?? '•',
-              RythoText.body(13.0 * z, color: renk, w: FontWeight.w600),
+              RythoText.glyph(13.0 * z, color: renk),
               g.center);
         }
 
         // Derece etiketi (mono) — zoom ≥ 2'de dakika da açılır.
-        final derece = g.point.degreeInSign;
-        final etiket = layout.zoom >= 2.0
-            ? "${derece.floor()}°"
-                "${((derece - derece.floor()) * 60).round().toString().padLeft(2, '0')}'"
-            : '${derece.floor()}°';
-        textCache.paintCentered(
-            canvas,
-            etiket,
-            RythoText.mono(6.8 * z,
-                color: RythoColors.parchmentDim.withValues(alpha: alfa)),
-            g.center + Offset(0, 12.5 * z));
+        if (dereceGorunur) {
+          final derece = g.point.degreeInSign;
+          final etiket = z >= 2.0
+              ? formatDegree(derece)
+              : '${derece.floor()}°';
+          textCache.paintCentered(
+              canvas,
+              etiket,
+              _carkMikro(z,
+                  color: RythoColors.parchmentDim.withValues(alpha: alfa)),
+              g.center + Offset(0, 12.5 * z));
+        }
 
         // Retro işareti: renk DEĞİL glif — ℞ fontu güvenilmez, "R" yeter.
         if (g.point.retrograde) {
           textCache.paintCentered(
               canvas,
               'R',
-              RythoText.mono(6.5 * z,
+              _carkMikro(z,
                   color: RythoColors.madder.withValues(alpha: alfa),
                   w: FontWeight.w700),
               g.center + Offset(9.0 * z, -8.0 * z));
         }
       }
-    }
-  }
-
-  static void _dashedLine(Canvas canvas, Offset a, Offset b, Paint paint,
-      double dash, double gap) {
-    final toplam = (b - a).distance;
-    if (toplam <= 0) return;
-    final yon = (b - a) / toplam;
-    var m = 0.0;
-    while (m < toplam) {
-      final son = math.min(m + dash, toplam);
-      canvas.drawLine(a + yon * m, a + yon * son, paint);
-      m = son + gap;
     }
   }
 

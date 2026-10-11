@@ -109,7 +109,9 @@ class _DiaryScreenState extends ConsumerState<DiaryScreen> {
     final onay = await onayla(
       context,
       title: l10n.diaryDeleteTitle,
-      confirmLabel: MaterialLocalizations.of(context).okButtonLabel,
+      // "Tamam" silmeyi söylemiyordu (D5 dikişi): eylemin adı düğmede.
+      confirmLabel: l10n.delete,
+      destructive: true,
     );
     if (!onay || !mounted) return;
     try {

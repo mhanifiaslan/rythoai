@@ -25,9 +25,11 @@ import '../../core/contact_match.dart';
 import '../../core/deep_links.dart' show inviteLinkFor;
 import '../../core/friends.dart';
 import '../../core/providers.dart';
+import '../../core/tr_metin.dart' show trBuyuk;
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
+import '../../widgets/common.dart' show ErrorCard;
 import '../../widgets/cosmic_scaffold.dart';
 import '../../l10n/app_localizations.dart';
 import '../profile/phone_verify_screen.dart' show PhoneVerifyScreen;
@@ -73,7 +75,14 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       body: SafeArea(
         child: sonucAsync.when(
           loading: () => const Center(child: AstrolabeSpinner()),
-          error: (e, _) => _mesajGovde(friendlyError(e, l10n)),
+          // Hata düz metin değil kart: kullanıcı düşen eşleşmeyi yeniden
+          // deneyebilmeli (bölüm hatası tek dil — plan §3).
+          error: (e, _) => ListView(children: [
+            ErrorCard(
+                message: friendlyError(e, l10n),
+                screen: 'circle',
+                onRetry: () => ref.invalidate(contactMatchesProvider)),
+          ]),
           data: (sonuc) => _govde(context, l10n, sonuc, username),
         ),
       ),
@@ -143,7 +152,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       // teknik olarak tespit EDİLEMEZ ve burada görünebilir — ekran "bu
       // kişi kesin kullanmıyor" iddiasında bulunmaz.
       ogeler.add(Padding(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.only(bottom: RythoSpace.sm),
         child: Text(l10n.contactsInviteFootnote,
             style: RythoText.body(11, color: RythoColors.parchmentDim)),
       ));
@@ -181,7 +190,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                   padding: const EdgeInsets.only(
                       left: RythoSpace.lg,
                       right: RythoSpace.lg,
-                      bottom: 100),
+                      bottom: RythoSpace.xxl),
                   itemCount: ogeler.length,
                   itemBuilder: (_, i) => ogeler[i],
                 ),
@@ -190,10 +199,13 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     ]);
   }
 
+  // Büyük harf dönüşümü KALKTI: `toUpperCase` Türkçe bilmez ("Rytho'da
+  // görünmüyor" → "GÖRÜNMÜYOR" tamam ama "i" → "I") ve etiket rolünün
+  // ağırlığı zaten yeter (§2).
   Widget _baslik(String metin) => Padding(
-        padding: const EdgeInsets.only(top: 18, bottom: 6),
-        child: Text(metin.toUpperCase(),
-            style: RythoText.label(11, color: RythoColors.parchmentDim)),
+        padding: const EdgeInsets.only(
+            top: RythoSpace.lg + RythoSpace.xxs, bottom: RythoSpace.xs + 2),
+        child: Text(metin, style: RythoType.label),
       );
 }
 
@@ -222,11 +234,11 @@ class _EngelKarti extends StatelessWidget {
           children: [
             Text(baslik,
                 textAlign: TextAlign.center, style: RythoText.display(18)),
-            const SizedBox(height: 8),
+            const SizedBox(height: RythoSpace.sm),
             Text(metin,
                 textAlign: TextAlign.center,
                 style: RythoText.body(13, color: RythoColors.parchmentDim)),
-            const SizedBox(height: 18),
+            const SizedBox(height: RythoSpace.lg + RythoSpace.xxs),
             GoldButton(text: eylem, filled: false, onPressed: onTap),
           ],
         ),
@@ -280,7 +292,7 @@ class _AktifSatirState extends ConsumerState<_AktifSatir> {
           style: RythoText.label(11, color: RythoColors.celadon));
     } else if (widget.durum == FriendStatus.outgoing || _gonderildi) {
       trailing = Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: RythoSpace.sm),
         child: Icon(Icons.check_rounded, size: 18, color: RythoColors.celadon),
       );
     } else {
@@ -291,7 +303,7 @@ class _AktifSatirState extends ConsumerState<_AktifSatir> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs + 1),
       child: Row(children: [
         CircleAvatar(
           radius: 17,
@@ -299,7 +311,7 @@ class _AktifSatirState extends ConsumerState<_AktifSatir> {
           backgroundImage: foto != null ? NetworkImage(foto) : null,
           child: foto == null ? Text('☽', style: RythoText.display(13)) : null,
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: RythoSpace.sm + RythoSpace.xxs),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(kisi.name, style: RythoText.body(14, w: FontWeight.w600)),
@@ -323,9 +335,14 @@ class _PasifSatir extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final basHarf = ad.trim().isNotEmpty ? ad.trim()[0].toUpperCase() : '☽';
+    // Baş harf Türkçe kuralla: "ilayda" → "İ" (`toUpperCase` "I" verirdi).
+    // `characters`: adın ilk öğesi bir emoji/birleşik harf olabilir;
+    // `[0]` yarım bir code unit alırdı.
+    final kirpik = ad.trim();
+    final basHarf =
+        kirpik.isNotEmpty ? trBuyuk(kirpik.characters.first) : '☽';
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs + 1),
       child: Row(children: [
         CircleAvatar(
           radius: 17,
@@ -333,7 +350,7 @@ class _PasifSatir extends StatelessWidget {
           child: Text(basHarf,
               style: RythoText.body(14, color: RythoColors.parchmentDim)),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: RythoSpace.sm + RythoSpace.xxs),
         Expanded(
           child: Text(ad,
               style: RythoText.body(14),
