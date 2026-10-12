@@ -7,10 +7,12 @@
 /// abonelik sorunu yok, yalnızca token bitti — ona abonelik satmaya
 /// çalışmak yanlış teşhis olurdu.
 ///
-/// Adetler sunucu gerçeğidir (backend `TOKEN_PACKS`); bu ekran adetleri
-/// bilir ama YALNIZCA göstermek için — bakiyeye ne yükleneceğine webhook
-/// karar verir. Fiyat metni mağazadan gelir (para birimi/vergi yerelleşmesi
-/// mağazanın işi).
+/// Adetler sunucu gerçeğidir (backend `TOKEN_PACKS`); cüzdan yanıtı
+/// `packs` haritasıyla onları taşıyor (`WalletStatus.packs`), eski sunucu
+/// göndermezse `kPackDisplayAmounts` yedeği. Bu ekran adetleri YALNIZCA
+/// göstermek için bilir — bakiyeye ne yükleneceğine webhook karar verir.
+/// Fiyat metni mağazadan gelir (para birimi/vergi yerelleşmesi mağazanın
+/// işi).
 ///
 /// ## Paketler YALNIZ aboneye gösterilir
 ///
@@ -29,14 +31,20 @@
 /// `allowance: 0` veriyor (`core/wallet.py`) ve raporlar `wallet.spender`
 /// ile doğrudan cüzdandan harcıyor — yani denemedeki kullanıcı YALNIZ
 /// `purchased` bakiyesinden harcar.
+///
+/// ## Tek düğme (D7)
+/// Üç paket üç dolu düğme taşıyordu — ekranda üç "Satın al". Şimdi paket
+/// seçilir (radyo, paywall'daki plan seçimiyle aynı dil), altta TEK dolu
+/// düğme fiyatı söyler ("Satın al — ₺99,99"); seçimle açılan yer kredi
+/// başına fiyata gitti, yani üç paketi karşılaştırmanın ölçüsü ekranda.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
-import '../../core/api.dart' show friendlyError;
 import '../../core/purchase_errors.dart';
 import '../../core/subscription.dart';
 import '../../core/wallet.dart';
@@ -47,16 +55,36 @@ import '../../widgets/atlas_widgets.dart';
 import '../../widgets/common.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
-import 'paywall_screen.dart';
+import 'paywall_acilis.dart';
 
-/// Gösterim adetleri — sunucudaki `TOKEN_PACKS` ile aynı tutulmalı.
-/// Yanlışsa kullanıcı yanlış vaat görür ama yanlış bakiye ALMAZ
-/// (yükleme sunucuda).
+/// Gösterim adetleri — YEDEK: sunucu `packs` göndermiyorsa (eski rev).
+/// Sunucudaki `TOKEN_PACKS` ile aynı tutulmalı. Yanlışsa kullanıcı yanlış
+/// vaat görür ama yanlış bakiye ALMAZ (yükleme sunucuda).
 const Map<String, int> kPackDisplayAmounts = {
   'rytho_tokens_small': 100,
   'rytho_tokens_medium': 300,
   'rytho_tokens_large': 1000,
 };
+
+/// Paketin adedi: önce sunucu (`packs`), yoksa yedek tablo, o da yoksa
+/// `null` (adet uydurulmaz, başlık mağazanın ürün adı olur).
+int? paketAdedi(WalletStatus cuzdan, String urunKimligi) =>
+    cuzdan.packs[urunKimligi] ?? kPackDisplayAmounts[urunKimligi];
+
+/// Kredi başına fiyat, mağazanın para birimiyle — ya da `null`.
+///
+/// Fiyat METNİ bölünemez; sayı bölünür ve aynı para birimiyle yeniden
+/// biçimlenir. Adet ya da para birimi bilinmiyorsa satır yok.
+String? krediBasinaFiyat(StoreProduct urun, int? adet, String dil) {
+  if (adet == null || adet <= 0) return null;
+  if (urun.price <= 0 || urun.currencyCode.isEmpty) return null;
+  try {
+    return NumberFormat.simpleCurrency(locale: dil, name: urun.currencyCode)
+        .format(urun.price / adet);
+  } catch (_) {
+    return null;
+  }
+}
 
 /// Mağazadaki bedel satırı — sayılar SUNUCUDAN gelen `costs` haritasından;
 /// bilinmiyorsa satır HİÇ çizilmez (`null`).
@@ -106,6 +134,10 @@ class TokenStoreScreen extends ConsumerStatefulWidget {
 class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
   String? _busyProductId;
 
+  /// Seçili paketin kimliği; liste gelince en küçük paket önseçilir
+  /// (paywall'da aylık önseçili — aynı kural: en düşük taahhüt).
+  String? _seciliKimlik;
+
   Future<void> _buy(StoreProduct product) async {
     // Çift satın almanın YAPISAL kapısı — `enabled` bayrağına ek olarak.
     // Düğme kuralı yalnız çizim anındaki bayrağa bakıyor; kapı burada,
@@ -126,16 +158,23 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
               ? l10n.tokenPurchaseDone
               : l10n.purchasePendingServer)));
     } on PlatformException catch (e) {
-      // Kullanıcının vazgeçmesi hata değil; sessiz geçilir. Diğer mağaza
-      // hataları l10n'a çevrilir (ham İngilizce metin ekrana çıkmaz).
+      // Kullanıcının vazgeçmesi hata değil; sessiz geçilir.
       final code = PurchasesErrorHelper.getErrorCode(e);
-      if (code != PurchasesErrorCode.purchaseCancelledError && mounted) {
-        mesajci.showSnackBar(
-            SnackBar(content: Text(storeErrorText(e, l10n))));
+      if (code == PurchasesErrorCode.purchaseCancelledError) return;
+      // Tüketilebilir pakette "zaten satın alınmış" = ilk alım hâlâ yolda
+      // (Play tüketilmeden ikinci kez satmaz): bakiye yeniden sorulur,
+      // kullanıcıya "işleniyor" denir — abonelik cümlesi değil.
+      if (code == PurchasesErrorCode.productAlreadyPurchasedError) {
+        ref.invalidate(walletProvider);
+      }
+      if (mounted) {
+        mesajci.showSnackBar(SnackBar(
+            content: Text(purchaseErrorText(e, l10n, abonelik: false))));
       }
     } catch (e) {
       if (mounted) {
-        mesajci.showSnackBar(SnackBar(content: Text(friendlyError(e, l10n))));
+        mesajci.showSnackBar(SnackBar(
+            content: Text(purchaseErrorText(e, l10n, abonelik: false))));
       }
     } finally {
       if (mounted) setState(() => _busyProductId = null);
@@ -145,9 +184,12 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final cuzdan = ref.watch(walletProvider).value ?? WalletStatus.none;
+    // `?? unknown` (D7): yüklenirken "0" DEĞİL "—"; eski `?? none` bakiye
+    // kartında sıfır gösteriyordu — sıfır "bitti" demek.
+    final cuzdan = ref.watch(walletProvider).value ?? WalletStatus.unknown;
     final paketler = ref.watch(tokenPacksProvider);
     final mesgul = _busyProductId != null;
+    final dil = Localizations.localeOf(context).toLanguageTag();
 
     // Abonelik ÜÇ HALLİ okunuyor: biliniyor-abone / biliniyor-değil /
     // BİLİNMİYOR. `paywallKarariVerilebilir` tam bunun için var (yükleniyor
@@ -170,10 +212,10 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
         // Simge rotaya göre: bu ekran hem tam-ekran diyalog olarak (402
         // köprüsü, `core/api.dart`) hem normal sayfa olarak (Sohbet,
         // Abonelik) açılıyor. Sabit bir simge, girişlerin yarısında yanlış
-        // şekli gösterirdi.
+        // şekli gösterirdi (`tamEkranDiyalogMu`, paywall ile ortak).
         leading: IconButton(
           icon: Icon(
-              _tamEkranDiyalog(context)
+              tamEkranDiyalogMu(context)
                   ? Icons.close_rounded
                   : Icons.arrow_back_rounded,
               size: 22),
@@ -217,8 +259,7 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
                             child: ScaleTransition(scale: anim, child: child),
                           ),
                           // Okunamadıysa "—" (WalletStatus.bilinmiyor).
-                          child: Text(
-                              cuzdan.bilinmiyor ? '—' : '${cuzdan.total}',
+                          child: Text(cuzdan.bakiyeYazisi(cuzdan.total),
                               key: ValueKey(
                                   cuzdan.bilinmiyor ? -1 : cuzdan.total),
                               style: RythoText.display(34)),
@@ -234,12 +275,14 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
                     ],
                   ),
                   const SizedBox(height: RythoSpace.sm),
+                  // Döküm de aynı işlevden: toplam "—" iken alt satırların
+                  // "0" demesi aynı kartta iki ayrı gerçek olurdu.
                   LabelValueRow(
                       label: l10n.tokenAllowanceRow,
-                      value: '${cuzdan.allowance}'),
+                      value: cuzdan.bakiyeYazisi(cuzdan.allowance)),
                   LabelValueRow(
                       label: l10n.tokenPurchasedRow,
-                      value: '${cuzdan.purchased}'),
+                      value: cuzdan.bakiyeYazisi(cuzdan.purchased)),
                   const SizedBox(height: RythoSpace.xs),
                   Text(l10n.tokenRolloverNote, style: RythoType.caption),
                 ],
@@ -271,22 +314,42 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
                   message: magazaVeyaAgHatasi(e, l10n),
                   onRetry: () => ref.invalidate(tokenPacksProvider),
                 ),
-                data: (urunler) => urunler.isEmpty
-                    ? EmptyState(
-                        emoji: '🛰️',
-                        title: l10n.tokenPacksUnavailable,
-                        description: l10n.tokenPacksUnavailableBody,
-                      )
-                    : Column(children: [
-                        for (final urun in urunler)
-                          _PackTile(
-                            product: urun,
-                            amount: kPackDisplayAmounts[urun.identifier],
-                            busy: _busyProductId == urun.identifier,
-                            enabled: !mesgul,
-                            onBuy: () => _buy(urun),
-                          ),
-                      ]),
+                data: (urunler) {
+                  if (urunler.isEmpty) {
+                    return EmptyState(
+                      emoji: '🛰️',
+                      title: l10n.tokenPacksUnavailable,
+                      description: l10n.tokenPacksUnavailableBody,
+                    );
+                  }
+                  // Önseçim en küçük paket; seçili kimlik listede yoksa
+                  // (mağaza listesi değişti) yine en küçüğe döner.
+                  final secili = urunler.cast<StoreProduct?>().firstWhere(
+                          (u) => u!.identifier == _seciliKimlik,
+                          orElse: () => null) ??
+                      urunler.first;
+                  return Column(children: [
+                    for (final urun in urunler)
+                      _PackTile(
+                        product: urun,
+                        amount: paketAdedi(cuzdan, urun.identifier),
+                        dil: dil,
+                        selected: identical(urun, secili),
+                        onTap: mesgul
+                            ? null
+                            : () => setState(
+                                () => _seciliKimlik = urun.identifier),
+                      ),
+                    const SizedBox(height: RythoSpace.xs),
+                    // TEK dolu düğme, fiyat üstünde: kullanıcı neye
+                    // bastığını düğmede okur (üç ayrı "Satın al" gitti).
+                    GoldButton(
+                      text: l10n.storeBuyWithPrice(secili.priceString),
+                      busy: _busyProductId == secili.identifier,
+                      onPressed: mesgul ? null : () => _buy(secili),
+                    ),
+                  ]);
+                },
               ),
 
             const SizedBox(height: RythoSpace.md),
@@ -301,17 +364,6 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
       ),
     );
   }
-}
-
-/// Ekran tam-ekran diyalog olarak mı açıldı?
-///
-/// `core/api.dart` 402 köprüsü `fullscreenDialog: true` ile açıyor, Sohbet
-/// ve Abonelik ekranları ise düz `MaterialPageRoute` ile. Flutter'ın kendi
-/// mantığı AppBar'ın OTOMATİK düğmesinde yaşıyor; düğmeyi meşguliyete
-/// bağlamak için elle koyduğumuz an o mantığı da elle taşımak gerekti.
-bool _tamEkranDiyalog(BuildContext context) {
-  final rota = ModalRoute.of(context);
-  return rota is PageRoute && rota.fullscreenDialog;
 }
 
 /// Abonelik durumu henüz BİLİNMİYOR.
@@ -364,42 +416,56 @@ class _PaketlerPlusaOzel extends StatelessWidget {
         Text(l10n.tokenPacksPlusOnlyBody, style: RythoType.bodyDim),
         const SizedBox(height: RythoSpace.md),
         Text(l10n.tokenFreeTierWarnTitle, style: RythoText.body(13.5)),
-        const SizedBox(height: 2),
+        const SizedBox(height: RythoSpace.xxs),
         Text(l10n.tokenFreeTierWarnBody,
             style: RythoText.body(11.5, color: RythoColors.parchmentDim)),
         const SizedBox(height: RythoSpace.md),
+        // Dokunuş yolu: fade-through, kaynak `token_store` (`acPaywall`
+        // tek giriş; eski düz MaterialPageRoute kaynak etiketi taşımıyordu).
         GoldButton(
           text: l10n.tokenPacksSeePlus,
-          onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PaywallScreen())),
+          onPressed: () =>
+              acPaywall(context, kaynak: PaywallKaynak.magaza),
         ),
       ]),
     );
   }
 }
 
+/// Paket satırı: seçilebilir, düğmesiz (satın alma düğmesi listenin altında
+/// TEK). Kredi başına fiyat satırı karşılaştırmanın ölçüsü — adet
+/// bilinmiyorsa satır yok.
 class _PackTile extends StatelessWidget {
   const _PackTile({
     required this.product,
     required this.amount,
-    required this.busy,
-    required this.enabled,
-    required this.onBuy,
+    required this.dil,
+    required this.selected,
+    required this.onTap,
   });
 
   final StoreProduct product;
   final int? amount;
-  final bool busy;
-  final bool enabled;
-  final VoidCallback onBuy;
+  final String dil;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final birimFiyat = krediBasinaFiyat(product, amount, dil);
     return GlassPanel(
       margin: const EdgeInsets.only(bottom: RythoSpace.md),
+      glow: selected,
+      onTap: onTap,
       child: Row(children: [
-        const Text('🪙', style: TextStyle(fontSize: 26)),
+        Icon(
+          selected
+              ? Icons.radio_button_checked_rounded
+              : Icons.radio_button_unchecked_rounded,
+          size: 20,
+          color: selected ? RythoColors.gold : RythoColors.parchmentDim,
+        ),
         const SizedBox(width: RythoSpace.md),
         Expanded(
           child: Column(
@@ -411,17 +477,12 @@ class _PackTile extends StatelessWidget {
                     : product.title,
                 style: RythoType.cardTitle,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: RythoSpace.xxs),
               Text(product.priceString, style: RythoType.dataSmall),
+              if (birimFiyat != null)
+                Text(l10n.pricePerCredit(birimFiyat),
+                    style: RythoType.caption),
             ],
-          ),
-        ),
-        SizedBox(
-          width: 120,
-          child: GoldButton(
-            text: l10n.tokenBuy,
-            busy: busy,
-            onPressed: enabled ? onBuy : null,
           ),
         ),
       ]),

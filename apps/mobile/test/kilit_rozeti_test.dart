@@ -10,6 +10,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart' show Animate;
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rytho/core/wallet.dart' show WalletStatus, walletProvider;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/features/paywall/kilit_rozeti.dart';
 import 'package:rytho/features/paywall/ozellik_katalogu.dart';
@@ -18,7 +20,11 @@ import 'package:rytho/l10n/app_localizations.dart';
 import 'package:rytho/theme/rytho_theme.dart';
 import 'package:rytho/theme/rytho_tokens.dart';
 
-Widget _sar(Widget govde, {bool hareketsiz = true}) => MaterialApp(
+// `ProviderScope`: kilit kartı D7'den beri bedel rozeti taşıyor ve rozet
+// cüzdanı izliyor (yüklenmeden rozet çizilmez — kart testleri etkilenmez).
+Widget _sar(Widget govde, {bool hareketsiz = true}) => ProviderScope(
+    overrides: [walletProvider.overrideWith((_) async => WalletStatus.unknown)],
+    child: MaterialApp(
       locale: const Locale('tr'),
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -34,7 +40,7 @@ Widget _sar(Widget govde, {bool hareketsiz = true}) => MaterialApp(
         child: child!,
       ),
       home: Scaffold(body: Center(child: govde)),
-    );
+    ));
 
 /// Tek atış animasyon biter — tekrarlanmayan zincir için pump yeter.
 Future<void> _bitir(WidgetTester tester) => tester.pump(

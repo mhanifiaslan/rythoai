@@ -109,11 +109,12 @@ enum PlusOzellik {
         daily => l10n.personalReadingLocked,
         natal => l10n.natalLockedTitle,
         dyad => l10n.relationshipReadingTitle,
-        chat => l10n.benefitChatTitle,
+        // Sayısız başlık: aylık hak sunucudan gelir, satış ekranı onu
+        // `benefitChatTitleCount(cuzdan.monthlyAllowance)` ile basar; bu
+        // kataloğun sayıya erişimi yok ve "100" literali bir kez bayatladı.
+        chat => l10n.benefitChatTitleUnknown,
         bazi => l10n.baziLockedTitle,
-        // Sinastriye özel kilit anahtarı YOK; en yakın mevcut çift paywall
-        // faydasındaki "BaZi ve sinastri". Ayrı anahtar D7'de.
-        synastry => l10n.benefitBaziTitle,
+        synastry => l10n.synastryLockedTitle,
         face => l10n.faceReadingTitle,
         birthHexagram => l10n.birthHexagramTitle,
         solarReturn => l10n.solarReturnTitle,
@@ -130,7 +131,7 @@ enum PlusOzellik {
         dyad => l10n.relationshipReadingLocked,
         chat => l10n.benefitChatBody,
         bazi => l10n.baziLockedBody,
-        synastry => l10n.benefitBaziBody,
+        synastry => l10n.synastryLockedBody,
         face => l10n.faceReadingLockedBody,
         birthHexagram => l10n.birthHexagramLockedBody,
         solarReturn => l10n.solarReturnLockedBody,

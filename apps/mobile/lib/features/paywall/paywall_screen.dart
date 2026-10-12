@@ -5,12 +5,14 @@ import 'package:flutter/services.dart'
     show HapticFeedback, PlatformException;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
 import '../../core/analytics.dart';
 import '../../core/purchase_errors.dart';
 import '../../core/sound.dart';
 import '../../core/subscription.dart';
+import '../../core/wallet.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
@@ -21,6 +23,7 @@ import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/star_burst.dart';
 import '../profile/legal_page.dart';
+import 'bedel_rozeti.dart';
 import 'ozellik_katalogu.dart';
 import 'paywall_acilis.dart';
 
@@ -31,21 +34,109 @@ import 'paywall_acilis.dart';
 /// yapılacağı ve "Satın alımları geri yükle" seçeneği. Bunlar süsleme değil,
 /// eksikse inceleme reddi sebebidir.
 class PaywallScreen extends ConsumerStatefulWidget {
-  const PaywallScreen({super.key, this.reason, this.kaynak, this.ozellik});
+  const PaywallScreen({
+    super.key,
+    required this.kaynak,
+    this.reason,
+    this.ozellik,
+  });
 
   /// Kilitli uçtan dönen açıklama ("… Rytho+ aboneliğine dahildir").
   final String? reason;
 
-  /// Hangi yüzeyden açıldı — analitik etiketi buradan (`paywallEtiketi`).
-  /// `null`: eski çağrı yeri, etiket `reason`dan türetilir.
-  final PaywallKaynak? kaynak;
+  /// Hangi yüzeyden açıldı — analitik etiketi buradan. ZORUNLU: etiketi
+  /// `reason`dan türeten eski iki değerli kural D7'de silindi, çünkü
+  /// kaynak taşımayan çağrı yeri kalmadı (`acPaywall` tek giriş).
+  final PaywallKaynak kaynak;
 
-  /// Hangi özelliğin kilidine basıldı — `null`: genel giriş. Ekranın bunu
-  /// ne yapacağı (ilgili faydayı öne almak) D7'de; burada yalnız taşınır.
+  /// Hangi özelliğin kilidine basıldı — `null`: genel giriş. Doluysa
+  /// başlığın üstünde "{özellik} için Rytho+" etiketi çizilir: 402
+  /// köprüsü bunu sunucunun `X-Paywall-Feature` başlığından taşıyor.
   final PlusOzellik? ozellik;
 
   @override
   ConsumerState<PaywallScreen> createState() => _PaywallScreenState();
+}
+
+/// Yıllık paketin aylığa göre tasarrufu, yüzde — ya da `null`.
+///
+/// ÖLÇÜLMEYEN SÖYLENMEZ: iki fiyat aynı para biriminde değilse, biri sıfır
+/// ya da eksikse, yıllık 12 aylıktan ucuz DEĞİLSE rozet yok. Sayı
+/// mağazanın söylediği iki fiyattan türetilir, elle yazılmaz (K8:
+/// "yalnız ölçülmüş %N tasarruf").
+int? yillikTasarrufYuzdesi(
+    {required StoreProduct aylik, required StoreProduct yillik}) {
+  if (aylik.currencyCode != yillik.currencyCode) return null;
+  if (aylik.price <= 0 || yillik.price <= 0) return null;
+  final yuzde = ((1 - yillik.price / (aylik.price * 12)) * 100).round();
+  return yuzde > 0 ? yuzde : null;
+}
+
+/// Yıllık fiyatın aylık eşdeğeri, mağazanın para birimiyle biçimli.
+///
+/// Fiyat METNİ bölünemez ("₺1.499,99"), sayı bölünür ve aynı para
+/// birimiyle yeniden biçimlenir. Para birimi kodu yoksa eşdeğer de yok.
+String? aylikEsdeger(StoreProduct yillik, String dil) {
+  if (yillik.price <= 0 || yillik.currencyCode.isEmpty) return null;
+  try {
+    return NumberFormat.simpleCurrency(locale: dil, name: yillik.currencyCode)
+        .format(yillik.price / 12);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Plan satırının fiyat cümlesi.
+///
+/// Deneme süresi varsa "3 gün ücretsiz, sonra X" — mağaza kuralı gereği
+/// denemenin ne zaman ücrete döndüğü satın alma ekranında yazmak zorunda.
+///
+/// İki kaynak denenir (M1): `introductoryPrice` (eski model) boşsa
+/// Play'in modern teklif modelindeki ücretsiz faz
+/// (`defaultOption.freePhase`). Google Play'de deneme bir base-plan
+/// TEKLİFİDİR ve intro alanı null kalabiliyor — yedek olmadan ibare
+/// sessizce kaybolur (inceleme reddi sebebi).
+///
+/// Birim başına AYRI anahtar (`trialThenPriceDays/Weeks/…`): İngilizce
+/// çoğul "1 weeks free" diyordu; tek şablon + birim adı çoğulu
+/// bilemez. Bilinmeyen birimde deneme İDDİA EDİLMEZ, düz fiyat yazılır
+/// (eski hâl `_ => unitDay` ile "gün" uyduruyordu). Denemesiz: fiyat +
+/// dönem (`priceWithPeriod`), dönem paket türünden; bilinmeyen türde
+/// yalnız fiyat — dönem de uydurulmaz.
+String fiyatSatiri(
+    AppLocalizations l10n, StoreProduct product, PackageType tur) {
+  var sayi = 0;
+  PeriodUnit? birim;
+
+  final intro = product.introductoryPrice;
+  if (intro != null) {
+    sayi = intro.periodNumberOfUnits;
+    birim = intro.periodUnit;
+  } else {
+    final donem = product.defaultOption?.freePhase?.billingPeriod;
+    if (donem != null) {
+      sayi = donem.value;
+      birim = donem.unit;
+    }
+  }
+  final fiyat = product.priceString;
+  if (birim != null && sayi > 0) {
+    final satir = switch (birim) {
+      PeriodUnit.day => l10n.trialThenPriceDays(sayi, fiyat),
+      PeriodUnit.week => l10n.trialThenPriceWeeks(sayi, fiyat),
+      PeriodUnit.month => l10n.trialThenPriceMonths(sayi, fiyat),
+      PeriodUnit.year => l10n.trialThenPriceYears(sayi, fiyat),
+      _ => null,
+    };
+    if (satir != null) return satir;
+  }
+  final donemAdi = switch (tur) {
+    PackageType.weekly => l10n.unitWeek,
+    PackageType.monthly => l10n.unitMonth,
+    PackageType.annual => l10n.unitYear,
+    _ => null,
+  };
+  return donemAdi == null ? fiyat : l10n.priceWithPeriod(fiyat, donemAdi);
 }
 
 class _PaywallScreenState extends ConsumerState<PaywallScreen> {
@@ -102,12 +193,15 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   void initState() {
     super.initState();
     // Etiket kaynaktan: hangi yüzeyin dönüştürdüğü ancak böyle ölçülür.
-    // Kaynak taşımayan eski çağrı yerleri için iki değerli kural
-    // `paywallEtiketi`nin içinde duruyor.
-    Analytics.paywallShown(paywallEtiketi(widget.kaynak, widget.reason));
+    Analytics.paywallShown(widget.kaynak.etiket);
+    // Anahtarsız derleme GELİŞTİRİCİ kusurudur, kullanıcı cümlesi değil:
+    // ekran "mağazada paket yok" der, kusur Crashlytics'e gider. Eski hâl
+    // "Bu derlemede abonelik anahtarları tanımlı değil" cümlesini
+    // kullanıcıya okutuyordu (`billingNotConfigured`, silindi).
+    if (!billingConfigured) gelistiriciKusuruBildir('billing-not-configured');
   }
 
-  /// Faydalar dile göre üretildiği için const olamaz.
+  /// Faydalar — her satır katalog üyeleriyle anılır.
   ///
   /// Liste bir dönem BEŞ satırdı ve son turların eklediği her Plus özelliği
   /// bu ekranda YOKTU: yüz okuma, Yıl Haritası, İç Takvim, Doğum Kapısı,
@@ -119,17 +213,51 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   /// `api/reports.py` → `solar_return` / `progressions` / `birth_hexagram` /
   /// `iching` / `synastry` hepsi `require_plus`; kontenjan
   /// `services/people_service.py` → ücretsiz 1, Plus 10.
-  List<(String, String, String)> _benefits(AppLocalizations l10n) => [
-        ('🌙', l10n.benefitDailyTitle, l10n.benefitDailyBody),
-        ('🗺️', l10n.benefitNatalTitle, l10n.benefitNatalBody),
-        ('💞', l10n.benefitDyadTitle, l10n.benefitDyadBody),
-        ('💬', l10n.benefitChatTitle, l10n.benefitChatBody),
-        ('🀄', l10n.benefitBaziTitle, l10n.benefitBaziBody),
-        ('👁️', l10n.benefitFaceTitle, l10n.benefitFaceBody),
-        ('🗓️', l10n.benefitTimingTitle, l10n.benefitTimingBody),
-        ('☯️', l10n.benefitIchingTitle, l10n.benefitIchingBody),
-        ('👥', l10n.benefitPeopleTitle, l10n.benefitPeopleBody),
+  ///
+  /// Emoji ve bedel KATALOGDAN (D7): satır başındaki simge karo ve kilit
+  /// kartıyla aynı üyeden geliyor (`☯` ↔ `☯️` ayrışması ölçülmüştü), bedel
+  /// rozeti cüzdanın `costs` haritasından — satır birden çok özelliği
+  /// anıyorsa yalnız hepsi aynı bedeldeyken tek sayı (`BedelRozeti.ortak`).
+  List<(List<PlusOzellik>, String, String)> _benefits(
+          AppLocalizations l10n, WalletStatus? cuzdan) =>
+      [
+        ([PlusOzellik.daily], l10n.benefitDailyTitle, l10n.benefitDailyBody),
+        ([PlusOzellik.natal], l10n.benefitNatalTitle, l10n.benefitNatalBody),
+        ([PlusOzellik.dyad], l10n.benefitDyadTitle, l10n.benefitDyadBody),
+        ([PlusOzellik.chat], _sohbetBasligi(l10n, cuzdan), l10n.benefitChatBody),
+        (
+          [PlusOzellik.bazi, PlusOzellik.synastry],
+          l10n.benefitBaziTitle,
+          l10n.benefitBaziBody
+        ),
+        ([PlusOzellik.face], l10n.benefitFaceTitle, l10n.benefitFaceBody),
+        (
+          [
+            PlusOzellik.solarReturn,
+            PlusOzellik.progressions,
+            PlusOzellik.birthHexagram,
+          ],
+          l10n.benefitTimingTitle,
+          l10n.benefitTimingBody
+        ),
+        ([PlusOzellik.iching], l10n.benefitIchingTitle, l10n.benefitIchingBody),
+        ([PlusOzellik.people], l10n.benefitPeopleTitle, l10n.benefitPeopleBody),
       ];
+
+  /// "Ayda {N} AI kredisi" — N SUNUCUDAN (`monthly_allowance`), elle değil.
+  ///
+  /// Eski satır ARB'de "Ayda 100 AI kredisi" diye sabitti ve hak 300'den
+  /// 100'e inerken bir tur boyunca eski sayıyı söyledi; backend bekçisi onu
+  /// yakalıyordu ama cihazdaki kurulu paketi yakalayamazdı. Cüzdan
+  /// okunamadıysa sayısız başlık: "Aylık AI kredisi" — ölçülmeyen söylenmez.
+  static String _sohbetBasligi(AppLocalizations l10n, WalletStatus? cuzdan) {
+    final hak = cuzdan == null || cuzdan.bilinmiyor
+        ? null
+        : cuzdan.monthlyAllowance;
+    return hak == null || hak <= 0
+        ? l10n.benefitChatTitleUnknown
+        : l10n.benefitChatTitleCount(hak);
+  }
 
   Future<void> _buy() async {
     final package = _selected;
@@ -184,13 +312,17 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         // kimlikteyse bu hesaba çekilir (G-turu, iç test bulgusu).
         if (mounted) await _restore(zincirli: true);
       } else if (mounted) {
-        setState(() => _error =
-            storeErrorText(e, AppLocalizations.of(context)));
+        setState(() => _error = purchaseErrorText(
+            e, AppLocalizations.of(context),
+            abonelik: true));
       }
     } catch (e) {
+      // Tek kapı: ağ/zaman aşımı `friendlyError`dan geçer, "beklenmeyen
+      // sorun" yerine bağlantı cümlesi görünür.
       if (mounted) {
-        setState(
-            () => _error = AppLocalizations.of(context).purchaseFailed);
+        setState(() => _error = purchaseErrorText(
+            e, AppLocalizations.of(context),
+            abonelik: true));
       }
     } finally {
       if (mounted) _mesguliyet(false);
@@ -240,15 +372,11 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         setState(() =>
             _error = AppLocalizations.of(context).noActiveSubscription);
       }
-    } on PlatformException catch (e) {
-      if (mounted) {
-        setState(() =>
-            _error = storeErrorText(e, AppLocalizations.of(context)));
-      }
     } catch (e) {
       if (mounted) {
-        setState(
-            () => _error = AppLocalizations.of(context).purchaseFailed);
+        setState(() => _error = purchaseErrorText(
+            e, AppLocalizations.of(context),
+            abonelik: true));
       }
     } finally {
       if (mounted) _mesguliyet(false);
@@ -259,6 +387,11 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   Widget build(BuildContext context) {
     final offerings = ref.watch(offeringsProvider);
     final l10n = AppLocalizations.of(context);
+    // `.value`: tazeleme turunda önceki cüzdan korunur; rozetler yanıp
+    // sönmez. Okunamadıysa rozetler ve sayılı sohbet başlığı susar.
+    final cuzdan = ref.watch(walletProvider).value;
+    final ozellik = widget.ozellik;
+    final dil = Localizations.localeOf(context).toLanguageTag();
 
     // Geri tuşu ödeme UÇARKEN geçmez.
     //
@@ -273,14 +406,23 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       child: CosmicScaffold(
       appBar: AppBar(
         title: Text(l10n.paywallTitle),
+        // Simge rotaya göre (`tamEkranDiyalogMu`): kesinti yolu diyalog
+        // (✕), dokunuş yolu fade-through (←). Sabit ✕ dokunuşla gelen
+        // kullanıcıya "bir şey araya girdi" diyordu.
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, size: 22),
+          icon: Icon(
+              tamEkranDiyalogMu(context)
+                  ? Icons.close_rounded
+                  : Icons.arrow_back_rounded,
+              size: 22),
           // Meşgulken kapatma düğmesi de ölü: `_busy` kapısı burada
           // HİÇ YOKTU ve ödeme uçarken tek dokunuşla ekran kapanıyordu.
           onPressed: _busy ? null : () => Navigator.of(context).pop(false),
         ),
       ),
-      body: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
+      body: ListView(
+          padding: const EdgeInsets.only(bottom: RythoSpace.xxl),
+          children: [
         if (widget.reason != null)
           GlassPanel(
             child: Text(widget.reason!,
@@ -299,7 +441,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 children: [
                   Text(l10n.trialBannerTitle,
                       style: RythoText.body(14.5, w: FontWeight.w700)),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: RythoSpace.xxs),
                   Text(
                       kalan <= 1
                           ? l10n.trialBannerLastDay
@@ -309,43 +451,68 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 ]),
           );
         }),
+        // Bağlam etiketi: hangi kilitten gelindi. `X-Paywall-Feature`
+        // bir tur boyunca sunucudan gelip istemcide hiç okunmuyordu.
+        if (ozellik != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                RythoSpace.lg, RythoSpace.md, RythoSpace.lg, 0),
+            child: Text(l10n.paywallForFeature(ozellik.baslik(l10n)),
+                style: RythoType.label.copyWith(color: RythoColors.goldBright)),
+          ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+          padding: EdgeInsets.fromLTRB(RythoSpace.lg,
+              ozellik == null ? RythoSpace.md : RythoSpace.xs, RythoSpace.lg,
+              RythoSpace.xs),
           child: Text(l10n.paywallHeadline, style: RythoText.display(26)),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          padding: const EdgeInsets.fromLTRB(
+              RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.lg),
           child: Text(
             l10n.paywallBody,
             style: RythoText.body(13.5, color: RythoColors.parchmentDim),
           ),
         ),
-        for (final (i, benefit) in _benefits(l10n).indexed)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(benefit.$1, style: const TextStyle(fontSize: 19)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(benefit.$2, style: RythoText.body(14.5, w: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text(benefit.$3,
-                          style: RythoText.body(12.5,
-                              color: RythoColors.parchmentDim)),
-                    ]),
-              ),
-            ]),
-          )
-              .animate(delay: Duration(milliseconds: 60 * i))
-              .fadeIn(duration: 320.ms)
-              .slideX(begin: 0.05, curve: Curves.easeOutCubic),
+        // Satırlar SÜKÛNETLE gelir: eski `.animate().fadeIn().slideX()`
+        // zinciri dokuz satırı 60 ms arayla kaydırıyordu ve hareket azaltma
+        // kapısından geçmiyordu (D5 sükûnet doktrini; `RythoReveal` tek yol).
+        for (final (i, benefit) in _benefits(l10n, cuzdan).indexed)
+          RythoReveal(
+            index: i,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: RythoSpace.lg, vertical: RythoSpace.sm),
+              child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(benefit.$1.first.emoji, style: RythoText.emoji(19)),
+                    const SizedBox(width: RythoSpace.md),
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Flexible(
+                                  child: Text(benefit.$2,
+                                      style: RythoText.body(14.5,
+                                          w: FontWeight.w700))),
+                              const SizedBox(width: RythoSpace.sm),
+                              BedelRozeti.ortak(benefit.$1, kucuk: true),
+                            ]),
+                            const SizedBox(height: RythoSpace.xxs),
+                            Text(benefit.$3,
+                                style: RythoText.body(12.5,
+                                    color: RythoColors.parchmentDim)),
+                          ]),
+                    ),
+                  ]),
+            ),
+          ),
         const SectionDivider(),
         offerings.when(
           loading: () => const Padding(
-            padding: EdgeInsets.symmetric(vertical: 30),
+            padding: EdgeInsets.symmetric(vertical: RythoSpace.xxl),
             child: Center(child: AstrolabeSpinner()),
           ),
           // Mağaza/ağ hatası artık YUTULMUYOR (bkz. core/subscription.dart
@@ -362,10 +529,13 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             // Tek plan varsa seçim yapılacak bir şey yok; radyo düğmesi
             // göstermek kullanıcıya sahte bir karar sunar.
             final tekPlan = packages.length == 1;
+            final aylik = _paket(packages, PackageType.monthly);
             return Column(children: [
               for (final package in packages)
                 _PlanTile(
                   package: package,
+                  aylik: aylik,
+                  dil: dil,
                   selected: identical(package, _selected) ||
                       package.identifier == _selected?.identifier,
                   showRadio: !tekPlan,
@@ -376,12 +546,16 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         ),
         if (_error != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            padding: const EdgeInsets.fromLTRB(
+                RythoSpace.lg, RythoSpace.sm, RythoSpace.lg, 0),
+            // Hata rengi TEK: `madder` (eski `magenta`, marka rengiydi —
+            // hata, davet rengiyle söylenmez).
             child: Text(_error!,
-                style: RythoText.body(12.5, color: RythoColors.magenta)),
+                style: RythoText.body(12.5, color: RythoColors.madder)),
           ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          padding: const EdgeInsets.fromLTRB(
+              RythoSpace.lg, RythoSpace.lg, RythoSpace.lg, RythoSpace.sm),
           child: GoldButton(
             text: _selected == null
                 ? l10n.paywallChoosePlan
@@ -399,7 +573,8 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         // düşmüyor, yani düğme yeniden basılabilir hale GELMİYOR.
         if (_busy)
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
+            padding: const EdgeInsets.fromLTRB(
+                RythoSpace.xl, RythoSpace.xs, RythoSpace.xl, 0),
             child: Text(
               _uzunSuruyor ? l10n.purchaseWaitingLong : l10n.purchaseWaitingStore,
               style: RythoText.body(12.5, color: RythoColors.parchmentDim),
@@ -422,7 +597,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
           child: TextButton(
             onPressed: _busy ? null : _restore,
             child: Text(l10n.restorePurchases,
-                style: RythoText.label(12, color: RythoColors.parchmentDim)),
+                style: RythoText.label(12.5, color: RythoColors.parchmentDim)),
           ),
         ),
         // Ortak kodu girişi KALDIRILDI (A2): jeton-bonusu/atıf modeli
@@ -432,7 +607,8 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         // Mağaza kuralı: iptal ve yenileme koşulları satın alma ekranında
         // açıkça yazmalı.
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+          padding: const EdgeInsets.fromLTRB(
+              RythoSpace.xl, RythoSpace.sm, RythoSpace.xl, RythoSpace.sm),
           child: Text(
             l10n.subscriptionTerms,
             style: RythoText.body(11.5, color: RythoColors.parchmentDim),
@@ -444,7 +620,8 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         // geri kalanındaki dürüstlüğü de değersizleştirirdi. Mağaza
         // incelemesinde de aranan ibare.
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          padding: const EdgeInsets.fromLTRB(
+              RythoSpace.xl, 0, RythoSpace.xl, RythoSpace.sm),
           child: Text(
             l10n.insightDisclaimer,
             style: RythoText.body(11, color: RythoColors.parchmentDim),
@@ -484,17 +661,20 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     );
   }
 
-  /// Varsayılan seçili paket.
-  ///
-  /// Kapsam kararı: **yalnızca aylık sunuluyor** (bkz. core/subscription.dart,
-  /// kOfferedPackageTypes). Yıllığı tercih eden eski mantık kaldırıldı —
-  /// sunulmayan bir paketi varsayılan seçmeye çalışıyordu.
-  Package _defaultPackage(List<Package> packages) {
-    for (final package in packages) {
-      if (package.packageType == PackageType.monthly) return package;
+  static Package? _paket(List<Package> packages, PackageType tur) {
+    for (final p in packages) {
+      if (p.packageType == tur) return p;
     }
-    return packages.first;
+    return null;
   }
+
+  /// Varsayılan seçili paket: AYLIK (K8).
+  ///
+  /// Yıllık teklifte olsa da önseçili değil — daha pahalı peşin ödemeyi
+  /// varsayılan yapmak, kullanıcının kararını onun yerine vermek olur;
+  /// yıllığın lehine konuşan tek şey ölçülmüş tasarruf rozeti.
+  Package _defaultPackage(List<Package> packages) =>
+      _paket(packages, PackageType.monthly) ?? packages.first;
 
   /// Mağaza sorunsuz yanıtladı ama gösterilecek paket YOK.
   ///
@@ -505,11 +685,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   Widget _unavailable(AppLocalizations l10n) => GlassPanel(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(l10n.billingUnavailable, style: RythoText.display(16)),
-          const SizedBox(height: 6),
+          const SizedBox(height: RythoSpace.xs),
           Text(
-            billingConfigured
-                ? l10n.billingNoPackages
-                : l10n.billingNotConfigured,
+            l10n.billingNoPackages,
             style: RythoText.body(12.5, color: RythoColors.parchmentDim),
           ),
         ]),
@@ -519,52 +697,23 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 class _PlanTile extends StatelessWidget {
   const _PlanTile({
     required this.package,
+    required this.aylik,
+    required this.dil,
     required this.selected,
     required this.onTap,
     this.showRadio = true,
   });
 
   final Package package;
+
+  /// Teklifteki aylık paket — yıllığın tasarruf rozeti ona göre ölçülür.
+  final Package? aylik;
+  final String dil;
   final bool selected;
   final VoidCallback onTap;
   final bool showRadio;
 
   bool get _isAnnual => package.packageType == PackageType.annual;
-
-  /// Deneme süresi varsa "3 gün ücretsiz, sonra X" — mağaza kuralı gereği
-  /// denemenin ne zaman ücrete döndüğü satın alma ekranında yazmak zorunda.
-  ///
-  /// İki kaynak denenir (M1): `introductoryPrice` (eski model) boşsa
-  /// Play'in modern teklif modelindeki ücretsiz faz
-  /// (`defaultOption.freePhase`). Google Play'de deneme bir base-plan
-  /// TEKLİFİDİR ve intro alanı null kalabiliyor — yedek olmadan ibare
-  /// sessizce kaybolur (inceleme reddi sebebi).
-  static String _priceLine(AppLocalizations l10n, StoreProduct product) {
-    var sayi = 0;
-    PeriodUnit? birim;
-
-    final intro = product.introductoryPrice;
-    if (intro != null) {
-      sayi = intro.periodNumberOfUnits;
-      birim = intro.periodUnit;
-    } else {
-      final donem = product.defaultOption?.freePhase?.billingPeriod;
-      if (donem != null) {
-        sayi = donem.value;
-        birim = donem.unit;
-      }
-    }
-    if (birim == null || sayi <= 0) return product.priceString;
-
-    final unit = switch (birim) {
-      PeriodUnit.day => l10n.unitDay,
-      PeriodUnit.week => l10n.unitWeek,
-      PeriodUnit.month => l10n.unitMonth,
-      PeriodUnit.year => l10n.unitYear,
-      _ => l10n.unitDay,
-    };
-    return l10n.trialThenPrice(sayi, unit, product.priceString);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -576,9 +725,17 @@ class _PlanTile extends StatelessWidget {
       PackageType.monthly => l10n.planMonthly,
       _ => product.title,
     };
+    // Rozet YALNIZ ölçülmüşse: "EN İYİ DEĞER" eski sabit rozeti yıllığa
+    // koşulsuz basılıyordu — fiyatlar ne derse desin (K8 ile gitti).
+    final tasarruf = _isAnnual && aylik != null
+        ? yillikTasarrufYuzdesi(
+            aylik: aylik!.storeProduct, yillik: product)
+        : null;
+    final aylikKarsiligi = _isAnnual ? aylikEsdeger(product, dil) : null;
 
     return GlassPanel(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(
+          horizontal: RythoSpace.lg, vertical: RythoSpace.xs),
       glow: selected,
       onTap: onTap,
       child: Row(children: [
@@ -590,7 +747,7 @@ class _PlanTile extends StatelessWidget {
             size: 20,
             color: selected ? RythoColors.gold : RythoColors.parchmentDim,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: RythoSpace.md),
         ],
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -598,23 +755,26 @@ class _PlanTile extends StatelessWidget {
               // Plan adı esnemiyordu; uzun adda (veya rozet varken) satır
               // taşıyordu. `Flexible` adın sarmasına izin verir.
               Flexible(child: Text(title, style: RythoText.display(17))),
-              if (_isAnnual) ...[
-                const SizedBox(width: 8),
+              if (tasarruf != null) ...[
+                const SizedBox(width: RythoSpace.sm),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: RythoSpace.sm, vertical: RythoSpace.xxs),
                   decoration: BoxDecoration(
                     color: RythoColors.gold.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(RythoRadius.pill),
                   ),
-                  child: Text(l10n.bestValue,
+                  child: Text(l10n.annualSavingsBadge(tasarruf),
                       style: RythoText.label(9, color: RythoColors.goldBright)),
                 ),
               ],
             ]),
-            const SizedBox(height: 2),
-            Text(_priceLine(l10n, product),
+            const SizedBox(height: RythoSpace.xxs),
+            Text(fiyatSatiri(l10n, product, package.packageType),
                 style: RythoText.body(12.5, color: RythoColors.parchmentDim)),
+            if (aylikKarsiligi != null)
+              Text(l10n.annualPerMonth(aylikKarsiligi),
+                  style: RythoText.body(11.5, color: RythoColors.parchmentDim)),
           ]),
         ),
       ]),

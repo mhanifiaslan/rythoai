@@ -14,6 +14,7 @@ import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/okuma_kabi.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/bedel_onayi.dart';
 import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 
@@ -37,11 +38,15 @@ class BirthHexagramScreen extends ConsumerWidget {
         body: const SkeletonList(),
       );
     }
-    final veri = ref.watch(birthHexagramProvider);
-
     return CosmicScaffold(
       appBar: AppBar(title: Text(l10n.birthHexagramTitle)),
-      body: veri.when(
+      // Bedel kapısı (D7): 5 kredilik üretim ekrana GİRİLDİĞİ AN
+      // başlıyordu. Sağlayıcı artık kapının İÇİNDE izleniyor — istek ilk
+      // "Devam"dan sonra gider (`bedel_onayi.dart`); abone olmayana ve
+      // eşik altı bedele kapı görünmez.
+      body: BedelKapisi(
+        ozellik: PlusOzellik.birthHexagram,
+        builder: (context, ref) => ref.watch(birthHexagramProvider).when(
         // Dört kardeş ekran sahneli bekliyor, burası çıplak usturlaptı;
         // okuma LLM üretimi ve bekleyiş aynı uzunlukta.
         loading: () => StagedWaiting(stages: [
@@ -239,6 +244,7 @@ class BirthHexagramScreen extends ConsumerWidget {
                   ),
               ]);
         },
+        ),
       ),
     );
   }

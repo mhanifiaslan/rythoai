@@ -14,6 +14,7 @@ import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/okuma_kabi.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/bedel_onayi.dart';
 import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 
@@ -38,11 +39,15 @@ class SolarReturnScreen extends ConsumerWidget {
         body: const SkeletonList(),
       );
     }
-    final veri = ref.watch(solarReturnProvider);
-
     return CosmicScaffold(
       appBar: AppBar(title: Text(l10n.solarReturnTitle)),
-      body: veri.when(
+      // Bedel kapısı (D7): 5 kredilik üretim ekrana GİRİLDİĞİ AN
+      // başlıyordu. Sağlayıcı artık kapının İÇİNDE izleniyor — istek ilk
+      // "Devam"dan sonra gider (`bedel_onayi.dart`); abone olmayana ve
+      // eşik altı bedele kapı görünmez.
+      body: BedelKapisi(
+        ozellik: PlusOzellik.solarReturn,
+        builder: (context, ref) => ref.watch(solarReturnProvider).when(
         // Rapor LLM üretimi — sahneli bekleyiş (R12-B3 kuralı).
         loading: () => StagedWaiting(stages: [
           l10n.solarReturnWaitStage1,
@@ -191,6 +196,7 @@ class SolarReturnScreen extends ConsumerWidget {
             ],
           );
         },
+        ),
       ),
     );
   }

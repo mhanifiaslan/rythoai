@@ -14,6 +14,7 @@ import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/okuma_kabi.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/bedel_onayi.dart';
 import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 
@@ -37,9 +38,12 @@ class BaziTab extends ConsumerWidget {
     if (kapi == PlusHali.bilinmiyor) {
       return const SkeletonList(heights: [72, 160, 110]);
     }
-    final bazi = ref.watch(baziReportProvider);
-
-    return bazi.when(
+    // Bedel kapısı (D7): sağlayıcı kapının İÇİNDE izlenir — 5 kredilik
+    // üretim sekmeye girildiği an değil, ilk "Devam"dan sonra başlar
+    // (`bedel_onayi.dart`).
+    return BedelKapisi(
+      ozellik: PlusOzellik.bazi,
+      builder: (context, ref) => ref.watch(baziReportProvider).when(
       // Rapor LLM üretimi — bekleyiş uzun; sahne dört sütun diliyle (R12-B3).
       // Usturlap yerine bronz luopan kare dizisi (PBZ-K3): halkalar döner,
       // ibre titrer — BaZi'nin kendi aleti. Yalnız yüklenirken monte,
@@ -369,6 +373,7 @@ class BaziTab extends ConsumerWidget {
           const SizedBox(height: RythoSpace.xxl),
         ]);
       },
+      ),
     );
   }
 }

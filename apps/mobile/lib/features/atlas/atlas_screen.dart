@@ -22,6 +22,7 @@ import '../share/share_card.dart' show shareReportCard;
 import '../face/face_reading_flow.dart';
 import '../shell/app_shell.dart' show shellTabProvider;
 import '../oracle/oracle_screen.dart';
+import '../paywall/bedel_rozeti.dart';
 import '../paywall/kilit_rozeti.dart';
 import '../paywall/ozellik_katalogu.dart';
 import '../paywall/paywall_acilis.dart';
@@ -519,6 +520,18 @@ class _FullReportRow extends ConsumerWidget {
           title: l10n.atlasFullReport,
           subtitle: l10n.atlasFullReportSubtitle,
           locked: metin == null && !bilinmiyor,
+          // Bedel SATIRDA (D7): abone olmayan kilidin yanında kaç kredi
+          // olduğunu görür. Kapı bilinmiyorken rozet de yok — satır o
+          // hâlde hiçbir hüküm taşımıyor. Chevron korunur (sağ uç
+          // `trailing` ile değişince kendiliğinden düşüyordu).
+          trailing: bilinmiyor
+              ? null
+              : Row(mainAxisSize: MainAxisSize.min, children: const [
+                  BedelRozeti(PlusOzellik.natal, kucuk: true),
+                  SizedBox(width: RythoSpace.xs),
+                  Icon(Icons.chevron_right_rounded,
+                      size: 18, color: RythoColors.parchmentDim),
+                ]),
           onTap: () {
             if (bilinmiyor) return;
             if (metin == null) {
@@ -793,12 +806,17 @@ class _DivinationTile extends StatelessWidget {
           Row(children: [
             Text(ozellik.emoji, style: RythoText.emoji(22)),
             const Spacer(),
+            // Bedel karoda (D7): harcamadan önce, kilitli-kilitsiz fark
+            // etmeksizin. Bilinmiyorsa rozet kendiliğinden susar.
+            BedelRozeti(ozellik, kucuk: true),
             // Ekran okuyucu "kilit" değil ürünün adını duyar.
-            if (locked)
+            if (locked) ...[
+              const SizedBox(width: RythoSpace.xs),
               Semantics(
                 label: kPlusAdi,
                 child: const KilitRozeti(kucuk: true),
               ),
+            ],
           ]),
           const SizedBox(height: RythoSpace.sm),
           Text(title, maxLines: 2, style: RythoType.cardTitle),

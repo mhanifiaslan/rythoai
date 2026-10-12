@@ -64,17 +64,20 @@ class TokenChip extends ConsumerWidget {
             : l10n.tokenBalanceChip(cuzdan.total);
     final renk = cuzdan.dusuk ? RythoColors.copper : RythoColors.goldBright;
 
-    return Semantics(
-      button: true,
-      label: cuzdan.bilinmiyor
+    // Semantik düğüm `Pressable`dan (D7): dıştan sarılan
+    // `Semantics(excludeSemantics: true)` içerideki düğmenin dokunma
+    // eylemini de atıyordu — ekran okuyucu etiketi duyuyor ama "çift
+    // dokun" diyemiyordu (takvim şeridinde ölçüldü, `hasTapAction`).
+    // İçerik `ExcludeSemantics` ile susturulur, etiket tek düğümde kalır.
+    return Pressable(
+      semanticLabel: cuzdan.bilinmiyor
           ? cuzdan.bakiyeYazisi(cuzdan.total)
           : l10n.tokenBalanceChip(cuzdan.total),
-      excludeSemantics: true,
-      child: Pressable(
-        // Hedef TEK: mağaza. Abonelik ekranı profilden; bakiyeyi gören
-        // kullanıcının ilk ihtiyacı doldurmak, abonelik yönetmek değil.
-        onTap: () => Navigator.of(context).push(
-            FadeThroughRoute(builder: (_) => const TokenStoreScreen())),
+      // Hedef TEK: mağaza. Abonelik ekranı profilden; bakiyeyi gören
+      // kullanıcının ilk ihtiyacı doldurmak, abonelik yönetmek değil.
+      onTap: () => Navigator.of(context).push(
+          FadeThroughRoute(builder: (_) => const TokenStoreScreen())),
+      child: ExcludeSemantics(
         child: Container(
           height: _kYukseklik,
           padding: const EdgeInsets.symmetric(horizontal: RythoSpace.md),

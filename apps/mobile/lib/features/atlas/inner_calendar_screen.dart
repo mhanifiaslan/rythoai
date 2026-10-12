@@ -14,6 +14,7 @@ import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/okuma_kabi.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/bedel_onayi.dart';
 import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
 
@@ -43,11 +44,15 @@ class InnerCalendarScreen extends ConsumerWidget {
         body: const SkeletonList(),
       );
     }
-    final veri = ref.watch(innerCalendarProvider);
-
     return CosmicScaffold(
       appBar: AppBar(title: Text(l10n.innerCalendarTitle)),
-      body: veri.when(
+      // Bedel kapısı (D7): 5 kredilik üretim ekrana GİRİLDİĞİ AN
+      // başlıyordu. Sağlayıcı artık kapının İÇİNDE izleniyor — istek ilk
+      // "Devam"dan sonra gider (`bedel_onayi.dart`); abone olmayana ve
+      // eşik altı bedele kapı görünmez.
+      body: BedelKapisi(
+        ozellik: PlusOzellik.progressions,
+        builder: (context, ref) => ref.watch(innerCalendarProvider).when(
         loading: () => StagedWaiting(stages: [
           l10n.innerCalendarWaitStage1,
           l10n.innerCalendarWaitStage2,
@@ -212,6 +217,7 @@ class InnerCalendarScreen extends ConsumerWidget {
             ],
           );
         },
+        ),
       ),
     );
   }

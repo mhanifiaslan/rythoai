@@ -20,6 +20,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:rytho/core/purchase_errors.dart';
 import 'package:rytho/core/subscription.dart';
 import 'package:rytho/core/wallet.dart';
+import 'package:rytho/features/paywall/paywall_acilis.dart';
 import 'package:rytho/features/paywall/paywall_screen.dart';
 import 'package:rytho/features/paywall/token_store_screen.dart';
 import 'package:rytho/l10n/app_localizations.dart';
@@ -117,7 +118,7 @@ void main() {
               offeringsProvider.overrideWith(
                   (_) async => throw StateError('magazaya ulasilamadi')),
             ],
-            child: _uygulama(const PaywallScreen()),
+            child: _uygulama(const PaywallScreen(kaynak: PaywallKaynak.tanitim)),
           ));
 
       expect(find.byType(ErrorCard), findsOneWidget,
@@ -129,7 +130,6 @@ void main() {
           reason: 'eski hâli ekrana ham hata nesnesini basıyordu');
       // Yanlış teşhis: ağ sorununda mağazayı suçlayan metin.
       expect(find.text(l10n.billingNoPackages), findsNothing);
-      expect(find.text(l10n.billingNotConfigured), findsNothing);
     });
 
     testWidgets('hatasız ama boş teklif → dürüst "yok" metni', (tester) async {
@@ -143,13 +143,18 @@ void main() {
                   .overrideWith((_) async => SubscriptionStatus.none),
               offeringsProvider.overrideWith((_) async => const <Package>[]),
             ],
-            child: _uygulama(const PaywallScreen()),
+            child: _uygulama(const PaywallScreen(kaynak: PaywallKaynak.tanitim)),
           ));
 
-      // Testte RevenueCat anahtarı yok, bu yüzden dürüst metin "bu derlemede
-      // anahtar yok" olandır. Ölçülen şey: hata dalı DEĞİL, boş dal çiziliyor.
+      // Testte RevenueCat anahtarı yok; eski hâl bunu KULLANICIYA söylüyordu
+      // ("Bu derlemede abonelik anahtarları tanımlı değil" — geliştirici
+      // cümlesi). D7: ekran "mağazada paket yok" der, kusur Crashlytics'e
+      // gider (`gelistiriciKusuruBildir`). Ölçülen şey: hata dalı DEĞİL,
+      // boş dal çiziliyor ve geliştirici cümlesi ekranda YOK.
       expect(find.text(l10n.billingUnavailable), findsOneWidget);
-      expect(find.text(l10n.billingNotConfigured), findsOneWidget);
+      expect(find.text(l10n.billingNoPackages), findsOneWidget);
+      expect(find.textContaining('anahtar'), findsNothing,
+          reason: 'anahtarsız derleme kullanıcı cümlesi değil');
       expect(find.byType(ErrorCard), findsNothing);
     });
   });

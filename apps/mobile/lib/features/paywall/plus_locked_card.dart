@@ -4,6 +4,7 @@ import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/nebula_widgets.dart' show Pressable;
+import 'bedel_rozeti.dart';
 import 'kilit_rozeti.dart';
 import 'ozellik_katalogu.dart';
 import 'paywall_acilis.dart';
@@ -14,6 +15,12 @@ import 'paywall_acilis.dart';
 /// kart gösterilir ve paywall ancak kullanıcı dokununca açılır. Sunucudan 402
 /// dönüp paywall'ın kendiliğinden açılması, kullanıcının o ekrana her
 /// girişinde yüzüne satış ekranı fırlatmak demek olurdu.
+///
+/// Kart bedeli de söyler (`BedelRozeti`, D7): abone olmayan kişi "Rytho+ ile
+/// açılır"ı okurken bu okumanın aylık haktan kaç kredi düşeceğini de
+/// görsün — satış ekranındaki rozetle aynı sayı, aynı kaynak (cüzdanın
+/// `costs` haritası). Bedeli olmayan özellikte (günlük okuma, çevre) rozet
+/// kendiliğinden susar.
 class PlusLockedCard extends StatelessWidget {
   const PlusLockedCard({
     super.key,
@@ -44,6 +51,7 @@ class PlusLockedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ozellik = this.ozellik;
     // Pressable (R12-C3): dokununca ölçek + haptik — kilitli kart artık
     // "basılabilir" hissettiriyor. Rota türünü `acPaywall` seçer: bu bir
     // DOKUNUŞ, fade-through (R12-B2).
@@ -60,6 +68,10 @@ class PlusLockedCard extends StatelessWidget {
               Text(title, style: RythoType.cardTitle),
               const SizedBox(height: RythoSpace.xs),
               Text(description, style: RythoType.caption),
+              if (ozellik != null) ...[
+                const SizedBox(height: RythoSpace.xs),
+                BedelRozeti(ozellik, kucuk: true),
+              ],
             ]),
           ),
           // Tek atış parıltı (R12-C3): girişte bir kez; sürekli döngü

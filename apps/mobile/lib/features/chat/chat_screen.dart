@@ -26,7 +26,11 @@ import '../../widgets/markdown_text.dart' show MarkdownText, markdownToPlain;
 import '../../widgets/motion.dart' show RythoReveal, kapili, reduceMotion;
 import '../../widgets/nebula_widgets.dart';
 import '../../widgets/okuma_kabi.dart' show bugununEtiketi;
+import '../../widgets/kota_bekleme.dart';
 import '../../widgets/token_chip.dart';
+import '../paywall/bedel_rozeti.dart' show bedelOku;
+import '../paywall/ozellik_katalogu.dart' show PlusOzellik;
+import '../../core/wallet.dart' show walletProvider;
 import '../../l10n/app_localizations.dart';
 
 /// Rytho AI sohbeti — v4 (Revize R4): KONU bazlı.
@@ -710,6 +714,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ),
         const SizedBox(height: RythoSpace.sm),
+        // 429 notu: sunucunun söylediği bekleme bitene kadar geri sayar;
+        // yoksa hiç çizilmez (`kota_bekleme.dart`).
+        const KotaBeklemeNotu(),
         // Giriş alanı: + / metin / degrade gönder
         Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -766,11 +773,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
               const SizedBox(width: RythoSpace.sm),
               // İkon-tek düğme: ekran okuyucu etiketi `Pressable`dan.
-              // Etiket `feedbackSend` ("Gönder") anahtarından ödünç — sohbete
-              // özel anahtar ARB kilitliyken eklenemedi (D8: `chatSend`).
               Pressable(
                 onTap: _send,
-                semanticLabel: l10n.feedbackSend,
+                semanticLabel: l10n.chatSend,
                 child: Container(
                   width: 46,
                   height: 46,
@@ -871,12 +876,17 @@ class SohbetBalonu extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
+class _EmptyState extends ConsumerWidget {
   const _EmptyState();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    // Mesaj bedeli HARCAMADAN ÖNCE (D7): sohbetin bedeli bir tur boyunca
+    // yalnız mağazanın toplu cümlesinde yazıyordu. Sayı cüzdanın `costs`
+    // haritasından; okunamadıysa satır yok.
+    final bedel =
+        bedelOku(ref.watch(walletProvider).value, PlusOzellik.chat);
     return Center(
       child: RythoReveal(
         child: Column(
@@ -927,6 +937,10 @@ class _EmptyState extends StatelessWidget {
                 style: RythoType.bodyDim,
               ),
             ),
+            if (bedel != null) ...[
+              const SizedBox(height: RythoSpace.sm),
+              Text(l10n.chatCostNote(bedel), style: RythoType.caption),
+            ],
           ],
         ),
       ),

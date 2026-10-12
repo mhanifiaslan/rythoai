@@ -229,46 +229,51 @@ def test_aylik_hak_iddiasi_belgede_duruyor(belge: str, kalip: str):
         "(iddia kalıptan kaçarsa bekçi hiçbir şey ölçmez).")
 
 
-#: Uygulamanın paywall'da gösterdiği aylık hak dizesi. Mağaza metninden
-#: ayrı tutuluyor çünkü kaynağı ayrı: burası kullanıcının EKRANDA gördüğü
-#: vaat, öteki mağaza listesinde gördüğü vaat.
-_ARB = {
-    "apps/mobile/lib/l10n/app_tr.arb": "Ayda {n} AI kredisi",
-    "apps/mobile/lib/l10n/app_en.arb": "{n} AI credits a month",
-}
-
-#: Üretilen l10n dosyaları depoda DURUYOR, yani arb düzeltilip codegen
-#: koşmazsa cihaza eski sayı gider. Bu yüzden üretilen hâl de çivileniyor.
-_URETILEN = {
-    "apps/mobile/lib/l10n/app_localizations_tr.dart": "Ayda {n} AI kredisi",
-    "apps/mobile/lib/l10n/app_localizations_en.dart": "{n} AI credits a month",
-}
+#: Uygulamanın paywall'da gösterdiği aylık hak — D7'den beri ARB'de SAYI
+#: YOK: `benefitChatTitleCount` yer tutuculu, sayı `/billing/wallet`
+#: yanıtının `monthly_allowance` alanından gelir (`core/wallet.py`
+#: `get_wallet` → `MONTHLY_TOKEN_ALLOWANCE`). Eski "Ayda 100 AI kredisi"
+#: dizesi hak 300'den 100'e inerken bir tur boyunca bayat kaldı; bekçi onu
+#: yakalıyordu ama cihazdaki kurulu paketi yakalayamazdı. Bu testler artık
+#: sayının ARB'ye GERİ GELMEMESİNİ ve kablonun sunucuya bağlı kalmasını
+#: çiviliyor.
+_ARB = [
+    "apps/mobile/lib/l10n/app_tr.arb",
+    "apps/mobile/lib/l10n/app_en.arb",
+]
 
 
-@pytest.mark.parametrize("arb_yolu", sorted(_ARB))
-def test_paywall_metnindeki_aylik_hak_sunucu_sabitiyle_ayni(arb_yolu: str):
-    """`benefitChatTitle` sabitle aynı sayıyı yazar.
+@pytest.mark.parametrize("arb_yolu", _ARB)
+def test_paywall_aylik_hak_dizesi_sayi_tasimaz(arb_yolu: str):
+    """`benefitChatTitle` (sabit sayılı) silindi; sayılı başlık yer tutuculu.
 
-    NEDEN ekranda yazan sayı önemli: paywall "sınırsız" demiyor, SAYI
-    söylüyor (K3 kararı) — yani vaat ölçülebilir, dolayısıyla yanlış
-    olabilir. Sunucu 100 verirken ekran 300 derse bu yanlış beyandır.
+    NEDEN: paywall "sınırsız" demiyor, SAYI söylüyor (K3) — sayı ARB'de
+    sabit durursa sunucu sabitinden ayrışır. Sayı yalnız sunucudan gelir.
     """
     veri = json.loads(io.open(_KOK / arb_yolu, encoding="utf-8").read())
-    beklenen = _ARB[arb_yolu].format(n=MONTHLY_TOKEN_ALLOWANCE)
-    assert veri["benefitChatTitle"] == beklenen, (
-        f"{arb_yolu} benefitChatTitle = {veri['benefitChatTitle']!r}, "
-        f"beklenen {beklenen!r} (wallet.MONTHLY_TOKEN_ALLOWANCE = "
-        f"{MONTHLY_TOKEN_ALLOWANCE}).")
+    assert "benefitChatTitle" not in veri, (
+        f"{arb_yolu}: sabit sayılı `benefitChatTitle` geri geldi; sayı "
+        "ARB'de değil sunucuda (`monthly_allowance`).")
+    assert "{count}" in veri["benefitChatTitleCount"]
+    assert not re.search(r"\d", veri["benefitChatTitleUnknown"]), (
+        "sayısız başlık sayı taşıyamaz")
+    # Yer tutucu dışında rakam yok (çoğul kalıbındaki `=1` hariç).
+    govde = re.sub(r"\{count[^}]*\}", "", veri["benefitChatTitleCount"])
+    govde = govde.replace("=1", "")
+    assert not re.search(r"\d", govde), veri["benefitChatTitleCount"]
 
 
-@pytest.mark.parametrize("dart_yolu", sorted(_URETILEN))
-def test_uretilen_l10n_aylik_hakki_tasiyor(dart_yolu: str):
-    """arb düzeltilip `flutter gen-l10n` koşulmazsa cihaza eski sayı gider."""
-    gövde = io.open(_KOK / dart_yolu, encoding="utf-8").read()
-    beklenen = _URETILEN[dart_yolu].format(n=MONTHLY_TOKEN_ALLOWANCE)
-    assert f"benefitChatTitle => '{beklenen}'" in gövde, (
-        f"{dart_yolu} içinde benefitChatTitle {beklenen!r} değil. "
-        "arb düzeltildi ama l10n yeniden üretilmemiş olabilir.")
+def test_paywall_aylik_hakki_sunucudan_okur():
+    """Satış ekranı sayıyı cüzdanın `monthlyAllowance` alanından basar; o
+    alan sunucuda `MONTHLY_TOKEN_ALLOWANCE` ile dolar."""
+    ekran = io.open(
+        _KOK / "apps/mobile/lib/features/paywall/paywall_screen.py"
+        .replace(".py", ".dart"), encoding="utf-8").read()
+    assert "benefitChatTitleCount(hak)" in ekran
+    assert "cuzdan.monthlyAllowance" in ekran
+    sunucu = io.open(_KOK / "backend/core/wallet.py", encoding="utf-8").read()
+    assert '"monthly_allowance": MONTHLY_TOKEN_ALLOWANCE' in sunucu, (
+        "cüzdan yanıtının aylık hak alanı sabitten kopmuş")
 
 
 # ---------------------------------------------------------------------------

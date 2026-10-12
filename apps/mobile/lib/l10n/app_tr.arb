@@ -281,11 +281,9 @@
   "purchaseFailed": "Satın alma tamamlanamadı.",
   "billingUnavailable": "Satın alma şu an kullanılamıyor",
   "billingNoPackages": "Mağazada tanımlı paket bulunamadı.",
-  "billingNotConfigured": "Bu derlemede abonelik anahtarları tanımlı değil.",
   "planWeekly": "Haftalık",
   "planMonthly": "Aylık",
   "planAnnual": "Yıllık",
-  "bestValue": "EN İYİ DEĞER",
   "paywallForFeature": "{name} için Rytho+",
   "@paywallForFeature": {"placeholders": {"name": {"type": "String"}}},
   "priceWithPeriod": "{price} / {unit}",
@@ -294,7 +292,6 @@
   "@annualPerMonth": {"placeholders": {"price": {"type": "String"}}},
   "annualSavingsBadge": "%{percent} tasarruf",
   "@annualSavingsBadge": {"placeholders": {"percent": {"type": "int"}}},
-  "trialThenPrice": "{count} {unit} ücretsiz, sonra {price}",
   "trialThenPriceDays": "{count} gün ücretsiz, sonra {price}",
   "@trialThenPriceDays": {"placeholders": {"count": {"type": "int"}, "price": {"type": "String"}}},
   "trialThenPriceWeeks": "{count} hafta ücretsiz, sonra {price}",
@@ -303,19 +300,6 @@
   "@trialThenPriceMonths": {"placeholders": {"count": {"type": "int"}, "price": {"type": "String"}}},
   "trialThenPriceYears": "{count} yıl ücretsiz, sonra {price}",
   "@trialThenPriceYears": {"placeholders": {"count": {"type": "int"}, "price": {"type": "String"}}},
-  "@trialThenPrice": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "unit": {
-        "type": "String"
-      },
-      "price": {
-        "type": "String"
-      }
-    }
-  },
   "unitDay": "gün",
   "unitWeek": "hafta",
   "unitMonth": "ay",
@@ -327,7 +311,6 @@
   "benefitNatalBody": "Gezegenler, evler ve açılar; tek seferlik yüzeysel özet değil.",
   "benefitDyadTitle": "Arkadaşlarınla günlük ikili dinamik",
   "benefitDyadBody": "Her gün yenilenen ortak okuma. Kalıcı uyum puanı yok.",
-  "benefitChatTitle": "Ayda 100 AI kredisi",
   "benefitChatTitleCount": "Ayda {count} AI kredisi",
   "@benefitChatTitleCount": {"placeholders": {"count": {"type": "int"}}},
   "benefitChatTitleUnknown": "Aylık AI kredisi",
@@ -976,7 +959,6 @@
   "changePasswordSection": "ŞİFREYİ DEĞİŞTİR",
   "changePasswordBody": "Yeni şifreni belirle. Değişiklik anında geçerli olur.",
   "changePasswordAction": "Şifreyi değiştir",
-  "purchaseAlreadyOwned": "Bu Google hesabında zaten etkin bir abonelik var — satın alımların geri yükleniyor…",
   "purchaseItemUnavailable": "Bu ürün şu anda mağazada sunulmuyor. Biraz sonra tekrar dene.",
   "purchaseStoreProblem": "Mağaza şu an satın almayı tamamlayamadı. Birkaç dakika sonra tekrar dene.",
   "tokenStoreTitle": "Kredi Mağazası",
@@ -1002,7 +984,6 @@
       }
     }
   },
-  "tokenBuy": "Satın al",
   "tokenPurchaseDone": "Paket yüklendi. İyi okumalar ✨",
   "tokenPacksUnavailable": "Paketler şu an listelenemiyor",
   "tokenPacksUnavailableBody": "Mağaza bağlantısı kurulamadı. Biraz sonra tekrar dene.",

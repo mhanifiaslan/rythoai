@@ -281,37 +281,21 @@
   "purchaseFailed": "The purchase couldn't be completed.",
   "billingUnavailable": "Purchases aren't available right now",
   "billingNoPackages": "No packages are configured in the store.",
-  "billingNotConfigured": "Subscription keys aren't set in this build.",
   "planWeekly": "Weekly",
   "planMonthly": "Monthly",
   "planAnnual": "Annual",
-  "bestValue": "BEST VALUE",
   "paywallForFeature": "Rytho+ for {name}",
   "priceWithPeriod": "{price} / {unit}",
   "annualPerMonth": "≈ {price} a month",
   "annualSavingsBadge": "Save {percent}%",
-  "trialThenPrice": "{count} {unit} free, then {price}",
   "trialThenPriceDays": "{count, plural, =1{1 day free, then {price}} other{{count} days free, then {price}}}",
   "trialThenPriceWeeks": "{count, plural, =1{1 week free, then {price}} other{{count} weeks free, then {price}}}",
   "trialThenPriceMonths": "{count, plural, =1{1 month free, then {price}} other{{count} months free, then {price}}}",
   "trialThenPriceYears": "{count, plural, =1{1 year free, then {price}} other{{count} years free, then {price}}}",
-  "@trialThenPrice": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "unit": {
-        "type": "String"
-      },
-      "price": {
-        "type": "String"
-      }
-    }
-  },
-  "unitDay": "days",
-  "unitWeek": "weeks",
-  "unitMonth": "months",
-  "unitYear": "years",
+  "unitDay": "day",
+  "unitWeek": "week",
+  "unitMonth": "month",
+  "unitYear": "year",
   "subscriptionTerms": "Your subscription renews automatically unless cancelled at least 24 hours before the period ends. If there is a free trial and you cancel before it ends, you won't be charged. You can cancel in your device's store account settings.",
   "benefitDailyTitle": "A daily reading built for you",
   "benefitDailyBody": "Your natal chart collided with today's sky — not a generic sun-sign horoscope.",
@@ -319,7 +303,6 @@
   "benefitNatalBody": "Planets, houses and aspects — not a one-off surface summary.",
   "benefitDyadTitle": "Daily dynamic with your friends",
   "benefitDyadBody": "A shared reading that renews each day. No fixed compatibility score.",
-  "benefitChatTitle": "100 AI credits a month",
   "benefitChatTitleCount": "{count, plural, =1{1 AI credit a month} other{{count} AI credits a month}}",
   "benefitChatTitleUnknown": "Monthly AI credits",
   "benefitChatBody": "Spend them freely on chat, reports and castings; the more Rytho knows you, the deeper it goes.",
@@ -965,7 +948,6 @@
   "changePasswordSection": "CHANGE PASSWORD",
   "changePasswordBody": "Set your new password. The change takes effect immediately.",
   "changePasswordAction": "Change password",
-  "purchaseAlreadyOwned": "This Google account already has an active subscription — restoring your purchases…",
   "purchaseItemUnavailable": "This product isn't available in the store right now. Try again shortly.",
   "purchaseStoreProblem": "The store couldn't complete the purchase right now. Please try again in a few minutes.",
   "tokenStoreTitle": "Credit Store",
@@ -988,7 +970,6 @@
       }
     }
   },
-  "tokenBuy": "Buy",
   "tokenPurchaseDone": "Pack added. Enjoy your readings ✨",
   "tokenPacksUnavailable": "Packs can't be listed right now",
   "tokenPacksUnavailableBody": "Couldn't reach the store. Please try again shortly.",

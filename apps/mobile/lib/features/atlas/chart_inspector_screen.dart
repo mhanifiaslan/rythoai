@@ -299,13 +299,14 @@ class _ChartInspectorScreenState
 
   /// Sohbet tohumu kip başına ayrı anahtar: tek anahtar `{title}` ile
   /// "Şu an **Şu an gökyüzü** çarkını" ve "Şu an **Sen & Ayşe** çarkını"
-  /// üretiyordu (ölçüldü). Kendi natal haritası için adsız bir anahtar
-  /// henüz yok; `chartAskPrefill(atlasWheelNatal)` orada kalır
-  /// ("Şu an Haritam çarkını inceliyorum") — D8 sözlük turu karar verir.
+  /// üretiyordu (ölçüldü). Kendi natal haritası için adsız anahtar
+  /// `chartAskPrefillOwn` (D7): eski hâl `chartAskPrefill(atlasWheelNatal)`
+  /// ile "Şu an Haritam çarkını inceliyorum" kuruyordu — kullanıcının
+  /// ağzına ekran adı koyan bir cümle.
   /// Tohum ÖN-DOLDURUR, göndermez (`chat_screen.dart` doktrini).
   String _tohum(AppLocalizations l10n) => switch (widget.mode) {
         ChartInspectorMode.natal => widget.person == null
-            ? l10n.chartAskPrefill(l10n.atlasWheelNatal)
+            ? l10n.chartAskPrefillOwn
             : l10n.chartAskPrefillNatal(_personAd()),
         ChartInspectorMode.sky => l10n.chartAskPrefillSky,
         ChartInspectorMode.biwheel => l10n.chartAskPrefillBiwheel,

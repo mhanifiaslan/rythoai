@@ -626,10 +626,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get billingNoPackages => 'Mağazada tanımlı paket bulunamadı.';
 
   @override
-  String get billingNotConfigured =>
-      'Bu derlemede abonelik anahtarları tanımlı değil.';
-
-  @override
   String get planWeekly => 'Haftalık';
 
   @override
@@ -637,9 +633,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get planAnnual => 'Yıllık';
-
-  @override
-  String get bestValue => 'EN İYİ DEĞER';
 
   @override
   String paywallForFeature(String name) {
@@ -659,11 +652,6 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String annualSavingsBadge(int percent) {
     return '%$percent tasarruf';
-  }
-
-  @override
-  String trialThenPrice(int count, String unit, String price) {
-    return '$count $unit ücretsiz, sonra $price';
   }
 
   @override
@@ -722,9 +710,6 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get benefitDyadBody =>
       'Her gün yenilenen ortak okuma. Kalıcı uyum puanı yok.';
-
-  @override
-  String get benefitChatTitle => 'Ayda 100 AI kredisi';
 
   @override
   String benefitChatTitleCount(int count) {
@@ -2032,10 +2017,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get changePasswordAction => 'Şifreyi değiştir';
 
   @override
-  String get purchaseAlreadyOwned =>
-      'Bu Google hesabında zaten etkin bir abonelik var — satın alımların geri yükleniyor…';
-
-  @override
   String get purchaseItemUnavailable =>
       'Bu ürün şu anda mağazada sunulmuyor. Biraz sonra tekrar dene.';
 
@@ -2092,9 +2073,6 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get purchaseAlreadyOwnedSubscription =>
       'Bu hesapta zaten etkin bir abonelik var — satın alımların geri yükleniyor…';
-
-  @override
-  String get tokenBuy => 'Satın al';
 
   @override
   String get tokenPurchaseDone => 'Paket yüklendi. İyi okumalar ✨';

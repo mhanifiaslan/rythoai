@@ -563,8 +563,17 @@ bool paywallKarariVerilebilir(AsyncValue<SubscriptionStatus> durum) =>
 ///
 /// RevenueCat teklifinde başka paketler tanımlı olsa da uygulama yalnızca
 /// buradakileri gösterir; böylece plan yapısı panele dokunmadan tek yerden
-/// değişir. Karar: **sadece aylık**.
-const List<PackageType> kOfferedPackageTypes = [PackageType.monthly];
+/// değişir.
+///
+/// Karar K3/K8 (2026-10-10): yıllık ürünü Console'da SAHİP açar; kod ürünü
+/// teklifte GÖRÜNCE doğru gösterir — görmezse yalnız aylık kalır, ekran
+/// boş bir satır çizmez. Varsayılan seçim aylık (`_defaultPackage`),
+/// yıllığın yanında yalnız ÖLÇÜLMÜŞ "%N tasarruf" rozeti
+/// (`yillikTasarrufYuzdesi`, iki fiyat aynı para biriminde değilse yok).
+const List<PackageType> kOfferedPackageTypes = [
+  PackageType.monthly,
+  PackageType.annual,
+];
 
 /// Mağazadan teklifleri getiren işlev — TEST DİKİŞİ.
 ///

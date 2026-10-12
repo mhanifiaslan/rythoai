@@ -16,6 +16,12 @@
 ///   düğmesi taşır; "bu bir araya girme" dili.
 /// * **Dokunuş** — kullanıcı kilide BASTI. Fade-through (R12-B2): bastığı
 ///   kartın devamı gibi açılır; diyalog dili burada yanlış olurdu.
+///
+/// D7'de son üç doğrudan çağrı yeri de (jeton mağazası, abonelik ekranı
+/// ×2) buraya geçti; `PaywallScreen.kaynak` artık zorunlu ve eski iki
+/// değerli etiket kuralı (`reason == null ? 'intro' : 'locked'`) silindi —
+/// kaynak taşımayan çağrı yeri kalmadığı için geriye uyum kapısının
+/// koruyacağı bir şey yok.
 library;
 
 import 'package:flutter/material.dart';
@@ -60,15 +66,18 @@ enum PaywallKaynak {
   final bool kesinti;
 }
 
-/// `Analytics.paywallShown`a giden etiket.
+/// Ekran tam-ekran diyalog olarak mı açıldı?
 ///
-/// [kaynak] yoksa eski iki değerli kural: `reason` yalnız 402'de dolu gelir.
-/// Geriye uyumluluk kapısı — eski çağrı yerleri (`core/api.dart`,
-/// `atlas_screen`, `calendar_strip`, `subscription_screen`,
-/// `token_store_screen`, `sky_screen`) `acPaywall`a göçene kadar etiket
-/// üretmeye devam etsin.
-String paywallEtiketi(PaywallKaynak? kaynak, String? reason) =>
-    kaynak?.etiket ?? (reason == null ? 'intro' : 'locked');
+/// Para ekranları iki rotayla açılıyor: kesinti yolu (402 köprüsü,
+/// tanıtım) `fullscreenDialog: true`, dokunuş yolu fade-through ya da düz
+/// sayfa. Flutter'ın "diyalogsa ✕, değilse ←" mantığı AppBar'ın OTOMATİK
+/// düğmesinde yaşıyor; düğmeyi meşguliyete bağlamak için elle koyduğumuz
+/// an o mantığı da elle taşımak gerekti. Jeton mağazası ve satış ekranı
+/// aynı soruyu soruyor — iki kopya olmasın diye burada.
+bool tamEkranDiyalogMu(BuildContext context) {
+  final rota = ModalRoute.of(context);
+  return rota is PageRoute && rota.fullscreenDialog;
+}
 
 /// Paywall'ı açar; `true` abonelik açıldı, `false`/`null` kapatıldı.
 ///

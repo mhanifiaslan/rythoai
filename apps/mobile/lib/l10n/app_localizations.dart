@@ -1196,12 +1196,6 @@ abstract class AppLocalizations {
   /// **'Mağazada tanımlı paket bulunamadı.'**
   String get billingNoPackages;
 
-  /// No description provided for @billingNotConfigured.
-  ///
-  /// In tr, this message translates to:
-  /// **'Bu derlemede abonelik anahtarları tanımlı değil.'**
-  String get billingNotConfigured;
-
   /// No description provided for @planWeekly.
   ///
   /// In tr, this message translates to:
@@ -1219,12 +1213,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Yıllık'**
   String get planAnnual;
-
-  /// No description provided for @bestValue.
-  ///
-  /// In tr, this message translates to:
-  /// **'EN İYİ DEĞER'**
-  String get bestValue;
 
   /// No description provided for @paywallForFeature.
   ///
@@ -1249,12 +1237,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'%{percent} tasarruf'**
   String annualSavingsBadge(int percent);
-
-  /// No description provided for @trialThenPrice.
-  ///
-  /// In tr, this message translates to:
-  /// **'{count} {unit} ücretsiz, sonra {price}'**
-  String trialThenPrice(int count, String unit, String price);
 
   /// No description provided for @trialThenPriceDays.
   ///
@@ -1345,12 +1327,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Her gün yenilenen ortak okuma. Kalıcı uyum puanı yok.'**
   String get benefitDyadBody;
-
-  /// No description provided for @benefitChatTitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Ayda 100 AI kredisi'**
-  String get benefitChatTitle;
 
   /// No description provided for @benefitChatTitleCount.
   ///
@@ -3662,12 +3638,6 @@ abstract class AppLocalizations {
   /// **'Şifreyi değiştir'**
   String get changePasswordAction;
 
-  /// No description provided for @purchaseAlreadyOwned.
-  ///
-  /// In tr, this message translates to:
-  /// **'Bu Google hesabında zaten etkin bir abonelik var — satın alımların geri yükleniyor…'**
-  String get purchaseAlreadyOwned;
-
   /// No description provided for @purchaseItemUnavailable.
   ///
   /// In tr, this message translates to:
@@ -3757,12 +3727,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Bu hesapta zaten etkin bir abonelik var — satın alımların geri yükleniyor…'**
   String get purchaseAlreadyOwnedSubscription;
-
-  /// No description provided for @tokenBuy.
-  ///
-  /// In tr, this message translates to:
-  /// **'Satın al'**
-  String get tokenBuy;
 
   /// No description provided for @tokenPurchaseDone.
   ///

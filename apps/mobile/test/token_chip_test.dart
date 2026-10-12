@@ -126,6 +126,17 @@ void main() {
     await _bekle(tester);
 
     expect(find.bySemanticsLabel('50 kredi'), findsOneWidget);
+    // Düğüm DÜĞME ve DOKUNULABİLİR: eski `Semantics(excludeSemantics:
+    // true)` sarmalı etiketi taşıyor ama içerideki `Pressable`ın dokunma
+    // eylemini atıyordu — ekran okuyucu "çift dokun" diyemiyordu.
+    expect(
+        tester.getSemantics(find.bySemanticsLabel('50 kredi')),
+        matchesSemantics(
+            label: '50 kredi',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true));
     semantik.dispose();
   });
 

@@ -30,6 +30,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:rytho/core/providers.dart' show authStateProvider;
 import 'package:rytho/core/subscription.dart';
 import 'package:rytho/core/wallet.dart';
+import 'package:rytho/features/paywall/paywall_acilis.dart';
 import 'package:rytho/features/paywall/paywall_screen.dart';
 import 'package:rytho/features/paywall/token_store_screen.dart';
 import 'package:rytho/l10n/app_localizations.dart';
@@ -57,6 +58,10 @@ const _kPaket = Package(
 
 const _kJetonUrunu = StoreProduct(
     'rytho_tokens_small', '100 kredi', '100 kredi', 99.99, '₺99,99', 'TRY');
+
+/// Mağazanın TEK satın alma düğmesi fiyatı taşır (D7: üç "Satın al" gitti).
+String _satinAl(AppLocalizations l10n) =>
+    l10n.storeBuyWithPrice(_kJetonUrunu.priceString);
 
 /// Türkçe, animasyonsuz kabuk.
 ///
@@ -153,7 +158,7 @@ void main() {
               paketSatinAliciProvider
                   .overrideWithValue((_, _) => asilmisMagaza.future),
             ],
-            child: _uygulama(const PaywallScreen()),
+            child: _uygulama(const PaywallScreen(kaynak: PaywallKaynak.tanitim)),
           ));
 
       // Ödeme başlamadan önce ekran kapanabilir olmalı: kilit KOŞULLU.
@@ -191,7 +196,7 @@ void main() {
               paketSatinAliciProvider
                   .overrideWithValue((_, _) => asilmisMagaza.future),
             ],
-            child: _uygulama(const PaywallScreen()),
+            child: _uygulama(const PaywallScreen(kaynak: PaywallKaynak.tanitim)),
           ));
 
       await tester.tap(find.text(l10n.paywallContinue));
@@ -248,7 +253,7 @@ void main() {
                 gezgin: gezgin),
           ));
       gezgin.currentState!
-          .push(MaterialPageRoute(builder: (_) => const PaywallScreen()));
+          .push(MaterialPageRoute(builder: (_) => const PaywallScreen(kaynak: PaywallKaynak.tanitim)));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
 
@@ -274,8 +279,12 @@ void main() {
               subscriptionProvider
                   .overrideWith((_) async => SubscriptionStatus.none),
               offeringsProvider.overrideWith((_) async => [_kPaket]),
+              // Aylık hak SUNUCUDAN: 100 değil 137 — "100" literali
+              // ekrana sızsaydı bu sayıyla ayırt edilemezdi.
+              walletProvider.overrideWith((_) async => const WalletStatus(
+                  allowance: 0, purchased: 0, monthlyAllowance: 137)),
             ],
-            child: _uygulama(const PaywallScreen()),
+            child: _uygulama(const PaywallScreen(kaynak: PaywallKaynak.tanitim)),
           ));
 
       // Son turların eklediği her Plus özelliği bu ekranda YOKTU. Hepsinin
@@ -288,10 +297,32 @@ void main() {
       ]) {
         expect(find.text(baslik), findsOneWidget, reason: baslik);
       }
-      // Aylık hak 300'den 100'e indi (K1); satış ekranındaki sayı sunucunun
-      // sabitiyle aynı cümleyi kurmalı.
-      expect(l10n.benefitChatTitle, contains('100'));
-      expect(l10n.benefitChatTitle, isNot(contains('300')));
+      // Aylık hak ARB'de SABİT DEĞİL (D7): sunucunun `monthly_allowance`
+      // alanından gelir. Eski "Ayda 100 AI kredisi" dizesi hak 300'den
+      // 100'e inerken bir tur boyunca bayat kaldı.
+      expect(find.text(l10n.benefitChatTitleCount(137)), findsOneWidget);
+      expect(find.text(l10n.benefitChatTitleUnknown), findsNothing);
+    });
+
+    testWidgets('cüzdan okunamadıysa sohbet başlığı SAYISIZ', (tester) async {
+      final l10n = _tr();
+      await _ciz(
+          tester,
+          ProviderScope(
+            retry: (_, _) => null,
+            overrides: [
+              subscriptionProvider
+                  .overrideWith((_) async => SubscriptionStatus.none),
+              offeringsProvider.overrideWith((_) async => [_kPaket]),
+              walletProvider.overrideWith((_) async => WalletStatus.unknown),
+            ],
+            child: _uygulama(const PaywallScreen(kaynak: PaywallKaynak.tanitim)),
+          ));
+
+      // Ölçülmeyen söylenmez: hak bilinmiyorken "Aylık AI kredisi".
+      expect(find.text(l10n.benefitChatTitleUnknown), findsOneWidget);
+      expect(find.textContaining('100'), findsNothing,
+          reason: 'uydurma sayı yok');
     });
   });
 
@@ -327,7 +358,7 @@ void main() {
       // "günün 6. sohbet mesajı"ydı.
       expect(find.byType(GoldButton), findsOneWidget,
           reason: 'tek düğme kalmalı: Rytho+ yolu');
-      expect(find.text(l10n.tokenBuy), findsNothing,
+      expect(find.text(_satinAl(l10n)), findsNothing,
           reason: 'satın alma düğmesi abone olmayana çizilmez');
       expect(find.text(l10n.tokenPacksPlusOnlyTitle), findsOneWidget);
       expect(find.text(l10n.tokenPacksSeePlus), findsOneWidget);
@@ -341,7 +372,7 @@ void main() {
       await _ciz(tester,
           jetonKapsami(durum: const SubscriptionStatus(active: true)));
 
-      expect(find.text(l10n.tokenBuy), findsOneWidget);
+      expect(find.text(_satinAl(l10n)), findsOneWidget);
       expect(find.text(l10n.tokenPacksPlusOnlyTitle), findsNothing);
     });
 
@@ -361,7 +392,7 @@ void main() {
               durum: const SubscriptionStatus(
                   active: true, isTrial: true, trialDaysLeft: 2)));
 
-      expect(find.text(l10n.tokenBuy), findsOneWidget);
+      expect(find.text(_satinAl(l10n)), findsOneWidget);
     });
 
     testWidgets('abonelik BİLİNMİYORKEN iskelet var, karar YOK',
@@ -373,7 +404,7 @@ void main() {
       // biri aboneden ürünü saklar, öteki abone olmayana karşılığı olmayan
       // bir bakiye satar (`paywallKarariVerilebilir` tam bunun için var).
       expect(find.byType(SkeletonPanel), findsWidgets);
-      expect(find.text(l10n.tokenBuy), findsNothing);
+      expect(find.text(_satinAl(l10n)), findsNothing);
       expect(find.text(l10n.tokenPacksPlusOnlyTitle), findsNothing,
           reason: 'bilmediğin şeyi söylemek, susmaktan kötü');
     });
@@ -405,13 +436,13 @@ void main() {
       expect(_geriTusuGecer(tester, TokenStoreScreen), isTrue);
       expect(_kapatmaDugmesi(tester).onPressed, isNotNull);
 
-      await tester.tap(find.text(l10n.tokenBuy));
+      await tester.tap(find.text(_satinAl(l10n)));
       await tester.pump();
 
       expect(_geriTusuGecer(tester, TokenStoreScreen), isFalse,
           reason: 'bu ekranda AppBar hiç özelleştirilmemişti');
       expect(_kapatmaDugmesi(tester).onPressed, isNull);
-      expect(_dugmeBasilabilir(tester, l10n.tokenBuy), isFalse);
+      expect(_dugmeBasilabilir(tester, _satinAl(l10n)), isFalse);
     });
 
     testWidgets('sunucu yüklemediyse "yüklendi" DENMEZ', (tester) async {
@@ -423,7 +454,7 @@ void main() {
               // `false` = bütçe doldu, bakiye sunucuda henüz görünmüyor.
               satinAlici: (_, _) async => false));
 
-      await tester.tap(find.text(l10n.tokenBuy));
+      await tester.tap(find.text(_satinAl(l10n)));
       await tester.pump();
       await tester.pump();
 

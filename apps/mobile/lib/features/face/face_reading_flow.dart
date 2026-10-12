@@ -23,6 +23,7 @@ import '../../widgets/atlas_widgets.dart' show AstrolabeSpinner;
 import '../../widgets/glass.dart';
 import '../../widgets/okuma_kabi.dart';
 import '../chat/chat_screen.dart';
+import '../paywall/bedel_rozeti.dart';
 import '../paywall/ozellik_katalogu.dart';
 import '../profile/legal_page.dart' show LegalPage, privacyPolicySections;
 import 'face_api.dart';
@@ -230,7 +231,11 @@ class _ConsentFormState extends ConsumerState<_ConsentForm> {
               Text(_hata!,
                   style: RythoText.body(13, color: RythoColors.madder)),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: RythoSpace.md),
+            // Bedel HARCAMADAN ÖNCE (D7): okuma bu düğmeyle başlıyor,
+            // sayı düğmenin hemen üstünde. Bilinmiyorsa rozet susar.
+            const Center(child: BedelRozeti(PlusOzellik.face)),
+            const SizedBox(height: RythoSpace.sm),
             FilledButton(
               onPressed: (_onaylandi && !_kaydediliyor) ? _onayla : null,
               child: _kaydediliyor

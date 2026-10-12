@@ -626,10 +626,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get billingNoPackages => 'No packages are configured in the store.';
 
   @override
-  String get billingNotConfigured =>
-      'Subscription keys aren\'t set in this build.';
-
-  @override
   String get planWeekly => 'Weekly';
 
   @override
@@ -637,9 +633,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get planAnnual => 'Annual';
-
-  @override
-  String get bestValue => 'BEST VALUE';
 
   @override
   String paywallForFeature(String name) {
@@ -659,11 +652,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String annualSavingsBadge(int percent) {
     return 'Save $percent%';
-  }
-
-  @override
-  String trialThenPrice(int count, String unit, String price) {
-    return '$count $unit free, then $price';
   }
 
   @override
@@ -711,16 +699,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get unitDay => 'days';
+  String get unitDay => 'day';
 
   @override
-  String get unitWeek => 'weeks';
+  String get unitWeek => 'week';
 
   @override
-  String get unitMonth => 'months';
+  String get unitMonth => 'month';
 
   @override
-  String get unitYear => 'years';
+  String get unitYear => 'year';
 
   @override
   String get subscriptionTerms =>
@@ -746,9 +734,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get benefitDyadBody =>
       'A shared reading that renews each day. No fixed compatibility score.';
-
-  @override
-  String get benefitChatTitle => '100 AI credits a month';
 
   @override
   String benefitChatTitleCount(int count) {
@@ -2071,10 +2056,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changePasswordAction => 'Change password';
 
   @override
-  String get purchaseAlreadyOwned =>
-      'This Google account already has an active subscription — restoring your purchases…';
-
-  @override
   String get purchaseItemUnavailable =>
       'This product isn\'t available in the store right now. Try again shortly.';
 
@@ -2143,9 +2124,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get purchaseAlreadyOwnedSubscription =>
       'This account already has an active subscription — restoring your purchases…';
-
-  @override
-  String get tokenBuy => 'Buy';
 
   @override
   String get tokenPurchaseDone => 'Pack added. Enjoy your readings ✨';

@@ -14,6 +14,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rytho/core/wallet.dart' show WalletStatus, walletProvider;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/features/paywall/ozellik_katalogu.dart';
 import 'package:rytho/features/paywall/paywall_acilis.dart';
@@ -32,7 +34,11 @@ class _RotaGozcusu extends NavigatorObserver {
   }
 }
 
-Widget _sar(Widget govde, _RotaGozcusu gozcu) => MaterialApp(
+// `ProviderScope`: kilit kartı bedel rozeti taşıyor (D7), rozet cüzdanı
+// izliyor; cüzdan gelmeden rozet çizilmez.
+Widget _sar(Widget govde, _RotaGozcusu gozcu) => ProviderScope(
+    overrides: [walletProvider.overrideWith((_) async => WalletStatus.unknown)],
+    child: MaterialApp(
       locale: const Locale('tr'),
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -48,7 +54,7 @@ Widget _sar(Widget govde, _RotaGozcusu gozcu) => MaterialApp(
         child: child!,
       ),
       home: Scaffold(body: Center(child: govde)),
-    );
+    ));
 
 /// İtilen rotanın SAYFASI — monte edilmeden.
 Widget _sayfa(Route<dynamic> rota, BuildContext context) => switch (rota) {
@@ -66,18 +72,7 @@ String _yorumsuz(String yol) => File(yol)
     .join('\n');
 
 void main() {
-  group('paywallEtiketi', () {
-    test('kaynak varsa onun etiketi', () {
-      expect(paywallEtiketi(PaywallKaynak.atlasKaro, null), 'atlas_tile');
-      expect(paywallEtiketi(PaywallKaynak.kilitKarti, 'sebep'),
-          'locked_card');
-    });
-
-    test('kaynak yoksa eski iki değerli kural (geriye uyum)', () {
-      expect(paywallEtiketi(null, null), 'intro');
-      expect(paywallEtiketi(null, 'sebep'), 'locked');
-    });
-
+  group('etiket', () {
     test('kesinti kaynakları eski etiketleri taşır — seri kopmasın', () {
       expect(PaywallKaynak.kilit402.etiket, 'locked');
       expect(PaywallKaynak.tanitim.etiket, 'intro');
@@ -88,12 +83,31 @@ void main() {
       expect(etiketler.length, PaywallKaynak.values.length);
     });
 
-    test('PaywallScreen etiketi bu işlevden alıyor', () {
+    test('PaywallScreen etiketi KAYNAKTAN alıyor; iki değerli kural yok', () {
+      // D7: `kaynak` zorunlu, `paywallEtiketi` geriye-uyum kapısı silindi.
+      // Etiket dizeleri yalnız enum'da yaşar; ekrana literal geri gelirse
+      // hangi yüzeyin dönüştürdüğü yine ölçülemez olur.
       final kaynak = _yorumsuz('lib/features/paywall/paywall_screen.dart');
-      expect(kaynak,
-          contains('paywallEtiketi(widget.kaynak, widget.reason)'));
-      expect(kaynak, isNot(contains("reason == null ? 'intro'")),
-          reason: 'iki değerli kural ekranda değil, tek yerde durur');
+      expect(kaynak, contains('Analytics.paywallShown(widget.kaynak.etiket)'));
+      expect(kaynak, contains('required this.kaynak'));
+      expect(kaynak, isNot(contains("'intro'")));
+      expect(kaynak, isNot(contains("'locked'")));
+    });
+
+    test('PaywallScreen yalnız acPaywall kuruyor', () {
+      // Dokuz çağrı yeri teker teker göçtü; onuncusu doğrudan kurarsa
+      // rota türü ve etiket yine yere göre rastgele olur.
+      final dosyalar = Directory('lib')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .where((f) => !f.path.endsWith('paywall_acilis.dart'))
+          .where((f) => !f.path.endsWith('paywall_screen.dart'));
+      for (final f in dosyalar) {
+        final yol = f.path.replaceAll(r'\', '/');
+        expect(_yorumsuz(yol), isNot(contains('PaywallScreen(')),
+            reason: '$yol paywall\'ı doğrudan kuruyor');
+      }
     });
   });
 

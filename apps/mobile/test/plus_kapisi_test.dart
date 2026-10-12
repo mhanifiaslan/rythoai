@@ -29,6 +29,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // `Override` türü flutter_riverpod 3'te misc.dart'tan geliyor.
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:rytho/core/wallet.dart' show WalletStatus, walletProvider;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/core/providers.dart';
 import 'package:rytho/core/subscription.dart';
@@ -54,7 +55,15 @@ String _yorumsuz(String yol) => File(yol)
 
 Widget _sar(Widget govde, {List<Override> overrides = const []}) =>
     ProviderScope(
-      overrides: overrides,
+      // Bedel kapısı (D7) cüzdanı izliyor: `unknown` → kapı sorulmaz,
+      // ekran kapı öncesi davranışında kalır; gerçek sağlayıcı Dio'ya
+      // çıkıp zamanlayıcı bırakırdı. Bu dosyadaki testler cüzdanı kendileri
+      // vermiyor (ölçüldü); veren bir test eklenirse Riverpod yineleneni
+      // reddeder ve varsayılan o testte parametreye taşınır.
+      overrides: [
+        walletProvider.overrideWith((_) async => WalletStatus.unknown),
+        ...overrides,
+      ],
       child: MaterialApp(
         localizationsDelegates: const [
           AppLocalizations.delegate,

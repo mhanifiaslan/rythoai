@@ -11,6 +11,13 @@
 /// Kural (İ Ching rozetiyle aynı): cüzdan yükleniyor, okunamadı ya da bedel
 /// yoksa rozet HİÇ çizilmez — ölçülmeyen söylenmez, uydurma sayı bayat
 /// sayıdan kötü.
+///
+/// ## Ortak rozet
+/// Satış ekranının bir satırı birden çok özelliği anıyor ("Yıl Haritası,
+/// İç Takvim ve Doğum Kapısı"; "BaZi ve sinastri"). O satıra tek sayı
+/// ancak ÜÇÜ DE aynı bedeldeyse yazılabilir — biri farklıysa cümle
+/// kurulamaz ve rozet susar (`bedelNotu`nun "derin raporlar" özetiyle aynı
+/// kural). [BedelRozeti.ortak] bunun için.
 library;
 
 import 'package:flutter/material.dart';
@@ -40,10 +47,40 @@ int? bedelOku(WalletStatus? cuzdan, PlusOzellik ozellik) {
   return bedel;
 }
 
-class BedelRozeti extends ConsumerWidget {
-  const BedelRozeti(this.ozellik, {super.key, this.kucuk = false});
+/// Birden çok özelliğin ORTAK bedeli — ya da hiçbir şey.
+///
+/// Hepsi okunabildi ve hepsi aynıysa o sayı; biri okunamadıysa ya da
+/// sayılar ayrışıyorsa `null`. Boş liste de `null`: hiçbir şeyin bedeli
+/// "bir sayı" değildir.
+int? ortakBedel(WalletStatus? cuzdan, List<PlusOzellik> ozellikler) {
+  if (ozellikler.isEmpty) return null;
+  int? ortak;
+  for (final o in ozellikler) {
+    final b = bedelOku(cuzdan, o);
+    if (b == null) return null;
+    if (ortak != null && b != ortak) return null;
+    ortak = b;
+  }
+  return ortak;
+}
 
-  final PlusOzellik ozellik;
+class BedelRozeti extends ConsumerWidget {
+  /// Tek özelliğin bedeli.
+  const BedelRozeti(PlusOzellik this.ozellik, {super.key, this.kucuk = false})
+      : ozellikler = null;
+
+  /// Birden çok özelliğin ORTAK bedeli (bkz. [ortakBedel]).
+  const BedelRozeti.ortak(List<PlusOzellik> this.ozellikler,
+      {super.key, this.kucuk = false})
+      : ozellik = null;
+
+  /// İki kurucu, iki alan: `const` kurucunun başlatıcısında liste literali
+  /// kurulamıyor (`[ozellik]` sabit ifade değil), o yüzden tek liste alanı
+  /// yerine ikisi — [liste] birleştirir.
+  final PlusOzellik? ozellik;
+  final List<PlusOzellik>? ozellikler;
+
+  List<PlusOzellik> get liste => ozellikler ?? [ozellik!];
 
   /// Karo köşesi: ikonsuz, yalnız sayı + birim. Karo ~110 px; ikon + hap
   /// dolgusu başlığın yerini yerdi.
@@ -53,13 +90,12 @@ class BedelRozeti extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // `.value`: tazeleme turunda (harcama sonrası) önceki cüzdan korunur,
     // rozet yanıp sönmez.
-    final bedel = bedelOku(ref.watch(walletProvider).value, ozellik);
+    final bedel = ortakBedel(ref.watch(walletProvider).value, liste);
     if (bedel == null) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
-    // Bedele özel ARB anahtarı yok (`tokenPackAmount` paket, `tokenBalanceChip`
-    // bakiye anlamı taşıyor); birim sözcüğü + sayı. Çoğul farkı olan dilde
-    // ayrı anahtar D7'de.
-    final metin = '$bedel ${l10n.tokenUnit}';
+    // `tokenCost` bedele özel anahtar: İngilizce tekil/çoğul ayrımı orada
+    // (`tokenPackAmount` paket, `tokenBalanceChip` bakiye anlamı taşıyor).
+    final metin = l10n.tokenCost(bedel);
     final stil = RythoType.dataSmall.copyWith(color: RythoColors.goldBright);
     if (kucuk) return Text(metin, style: stil);
     return Container(
