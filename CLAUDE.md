@@ -202,10 +202,12 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ## 6. Bugünkü durum (2026-10-10)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.19.0+49**, AAB **üretildi**
-(`10-10 19:53`, 114,0 MiB, **altı** kapı da OK — D3 ve R8 onarımı içeriyor)
-ama **Play'e HENÜZ YÜKLENMEDİ**; plan tek büyük sürüm **1.20.0+50**, 49'luk
-AAB yalnız ölçüm artefaktı.
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.20.0+50** (pubspec, D8 —
+2026-10-12); D0–D8 + S1 dalgalarının HEPSİ kodda ve commit'li. Sıradaki üç
+adım dışa dönük ve SAHİP onayı ister: `infra/deploy-backend.ps1` (D8'in
+`default_name` değişikliği canlıda değil — rev 00109 S1+D0'da kaldı) →
+`infra/build-aab.ps1` ile AAB 50 → Console'a yükleme. 49'luk AAB (`10-10
+19:53`) yalnız ölçüm artefaktıydı, yüklenmedi.
 
 ⚠️ **Play "DEX optimizasyonu %0" uyarısı KAPANDI (kaynakta, 2026-10-10)** —
 Console'un kendi ölçümü ancak 50 yüklenince değişir. Kök: RevenueCat Amazon
@@ -251,7 +253,7 @@ kavram için TEK bileşen kalır. Plan dosyası
 | D5 ana ekran+profil (tek "Bugün", AsyncBolum, günlük satırı altta, kabuk niyeti, hikâye sükûneti, çıkış onaylı, abonelik "—", saat uydurulmaz) | ✅ Flutter 1194, 70 mutasyon | `3dfe7a3` |
 | D6 derinlik (OkumaKabi 9 yüzey, çark çizgi dili + salt önizleme, Çevrem/kişi onayları, sohbet hata balonu + 402 tek yol) | ✅ Flutter 1441, 89/89 mutasyon | `707dd4a` |
 | D7 para (bedel kapısı 4 ekran — cüzdan yüklenirken geçmez; yıllık K8 ölçülmüş rozet; abonelik üç hâl + K2; mağaza tek düğme; `purchaseErrorText` tek kapı; rozet 10 yüzey; 429 notu) — ajansız, tek elden | ✅ Flutter 1500+, backend 2749, 33/33 mutasyon | `1531471` |
-| D8 cırcır+l10n+belge | bekliyor | — |
+| D8 cırcır bekçileri (hareket/token/l10n — dosya başına ÖLÇÜLEN tavan), 58 ölü ARB anahtarı, ✨ 15→5, EN çoğul, Plaque/dock/TypingDots/ErrorCard/GlassSegments.margin, backend varsayılan ad dile göre, belgeler, pubspec 1.20.0+50 | ✅ Flutter 1545, backend 2751, 12/12 mutasyon | `0b687bb` |
 | **S1 sohbet personası** (plan dışı, sahip şikâyeti 2026-10-10; yalnız backend — kapı ``, yetki alanı, `persona_guard`, `tools/sohbet_olc.py`) | ✅ pytest 2750, 66+7 mutasyon · ✅ CANLI rev 00109 | `5da5ed2` |
 
 ### S1 — sohbet personası kayması (ölçüldü 2026-10-10, üretim Firestore salt okuma)
