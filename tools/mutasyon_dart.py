@@ -82,6 +82,11 @@ for ajan, r in d.items():
             if aday in metin:
                 eski = aday
                 yeni = re.sub(r'\s+\([^()]*\)\s*$', '', yeni.replace(chr(92) + 'n', satir_sonu))
+            elif chr(13) in metin and eski.replace(chr(10), satir_sonu) in metin:
+                # Capa GERCEK LF satir sonuyla yazilmis, dosya CRLF (D7/D8'de
+                # bes kez "ÇAPA YOK" bu yuzdendi): dosyanin satir sonuna cevir.
+                eski = eski.replace(chr(10), satir_sonu)
+                yeni = yeni.replace(chr(10), satir_sonu)
         if eski not in metin:
             print(f'{ad:54s} ÇAPA YOK ({b["mutasyon_dosya"]})'); sorun.append(ad); continue
         io.open(yol, 'w', encoding='utf-8', newline='').write(
