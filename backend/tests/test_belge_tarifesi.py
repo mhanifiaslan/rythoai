@@ -46,7 +46,7 @@ Dosya büyüdü; bugün DÖRT konu var ve hepsi aynı sınıf kusurun örneği
    `MONTHLY_TOKEN_ALLOWANCE` ile aynı sayıyı söyler.
 2. **Özellik başına bedel** — `/billing/wallet` yanıtı `TOKEN_COSTS`
    tablosunu olduğu gibi taşır. Mağaza ekranındaki bedel satırı artık o
-   haritadan üretiliyor; istemci ucu `apps/mobile/test/bedel_satiri_test.dart`.
+   haritadan üretiliyor; istemci ucu `apps/mobile/test/bedel_notu_test.dart`.
 3. **Konsola elle girilen ürün adları** — tam tablo TEK belgede durur,
    ikinci belge oraya işaret eder ve onunla çelişmez.
 4. **Maliyet belgesindeki "bugünkü bedel" sütunu** — `docs/maliyet-calismasi.md`
@@ -280,8 +280,8 @@ def test_uretilen_l10n_aylik_hakki_tasiyor(dart_yolu: str):
 # bir örneği, özellik bedelleri ötekisi.
 #
 # Mağazadaki bedel satırı artık sunucudan geliyor (bkz.
-# `apps/mobile/.../token_store_screen.dart` → `bedelSatiri`, bekçisi
-# `apps/mobile/test/bedel_satiri_test.dart`). Ama o bekçi zincirin yalnız
+# `apps/mobile/.../token_store_screen.dart` → `bedelNotu`, bekçisi
+# `apps/mobile/test/bedel_notu_test.dart`). Ama o bekçi zincirin yalnız
 # SON iki halkasını ölçüyor: "istemci `costs` haritasını kullanıyor mu".
 # İlk halka burada çivileniyor: harita gerçekten `TOKEN_COSTS` mü, ve
 # yanıt modeli onu geçiriyor mu? Bu halka koparsa harita boş gelir,
@@ -340,7 +340,7 @@ def test_ucretsiz_katman_uyarisi_SOHBET_BEDELIYLE_tutarli():
     taraması boş döndü), yani B1'in kapattığı kusur aynı yüzeyde İKİNCİ bir
     kopya olarak duruyordu.
 
-    NEDEN bu satır `bedelSatiri` gibi SUNUCUDAN üretilmiyor: cümledeki ilk
+    NEDEN bu satır `bedelNotu` gibi SUNUCUDAN üretilmiyor: cümledeki ilk
     sayı bir bedel DEĞİL, BİRİM ("1 kredi"). Konuma bağlı sayı değiştirme
     onu da ezer ve "7 kredi = 7 sohbet mesajı" gibi bir yalan üretirdi —
     bayat sayıdan kötü. Elde kalan doğru araç, ayrışmayı SESSİZ olmaktan

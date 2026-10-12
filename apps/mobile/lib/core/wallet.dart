@@ -64,7 +64,7 @@ class WalletStatus {
   /// diyordu ve o gerekçe YANLIŞTI: alan ayrıştırılıyor ama hiçbir yüzey
   /// okumuyordu — mağazadaki bedel satırı elle yazılmış bir l10n dizesiydi.
   /// Bugün okuyan yüzey `features/paywall/token_store_screen.dart` →
-  /// `bedelSatiri`.
+  /// `bedelNotu`.
   ///
   /// ⚠️ Düzeltmenin kendisi de bir fazlasını iddia etmişti ("sunucu
   /// tablosu değişse SESSİZCE yanlışa düşerdi"). Ölçüldü: depoda sessiz
@@ -72,7 +72,7 @@ class WalletStatus {
   /// `TOKEN_COSTS` ile çivilemiş durumda ve tablo oynatılınca kırmızı
   /// oluyor. Test göremediği tek şey KURULU paket: sunucu ayrı
   /// dağıtıldığı için cihazdaki derlenmiş cümle eski kalabiliyor. Bu
-  /// alanın varlık sebebi o pencere; gerekçesi `bedelSatiri`de ölçülmüş
+  /// alanın varlık sebebi o pencere; gerekçesi `bedelNotu`de ölçülmüş
   /// hâliyle yazılı.
   ///
   /// Bedeli HARCAMADAN ÖNCE gösteren tek ekran hâlâ İ Ching ve o rozet

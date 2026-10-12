@@ -58,93 +58,38 @@ const Map<String, int> kPackDisplayAmounts = {
   'rytho_tokens_large': 1000,
 };
 
-/// Bedel satırının şablonunda sayıların GEÇTİĞİ SIRA — tek tek anılan
-/// özellikler. Dördüncü sayı ("derin raporlar ve yüz okuma") tek bir
-/// özellik değil, geri kalanların ÖZETİ; o yüzden listede yok.
-/// ⚠️ SIRA ŞABLONDAN OKUNUR, alfabetik ya da sunucudaki tanım sırası
-/// DEĞİL. Bir tur boyunca `['chat', 'dyad', 'iching']` yazıyordu ve bu
-/// dosyanın kendi docstring'i ("sırayla sohbet · I Ching · ikili") tam
-/// tersini söylüyordu — yani yorum doğruydu, sabit yanlıştı. Sonuç
-/// ekranda İ Ching ile ikili dinamiğin bedelleri YER DEĞİŞMİŞ görünüyordu
-/// (2 ve 3 takas). Bedeli tek kaynağa bağlamak için yazılan kod, tam da
-/// kullanıcıya yanlış sayı gösteren bir yalan üretiyordu.
-const List<String> _kBedelSirasi = ['chat', 'iching', 'dyad'];
-
-/// Mağazadaki bedel satırı — sayılar SUNUCUDAN gelen `costs` haritasından.
+/// Mağazadaki bedel satırı — sayılar SUNUCUDAN gelen `costs` haritasından;
+/// bilinmiyorsa satır HİÇ çizilmez (`null`).
 ///
 /// NEDEN (ölçüldü): bedel gerçeğinin kanonik kaynağı sunucudaki
 /// `core/wallet.py` `TOKEN_COSTS` tablosu ve o tablo `/billing/wallet`
-/// yanıtının `costs` alanıyla ekrana kadar GELİYOR — [WalletStatus.costs]
-/// onu ayrıştırıyordu ama hiçbir yüzey kullanmıyordu. Ekranda görünen
-/// rakamlar elle yazılmış bir çeviri dizesiydi (`tokenCostsNote`), yani
-/// bedel gerçeğinin İKİNCİ bir kaynağı vardı.
+/// yanıtının `costs` alanıyla ekrana kadar GELİYOR. Eski satır elle yazılmış
+/// bir çeviri dizesiydi (`tokenCostsNote` "1 · 2 · 3 · 5"), yani bedel
+/// gerçeğinin İKİNCİ kaynağı; ara çözüm (`bedelSatiri`) şablondaki sayıları
+/// KONUMA göre sunucu sayılarıyla değiştiriyordu ve bir tur boyunca İ Ching
+/// ile ikili dinamiğin bedellerini yer değiştirmiş gösterdi. D7'de ARB
+/// girdisi yer tutuculu oldu (`{chat} {iching} {dyad} {deep}`) — konum
+/// eşleştirmesi ve şablonun kendi sayıları diye bir şey kalmadı.
 ///
-/// ⚠️ Bu notun ilk hâli ayrışmanın "SESSİZ" olduğunu yazıyordu ve o
-/// gerekçe YANLIŞTI — ölçüldü (2026-10-02, mutasyon): `TOKEN_COSTS`
-/// içinde `chat` 1→4 yapılınca
-/// `backend/tests/test_honesty.py::TestJetonIddialari
-/// ::test_magazadaki_bedel_satiri_koddaki_bedellerle_ayni` KIRMIZI oluyor;
-/// o bekçi iki ARB dosyasındaki her sayıyı kendi etiketinin yanında
-/// çivilemiş durumda. Yani depoda ayrışma sessiz DEĞİL.
+/// Sessiz pencere hâlâ geçerli ve bu işlevin varlık sebebi: sunucu ayrı
+/// dağıtılır (backend rev ↔ sürüm kodu), kurulu paketin derlenmiş cümlesi
+/// eski rakamı söyleyemez çünkü rakam cümlede YOK, sunucudan gelir.
 ///
-/// Sessiz olan şey başka ve onarımın gerçek gerekçesi bu: o bekçi HEAD'i
-/// ölçüyor, CİHAZDAKİ PAKETİ ölçemez. Sunucu ayrı dağıtılıyor (backend
-/// rev ↔ sürüm kodu bağımsız), yani `TOKEN_COSTS` bir backend dağıtımıyla
-/// değiştiği an kurulu uygulamanın DERLENMİŞ cümlesi eski rakamı
-/// söylemeye devam eder ve bunu hiçbir test göremez — mağaza ekranı,
-/// kullanıcının harcamadan önce bedeli okuduğu yüzey olduğu için de
-/// yanlış sayı doğrudan para kararını etkiler. Satırı sunucudan üretmek
-/// bu pencereyi kapatıyor.
-///
-/// NEDEN burada biçimlendirme (dize parametrelendirmek yerine):
-/// `tokenCostsNote` bugün parametresiz bir cümle ve `lib/l10n/` üretilen
-/// paylaşımlı dosyalar — doğru çözüm ARB girdisini yer tutuculu hale
-/// getirmek ve bu tur onu ÖNERİYOR. O girdi gelene kadar satır şablonun
-/// sayılarını sunucudan gelenlerle değiştirerek kuruluyor; yer tutucular
-/// eklendiğinde bu işlev DÜŞER, çağıran doğrudan
-/// `l10n.tokenCostsNote(chat: …, …)` der.
-///
-/// EŞLEŞTİRME KONUMA bağlı ve bu BİLİNÇLİ bir risk: şablondaki sayılar
-/// sırayla sohbet · I Ching · ikili · derin özeti. Sıra iki ARB dosyasında
-/// da bu ve `backend/tests/test_honesty.py` her sayıyı kendi etiketinin
-/// yanında çivilemiş durumda. Yine de eşleşme ÖLÇÜLMEDEN uygulanmıyor: üç
-/// ön koşulun biri tutmazsa (şablonda tam dört sayı yok · haritada tek tek
-/// anılan özellikler yok · geri kalan özellikler tek bir bedelde
-/// anlaşmıyor) satır HİÇ dokunulmadan döner. O hâlde ekranda derlemenin
-/// kendi tablosu görünür — uydurma bir sayı değil, yalnızca sunucu yeniden
-/// dağıtıldıysa bayatlayabilecek bir sayı.
-String bedelSatiri(String sablon, Map<String, int> bedeller) {
-  final sayilar = <int>[];
-  for (final ad in _kBedelSirasi) {
-    final deger = bedeller[ad];
-    if (deger == null) return sablon;
-    sayilar.add(deger);
-  }
-
-  // Şablon derin raporları TEK sayıyla özetliyor; özet ancak geri kalan
-  // TÜM özellikler aynı bedeldeyken doğru. Özellik ADLARI burada
-  // sayılmıyor (haritanın kendisinden türetiliyor): sunucuya yeni bir
-  // rapor eklendiğinde istemcide güncellenmesi gereken bir liste daha
-  // olmasın. Aynı şartı sunucu tarafında `test_honesty.py` da arıyor.
+/// Dördüncü sayı ("derin raporlar ve yüz okuma") tek özellik değil, geri
+/// kalanların ÖZETİ; özet ancak hepsi aynı bedeldeyken doğru — değilse
+/// cümle kurulamaz ve `null` döner (uydurma özet, bayat sayıdan kötü).
+/// Aynı şartı sunucu tarafında `backend/tests/test_honesty.py` arıyor.
+String? bedelNotu(AppLocalizations l10n, Map<String, int> bedeller) {
+  final chat = bedeller['chat'];
+  final iching = bedeller['iching'];
+  final dyad = bedeller['dyad'];
+  if (chat == null || iching == null || dyad == null) return null;
   final digerleri = {
     for (final girdi in bedeller.entries)
-      if (!_kBedelSirasi.contains(girdi.key)) girdi.value
+      if (!const {'chat', 'iching', 'dyad'}.contains(girdi.key)) girdi.value
   };
-  if (digerleri.length != 1) return sablon;
-  sayilar.add(digerleri.first);
-
-  final yerler = RegExp(r'\d+').allMatches(sablon).toList();
-  if (yerler.length != sayilar.length) return sablon;
-
-  final cikti = StringBuffer();
-  var son = 0;
-  for (var i = 0; i < yerler.length; i++) {
-    cikti.write(sablon.substring(son, yerler[i].start));
-    cikti.write(sayilar[i]);
-    son = yerler[i].end;
-  }
-  cikti.write(sablon.substring(son));
-  return cikti.toString();
+  if (digerleri.length != 1) return null;
+  return l10n.tokenCostsNote(chat, iching, dyad, digerleri.first);
 }
 
 class TokenStoreScreen extends ConsumerStatefulWidget {
@@ -346,10 +291,10 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
 
             const SizedBox(height: RythoSpace.md),
             // Bedeller SUNUCUDAN: `cuzdan.costs` boşken (bakiye henüz
-            // okunmadı ya da okunamadı) şablon olduğu gibi çizilir —
-            // bkz. [bedelSatiri].
-            Text(bedelSatiri(l10n.tokenCostsNote, cuzdan.costs),
-                style: RythoType.caption),
+            // okunmadı ya da okunamadı) satır HİÇ çizilmez — ölçülmeyen
+            // söylenmez; bkz. [bedelNotu].
+            if (bedelNotu(l10n, cuzdan.costs) case final not?)
+              Text(not, style: RythoType.caption),
           ],
         ),
       ),

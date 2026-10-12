@@ -659,19 +659,19 @@ class TestJetonIddialari:
 
     #: Bedel satırının SUNUCUDAN kurulduğunu söyleyen kablo. Çapa tek bir
     #: ada bağlanmıyor; ÜÇ TERİM birden aranıyor: biçimlendirici çağrılıyor
-    #: (`bedelSatiri`), şablonu çeviriden alıyor (`l10n.tokenCostsNote`),
+    #: (`bedelNotu`), şablonu çeviriden alıyor (`l10n.tokenCostsNote`),
     #: ve ikinci argüman bir `.costs` ALANI. Terimler BİLEREK bağımsız
     #: değil — hepsi TEK bir çağrının içinde aranıyor, çünkü ölçülen şey
     #: üç olgunun ayrı ayrı var olması değil BİRBİRİNE BAĞLI olması
     #: (dosyada üçü ayrı ayrı dursa satır yine şablonla çizilebilir).
-    #: Üçüncüsü asıl olan — `bedelSatiri(…, const {})` yazmak kodu
+    #: Üçüncüsü asıl olan — `bedelNotu(…, const {})` yazmak kodu
     #: derlenebilir bırakır, satır ekranda da görünür (işlev ön koşul
     #: tutmayınca şablonu olduğu gibi döndürüyor), yani de-kablolama
     #: SESSİZDİR. Önceki hâl yalnız `"l10n.tokenCostsNote" in ekran` diye
     #: soruyordu ve o bir VEKİLDİ: satırın ÇİZİLDİĞİNİ ölçüyor, sayıların
     #: nereden geldiğini ölçmüyordu.
     _BEDEL_KABLOSU = re.compile(
-        r"bedelSatiri\(\s*l10n\.tokenCostsNote\s*,"
+        r"bedelNotu\(\s*l10n\s*,"
         r"\s*[A-Za-z_]\w*(?:\.\w+)*\.costs\s*[,)]")
 
     def test_sitedeki_iki_iddianin_dayanagi_kodda_duruyor(self):
@@ -686,7 +686,7 @@ class TestJetonIddialari:
         ekran = (_KOK / self._MAGAZA_EKRANI).read_text(encoding="utf-8")
         assert self._BEDEL_KABLOSU.search(ekran), (
             f"{self._MAGAZA_EKRANI}: bedel satırı artık sunucudan "
-            f"kurulmuyor (`bedelSatiri(l10n.tokenCostsNote, …costs)` "
+            f"kurulmuyor (`bedelNotu(l10n, …costs)` "
             f"kablosu yok). İki pazarlama sayfası 'bedeller jeton "
             f"mağazasında yazılıdır' diyor; satır ya hiç çizilmiyor ya da "
             f"yalnız şablonun kendi sayılarını gösteriyor")
@@ -717,7 +717,7 @@ class TestJetonIddialari:
         GERÇEK dosyanın metni, değişen tek şey bir TERİM (ikinci argüman),
         yani bileşik mutasyonun gürültüsü yok. Emsal: aynı zincirin Dart
         ucu da şablon tarafını sentetik girdiyle ölçüyor
-        (`apps/mobile/test/bedel_satiri_test.dart`, "denetimin DİŞİ var").
+        (`apps/mobile/test/bedel_notu_test.dart`, "denetimin DİŞİ var").
         """
         ekran = (_KOK / self._MAGAZA_EKRANI).read_text(encoding="utf-8")
         eslesme = self._BEDEL_KABLOSU.search(ekran)
@@ -733,16 +733,16 @@ class TestJetonIddialari:
         # kod derlenir, satır ekranda GÖRÜNÜR (işlev ön koşul tutmayınca
         # şablonu olduğu gibi döndürüyor), yani kusur sessizdir.
         m1 = (ekran[:eslesme.start()]
-              + "bedelSatiri(l10n.tokenCostsNote, const {}" + kuyruk)
+              + "bedelNotu(l10n, const {}" + kuyruk)
         assert not self._BEDEL_KABLOSU.search(m1), (
             "çapa KÖR: harita `const {}` ile değiştirildiğinde de "
             "eşleşiyor, yani sunucu bağını hiç ölçmüyor")
 
         # M2 — biçimlendirici tamamen atlanıp şablon doğrudan çiziliyor.
         # Onarımdan ÖNCEKİ hâl buydu; çapa onu da ayırt etmek zorunda.
-        m2 = ekran[:eslesme.start()] + "Text(l10n.tokenCostsNote" + kuyruk
+        m2 = ekran[:eslesme.start()] + "Text(l10n.tokenCostsNote(1, 2, 3, 5" + kuyruk
         assert not self._BEDEL_KABLOSU.search(m2), (
-            "çapa KÖR: `bedelSatiri` hiç çağrılmasa da eşleşiyor, yani "
+            "çapa KÖR: `bedelNotu` hiç çağrılmasa da eşleşiyor, yani "
             "eski 'elle yazılmış dizeyi çiz' hâli geri gelse görmez")
 
     def test_magazadaki_bedel_satiri_koddaki_bedellerle_ayni(self):
@@ -751,7 +751,7 @@ class TestJetonIddialari:
         ⚠️ Bu docstring'in eski hâli "satır ELLE yazılmış bir l10n dizesi,
         arayüz `/wallet` `costs` haritasını HİÇ kullanmıyor" diyordu ve o
         gerekçe artık YANLIŞ (ölçüldü 2026-10-03): ekran satırı
-        `bedelSatiri(l10n.tokenCostsNote, cuzdan.costs)` ile kuruyor, yani
+        `bedelNotu(l10n.tokenCostsNote, cuzdan.costs)` ile kuruyor, yani
         dize bedel gerçeğinin ikinci KAYNAĞI değil ŞABLONU. Yanlış gerekçe
         kusurdur — bekçi doğru yeri çiviliyordu ama NİÇİN'i yanlış
         anlatıyordu ve onu okuyan "bu bekçi gereksizleşti" diye karar
@@ -759,7 +759,7 @@ class TestJetonIddialari:
 
         Bekçi gereksizleşMEDİ, iki ölçülmüş sebeple:
 
-        * `bedelSatiri` ön koşulları tutmazsa şablonu OLDUĞU GİBİ döndürüyor
+        * `bedelNotu` ön koşulları tutmazsa şablonu OLDUĞU GİBİ döndürüyor
           (harita boş, sayı adedi tutmuyor, derin raporlar tek bedelde
           anlaşmıyor). O hâlde ekranda şablonun KENDİ sayıları görünür —
           yani ARB'deki rakamlar hâlâ kullanıcıya gösterilebilen bir yüzey.
@@ -781,15 +781,18 @@ class TestJetonIddialari:
             f"yanlış oldu, l10n dizesi ayrıştırılmalı")
         derin_bedel = next(iter(set(ayri.values())))
 
+        # D7: şablon artık SAYI taşımıyor, yer tutucu taşıyor — her etiketin
+        # yanında kendi yer tutucusu; sayılar `bedelNotu` ile sunucudan.
+        # `derin_bedel` yukarıda yine ölçülüyor: özetin tek sayı olabilmesi
+        # sunucu tarafının değişmezi.
+        assert derin_bedel > 0
         capalar = {
-            "app_tr.arb": (f"Sohbet mesajı {bedeller['chat']}",
-                           f"I Ching {bedeller['iching']}",
-                           f"ikili dinamik {bedeller['dyad']}",
-                           f"derin raporlar ve yüz okuma {derin_bedel}"),
-            "app_en.arb": (f"Chat message {bedeller['chat']}",
-                           f"I Ching {bedeller['iching']}",
-                           f"daily dyad {bedeller['dyad']}",
-                           f"deep reports and face reading {derin_bedel}"),
+            "app_tr.arb": ("Sohbet mesajı {chat}", "I Ching {iching}",
+                           "ikili dinamik {dyad}",
+                           "derin raporlar ve yüz okuma {deep}"),
+            "app_en.arb": ("Chat message {chat}", "I Ching {iching}",
+                           "daily dyad {dyad}",
+                           "deep reports and face reading {deep}"),
         }
         for dosya, beklenen in capalar.items():
             yol = _KOK / "apps" / "mobile" / "lib" / "l10n" / dosya
@@ -798,7 +801,7 @@ class TestJetonIddialari:
             for capa in beklenen:
                 assert capa in satir, (
                     f"{dosya}: tokenCostsNote '{capa}' demiyor — "
-                    f"wallet.TOKEN_COSTS ile ayrıştı. Mağaza ekranı yanlış "
+                    f"yer tutucu etiketinin yanından ayrıldı. Mağaza ekranı yanlış "
                     f"bedel gösteriyor, iki web sayfası da oraya işaret "
                     f"ediyor")
 

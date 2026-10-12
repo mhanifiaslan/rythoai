@@ -3,7 +3,7 @@
 // Kapatılan kusur: rozet `l10n.iChingQuotaTokens(durum['token_cost'] as
 // int? ?? 2)` yazıyordu. O `?? 2`, bedel gerçeğinin istemcideki İKİNCİ
 // kopyasıydı ve hiçbir bekçi onu sunucudaki `TOKEN_COSTS['iching']`e
-// bağlamıyordu — `bedel_satiri_test.dart`taki B1 ile aynı sınıf kusur.
+// bağlamıyordu — `bedel_notu_test.dart`taki B1 ile aynı sınıf kusur.
 //
 // Kırılma yolu: sunucu bedeli 3 yapar ve alanı göndermeyi bırakır (eski
 // derleme, 503 sonrası eksik gövde, alan adı değişikliği). Rozet "2 kredi"

@@ -384,7 +384,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get personalReadingLockedBody =>
-      'Rytho+ ile yorumlar senin haritanla üretilir.';
+      'Senin haritanla üretilen günlük yorum Rytho+ ile açılır.';
 
   @override
   String personalReadingLockedBodyWithSign(String sign) {
@@ -414,6 +414,13 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get iChingLockedBody =>
       'Soru sor, gerçek olasılıklarla çekim yap, Rytho yorumuyla oku — Rytho+ ile açılır.';
+
+  @override
+  String get synastryLockedTitle => 'İkili çark';
+
+  @override
+  String get synastryLockedBody =>
+      'İki haritanın üst üste okuması Rytho+ ile açılır.';
 
   @override
   String get friendsTitle => 'Arkadaşlar';
@@ -635,8 +642,48 @@ class AppLocalizationsTr extends AppLocalizations {
   String get bestValue => 'EN İYİ DEĞER';
 
   @override
+  String paywallForFeature(String name) {
+    return '$name için Rytho+';
+  }
+
+  @override
+  String priceWithPeriod(String price, String unit) {
+    return '$price / $unit';
+  }
+
+  @override
+  String annualPerMonth(String price) {
+    return 'ayda ≈ $price';
+  }
+
+  @override
+  String annualSavingsBadge(int percent) {
+    return '%$percent tasarruf';
+  }
+
+  @override
   String trialThenPrice(int count, String unit, String price) {
     return '$count $unit ücretsiz, sonra $price';
+  }
+
+  @override
+  String trialThenPriceDays(int count, String price) {
+    return '$count gün ücretsiz, sonra $price';
+  }
+
+  @override
+  String trialThenPriceWeeks(int count, String price) {
+    return '$count hafta ücretsiz, sonra $price';
+  }
+
+  @override
+  String trialThenPriceMonths(int count, String price) {
+    return '$count ay ücretsiz, sonra $price';
+  }
+
+  @override
+  String trialThenPriceYears(int count, String price) {
+    return '$count yıl ücretsiz, sonra $price';
   }
 
   @override
@@ -678,6 +725,14 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get benefitChatTitle => 'Ayda 100 AI kredisi';
+
+  @override
+  String benefitChatTitleCount(int count) {
+    return 'Ayda $count AI kredisi';
+  }
+
+  @override
+  String get benefitChatTitleUnknown => 'Aylık AI kredisi';
 
   @override
   String get benefitChatBody =>
@@ -857,6 +912,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get chatTitle => 'Rytho AI';
 
   @override
+  String get chatSend => 'Gönder';
+
+  @override
   String get chatHint => 'Geleceğinle ilgili her şeyi sor...';
 
   @override
@@ -972,6 +1030,10 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get subManage => 'Aboneliği yönet';
+
+  @override
+  String get subManageOpenFailed =>
+      'Abonelik sayfası açılamadı — mağaza uygulamasından yönetebilirsin.';
 
   @override
   String get subRestoreDone => 'Aboneliğin geri yüklendi ✨';
@@ -1611,7 +1673,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get faceReadingLockedBody =>
-      'Yüz hatlarından mizaç okuması. Görüntü cihazında işlenir, hiçbir yere gönderilmez.';
+      'Yüz hatlarından mizaç okuması Rytho+ ile açılır. Görüntü cihazında işlenir, hiçbir yere gönderilmez.';
 
   @override
   String get faceReadingEntryBody =>
@@ -1975,7 +2037,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get purchaseItemUnavailable =>
-      'Ürün mağazada bulunamadı. Test kanalına katılan hesabın mağazada seçili olduğundan emin olup tekrar dene.';
+      'Bu ürün şu anda mağazada sunulmuyor. Biraz sonra tekrar dene.';
 
   @override
   String get purchaseStoreProblem =>
@@ -2009,6 +2071,29 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
+  String storeBuyWithPrice(String price) {
+    return 'Satın al — $price';
+  }
+
+  @override
+  String pricePerCredit(String price) {
+    return '$price / kredi';
+  }
+
+  @override
+  String tokenCost(int count) {
+    return '$count kredi';
+  }
+
+  @override
+  String get purchasePackRefreshing =>
+      'Satın alma alındı; bakiyen yenileniyor.';
+
+  @override
+  String get purchaseAlreadyOwnedSubscription =>
+      'Bu hesapta zaten etkin bir abonelik var — satın alımların geri yükleniyor…';
+
+  @override
   String get tokenBuy => 'Satın al';
 
   @override
@@ -2040,8 +2125,29 @@ class AppLocalizationsTr extends AppLocalizations {
       '1 kredi = 1 sohbet mesajı. I Ching, ikili dinamik, derin raporlar ve yüz okuma Rytho+ aboneliğine dahildir; kredi onları açmaz. Aldığın krediler yanmaz — sonradan abone olursan hepsini kullanabilirsin.';
 
   @override
-  String get tokenCostsNote =>
-      'Sohbet mesajı 1 · I Ching 2 · ikili dinamik 3 · derin raporlar ve yüz okuma 5 kredi. Kredi yalnız yeni bir rapor üretilirken düşer; hazır duran rapora yeniden bakmak hiç düşürmez.';
+  String tokenCostsNote(int chat, int iching, int dyad, int deep) {
+    return 'Sohbet mesajı $chat · I Ching $iching · ikili dinamik $dyad · derin raporlar ve yüz okuma $deep kredi. Kredi yalnız yeni bir rapor üretilirken düşer; hazır duran rapora yeniden bakmak hiç düşürmez.';
+  }
+
+  @override
+  String chatCostNote(int count) {
+    return 'Mesaj başına $count kredi';
+  }
+
+  @override
+  String costConfirmTitle(int count) {
+    return 'Bu okuma $count kredi';
+  }
+
+  @override
+  String get costConfirmBody =>
+      'Hazır duran okumaya yeniden bakmak düşürmez; yeni üretim düşer.';
+
+  @override
+  String get costConfirmContinue => 'Devam';
+
+  @override
+  String get costConfirmCancel => 'Vazgeç';
 
   @override
   String tokenBalanceChip(int count) {
@@ -2767,10 +2873,10 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get retrogradeMeaning =>
-      '℞ retro: gezegen gökyüzünde geri gidiyor görünür. Klasik yorumda o alanda ilerleme dışa değil içe doğrudur — gözden geçirme, toparlama zamanı.';
+      'R retro: gezegen gökyüzünde geri gidiyor görünür. Klasik yorumda o alanda ilerleme dışa değil içe doğrudur — gözden geçirme, toparlama zamanı.';
 
   @override
-  String get calendarLockedReading => 'Bu günün okuması Rytho+ ile açılır';
+  String get calendarLockedReading => 'Bu günün okuması Rytho+ ile açılır.';
 
   @override
   String get calendarOtherEvents => 'Diğer hareketler';
@@ -3079,6 +3185,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String chartAskPrefillNatal(String name) {
     return 'Şu an $name haritasının çarkını inceliyorum. En çok dikkat etmem gereken ne?';
   }
+
+  @override
+  String get chartAskPrefillOwn =>
+      'Şu an kendi haritamın çarkını inceliyorum. En çok dikkat etmem gereken ne?';
 
   @override
   String get chartAskPrefillSky =>

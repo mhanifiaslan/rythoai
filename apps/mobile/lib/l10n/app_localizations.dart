@@ -755,7 +755,7 @@ abstract class AppLocalizations {
   /// No description provided for @personalReadingLockedBody.
   ///
   /// In tr, this message translates to:
-  /// **'Rytho+ ile yorumlar senin haritanla üretilir.'**
+  /// **'Senin haritanla üretilen günlük yorum Rytho+ ile açılır.'**
   String get personalReadingLockedBody;
 
   /// No description provided for @personalReadingLockedBodyWithSign.
@@ -805,6 +805,18 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Soru sor, gerçek olasılıklarla çekim yap, Rytho yorumuyla oku — Rytho+ ile açılır.'**
   String get iChingLockedBody;
+
+  /// No description provided for @synastryLockedTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'İkili çark'**
+  String get synastryLockedTitle;
+
+  /// No description provided for @synastryLockedBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'İki haritanın üst üste okuması Rytho+ ile açılır.'**
+  String get synastryLockedBody;
 
   /// No description provided for @friendsTitle.
   ///
@@ -1214,11 +1226,59 @@ abstract class AppLocalizations {
   /// **'EN İYİ DEĞER'**
   String get bestValue;
 
+  /// No description provided for @paywallForFeature.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} için Rytho+'**
+  String paywallForFeature(String name);
+
+  /// No description provided for @priceWithPeriod.
+  ///
+  /// In tr, this message translates to:
+  /// **'{price} / {unit}'**
+  String priceWithPeriod(String price, String unit);
+
+  /// No description provided for @annualPerMonth.
+  ///
+  /// In tr, this message translates to:
+  /// **'ayda ≈ {price}'**
+  String annualPerMonth(String price);
+
+  /// No description provided for @annualSavingsBadge.
+  ///
+  /// In tr, this message translates to:
+  /// **'%{percent} tasarruf'**
+  String annualSavingsBadge(int percent);
+
   /// No description provided for @trialThenPrice.
   ///
   /// In tr, this message translates to:
   /// **'{count} {unit} ücretsiz, sonra {price}'**
   String trialThenPrice(int count, String unit, String price);
+
+  /// No description provided for @trialThenPriceDays.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} gün ücretsiz, sonra {price}'**
+  String trialThenPriceDays(int count, String price);
+
+  /// No description provided for @trialThenPriceWeeks.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} hafta ücretsiz, sonra {price}'**
+  String trialThenPriceWeeks(int count, String price);
+
+  /// No description provided for @trialThenPriceMonths.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} ay ücretsiz, sonra {price}'**
+  String trialThenPriceMonths(int count, String price);
+
+  /// No description provided for @trialThenPriceYears.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} yıl ücretsiz, sonra {price}'**
+  String trialThenPriceYears(int count, String price);
 
   /// No description provided for @unitDay.
   ///
@@ -1291,6 +1351,18 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Ayda 100 AI kredisi'**
   String get benefitChatTitle;
+
+  /// No description provided for @benefitChatTitleCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ayda {count} AI kredisi'**
+  String benefitChatTitleCount(int count);
+
+  /// No description provided for @benefitChatTitleUnknown.
+  ///
+  /// In tr, this message translates to:
+  /// **'Aylık AI kredisi'**
+  String get benefitChatTitleUnknown;
 
   /// No description provided for @benefitChatBody.
   ///
@@ -1598,6 +1670,12 @@ abstract class AppLocalizations {
   /// **'Rytho AI'**
   String get chatTitle;
 
+  /// No description provided for @chatSend.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gönder'**
+  String get chatSend;
+
   /// No description provided for @chatHint.
   ///
   /// In tr, this message translates to:
@@ -1825,6 +1903,12 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Aboneliği yönet'**
   String get subManage;
+
+  /// No description provided for @subManageOpenFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Abonelik sayfası açılamadı — mağaza uygulamasından yönetebilirsin.'**
+  String get subManageOpenFailed;
 
   /// No description provided for @subRestoreDone.
   ///
@@ -2951,7 +3035,7 @@ abstract class AppLocalizations {
   /// No description provided for @faceReadingLockedBody.
   ///
   /// In tr, this message translates to:
-  /// **'Yüz hatlarından mizaç okuması. Görüntü cihazında işlenir, hiçbir yere gönderilmez.'**
+  /// **'Yüz hatlarından mizaç okuması Rytho+ ile açılır. Görüntü cihazında işlenir, hiçbir yere gönderilmez.'**
   String get faceReadingLockedBody;
 
   /// No description provided for @faceReadingEntryBody.
@@ -3587,7 +3671,7 @@ abstract class AppLocalizations {
   /// No description provided for @purchaseItemUnavailable.
   ///
   /// In tr, this message translates to:
-  /// **'Ürün mağazada bulunamadı. Test kanalına katılan hesabın mağazada seçili olduğundan emin olup tekrar dene.'**
+  /// **'Bu ürün şu anda mağazada sunulmuyor. Biraz sonra tekrar dene.'**
   String get purchaseItemUnavailable;
 
   /// No description provided for @purchaseStoreProblem.
@@ -3643,6 +3727,36 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'{count} kredi'**
   String tokenPackAmount(int count);
+
+  /// No description provided for @storeBuyWithPrice.
+  ///
+  /// In tr, this message translates to:
+  /// **'Satın al — {price}'**
+  String storeBuyWithPrice(String price);
+
+  /// No description provided for @pricePerCredit.
+  ///
+  /// In tr, this message translates to:
+  /// **'{price} / kredi'**
+  String pricePerCredit(String price);
+
+  /// No description provided for @tokenCost.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} kredi'**
+  String tokenCost(int count);
+
+  /// No description provided for @purchasePackRefreshing.
+  ///
+  /// In tr, this message translates to:
+  /// **'Satın alma alındı; bakiyen yenileniyor.'**
+  String get purchasePackRefreshing;
+
+  /// No description provided for @purchaseAlreadyOwnedSubscription.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu hesapta zaten etkin bir abonelik var — satın alımların geri yükleniyor…'**
+  String get purchaseAlreadyOwnedSubscription;
 
   /// No description provided for @tokenBuy.
   ///
@@ -3701,8 +3815,38 @@ abstract class AppLocalizations {
   /// No description provided for @tokenCostsNote.
   ///
   /// In tr, this message translates to:
-  /// **'Sohbet mesajı 1 · I Ching 2 · ikili dinamik 3 · derin raporlar ve yüz okuma 5 kredi. Kredi yalnız yeni bir rapor üretilirken düşer; hazır duran rapora yeniden bakmak hiç düşürmez.'**
-  String get tokenCostsNote;
+  /// **'Sohbet mesajı {chat} · I Ching {iching} · ikili dinamik {dyad} · derin raporlar ve yüz okuma {deep} kredi. Kredi yalnız yeni bir rapor üretilirken düşer; hazır duran rapora yeniden bakmak hiç düşürmez.'**
+  String tokenCostsNote(int chat, int iching, int dyad, int deep);
+
+  /// No description provided for @chatCostNote.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mesaj başına {count} kredi'**
+  String chatCostNote(int count);
+
+  /// No description provided for @costConfirmTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu okuma {count} kredi'**
+  String costConfirmTitle(int count);
+
+  /// No description provided for @costConfirmBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hazır duran okumaya yeniden bakmak düşürmez; yeni üretim düşer.'**
+  String get costConfirmBody;
+
+  /// No description provided for @costConfirmContinue.
+  ///
+  /// In tr, this message translates to:
+  /// **'Devam'**
+  String get costConfirmContinue;
+
+  /// No description provided for @costConfirmCancel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Vazgeç'**
+  String get costConfirmCancel;
 
   /// No description provided for @tokenBalanceChip.
   ///
@@ -4913,13 +5057,13 @@ abstract class AppLocalizations {
   /// No description provided for @retrogradeMeaning.
   ///
   /// In tr, this message translates to:
-  /// **'℞ retro: gezegen gökyüzünde geri gidiyor görünür. Klasik yorumda o alanda ilerleme dışa değil içe doğrudur — gözden geçirme, toparlama zamanı.'**
+  /// **'R retro: gezegen gökyüzünde geri gidiyor görünür. Klasik yorumda o alanda ilerleme dışa değil içe doğrudur — gözden geçirme, toparlama zamanı.'**
   String get retrogradeMeaning;
 
   /// No description provided for @calendarLockedReading.
   ///
   /// In tr, this message translates to:
-  /// **'Bu günün okuması Rytho+ ile açılır'**
+  /// **'Bu günün okuması Rytho+ ile açılır.'**
   String get calendarLockedReading;
 
   /// No description provided for @calendarOtherEvents.
@@ -5443,6 +5587,12 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Şu an {name} haritasının çarkını inceliyorum. En çok dikkat etmem gereken ne?'**
   String chartAskPrefillNatal(String name);
+
+  /// No description provided for @chartAskPrefillOwn.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şu an kendi haritamın çarkını inceliyorum. En çok dikkat etmem gereken ne?'**
+  String get chartAskPrefillOwn;
 
   /// No description provided for @chartAskPrefillSky.
   ///

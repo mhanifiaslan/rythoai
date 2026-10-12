@@ -362,7 +362,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get birthHexagramLockedBody =>
-      'Where the Sun stood on the 64-gate wheel at your birth — your lasting character gate. Unlocks with Rytho+.';
+      'Where the Sun stood on the 64-gate wheel at your birth — your lasting character gate. Opens with Rytho+.';
 
   @override
   String get birthHexagramNote => 'Rytho\'s gate reading';
@@ -384,7 +384,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get personalReadingLockedBody =>
-      'With Rytho+, readings are built from your own chart.';
+      'Your daily reading built from your own chart opens with Rytho+.';
 
   @override
   String personalReadingLockedBodyWithSign(String sign) {
@@ -399,21 +399,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get natalLockedBody =>
-      'The full reading of your placements, houses and aspects unlocks with Rytho+.';
+      'The full reading of your placements, houses and aspects opens with Rytho+.';
 
   @override
   String get baziLockedTitle => 'BaZi — Four Pillars';
 
   @override
   String get baziLockedBody =>
-      'Day Master, Ten Gods and luck pillars unlock with Rytho+.';
+      'Day Master, Ten Gods and luck pillars open with Rytho+.';
 
   @override
   String get iChingLockedTitle => 'I Ching — Book of Changes';
 
   @override
   String get iChingLockedBody =>
-      'Ask a question, cast with true probabilities, read the Rytho interpretation — unlocks with Rytho+.';
+      'Ask a question, cast with true probabilities, read the Rytho interpretation — opens with Rytho+.';
+
+  @override
+  String get synastryLockedTitle => 'Synastry wheel';
+
+  @override
+  String get synastryLockedBody =>
+      'The reading of two charts laid over each other opens with Rytho+.';
 
   @override
   String get friendsTitle => 'Friends';
@@ -635,8 +642,72 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bestValue => 'BEST VALUE';
 
   @override
+  String paywallForFeature(String name) {
+    return 'Rytho+ for $name';
+  }
+
+  @override
+  String priceWithPeriod(String price, String unit) {
+    return '$price / $unit';
+  }
+
+  @override
+  String annualPerMonth(String price) {
+    return '≈ $price a month';
+  }
+
+  @override
+  String annualSavingsBadge(int percent) {
+    return 'Save $percent%';
+  }
+
+  @override
   String trialThenPrice(int count, String unit, String price) {
     return '$count $unit free, then $price';
+  }
+
+  @override
+  String trialThenPriceDays(int count, String price) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days free, then $price',
+      one: '1 day free, then $price',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trialThenPriceWeeks(int count, String price) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count weeks free, then $price',
+      one: '1 week free, then $price',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trialThenPriceMonths(int count, String price) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count months free, then $price',
+      one: '1 month free, then $price',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trialThenPriceYears(int count, String price) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count years free, then $price',
+      one: '1 year free, then $price',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -678,6 +749,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get benefitChatTitle => '100 AI credits a month';
+
+  @override
+  String benefitChatTitleCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count AI credits a month',
+      one: '1 AI credit a month',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get benefitChatTitleUnknown => 'Monthly AI credits';
 
   @override
   String get benefitChatBody =>
@@ -863,6 +948,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatTitle => 'Rytho AI';
 
   @override
+  String get chatSend => 'Send';
+
+  @override
   String get chatHint => 'Ask anything about what\'s ahead...';
 
   @override
@@ -978,6 +1066,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subManage => 'Manage subscription';
+
+  @override
+  String get subManageOpenFailed =>
+      'Couldn\'t open the subscription page — you can manage it from the store app.';
 
   @override
   String get subRestoreDone => 'Your subscription is back ✨';
@@ -1620,7 +1712,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get faceReadingLockedBody =>
-      'A temperament reading from your features. The image is processed on your device and never sent anywhere.';
+      'A temperament reading from your features opens with Rytho+. The image is processed on your device and never sent anywhere.';
 
   @override
   String get faceReadingEntryBody =>
@@ -1984,7 +2076,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get purchaseItemUnavailable =>
-      'The product couldn\'t be found in the store. Make sure the account that joined the test track is selected in the store, then try again.';
+      'This product isn\'t available in the store right now. Try again shortly.';
 
   @override
   String get purchaseStoreProblem =>
@@ -2014,8 +2106,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String tokenPackAmount(int count) {
-    return '$count credits';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count credits',
+      one: '1 credit',
+    );
+    return '$_temp0';
   }
+
+  @override
+  String storeBuyWithPrice(String price) {
+    return 'Buy — $price';
+  }
+
+  @override
+  String pricePerCredit(String price) {
+    return '$price per credit';
+  }
+
+  @override
+  String tokenCost(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count credits',
+      one: '1 credit',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get purchasePackRefreshing =>
+      'Purchase received; your balance is refreshing.';
+
+  @override
+  String get purchaseAlreadyOwnedSubscription =>
+      'This account already has an active subscription — restoring your purchases…';
 
   @override
   String get tokenBuy => 'Buy';
@@ -2046,15 +2173,54 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tokenFreeTierWarnBody =>
-      '1 credit = 1 chat message. I Ching, the daily dyad, deep reports and face reading are part of a Rytho+ subscription; credits do not unlock them. Credits you buy never expire — if you subscribe later you can spend all of them.';
+      '1 credit = 1 chat message. I Ching, the daily dyad, deep reports and face reading are part of a Rytho+ subscription; credits do not open them. Credits you buy never expire — if you subscribe later you can spend all of them.';
 
   @override
-  String get tokenCostsNote =>
-      'Chat message 1 · I Ching 2 · daily dyad 3 · deep reports and face reading 5 credits. A credit is only spent when a report is newly generated; opening one that is already there spends nothing.';
+  String tokenCostsNote(int chat, int iching, int dyad, int deep) {
+    return 'Chat message $chat · I Ching $iching · daily dyad $dyad · deep reports and face reading $deep credits. A credit is only spent when a report is newly generated; opening one that is already there spends nothing.';
+  }
+
+  @override
+  String chatCostNote(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count credits per message',
+      one: '1 credit per message',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String costConfirmTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'This reading costs $count credits',
+      one: 'This reading costs 1 credit',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get costConfirmBody =>
+      'Reopening a ready reading costs nothing; a fresh one does.';
+
+  @override
+  String get costConfirmContinue => 'Continue';
+
+  @override
+  String get costConfirmCancel => 'Not now';
 
   @override
   String tokenBalanceChip(int count) {
-    return '$count credits';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count credits',
+      one: '1 credit',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -2482,7 +2648,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get atlasFreeChartNote =>
-      'Your wheel, placements and aspects are free. Rytho\'s deep reading unlocks with Rytho+.';
+      'Your wheel, placements and aspects are free. Rytho\'s deep reading opens with Rytho+.';
 
   @override
   String relationshipAskPrefill(String name, String axis) {
@@ -2787,10 +2953,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get retrogradeMeaning =>
-      '℞ retrograde: the planet appears to move backward. Classically, progress in that area turns inward rather than outward — a time to review and gather.';
+      'R retrograde: the planet appears to move backward. Classically, progress in that area turns inward rather than outward — a time to review and gather.';
 
   @override
-  String get calendarLockedReading => 'This day\'s reading opens with Rytho+';
+  String get calendarLockedReading => 'This day\'s reading opens with Rytho+.';
 
   @override
   String get calendarOtherEvents => 'Other movements';
@@ -3099,6 +3265,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String chartAskPrefillNatal(String name) {
     return 'I\'m looking at the chart wheel for $name. What should I pay most attention to?';
   }
+
+  @override
+  String get chartAskPrefillOwn =>
+      'I\'m looking at my own chart wheel. What should I pay most attention to?';
 
   @override
   String get chartAskPrefillSky =>

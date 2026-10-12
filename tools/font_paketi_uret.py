@@ -122,10 +122,8 @@ BILINCLI_EMOJI = {
 # Bilinen açıklar: paket fontlarda OLMAYAN ve henüz değiştirilmemiş
 # karakterler. Her biri gerekçeli; D-dalgası kapanınca buradan SİLİNİR ve
 # betik o karakteri bulursa kırmızı döner.
-BILINEN_ACIK = {
-    0x211E: "℞ iki Noto kaynağında da yok; D6'da çarkın zaten kullandığı 'R' "
-            "retro işaretiyle birleştirilecek (atlas_detail 305/446, app_en.arb "
-            "retrogradeMeaning). O güne kadar sistem fontuna düşer.",
+BILINEN_ACIK: dict[int, str] = {
+    # ℞ (U+211E) D6/D7'de "R" ile birleşti ve ARB'den çıktı; liste bilerek boş.
 }
 
 

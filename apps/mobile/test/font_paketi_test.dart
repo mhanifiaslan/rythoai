@@ -55,9 +55,9 @@ const _bilincliEmoji = {
 
 /// Paket fontlarda OLMAYAN ve henüz değiştirilmemiş karakterler; dalga
 /// kapanınca silinir ve test o karakteri bulursa kırmızı döner.
-const _bilinenAcik = {
-  0x211E: "℞ iki Noto kaynağında yok; D6'da çarkın 'R' retro işaretiyle birleşir",
-};
+// ℞ (U+211E) D6/D7'de çarkın "R" retro işaretiyle birleşti ve ARB'den
+// çıktı; liste bilerek BOŞ — yeni bir açık bulunursa gerekçesiyle girer.
+const _bilinenAcik = <int, String>{};
 
 bool _emojiMi(int kod) => kod >= 0x1F000 || _bilincliEmoji.contains(kod);
 
