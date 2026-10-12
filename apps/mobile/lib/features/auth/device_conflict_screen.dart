@@ -92,7 +92,13 @@ class _DeviceConflictScreenState extends ConsumerState<DeviceConflictScreen> {
   /// cihazında" yerine "Android cihazında". Bilinmiyorsa "—".
   static String platformEtiketi(String? p) {
     if (p == null || p.isEmpty) return '—';
-    return p[0].toUpperCase() + p.substring(1);
+    // İki değerli eşleme: `toUpperCase` "ios"u "Ios" yapıyordu (D4 ölçümü).
+    // Bilinmeyen değer olduğu gibi — ad uydurulmaz.
+    return switch (p) {
+      'android' => 'Android',
+      'ios' => 'iOS',
+      _ => p,
+    };
   }
 
   /// Diğer cihazın kilidi aldığı an — kullanıcının saat dilimi ve dilinde.

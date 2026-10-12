@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/common.dart';
-import '../../widgets/glass.dart' show SkeletonPanel;
+import '../../widgets/glass.dart' show GlassPanel, SkeletonPanel;
 import '../../widgets/onay.dart' show onayliCikis;
 import 'account_screen.dart';
 import 'birth_record_screen.dart';
@@ -19,7 +19,6 @@ import '../../core/providers.dart';
 import '../../core/subscription.dart';
 import '../../core/wallet.dart';
 import '../../theme/rytho_theme.dart';
-import '../../widgets/atlas_widgets.dart';
 import '../../widgets/nebula_widgets.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -237,7 +236,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         // Takipçi/takip sayaçları kaldırıldı: tek yönlü takip yerine karşılıklı
         // arkadaşlık modeli kullanılıyor (bkz. features/friends).
         // Günlük seri kartı 🔥
-        Plaque(
+        GlassPanel(
           label: l10n.dailyStreak,
           child: Row(children: [
             const Text('🔥', style: TextStyle(fontSize: 30)),
@@ -279,7 +278,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         // olmamalı" kuralı bozulmaz: Hesap tek dokunuş uzakta ve satır
         // orada açıkça görünür).
         _grupBaslik(l10n.profileSectionIdentity),
-        Plaque(
+        GlassPanel(
           padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
           child: Column(children: [
             SettingsRow(
@@ -302,7 +301,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ]),
         ),
         _grupBaslik(l10n.profileSectionAccount),
-        Plaque(
+        GlassPanel(
           padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
           child: Column(children: [
             SettingsRow(
@@ -337,7 +336,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ]),
         ),
         _grupBaslik(l10n.profileSectionPrefs),
-        Plaque(
+        GlassPanel(
           padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
           child: Column(children: [
             SettingsRow(
@@ -364,7 +363,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         // "Hakkında" Rytho+ plakasının içindeydi — ücretsiz kullanıcı
         // uygulamanın künyesini abonelik başlığı altında arıyordu.
         _grupBaslik(kMarka),
-        Plaque(
+        GlassPanel(
           padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
           child: Column(children: [
             // Abonelik + kredi bilgisi (A1): plan, yenilenme, bakiye —

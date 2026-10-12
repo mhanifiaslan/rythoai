@@ -140,7 +140,9 @@ class ErrorCard extends StatelessWidget {
                 if (onRetry != null)
                   TextButton(
                     onPressed: onRetry,
-                    child: Text(ingilizce ? 'Try again' : 'Tekrar dene',
+                    child: Text(
+                        l10n?.retry ??
+                            (ingilizce ? 'Try again' : 'Tekrar dene'),
                         style: RythoType.button),
                   ),
               ],

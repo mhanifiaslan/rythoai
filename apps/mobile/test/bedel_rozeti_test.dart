@@ -1,6 +1,6 @@
 // Bedel rozeti: bilinmiyorsa YOK, biliniyorsa sunucunun sayısı.
 //
-// İ Ching rozetinin kuralı (`iching_bedel_test`) bütün jetonlu yüzeylere
+// İ Ching rozetinin eski kuralı bütün jetonlu yüzeylere
 // taşınıyor: bedel SUNUCUDAN (`costs` haritası, katalog anahtarıyla)
 // gelir; cüzdan okunamadıysa, anahtar yoksa, sayı sıfır/negatifse rozet
 // HİÇ çizilmez. Uydurma sayı bayat sayıdan kötü — kullanıcı ona göre

@@ -54,6 +54,17 @@ def resolve_language(accept_language: str | None) -> str:
     return DEFAULT
 
 
+#: Ad verilmeyen kullanıcıya hitap — dile göre. "Gezgin" bir tur boyunca
+#: TR-only sabitti ve İngilizce arayüzdeki kullanıcı promptta "Gezgin" diye
+#: anılıyordu (D6 ölçümü; istemci ad yoksa alanı artık göndermiyor).
+_VARSAYILAN_AD: dict[str, str] = {"tr": "Gezgin", "en": "Traveler"}
+
+
+def default_name(lang: str | None) -> str:
+    """Dile göre varsayılan hitap; bilinmeyen dilde varsayılan dilinki."""
+    return _VARSAYILAN_AD.get(lang or DEFAULT, _VARSAYILAN_AD[DEFAULT])
+
+
 def get_language(accept_language: str | None = Header(default=None)) -> str:
     """FastAPI bağımlılığı: ``lang: str = Depends(get_language)``."""
     return resolve_language(accept_language)

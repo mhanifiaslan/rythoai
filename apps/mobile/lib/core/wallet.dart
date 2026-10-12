@@ -75,10 +75,11 @@ class WalletStatus {
   /// alanın varlık sebebi o pencere; gerekçesi `bedelNotu`de ölçülmüş
   /// hâliyle yazılı.
   ///
-  /// Bedeli HARCAMADAN ÖNCE gösteren tek ekran hâlâ İ Ching ve o rozet
-  /// buradan DEĞİL `/reports/iching/status` yanıtındaki `token_cost`tan
-  /// geliyor (`iching_tab.dart`). İkisini tek cümlede saymak aynı yanlış
-  /// gerekçeyi geri getirir.
+  /// Bedeli HARCAMADAN ÖNCE gösteren rozetler (`BedelRozeti`, on yüzey)
+  /// ve bedel onayı (`BedelKapisi`) de BURADAN okuyor — D7'den beri bedel
+  /// gerçeğinin istemcideki tek kaynağı bu harita; İ Ching'in
+  /// `/reports/iching/status` `token_cost`u artık istemcide okunmuyor
+  /// (sunucudaki alan eski paketler için duruyor).
   final Map<String, int> costs;
 
   /// Ürün kimliği -> paket adedi: sunucudaki `TOKEN_PACKS`ın aynısı.

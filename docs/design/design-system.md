@@ -94,32 +94,55 @@ Cormorant/Spectral tamamen kalktı.
 - **`GlassPanel`** (widgets/glass.dart): koyu mor kart, 22px köşe, 1px %6 beyaz
   kontur, üst kenar ışığı. Blur varsayılan kapalı (performans).
 - **`CosmicDock`**: ince koyu saydam alt bar; 4 outline ikon
-  (Gökyüzü, Atlas, Meclis, Profil) + ORTADA yukarı taşan degrade
+  (Gökyüzü, Atlas, Çevrem, Profil) + ORTADA yukarı taşan degrade
   **AI butonu** (`ChatBubblesIcon` — çift konuşma balonu) — sürekli
-  yumuşak nefes (scale 1.0→1.05, 3000 ms), Rytho sohbetini açar.
-- **`GoldButton`** (adı tarihsel): degrade dolgulu CTA; basınca scale 0.96 +
-  haptic; busy'de `AstrolabeSpinner`.
-- **`GlassSegments`**: aktif segment degrade dolgulu.
+  yumuşak nefes (`RythoMotion.breath`), Rytho sohbetini açar. Sekme
+  ölçeği `kapili(context, RythoMotion.slow)` — kapısız örtük animatör
+  kalmadı (D8). Her sekme ekran okuyucuya "düğme, seçili".
+- **`GoldButton`** (adı tarihsel): **metin taşıyan** dolu CTA `ctaGradient`
+  (K5: her durağı beyazla ≥ 4,5:1, `kontrast_test`); `filled: false`
+  ikincil; `destructive` düz madder. Bir ekranda TEK dolu düğme.
+- **`GlassSegments`**: DURUM göstergesi, eylem değil — degrade/glow yok;
+  `compact` (36 dp), `index` nullable (önseçim yok), `margin` (form/panel
+  içinde `zero`). Segment başına `selected` semantiği.
 - **`ZodiacChip`** (widgets/nebula_widgets.dart): renkli degrade daire içinde
-  burç glifi + ad; seçiliyken renkli glow.
-- **`PromoBanner`**: degrade motivasyon/upsell banner'ı; 2.4sn'de bir hafif
-  shimmer; Atlas'ın derin raporuna götürür.
-- **`GradientProgressBar`**: 800ms'de dolan degrade ilerleme çubuğu
-  (kişilik özellikleri).
-- **`TypingDots`**: Rytho yanıt beklerken degrade balonda üç nokta dalgası.
+  burç glifi + ad; seçiliyken renkli glow. Glifler `RythoGlyphs`
+  (paketli alt küme fontu) — emoji yedeğine düşmez.
+- **`TypingDots`**: Rytho yanıt beklerken `ctaGradient` balonda üç nokta;
+  kap Rytho balonuyla birebir (köşe `card`/`xs`).
 - **`StreakBadge`**: 🔥 + gün sayısı (günlük seri).
 - **`SuggestionChip` / `InfoChip`**: yuvarlak koyu çipler, ince parlak kontur.
-- **`Pressable`**: her dokunuşta scale 0.96 + haptic sarmalayıcısı.
-- **`NatalWheel`**: lila halkalar, beyaz glifler, magenta sert açılar /
-  lila uyumlu açılar / altın kavuşum; sweep kurulum animasyonu korunur.
+- **`Pressable`**: TEK dokunma tabanı — scale 0.96 + haptic +
+  `Semantics(button)`; ikon-tek kullanımda `semanticLabel` zorunlu.
+  Çıplak `GestureDetector` yalnız jest yüzeylerinde (kamera, çark).
+- **`ChartWheel`** (eski NatalWheel): lila halkalar, `RythoGlyphs` glifleri;
+  açı türü yalnız renk DEĞİL çizgi dili (sert düz / yumuşak uzun kesik /
+  minör kısa kesik, `aspectDashFor`); gömülü çark SALT ÖNİZLEME, dokunuş
+  İnceleme'yi açar.
+- **D3 tekleştirmeleri:** `OkumaKabi` (uzun LLM okuması — `fallback`
+  bayrağını okuyan tek nokta, paylaşım yalnız hazır okumada), `AsyncBolum`
+  (iskelet/ErrorCard/veri), `showRythoSheet` (tek alt sayfa kabuğu),
+  `KilitRozeti`, `BedelRozeti` (bedel sunucudan, bilinmiyorsa yok),
+  `BedelKapisi` (5+ kredi: ilk üretimden önce tek seferlik onay),
+  `ListeSatiri`, `SkeletonList`, `OlcumSatiri`, `RythoyaSor` (tek yer, tohum
+  ön-doldurur göndermez), `TokenChip` (tek bakiye çipi: iskelet / "—" /
+  sayı), `acPaywall` (tek paywall açılışı; kesinti = diyalog, dokunuş =
+  fade-through), `ozellik_katalogu` (`PlusOzellik`: bedel anahtarı, kapı
+  adı, emoji, metin tek üyede), `IzinKapisi`, `onayla/onayliCikis`,
+  `SifreAlanlari`, `Kutlama`.
+  *Silinenler:* `PromoBanner`, `GradientProgressBar`, `TypewriterText`,
+  `Plaque` (→ `GlassPanel`).
 
 ## 5. Ekran yerleşimleri
 
-1. **Gökyüzü (ana)**: avatar + saate göre selamlama + sohbet ikonu; 12 burçlu
-   yatay çip şeridi (kullanıcının burcu önde/seçili); degrade promo banner;
-   "Bugünün İçgörüsü" (TypewriterText + burca özel nudge kutusu); "Kehanet
-   Araçları" karuseli (I Ching 🪙, BaZi 🀄, Yüz 🔮, Sinastri 💞); "Şu An
-   Gökyüzünde" kartı (zodyak çemberi, Ay evresi, retro çipleri, açı çipleri).
+1. **Gökyüzü (ana)** — omurga (D5, K7): (1) avatar + selam + `TokenChip`;
+   (2) 12 burçlu çip şeridi; (3) TEK "Bugün" başlığı + tarih + keşif
+   halkası + seri; (4) takvim şeridi (önündeki 30 gün); (5) sinyaller
+   (`AsyncBolum`: iskelet / "Tekrar dene" / boşsa gizli — hata ≠ boş);
+   (6) kişisel okuma ya da kilit kartı; (7) "Günlüğüm · Bugünü not et"
+   satırı okumanın ALTINDA (başlıktaki ikon kalktı). Promo banner,
+   Typewriter, kehanet karuseli ve "Şu an" kartı bu ekranda YOK ("Şu an"
+   Atlas'ta).
 2. **Rytho AI sohbeti**: kullanıcı sağda BEYAZ balon (koyu metin), Rytho solda
    mor degrade balon (beyaz metin); öneri çipleri; "+" ve degrade gönder
    butonu; yazıyor animasyonu; balonlar easeOutBack ile girer.
@@ -140,12 +163,21 @@ Cormorant/Spectral tamamen kalktı.
    - *Açılar*: en dar orb önce, gerilim/kavuşum/akış başlıklarıyla gruplu.
 4. **Kehanet**: ana ekrandan push edilir (`OracleScreen(initialTab: i)`);
    para animasyonu altın→magenta, yüz tarama çizgisi lila.
-5. **Meclis**: kart akışı, ✨ beğeni patlaması + tick sesi, degrade FAB ve
-   segmentler; DM'de v3 balon dili.
+5. **Çevrem**: arkadaş/kişi listeleri `ListeSatiri`; çıkarma/engelleme
+   `onayla` ile; kontenjan dürüst (`min(kullanılan, tavan)`); tepki
+   alt sayfası `showRythoSheet`.
 6. **Profil**: degrade halkalı avatar, burç renkli çipler, 🔥 Günlük Seri
-   kartı, "Sesler" anahtarı, hukuk sayfaları.
-7. **Onboarding/Login**: aynı dil; login'de e-posta + Google akışı korunur,
-   nefes alan degrade ✦ küresi.
+   kartı, dört grup (Hesap / Ayarlar / Rytho / Hukuk); çıkış ONAYLI
+   (`onayliCikis`), dolu CTA yok; abonelik satırı yüklenirken "—".
+7. **Onboarding/Login**: 6 adım (`welcome → date → time → place → gender →
+   notify`; telefon adımı yok — K6), cinsiyet ÖNSEÇİLİ DEĞİL, saat
+   bilinmiyorsa 12:00 uydurulmaz, bildirim kapısı iki seçenekli
+   (`IzinKapisi`); login'de nefes yok, girişler `RythoReveal`, Google/Apple
+   iptali hata değil.
+8. **Para**: satış ekranı faydaları `ozellik_katalogu`ndan + `BedelRozeti`,
+   aylık önseçili, yıllık yanında yalnız ÖLÇÜLMÜŞ "%N tasarruf" (K8);
+   mağazada paket radyo seçimi + TEK "Satın al — fiyat"; derin raporlarda
+   5+ kredi ilk üretimden önce `BedelKapisi` (tek seferlik).
 
 ## 6. Hareket dili (flutter_animate + `lib/widgets/motion.dart`, R12)
 
@@ -168,7 +200,14 @@ Yeni kod çıplak süre/eğri yazmaz; eski ekranlar dokunuldukça geçer.
 
 **Reduce-motion:** `reduceMotion(context)` tek kapı — sürekli animatörler
 tek karede durur, girişler hiç kurulmaz, kutlamalar çizilmez. Yeni animasyon
-eklerken bu kapıdan geçmeyen hareket PR'dan dönmeli.
+eklerken bu kapıdan geçmeyen hareket PR'dan dönmeli. Örtük animatörler
+(`AnimatedScale`, `AnimatedOpacity`, `animateToPage`) süreyi
+`kapili(context, token)` ile alır; sayfa geçişi TEK fiil `sayfayaGit`
+(sıfır sürede `jumpToPage`, `animateToPage` sıfırı reddeder — ölçüldü).
+Hikâye okuyucu hareket azaltmada DURMUŞ başlar, görünür Oynat/Duraklat.
+Cırcır bekçileri: `hareket_disiplini_test` (çıplak süre dosya başına
+ölçülen tavan, `.animate(` → `reduceMotion(` zorunlu), `token_disiplini_test`
+(köşe/renk/ham TextStyle/yazı boyu literalleri yalnız aşağı).
 
 **Test kuralı:** sonsuz repeat içeren ağaçta `pumpAndSettle` YASAK —
 süreli `tester.pump(...)` adımları.
@@ -269,6 +308,15 @@ zincirinden geçer; `ChartInspectorScreen` tam ekran inceleme yüzeyidir.
 - Emoji: kart/rapor GÖVDE metinlerine serpiştirilmez (bildirim başlığı
   ve sohbetteki ölçülü kullanım §1'deki doktrinle serbesttir).
 - Blur yalnızca alt barda; kartlarda performans için düz dolgu.
+- **Tema yalnız koyu** (K2, 2026-10-10) — açık tema yok; `ctaGradient`
+  kontrastı koyu zemine göre ölçüldü.
+- `toUpperCase()`/`toLowerCase()` gösterim metninde YASAK (Türkçe İ/ı);
+  `trBuyuk`/`trKucuk` ya da hiç büyütme — ARB bağırmaz (`turkce_harf_test`).
+- `provider.value ?? []` YASAK: hata ≠ boş; `AsyncBolum`/`ErrorCard`.
+- Dokunma tabanı tek: `Pressable`. İkon-tek `IconButton`a `tooltip` +
+  `Icon(semanticLabel:)` (Tooltip semantik etiket DEĞİL — ölçüldü).
+- "Ölçülmeyen söylenmez" ekrana YAZILMAZ: dayanak gösterilir, disiplin
+  övülmez (lifestyle kararı); okuma önce, ölçüm arkada.
 
 ## 9b. Dar ekran doktrini (MU-turu, cihaz bulgusu)
 

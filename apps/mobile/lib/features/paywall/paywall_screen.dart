@@ -822,7 +822,7 @@ class _PlusCelebrationState extends State<_PlusCelebration> {
               color: RythoColors.goldGlow, blurRadius: 36, spreadRadius: 2),
         ],
       ),
-      child: Text('Rytho+',
+      child: Text(kPlusAdi,
           style: RythoText.display(24, w: FontWeight.w700)),
     );
     if (!sabit) {

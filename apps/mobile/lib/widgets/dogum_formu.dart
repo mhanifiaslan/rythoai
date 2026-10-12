@@ -108,6 +108,8 @@ class CinsiyetSecici extends StatelessWidget {
     final i = s == null ? -1 : degerler.indexOf(s);
     return GlassSegments(
       compact: true,
+      // Form İÇİNDE: kenar formdan gelir (sihirbazda 40 dp ölçülmüştü).
+      margin: EdgeInsets.zero,
       labels: [
         l10n.genderFemale,
         l10n.genderMale,

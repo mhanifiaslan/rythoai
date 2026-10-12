@@ -284,7 +284,7 @@ Fiyat merdiveni (ileri adımlar, şimdi uygulanmaz):
 
 | Risk | Durum |
 |---|---|
-| "Sınırsız sohbet" vaadi vs jetonlu sohbet | ✅ K3: paywall metni jeton sayısını YAZIYOR — vaat edilen = verilen. K1'de sayı 100'e indi (§2a) ve metin de indi: `benefitChatTitle` = "Ayda 100 AI kredisi" / "100 AI credits a month" (ölçüldü 2026-10-02, `app_tr.arb`:306 + `app_en.arb`:306). ⚠️ İki yer sabite BAĞLI DEĞİL, elle yazılı: `MONTHLY_TOKEN_ALLOWANCE` bir daha değişirse metin sessizce yalana döner |
+| "Sınırsız sohbet" vaadi vs jetonlu sohbet | ✅ K3: paywall metni kredi sayısını YAZIYOR — vaat edilen = verilen. D7'den (2026-10-12) beri sayı ARB'de DEĞİL: `benefitChatTitleCount(cuzdan.monthlyAllowance)` sunucunun `/billing/wallet` yanıtından okur, cüzdan okunamadıysa sayısız başlık. `MONTHLY_TOKEN_ALLOWANCE` değişince kurulu paket de doğru sayıyı söyler; bekçi `test_belge_tarifesi` (ARB'de sayı geri gelemez, kablo sunucuya) |
 | İlk alımda bakiye 0 görünmesi | ✅ K2: mobil cüzdan tazeleme + sunucu 35 günlük hak yedeği |
 | Jeton düşmeden hizmet (gelir kaçağı) / tavansız maliyet | ✅ K5: RYTHO_TOKENS_ENFORCE=1 kalıcı |
 | Sohbet girdisinin sınırsız büyümesi | ✅ K4: prompt geçmişi 12 mesaj × 1.200 kr tavanı |

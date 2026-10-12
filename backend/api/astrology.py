@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from core import cache
 from core.auth import AuthUser, get_current_user
 from core.entitlements import is_subscriber, user_local_date
-from core.i18n import get_language
+from core.i18n import default_name, get_language
 from core.messages import text
 from services import astro_service, chart_context, profile_service, prompts
 
@@ -23,7 +23,9 @@ def _internal(exc: Exception, uç: str, lang: str) -> HTTPException:
 
 
 class BirthData(BaseModel):
-    name: str = "Gezgin"
+    # Boş = dile göre varsayılan hitap (`i18n.default_name`); sabit "Gezgin"
+    # İngilizce kullanıcıya Türkçe ad veriyordu.
+    name: str = ""
     year: int = Field(ge=1200, le=2100)
     month: int = Field(ge=1, le=12)
     day: int = Field(ge=1, le=31)
@@ -43,9 +45,9 @@ class SynastryRequest(BaseModel):
     person2: BirthData
 
 
-def _birth_kwargs(d: BirthData) -> dict:
+def _birth_kwargs(d: BirthData, lang: str) -> dict:
     return dict(
-        name=d.name, year=d.year, month=d.month, day=d.day,
+        name=d.name or default_name(lang), year=d.year, month=d.month, day=d.day,
         hour=d.hour, minute=d.minute, city=d.city, nation=d.nation,
         hour_known=d.hour_known,
     )
@@ -55,7 +57,7 @@ def _birth_kwargs(d: BirthData) -> dict:
 def natal_chart(data: NatalChartRequest, lang: str = Depends(get_language)):
     try:
         chart = astro_service.get_natal_chart(
-            **astro_service.subject_kwargs(_birth_kwargs(data)),
+            **astro_service.subject_kwargs(_birth_kwargs(data, lang)),
             zodiac_type=data.zodiac_type,
             hour_known=data.hour_known,
         )
@@ -78,7 +80,7 @@ def natal_chart_svg(
                 status_code=422,
                 detail=prompts.get(lang).ASTRO_NOTES["natal_hour_unknown"])
         svg = astro_service.get_natal_chart_svg(
-            **astro_service.subject_kwargs(_birth_kwargs(data)),
+            **astro_service.subject_kwargs(_birth_kwargs(data, lang)),
             zodiac_type=data.zodiac_type, theme=theme
         )
         return Response(content=svg, media_type="image/svg+xml")
@@ -98,7 +100,7 @@ def transits(data: BirthData, lang: str = Depends(get_language)):
     """
     try:
         result = astro_service.get_transits(
-            **astro_service.subject_kwargs(_birth_kwargs(data)),
+            **astro_service.subject_kwargs(_birth_kwargs(data, lang)),
             hour_known=data.hour_known,
         )
         return {"status": "success",
@@ -144,7 +146,7 @@ def transit_calendar(user: AuthUser = Depends(get_current_user),
         if not chart_context.has_birth_data(profile):
             raise HTTPException(status_code=400,
                                 detail=text("birth.missing", lang))
-        birth = profile_service.birth_kwargs(profile)
+        birth = profile_service.birth_kwargs(profile, lang=lang)
         saat_biliniyor = bool(str(profile.get("birthTime") or "").strip())
 
         from services import predict_service, signal_service
@@ -267,7 +269,7 @@ def synastry(req: SynastryRequest, lang: str = Depends(get_language)):
     """
     try:
         result = astro_service.get_synastry(
-            _birth_kwargs(req.person1), _birth_kwargs(req.person2)
+            _birth_kwargs(req.person1, lang), _birth_kwargs(req.person2, lang)
         )
         return {"status": "success",
                 "data": prompts.localize_synastry(lang, result)}
@@ -283,7 +285,7 @@ def synastry_svg(
 ):
     try:
         svg = astro_service.get_synastry_svg(
-            _birth_kwargs(req.person1), _birth_kwargs(req.person2), theme=theme
+            _birth_kwargs(req.person1, lang), _birth_kwargs(req.person2, lang), theme=theme
         )
         return Response(content=svg, media_type="image/svg+xml")
     except Exception as e:

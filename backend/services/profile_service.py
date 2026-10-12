@@ -14,6 +14,7 @@ import logging
 from typing import Any
 
 from core import firestore as firestore_client
+from core.i18n import default_name
 from services import prompts
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,8 @@ def get_profile(uid: str) -> dict[str, Any] | None:
     return snapshot.to_dict() if snapshot.exists else None
 
 
-def birth_kwargs(profile: dict[str, Any]) -> dict[str, Any]:
+def birth_kwargs(profile: dict[str, Any],
+                 lang: str | None = None) -> dict[str, Any]:
     """Firestore profilini astro_service'in beklediği doğum verisine çevirir.
 
     İstemcideki `birthPayload` (apps/mobile/lib/core/api.dart) ile aynı
@@ -59,7 +61,9 @@ def birth_kwargs(profile: dict[str, Any]) -> dict[str, Any]:
 
     hour_known = bool(str(profile.get("birthTime") or "").strip())
     return {
-        "name": profile.get("displayName") or "Gezgin",
+        # Ad yoksa dile göre hitap (`i18n.default_name`); `lang` verilmeyen
+        # servis çağrıları (sinyal, sinastri, çevre) varsayılan dile düşer.
+        "name": profile.get("displayName") or default_name(lang),
         "year": year, "month": month, "day": day,
         "hour": hour, "minute": minute,
         "city": profile.get("birthCity") or "Istanbul",

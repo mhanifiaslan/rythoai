@@ -31,8 +31,8 @@ import 'ozellik_katalogu.dart';
 
 /// Rozetin söyleyeceği sayı — ya da hiçbir şey.
 ///
-/// Saf işlev: ekran kararı burada, widget yalnız çizer (`ichingBedeli`
-/// emsali). `null` dönen her dal "rozet çizilmez" demek:
+/// Saf işlev: ekran kararı burada, widget yalnız çizer. `null` dönen her
+/// dal "rozet çizilmez" demek:
 /// * cüzdan henüz yok ya da [WalletStatus.bilinmiyor] — okunamayan bakiyeyle
 ///   gelen `costs` da güvenilmez (o yanıt hiç gelmedi, harita boş);
 /// * özelliğin bedel anahtarı yok (günlük okuma, çevre, takvim);

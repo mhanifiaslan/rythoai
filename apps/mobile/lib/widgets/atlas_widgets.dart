@@ -6,36 +6,9 @@ import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
 import '../theme/rytho_tokens.dart';
-import 'glass.dart';
 import 'markdown_text.dart';
 import 'motion.dart';
 import 'nebula_widgets.dart' show Pressable;
-
-/// "Levha" — v2'de cam panele delege eder; eski çağrı yüzeyi korunur.
-class Plaque extends StatelessWidget {
-  const Plaque({
-    super.key,
-    required this.child,
-    this.label,
-    this.padding = const EdgeInsets.all(16),
-    this.margin = const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-  });
-
-  final Widget child;
-  final String? label;
-  final EdgeInsets padding;
-  final EdgeInsets margin;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassPanel(
-      label: label,
-      padding: padding,
-      margin: margin,
-      child: child,
-    );
-  }
-}
 
 /// CTA butonu — iki ağırlıkta.
 ///

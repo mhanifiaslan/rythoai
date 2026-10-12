@@ -39,6 +39,10 @@ const kMarkaYazi = 'RYTHO';
 /// Abonelik ürününün adı — mağaza listelemesiyle aynı.
 const kPlusAdi = 'Rytho+';
 
+/// Logo yazısı (wordmark). BÜYÜK harf tasarım kararı, Türkçe büyütme
+/// tuzağı değil (ASCII). Giriş ve açılış ekranı üç kopya taşıyordu.
+const kMarkaAdi = 'RYTHO';
+
 /// Boşluk ölçeği. Dörtün katları — ara değer yok.
 abstract final class RythoSpace {
   /// Hairline ayrım: ikon ile metin arası, rozet iç dolgusu. Ölçüldü:

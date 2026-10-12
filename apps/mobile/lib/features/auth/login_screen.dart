@@ -416,7 +416,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Marka yazısı esnemiyordu: 22 punto + büyük yazı ölçeği
                     // + 56 px logo dar ekranda satırı taşırıyordu.
                     Flexible(
-                      child: Text('RYTHO',
+                      child: Text(kMarkaAdi,
                           style:
                               RythoText.label(22, color: RythoColors.lilac)),
                     ),

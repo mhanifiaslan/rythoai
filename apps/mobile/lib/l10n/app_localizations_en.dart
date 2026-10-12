@@ -67,23 +67,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wizardNext => 'Continue ✦';
 
   @override
-  String get wizardFinish => 'Draw my chart ✨';
-
-  @override
-  String get wizardLater => 'Later';
-
-  @override
-  String get wizardPhoneTitle => 'Find your friends';
-
-  @override
-  String get wizardPhoneBody =>
-      'Verify your number to see who from your contacts is on Rytho. The number is never shared; it is used only for matching. You can leave this for later.';
-
-  @override
-  String get wizardPhoneVerify => 'Verify my number';
-
-  @override
-  String get wizardPhoneDone => 'Number verified';
+  String get wizardFinish => 'Draw my chart';
 
   @override
   String get wizardNotifyTitle => 'When your reading is ready?';
@@ -253,13 +237,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get innerCalendarActive => 'Active now';
 
   @override
-  String get innerCalendarUpcoming => 'The next 30 days';
-
-  @override
-  String get innerCalendarQuiet =>
-      'No aspect perfects in this window — a quiet sky.';
-
-  @override
   String get innerCalendarArc => 'Arc of life (solar arc)';
 
   @override
@@ -267,7 +244,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appTagline =>
-      'Ancient wisdom, met with precise sky calculation.\nYour chart is drawn; your path lights up. ✨';
+      'Ancient wisdom, met with precise sky calculation.\nYour chart is drawn; your path lights up.';
 
   @override
   String get signInWithGoogle => 'Sign in with Google';
@@ -316,11 +293,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get todaysInsight => 'Today\'s Insight';
-
-  @override
-  String signToday(String sign) {
-    return '$sign · today';
-  }
 
   @override
   String get skyNow => 'In the Sky Right Now';
@@ -423,9 +395,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The reading of two charts laid over each other opens with Rytho+.';
 
   @override
-  String get friendsTitle => 'Friends';
-
-  @override
   String get addFriend => 'Add friend';
 
   @override
@@ -453,16 +422,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get usernameTaken => 'That username is taken — try another.';
-
-  @override
-  String get youLabel => 'YOU';
-
-  @override
-  String get streakVisibleOn =>
-      'Friends can see your streak and whether you\'ve read today.';
-
-  @override
-  String get streakVisibleOff => 'Your streak is hidden from friends.';
 
   @override
   String get copyInviteLink => 'Copy invite link';
@@ -503,9 +462,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get incomingRequests => 'Incoming invites';
 
   @override
-  String get yourFriends => 'Your friends';
-
-  @override
   String get pendingInvites => 'Invites awaiting a reply';
 
   @override
@@ -544,9 +500,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get dyadDisclaimer =>
       'This reading holds for today only and changes tomorrow. We don\'t give a fixed compatibility score.';
-
-  @override
-  String get dyadFailed => 'Couldn\'t load the reading.';
 
   @override
   String get sendReaction => 'Send a reaction';
@@ -910,24 +863,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t connect. Check your internet and try again.';
 
   @override
-  String get errorSkyUnavailable => 'The sky is out of reach right now.';
-
-  @override
   String get reportUnavailable =>
       'We couldn\'t produce your reading just now. Try again in a few seconds.';
 
   @override
   String get reportUnavailableRefunded =>
       'We couldn\'t produce your report just now — the credit you spent has been refunded. Try again in a few seconds.';
-
-  @override
-  String get promoTitle => 'Go beyond the stars ✨';
-
-  @override
-  String get promoBody => 'Explore the full analysis of your birth chart.';
-
-  @override
-  String get promoAction => 'Explore';
 
   @override
   String get chatTitle => 'Rytho AI';
@@ -941,9 +882,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatEmptyBody =>
       'Your chart, your patterns, your path — ask whatever is on your mind.';
-
-  @override
-  String get chatFailed => 'The connection dropped. Please try again.';
 
   @override
   String get suggestCareer => 'Career 💼';
@@ -961,13 +899,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get suggestMarriage => 'Commitment 💍';
 
   @override
-  String get onboardingTitle => 'Your Birth Moment';
-
-  @override
-  String get onboardingBody =>
-      'Your chart needs the exact arrangement of the sky at that moment. The more precise the time, the more accurate your rising sign.';
-
-  @override
   String get onboardingCity => 'Birth city';
 
   @override
@@ -978,12 +909,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get genderOther => 'Other';
-
-  @override
-  String get onboardingSubmit => 'Draw my chart ✨';
-
-  @override
-  String get onboardingFailed => 'Couldn\'t save your details.';
 
   @override
   String get onboardingStage1 => 'Positioning the sky';
@@ -1093,10 +1018,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appHeadline => 'Your Personal Cosmic Intelligence';
 
   @override
-  String get consentNote =>
-      'By continuing you accept our privacy terms.\nReadings are for insight; they are not medical or financial advice.';
-
-  @override
   String get authNameRequired => 'Enter your name.';
 
   @override
@@ -1108,9 +1029,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get authEmailInUse =>
       'That email is already registered. Try signing in.';
-
-  @override
-  String get authWeakPassword => 'Password must be at least 6 characters.';
 
   @override
   String get authTooManyRequests =>
@@ -1187,15 +1105,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get atlasAspects => 'Aspects';
 
   @override
-  String get traitDetermination => 'Determination';
-
-  @override
-  String get traitCommunication => 'Communication';
-
-  @override
-  String get traitSensitivity => 'Sensitivity';
-
-  @override
   String moonIllumination(Object percent) {
     return '$percent% illuminated';
   }
@@ -1232,9 +1141,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reportFailed => 'The report couldn\'t be sent.';
-
-  @override
-  String get recordLabel => '✨ Your details';
 
   @override
   String get aFriend => 'A friend';
@@ -1282,16 +1188,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get iChingOracleNote => 'Rytho\'s note on the cast';
-
-  @override
-  String iChingQuotaFree(int left, int limit) {
-    return 'Today\'s cast: $left/$limit';
-  }
-
-  @override
-  String iChingQuotaTokens(int n) {
-    return 'Cast cost: $n credits';
-  }
 
   @override
   String get iChingJudgmentTitle => 'Judgment';
@@ -1452,12 +1348,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get baziFateNote => 'Rytho\'s note on your chart';
 
   @override
-  String get traitEnergy => 'Energy';
-
-  @override
-  String get traitPracticality => 'Practicality';
-
-  @override
   String get defaultUserName => 'Traveller';
 
   @override
@@ -1466,7 +1356,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get atlasReadingNote => '✨ Rytho\'s note on your chart';
+  String get atlasReadingNote => 'Rytho\'s note on your chart';
 
   @override
   String get notifications => 'Notifications';
@@ -1516,13 +1406,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String quietHoursRoundedNote(String range) {
     return 'Quiet hours rounded to the hour: $range';
   }
-
-  @override
-  String get notificationsDisabledHint =>
-      'Notifications are off in your device settings. Turn them on there to receive them.';
-
-  @override
-  String get enableNotifications => 'Turn on notifications';
 
   @override
   String get deleteAccount => 'Delete account';
@@ -1661,9 +1544,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get faceScanReading => 'Matching against firasa';
 
   @override
-  String get faceCapture => 'Capture';
-
-  @override
   String get faceRetake => 'Retake';
 
   @override
@@ -1698,10 +1578,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get faceReadingLockedBody =>
       'A temperament reading from your features opens with Rytho+. The image is processed on your device and never sent anywhere.';
-
-  @override
-  String get faceReadingEntryBody =>
-      'Scan your face and read your temperament through the firasa tradition.';
 
   @override
   String get faceGalleryButton => 'Choose from gallery';
@@ -1757,7 +1633,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String faceConsentWithdrawn(int count) {
-    return 'Consent withdrawn, $count readings deleted.';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count readings',
+      one: '1 reading',
+    );
+    return 'Consent withdrawn, $_temp0 deleted.';
   }
 
   @override
@@ -1799,27 +1681,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatEmptyTitle => 'Talk with Rytho';
 
   @override
-  String get conversationDeleted => 'Conversation deleted.';
-
-  @override
   String get contactMatchSetting => 'Suggest friends from my contacts';
 
   @override
   String get contactMatchSettingBody =>
       'Numbers are digested on your phone; your contacts are never uploaded. You only see each other if you\'ve both enabled this.';
-
-  @override
-  String get contactSuggestionsLabel => 'FROM YOUR CONTACTS';
-
-  @override
-  String get contactMatchOffTitle => 'Find people you know';
-
-  @override
-  String get contactMatchOffBody =>
-      'Turn on contact matching and people from your address book who use Rytho will appear here. Numbers are hashed on your device; your contacts are never stored on our servers.';
-
-  @override
-  String get contactMatchEnable => 'Turn on matching';
 
   @override
   String get contactMatchPhoneTitle => 'Verify your number first';
@@ -1980,9 +1846,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deviceConflictUseHere => 'Use on this device';
 
   @override
-  String get deviceConflictSignOut => 'Sign out';
-
-  @override
   String get deviceConflictClaimFailed =>
       'Couldn\'t take over this device — check your connection and try again.';
 
@@ -2030,7 +1893,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkPasswordDone =>
-      'Password saved. You can now sign in with email and password too ✨';
+      'Password saved. You can now sign in with email and password too';
 
   @override
   String get linkGoogleDone => 'Your Google account is linked ✨';
@@ -2202,9 +2065,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get atlasSections => 'What\'s in your chart';
-
-  @override
   String get atlasTraitsSubtitle => 'Your element balance';
 
   @override
@@ -2369,18 +2229,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get basisMovement => 'Motion';
 
   @override
-  String get basisMeasurement => 'Measurement';
-
-  @override
   String get basisExact => 'Exact on';
 
   @override
   String basisHouse(int house) {
     return 'house $house';
   }
-
-  @override
-  String get basisSynthesis => 'Rytho\'s reading';
 
   @override
   String get basisFootnote =>
@@ -2413,9 +2267,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileDiaryRow => 'My journal';
-
-  @override
-  String get profileDiaryRowSubtitle => 'Put what you live next to the sky';
 
   @override
   String get diaryHint => 'What happened today? One line is enough.';
@@ -2460,7 +2311,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedbackTypeSuggestion => 'Idea 💡';
 
   @override
-  String get feedbackTypeOther => 'Other ✨';
+  String get feedbackTypeOther => 'Other';
 
   @override
   String get feedbackScreenLabel => 'Which screen?';
@@ -2504,11 +2355,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedbackReportThisScreen => 'Report this screen';
 
   @override
-  String askAboutFriend(String name) {
-    return 'Ask Rytho about $name';
-  }
-
-  @override
   String get removeFriendConfirmTitle => 'Remove friend';
 
   @override
@@ -2540,27 +2386,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String friendAcceptedSnack(String name) {
     return '$name is now your friend.';
   }
-
-  @override
-  String get diaryQuickTitle => 'My Journal';
-
-  @override
-  String get diaryQuickHint => 'What happened today? One line is enough.';
-
-  @override
-  String get diaryQuickSaved => 'Saved — Rytho will remember this ✨';
-
-  @override
-  String get diaryQuickSeeAll => 'See all';
-
-  @override
-  String diaryQuickLast(String date) {
-    return 'Last entry: $date';
-  }
-
-  @override
-  String get diaryQuickEmpty =>
-      'Leave what you live as one-liners; Rytho deepens its readings around you.';
 
   @override
   String get diaryRowSubtitle => 'Note today';
@@ -2927,9 +2752,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get atlasReportPreparing => 'Rytho is writing your reading…';
 
   @override
-  String get atlasReportRetry => 'Couldn\'t load the reading — tap to retry.';
-
-  @override
   String get retrogradeMeaning =>
       'R retrograde: the planet appears to move backward. Classically, progress in that area turns inward rather than outward — a time to review and gather.';
 
@@ -3049,9 +2871,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get peopleUnnamed => 'Unnamed person';
-
-  @override
   String get peopleHourUnknownBadge =>
       'Birth time unknown — Ascendant and houses were not calculated.';
 
@@ -3149,11 +2968,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatOpenLabel => 'Chat with Rytho';
 
   @override
-  String get trialBannerTitle => 'Your trial is active ✨';
+  String get trialBannerTitle => 'Your trial is active';
 
   @override
   String trialBannerDays(int days) {
-    return 'All Rytho+ features unlocked — $days days left.';
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days days left',
+      one: '1 day left',
+    );
+    return 'All Rytho+ features unlocked — $_temp0.';
   }
 
   @override
@@ -3161,11 +2986,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'All Rytho+ features unlocked — today is the last day.';
 
   @override
-  String get chartInspectorTitle => 'Chart Inspector';
-
-  @override
   String chartWheelSemantics(int rings, int aspects) {
-    return 'Astrology wheel: $rings rings, $aspects aspects. Details in the position table below.';
+    String _temp0 = intl.Intl.pluralLogic(
+      rings,
+      locale: localeName,
+      other: '$rings rings',
+      one: '1 ring',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      aspects,
+      locale: localeName,
+      other: '$aspects aspects',
+      one: '1 aspect',
+    );
+    return 'Astrology wheel: $_temp0, $_temp1. Details in the position table below.';
   }
 
   @override

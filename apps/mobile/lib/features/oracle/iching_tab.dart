@@ -25,23 +25,6 @@ import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart';
 import '../../widgets/okuma_kabi.dart';
 
-/// `/reports/iching/status`un `token_cost`unu okuyan saf işlev — D6'dan
-/// beri OKUYUCUSUZ: rozet `BedelRozeti`ye geçti ve bedeli cüzdan yanıtının
-/// `costs` haritasından alıyor; `token_cost` aynı sunucu tablosunun
-/// (`TOKEN_COSTS`) ikinci kopyasıydı ve iki uç iki sayı gösterebilirdi.
-/// Durum sağlayıcısı (`ichingStatusProvider`) da onunla gitti — kimse
-/// izlemiyordu, yalnız çekim sonrası tazeleniyordu.
-///
-/// Burada duruyor çünkü `iching_bedel_test` saf kuralları (sıfır/negatif/
-/// yanlış tür → `null`, elle yazılmış `?? 2` yedeği yok) onun üstünden
-/// çiviliyor; işlevi silmek o dosyayı derlenemez yapar. Kaldırma kararı
-/// D8 ölü-kod temizliğinin (işlev + test + sunucudaki alan birlikte).
-int? ichingBedeli(Map<String, dynamic>? durum) {
-  final ham = durum?['token_cost'];
-  if (ham is! int || ham <= 0) return null;
-  return ham;
-}
-
 /// Sunucunun satır değerlerini (ALTTAN ÜSTE 6/7/8/9, `iching_service.py`
 /// `line_values`) iniş klibi varyantına çevirir: k = değer − 6 = logo yüzü
 /// yukarı para sayısı (logo yüzü = "3"/yazı; 6 = üç ters yüz, 9 = üç logo).
@@ -203,11 +186,11 @@ class _IChingTabState extends ConsumerState<IChingTab> {
       // Yöntem seçici bir DURUM göstergesi, eylem değil: eski hâl seçili
       // yöntemi `primaryGradient` ile çiziyordu — hemen altındaki altın
       // düğmeyle aynı görsel muamele, "yönteme basınca çekim yapılır"
-      // hissi (GlassSegments gerekçesi). Kabuk kenar dolgusu seçicinin
-      // kendisinden (sabit lg); liste dolgusuyla birlikte 32 dp içeride —
-      // `GlassSegments.margin` seçeneği D8'de.
+      // hissi (GlassSegments gerekçesi). Liste dolgusu zaten var; seçicinin
+      // kendi kenarı sıfır (32 dp içeri itilme ölçülmüştü).
       GlassSegments(
         compact: true,
+        margin: EdgeInsets.zero,
         labels: [l10n.iChingMethodCoins, l10n.iChingMethodYarrow],
         index: _method == 'yarrow' ? 1 : 0,
         onChanged: (i) =>

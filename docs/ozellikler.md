@@ -121,7 +121,10 @@ tam ekran açılıyor (`sky_now_screen.dart`).
 > `docs/maliyet-calismasi.md` §6l'de; **bedel kararı sahipte**.
 
 **🀄 BaZi — Dört Sütun.** Projedeki en özgün mühendislik; hazır kütüphane
-yok, sıfırdan yazıldı:
+yok, sıfırdan yazıldı. **Cinsiyet belirtilmezse (`unspecified`) şans yönü
+HESAPLANMAZ** (D0): sunucu iki adayı `luck_pillar_candidates` ile yollar,
+sekme beyan satırıyla ikisini de gösterir — eskiden "belirtmedim" sessizce
+kadın yönü sayılıyordu. Onboarding cinsiyeti önseçili değil (D4).
 - Dört sütun (Li Chun yıl sınırı, güneş boylamı ay sınırı, 60'lık gün
   döngüsü, geç-Zi ekolü).
 - **Gerçek Güneş Zamanı** — boylam düzeltmesi + Zaman Denklemi. İstanbul'da
@@ -392,35 +395,36 @@ alınan paketler (100/300/1000) **hiç yanmaz**.
   `wallet.TOKEN_COSTS`. Bedeli bu belgeye kopyalamak, iki yerden birinin
   sessizce bayatlaması demekti — nitekim §12b'deki pazarlama satırı tam bu
   yüzden "300 kredi" diye kaldı.
-- **İstemcideki aynı tuzak KAPANDI** (ölçüldü 2026-10-03). Bu maddenin eski
-  hâli "`/wallet` `costs` haritasını gönderiyor ama arayüzde hiç
-  kullanılmıyor" diyordu; o gerekçe artık YANLIŞ ve yanlış gerekçe kusurdur.
-  Ölçülen hâl: `token_store_screen.dart` bedel satırını
-  `bedelSatiri(l10n.tokenCostsNote, cuzdan.costs)` ile kuruyor, yani l10n
-  dizesi bedel gerçeğinin ikinci KAYNAĞI değil yalnızca ŞABLONU — sayılar
-  sunucudan gelen haritadan yazılıyor.
-  ⚠️ Kapanan şeyin ne olduğu önemli: eksik olan bekçi DEĞİLDİ (HEAD'i ölçen
-  `test_honesty.py::TestJetonIddialari` zaten her etiketin yanındaki sayıyı
-  çiviliyordu), **sunucu dağıtımı penceresiydi** — backend ayrı dağıtıldığı
-  için `TOKEN_COSTS` değiştiği an KURULU paketin derlenmiş cümlesi eski
-  rakamı söylemeye devam ediyordu ve bunu hiçbir test göremezdi. Harita
-  okunamazsa satır şablonla çizilir, yani **kaybolmaz**; bekçisi
-  `apps/mobile/test/bedel_satiri_test.dart`.
-- **Bedeli harcamadan ÖNCE gösteren tek ekran İ Ching'dir** ve o da
-  `/wallet`ten değil `/reports/iching/status` yanıtındaki `token_cost`tan
-  okuyor. ⚠️ Bu maddenin eski hâli "varsayılanı elde yazılmış `2`" diyordu;
-  ölçüldü (2026-10-03) ve artık öyle DEĞİL: `iching_tab.dart`
-  `ichingBedeli()` alan yok/sıfır/yanlış türdeyse `null` dönüyor ve rozet
-  hiç çizilmiyor — yani ekran susuyor, uydurmuyor. Derin
-  raporlar, ikili okuma ve sohbet harcama anında bir bedel satırı
-  göstermiyor; bedel yalnız kredi mağazası ekranında yazılı — o satır artık
-  sunucudan okuyor ama mağaza ekranı harcama NOKTASI değil.
-  ⚠️ Bu yüzden "uygulama bir raporun kaça geldiğini harcamadan
-  önce gösterir" cümlesi **pazarlama sayfalarına yazılamaz** — bir tur
-  boyunca yazıldı ve ölçülmemişti; yerine mağazaya işaret eden ve
-  önbellekten tekrar okumanın bedava olduğunu söyleyen cümle kondu
-  (ikisi de ölçüldü: `token_store_screen.dart`, `report_service`
-  önbellek kapısı harcamadan önce dönüyor).
+- **İstemcide bedel gerçeğinin TEK kaynağı `/wallet` `costs` haritası**
+  (D7, 2026-10-12). Mağazanın bedel satırı `bedelNotu(l10n, cuzdan.costs)`
+  ile kurulur — ARB şablonu yer tutuculu (`{chat} {iching} {dyad} {deep}`),
+  cümlede rakam YOK, rakam yoksa cümle de yok; derin raporların özeti ancak
+  hepsi aynı bedeldeyken kurulur (`bedel_notu_test`, `test_honesty`).
+  Eski ara çözüm (`bedelSatiri`) şablondaki sayıları KONUMA göre
+  değiştiriyordu ve bir tur boyunca İ Ching ile ikili dinamiğin bedellerini
+  yer değiştirmiş gösterdi. Sunucu dağıtım penceresi hâlâ geçerli ve bu
+  tasarımın sebebi: kurulu paket eski rakamı söyleyemez, çünkü rakam
+  pakette değil.
+- **Bedel HARCAMADAN ÖNCE on yüzeyde görünür** (`BedelRozeti`, D7): kilit
+  kartı (abone olmayan "Rytho+ ile açılır"ı okurken kaç kredi olduğunu
+  görür), Atlas'ın dört karosu ve tam rapor satırı, satış ekranının fayda
+  satırları (çoklu satırda yalnız hepsi aynı bedeldeyse tek sayı), yüz
+  okuma rıza ekranı, sohbetin boş durumu ("Mesaj başına 1 kredi"), ikili
+  dinamik, İ Ching. Rozet cüzdan okunamadıysa HİÇ çizilmez — uydurma sayı
+  bayat sayıdan kötü. İ Ching'in eski `token_cost` okuyucusu istemciden
+  kalktı (sunucu alanı eski paketler için duruyor).
+- **Onay kapısı (`BedelKapisi`, eşik 5):** BaZi, Yıl Haritası, İç Takvim ve
+  Doğum Kapısı ekrana GİRİLDİĞİ AN üretiliyordu — abone "bir bakayım" diye
+  girip 5 kredi harcıyordu. Şimdi sağlayıcı kapının içinde izleniyor: ilk
+  "Devam"dan sonra istek gider, tek seferlik (özellik başına tercih), yalnız
+  aboneye, yalnız bedel biliniyorken (cüzdan yüklenirken beklenir, okunamadıysa
+  sorulmaz — ölçülmeyen söylenmez). Eşik altı bedellerde (sohbet 1, İ Ching
+  2, ikili 3) yalnız rozet. Natal tam rapor (Atlas dizini açılınca üretiliyor)
+  kapısız kaldı — bedeli satırda, kapı kararı sonraki tur.
+  ⚠️ "Uygulama bir raporun kaça geldiğini harcamadan önce gösterir" cümlesi
+  pazarlama sayfalarına **AAB 50 kanalda yayıldıktan sonra** yazılır
+  (`test_honesty` ters çapası o commit'te döner); bugün yazılamaz, çünkü
+  kurulu paketlerde rozet yok.
 
 Kilitli ekranda ücretli uca **istek bile atılmaz** — kart gösterilir, ödeme
 ekranı ancak dokununca açılır.

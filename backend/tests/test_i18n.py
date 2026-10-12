@@ -531,3 +531,31 @@ def test_gokyuzu_ucu_retro_ve_acilari_yerellestirir(monkeypatch):
     assert veri["aspects"][0]["aspect_local"] == "Square"
     assert veri["aspects"][0]["p1"] == "Venus"
     assert veri["moon_phase"]["name"] == "Full Moon"
+
+
+# ---------------------------------------------------------------------------
+# Varsayılan hitap dile göre (D8)
+# ---------------------------------------------------------------------------
+
+def test_varsayilan_ad_dile_gore():
+    """Ad vermeyen kullanıcıya hitap dile göre; bilinmeyen dilde varsayılan dil.
+
+    "Gezgin" bir tur boyunca TR-only sabitti ve İngilizce arayüzdeki kullanıcı
+    promptta "Gezgin" diye anılıyordu (D6 ölçümü).
+    """
+    from core.i18n import DEFAULT, default_name
+    assert default_name("tr") == "Gezgin"
+    assert default_name("en") == "Traveler"
+    assert default_name("xx") == default_name(DEFAULT)
+    assert default_name(None) == default_name(DEFAULT)
+
+
+def test_dogum_modeli_sabit_ad_tasimaz():
+    """`BirthData.name` varsayılanı BOŞ; adı `_natal_kwargs(d, lang)` dilden kurar."""
+    import io as _io
+    from pathlib import Path
+    kok = Path(__file__).resolve().parents[1]
+    for dosya in ("api/reports.py", "api/astrology.py"):
+        govde = _io.open(kok / dosya, encoding="utf-8").read()
+        assert 'name: str = "Gezgin"' not in govde, dosya
+        assert "default_name(lang)" in govde, dosya

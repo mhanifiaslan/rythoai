@@ -17,12 +17,7 @@
   "wizardGenderTitle": "BaZi için bir ayrıntı",
   "wizardGenderBody": "BaZi (Dört Sütun) şans dönemlerinin yönünü cinsiyetten alır. Belirtmezsen o yön hesaplanmaz; gerisi aynı.",
   "wizardNext": "Devam ✦",
-  "wizardFinish": "Haritamı çiz ✨",
-  "wizardLater": "Sonra",
-  "wizardPhoneTitle": "Arkadaşlarını bul",
-  "wizardPhoneBody": "Numaranı doğrularsan rehberindeki Rytho kullanıcılarını görebilirsin. Numara paylaşılmaz; yalnız eşleşme için kullanılır. İstersen bu adımı sonraya bırak.",
-  "wizardPhoneVerify": "Numaramı doğrula",
-  "wizardPhoneDone": "Numaran doğrulandı",
+  "wizardFinish": "Haritamı çiz",
   "wizardNotifyTitle": "Günün okuması hazır olunca?",
   "wizardNotifyBody": "Günlük okuman ve serin için nazik bir hatırlatma gönderelim mi? Sessiz saatlerini Profil'den ayarlayabilirsin.",
   "wizardNotifyAllow": "Haber ver 🔔",
@@ -99,11 +94,9 @@
     }
   },
   "innerCalendarActive": "Şu an etkin",
-  "innerCalendarUpcoming": "Önündeki 30 gün",
-  "innerCalendarQuiet": "Bu pencerede kesinleşen açı yok — gökyüzü sakin.",
   "innerCalendarArc": "Yaşam yayı (solar arc)",
   "innerCalendarNote": "Rytho'nun iç mevsim okuması",
-  "appTagline": "Kadim bilgelik, hassas gökyüzü hesabıyla buluşur.\nHaritan çizilir, yolun aydınlanır. ✨",
+  "appTagline": "Kadim bilgelik, hassas gökyüzü hesabıyla buluşur.\nHaritan çizilir, yolun aydınlanır.",
   "signInWithGoogle": "Google ile giriş",
   "orDivider": "ya da",
   "signIn": "Giriş yap",
@@ -120,14 +113,6 @@
   "greetingEvening": "İyi akşamlar",
   "greetingNight": "İyi geceler",
   "todaysInsight": "Bugünün İçgörüsü",
-  "signToday": "{sign} · bugün",
-  "@signToday": {
-    "placeholders": {
-      "sign": {
-        "type": "String"
-      }
-    }
-  },
   "skyNow": "Şu An Gökyüzünde",
   "iChing": "I Ching",
   "iChingSubtitle": "Değişimler Kitabı",
@@ -197,7 +182,6 @@
   "iChingLockedBody": "Soru sor, gerçek olasılıklarla çekim yap, Rytho yorumuyla oku — Rytho+ ile açılır.",
   "synastryLockedTitle": "İkili çark",
   "synastryLockedBody": "İki haritanın üst üste okuması Rytho+ ile açılır.",
-  "friendsTitle": "Arkadaşlar",
   "addFriend": "Arkadaş ekle",
   "usernameLabel": "KULLANICI ADI",
   "usernameHeadline": "Arkadaşların seni bulabilsin",
@@ -207,9 +191,6 @@
   "usernameInvalid": "3-20 karakter; yalnızca küçük harf, rakam ve alt çizgi.",
   "usernameEmpty": "Kullanıcı adı boş olamaz.",
   "usernameTaken": "Bu kullanıcı adı alınmış, başka bir tane dene.",
-  "youLabel": "SEN",
-  "streakVisibleOn": "Arkadaşların serini ve bugün okuyup okumadığını görebilir.",
-  "streakVisibleOff": "Serin arkadaşlarından gizli.",
   "copyInviteLink": "Davet bağlantısını kopyala",
   "inviteLinkCopied": "Davet bağlantısı kopyalandı.",
   "shareInviteInstead": "Bunun yerine davet bağlantımı paylaş",
@@ -235,7 +216,6 @@
   "noFriendsYet": "Henüz kimse yok",
   "noFriendsBody": "Bir arkadaşını kullanıcı adıyla ekle; serilerinizi görün ve her gün aranızdaki dinamiği okuyun.",
   "incomingRequests": "Gelen davetler",
-  "yourFriends": "Arkadaşların",
   "pendingInvites": "Yanıt bekleyen davetlerin",
   "accept": "Kabul et",
   "ignore": "Yoksay",
@@ -249,7 +229,6 @@
   "readTodayDone": "Bugünkü okumasını yaptı",
   "dyadLabel": "Bugün aranızda",
   "dyadDisclaimer": "Bu okuma yalnızca bugün için geçerlidir ve yarın değişir. Kalıcı bir uyum puanı vermiyoruz.",
-  "dyadFailed": "Okuma alınamadı.",
   "sendReaction": "Bir tepki gönder",
   "sendReactionBody": "Hazır tepkilerden birini seç — mesaj yazma yok, sadece küçük bir selam.",
   "reactionSent": "{emoji} gönderildi.",
@@ -366,30 +345,21 @@
   "feedbackDiscardBody": "Geri bildirim kaydedilmeyecek.",
   "errorGeneric": "Beklenmeyen bir sorun oluştu. Lütfen biraz sonra tekrar dene.",
   "errorConnection": "Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.",
-  "errorSkyUnavailable": "Gökyüzüne şu an ulaşılamıyor.",
   "reportUnavailable": "Okumayı şu an üretemedik. Birkaç saniye sonra tekrar dene.",
   "reportUnavailableRefunded": "Raporu şu an üretemedik; harcanan kredi iade edildi. Birkaç saniye sonra tekrar dene.",
-  "promoTitle": "Yıldızların ötesine geç ✨",
-  "promoBody": "Doğum haritanın derin analizini ve kişilik raporunu keşfet.",
-  "promoAction": "Keşfet",
   "chatTitle": "Rytho AI",
   "chatSend": "Gönder",
   "chatHint": "Geleceğinle ilgili her şeyi sor...",
   "chatEmptyBody": "Haritan, yüzün, kaderin... Aklından geçen her soruyu sor.",
-  "chatFailed": "Kozmik bağlantı koptu. Lütfen tekrar dene.",
   "suggestCareer": "Kariyer 💼",
   "suggestLove": "Aşk hayatı ❤️",
   "suggestMonth": "Bu ay beni ne bekliyor?",
   "suggestFinance": "Finansal şans 💰",
   "suggestMarriage": "Evlilik zamanı 💍",
-  "onboardingTitle": "Doğum Anın",
-  "onboardingBody": "Haritanın çizilebilmesi için gökyüzünün o anki dizilişi gerekir. Saat ne kadar kesinse, yükselen o kadar doğrudur.",
   "onboardingCity": "Doğum şehri",
   "genderFemale": "Kadın",
   "genderMale": "Erkek",
   "genderOther": "Diğer",
-  "onboardingSubmit": "Haritamı çiz ✨",
-  "onboardingFailed": "Kayıt başarısız.",
   "onboardingStage1": "Gökyüzü konumlanıyor",
   "onboardingStage2": "Evler hesaplanıyor",
   "onboardingStage3": "Haritan çiziliyor",
@@ -425,12 +395,10 @@
   "baziWaitStage3": "Kader notun yazılıyor",
   "atlasTitle": "Doğum Haritası Analizi",
   "appHeadline": "Kişisel Kozmik Zekân",
-  "consentNote": "Devam ederek gizlilik ilkelerini kabul etmiş olursun.\nYorumlar içgörü amaçlıdır; tıbbi/finansal tavsiye değildir.",
   "authNameRequired": "Adını yaz.",
   "authInvalidEmail": "Geçerli bir e-posta yaz.",
   "authWrongCredentials": "E-posta veya şifre hatalı.",
   "authEmailInUse": "Bu e-posta zaten kayıtlı. Giriş yapmayı dene.",
-  "authWeakPassword": "Şifre en az 6 karakter olmalı.",
   "authTooManyRequests": "Çok fazla deneme yapıldı. Biraz sonra tekrar dene.",
   "authDisabled": "E-posta ile giriş şu an kapalı.",
   "authNetwork": "Bağlantı kurulamadı. İnternetini kontrol et.",
@@ -455,9 +423,6 @@
   "atlasPlanetPositions": "Gezegen Konumları",
   "atlasTraits": "Kişilik Özellikleri",
   "atlasAspects": "Açılar",
-  "traitDetermination": "Kararlılık",
-  "traitCommunication": "İletişim",
-  "traitSensitivity": "Duyarlılık",
   "moonIllumination": "aydınlanma %{percent}",
   "@moonIllumination": {
     "placeholders": {
@@ -483,7 +448,6 @@
   "reportReasonOther": "Diğer",
   "reportSubmitted": "Şikayetin alındı; en kısa sürede incelenecek. Teşekkürler.",
   "reportFailed": "Şikayet gönderilemedi.",
-  "recordLabel": "✨ Kayıt",
   "aFriend": "Bir arkadaşın",
   "iChingIntro": "3000 yıllık 64 heksagram matrisi. Sorunu yaz; paralar gerçek olasılık dağılımıyla atılır, hareketli çizgiler geleceğe köprü kurar.",
   "iChingQuestionHint": "Sorun nedir?",
@@ -521,25 +485,6 @@
     }
   },
   "iChingOracleNote": "Rytho'nun kehanet notu",
-  "iChingQuotaFree": "Bugünkü hak: {left}/{limit}",
-  "@iChingQuotaFree": {
-    "placeholders": {
-      "left": {
-        "type": "int"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "iChingQuotaTokens": "Çekim bedeli: {n} kredi",
-  "@iChingQuotaTokens": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
   "iChingJudgmentTitle": "Hüküm",
   "iChingImageTitle": "İmge",
   "iChingMovingTitle": "Hareketli Çizgiler",
@@ -707,8 +652,6 @@
     }
   },
   "baziFateNote": "Rytho'nun kader notu",
-  "traitEnergy": "Enerji",
-  "traitPracticality": "Pratiklik",
   "defaultUserName": "Gezgin",
   "retrogradeChip": "{planet} retro",
   "@retrogradeChip": {
@@ -718,7 +661,7 @@
       }
     }
   },
-  "atlasReadingNote": "✨ Rytho'nun okuma notu",
+  "atlasReadingNote": "Rytho'nun okuma notu",
   "notifications": "Bildirimler",
   "notifyDaily": "Günlük okuma",
   "notifyDailyBody": "Sabahları bugünün gökyüzü hazır olduğunda haber ver.",
@@ -744,8 +687,6 @@
   "quietHoursTo": "Bitiş",
   "quietHoursRoundedNote": "Sessiz saatler tam saate yuvarlandı: {range}",
   "@quietHoursRoundedNote": {"placeholders": {"range": {"type": "String"}}},
-  "notificationsDisabledHint": "Bildirimler cihaz ayarlarından kapalı. Açmak için sistem ayarlarına git.",
-  "enableNotifications": "Bildirimleri aç",
   "deleteAccount": "Hesabı sil",
   "deleteAccountTitle": "Hesabını silmek üzeresin",
   "deleteAccountBody": "Bu işlem geri alınamaz. Silinecekler: doğum kaydın, sohbetlerin ve onlardan çıkarılan notlar, günlük girişlerin, eklediğin kişiler, arkadaşlıkların, kullanıcı adın, sana özel üretilmiş tüm okumalar, yapay zeka kullanım kaydın, telefon doğrulama denemelerin ve gönderdiğin geri bildirimler.",
@@ -794,7 +735,6 @@
   "faceScanning": "Yüz hatların okunuyor",
   "faceScanNodes": "Noktalar yerleşiyor",
   "faceScanReading": "Firaset ile eşleştiriliyor",
-  "faceCapture": "Çek",
   "faceRetake": "Yeniden çek",
   "faceConsentTitle": "Yüz okuma için onayın gerekiyor",
   "faceConsentBody": "Yüz okuma, kameradan aldığı kareyi ya da galeriden seçtiğin fotoğrafı CİHAZINDA işler. Görüntü sunucuya gönderilmez, hiçbir yerde saklanmaz ve işlem biter bitmez silinir (galeri yolunda uygulamaya verilen kopya silinir; asıl fotoğrafına dokunulmaz). Sunucuya yalnızca yüz hatlarından türetilen oranlar (ör. alın/çene yükseklik oranı) gider; bu sayılar kişiyi tanımaya yaramaz.",
@@ -805,7 +745,6 @@
   "faceDetectFailed": "Yüz tespit edilemedi. Işığın yeterli olduğundan ve yüzünün çerçevede olduğundan emin ol.",
   "faceReadingHint": "Gelenek der ki: tek bir belirti hüküm vermez. Aşağıdaki okuma bir eğilimdir, kader değildir.",
   "faceReadingLockedBody": "Yüz hatlarından mizaç okuması Rytho+ ile açılır. Görüntü cihazında işlenir, hiçbir yere gönderilmez.",
-  "faceReadingEntryBody": "Yüzünü tarat, firaset geleneğine göre mizacını oku.",
   "faceGalleryButton": "Galeriden seç",
   "faceLensButton": "Kamerayı çevir",
   "faceStillAnalyzing": "Fotoğraf inceleniyor…",
@@ -841,13 +780,8 @@
   "addFriendNeedsUsername": "Önce bir kullanıcı adı almalısın — hemen aşağıdaki panelden seçebilirsin.",
   "newConversation": "Yeni konu",
   "chatEmptyTitle": "Rytho ile konuş",
-  "conversationDeleted": "Konu silindi.",
   "contactMatchSetting": "Rehberimden arkadaş öner",
   "contactMatchSettingBody": "Numaralar telefonunda özetlenir; rehberin sunucuya gönderilmez. Yalnızca ikiniz de bu ayarı açtıysanız birbirinizi görürsünüz.",
-  "contactSuggestionsLabel": "REHBERİNDEN",
-  "contactMatchOffTitle": "Rehberindekileri bul",
-  "contactMatchOffBody": "Rehber eşleşmesini açarsan Rytho kullanan tanıdıkların burada görünür. Numaralar cihazında şifrelenir; rehberin hiçbir zaman sunucuda saklanmaz.",
-  "contactMatchEnable": "Eşleşmeyi aç",
   "contactMatchPhoneTitle": "Önce numaranı doğrula",
   "contactMatchPhoneBody": "Eşleşme telefon numarası üzerinden çalışır. Numaranı doğruladığında tanıdıkların seni bulabilir, sen de onları görebilirsin.",
   "contactMatchVerifyPhone": "Numaranı doğrula",
@@ -937,7 +871,6 @@
     }
   },
   "deviceConflictUseHere": "Bu cihazda kullan",
-  "deviceConflictSignOut": "Çıkış yap",
   "deviceConflictClaimFailed": "Cihaz devralınamadı — bağlantını kontrol edip tekrar dene.",
   "forceUpdateTitle": "Yeni sürüm gerekli",
   "forceUpdateBody": "Rytho'nun bu sürümü artık desteklenmiyor. Devam etmek için uygulamayı güncelle — yıldızlar bekliyor.",
@@ -951,7 +884,7 @@
   "linkAlreadyLinked": "Bu giriş yöntemi zaten hesabına bağlı.",
   "linkCredentialInUse": "Bu kimlik başka bir hesaba bağlı. Önce o hesaptan çözülmesi gerekir.",
   "linkRequiresRecentLogin": "Güvenlik için yakın zamanlı giriş gerekiyor: çıkış yapıp yeniden girdikten sonra tekrar dene.",
-  "linkPasswordDone": "Şifre kaydedildi. Artık e-posta ve şifreyle de girebilirsin ✨",
+  "linkPasswordDone": "Şifre kaydedildi. Artık e-posta ve şifreyle de girebilirsin",
   "linkGoogleDone": "Google hesabın bağlandı ✨",
   "setPasswordSection": "ŞİFRE OLUŞTUR",
   "setPasswordBody": "Bir e-posta ve şifre belirlersen Google/Apple olmadan da giriş yapabilirsin.",
@@ -1009,7 +942,6 @@
       }
     }
   },
-  "atlasSections": "Haritanda ne var",
   "atlasTraitsSubtitle": "Element dağılımın",
   "atlasPlanetsSubtitle": "Doğduğun andaki konumlar",
   "atlasFullReport": "Tam rapor",
@@ -1087,7 +1019,6 @@
   "basisAspect": "Açı",
   "basisOrb": "Orb (ölçülen)",
   "basisMovement": "Hareket",
-  "basisMeasurement": "Ölçüm",
   "basisExact": "Kesinleşme",
   "basisHouse": "{house}. ev",
   "@basisHouse": {
@@ -1097,7 +1028,6 @@
       }
     }
   },
-  "basisSynthesis": "Rytho'nun yorumu",
   "basisFootnote": "Konumlar efemeristen gelir, açı ve orb ölçülür; yorum bu ölçümlerin üzerine kurulur.",
   "relationshipOpen": "İlişkiyi incele",
   "relationshipOpenSubtitle": "İki haritanız nerede kolaylaşıyor, nerede emek istiyor",
@@ -1114,7 +1044,6 @@
   "calendarWhyDate": "Bu tarih neden önemli?",
   "diaryTitle": "Günlüğüm",
   "profileDiaryRow": "Günlüğüm",
-  "profileDiaryRowSubtitle": "Yaşadıklarını gökyüzüyle yan yana koy",
   "diaryHint": "Bugün ne oldu? Tek cümle yeter.",
   "diarySave": "Kaydet",
   "diaryEmpty": "Henüz giriş yok. Önemli anları tek cümleyle bırak — sohbette \"son ayda ne oldu?\" diye sorduğunda Rytho bu kayıtları o günlerin gökyüzüyle yan yana koyar.",
@@ -1128,7 +1057,7 @@
   "feedbackLead": "Hata, öneri ya da aklına takılan bir şey — doğrudan bize ulaşır.",
   "feedbackTypeBug": "Hata 🐞",
   "feedbackTypeSuggestion": "Öneri 💡",
-  "feedbackTypeOther": "Diğer ✨",
+  "feedbackTypeOther": "Diğer",
   "feedbackScreenLabel": "Hangi ekran?",
   "feedbackScreenChat": "Sohbet",
   "feedbackScreenOracle": "Kehanet",
@@ -1142,7 +1071,6 @@
   "feedbackTooShort": "En az 10 karakter yaz.",
   "profileFeedback": "Geri bildirim gönder",
   "feedbackReportThisScreen": "Bu ekranı bildir",
-  "askAboutFriend": "{name} hakkında Rytho'ya sor",
   "removeFriendConfirmTitle": "Arkadaşlıktan çıkar",
   "removeFriendConfirmBody": "{name} listenden çıkar; ortak okumalar kapanır. İstersen yeniden ekleyebilirsin.",
   "@removeFriendConfirmBody": {"placeholders": {"name": {"type": "String"}}},
@@ -1155,26 +1083,6 @@
   "inviteNeedsUsernameAction": "Kullanıcı adı seç",
   "friendAcceptedSnack": "{name} artık arkadaşın.",
   "@friendAcceptedSnack": {"placeholders": {"name": {"type": "String"}}},
-  "@askAboutFriend": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "diaryQuickTitle": "Günlüğüm",
-  "diaryQuickHint": "Bugün ne yaşadın? Tek cümle yeter.",
-  "diaryQuickSaved": "Kaydedildi — Rytho bunu hatırlayacak ✨",
-  "diaryQuickSeeAll": "Tümünü gör",
-  "diaryQuickLast": "Son giriş: {date}",
-  "@diaryQuickLast": {
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
-  },
-  "diaryQuickEmpty": "Yaşadıklarını tek cümleyle bırak; Rytho yorumlarını sana göre derinleştirsin.",
   "diaryRowSubtitle": "Bugünü not et",
   "diaryThemeCareer": "Kariyer",
   "diaryThemeRelationships": "İlişkiler",
@@ -1324,7 +1232,6 @@
   "roleNorthNode": "Kuzey Ay Düğümü: geliştirmeye çağrıldığın yön.",
   "roleSouthNode": "Güney Ay Düğümü: elinde hazır olan, geride bırakman gereken.",
   "atlasReportPreparing": "Rytho okumanı yazıyor…",
-  "atlasReportRetry": "Okuma alınamadı — dokun, tekrar denesin.",
   "retrogradeMeaning": "R retro: gezegen gökyüzünde geri gidiyor görünür. Klasik yorumda o alanda ilerleme dışa değil içe doğrudur — gözden geçirme, toparlama zamanı.",
   "calendarLockedReading": "Bu günün okuması Rytho+ ile açılır.",
   "calendarOtherEvents": "Diğer hareketler",
@@ -1375,7 +1282,6 @@
       "limit": { "type": "int" }
     }
   },
-  "peopleUnnamed": "Adsız kişi",
   "peopleHourUnknownBadge": "Doğum saati bilinmiyor — Yükselen ve evler hesaplanmadı.",
 
   "relationPartner": "Eşim",
@@ -1411,12 +1317,11 @@
   "notifPermissionOffTitle": "Bildirimler sistemde kapalı",
   "notifPermissionOffBody": "Telefonun ayarlarında Rytho bildirimlerine izin vermeden buradaki tercihler etkisiz kalır: Ayarlar → Uygulamalar → Rytho → Bildirimler.",
   "chatOpenLabel": "Rytho ile sohbet et",
-  "trialBannerTitle": "Deneme süren aktif ✨",
+  "trialBannerTitle": "Deneme süren aktif",
   "trialBannerDays": "Tüm Rytho+ özellikleri açık — {days} gün kaldı.",
   "@trialBannerDays": { "placeholders": { "days": { "type": "int" } } },
   "trialBannerLastDay": "Tüm Rytho+ özellikleri açık — bugün son gün.",
 
-  "chartInspectorTitle": "Harita İnceleme",
   "chartWheelSemantics": "Astroloji çarkı: {rings} halka, {aspects} açı. Ayrıntılar aşağıdaki konum tablosunda.",
   "@chartWheelSemantics": { "placeholders": { "rings": { "type": "int" }, "aspects": { "type": "int" } } },
   "chartLegendInner": "İç: {label}",

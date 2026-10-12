@@ -247,15 +247,19 @@ class _TypingDotsState extends State<TypingDots>
     } else if (!_controller.isAnimating) {
       _controller.repeat();
     }
+    // Rytho balonuyla AYNI kap (K5: metin/işaret taşıyan dolu yüzey →
+    // `ctaGradient`; köşeler `card`/`xs`, balonla birebir — eski 20/6
+    // literalleri balonun 22/4'ünden ayrışmıştı).
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: RythoColors.primaryGradient,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-          bottomLeft: Radius.circular(6),
-          bottomRight: Radius.circular(20),
+      padding: const EdgeInsets.symmetric(
+          horizontal: RythoSpace.lg, vertical: RythoSpace.md),
+      decoration: const BoxDecoration(
+        gradient: RythoColors.ctaGradient,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(RythoRadius.card),
+          topRight: Radius.circular(RythoRadius.card),
+          bottomLeft: Radius.circular(RythoRadius.xs),
+          bottomRight: Radius.circular(RythoRadius.card),
         ),
       ),
       child: AnimatedBuilder(

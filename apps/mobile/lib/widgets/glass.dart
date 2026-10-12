@@ -368,7 +368,9 @@ class _DockItem extends StatelessWidget {
         onTap: onTap,
         child: AnimatedScale(
           scale: active ? 1.0 : 0.92,
-          duration: const Duration(milliseconds: 320),
+          // Süre token'dan ve hareket azaltma KAPISINDAN: dock ölçeği
+          // depodaki son çıplak+kapısız örtük animatördü (D5 ölçümü).
+          duration: kapili(context, RythoMotion.slow),
           curve: Curves.easeOutBack,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -386,7 +388,7 @@ class _DockItem extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(item.label,
-                  style: RythoText.label(9.5,
+                  style: RythoType.label.copyWith(
                       color: active
                           ? RythoColors.parchment
                           : RythoColors.parchmentDim)),
@@ -419,9 +421,15 @@ class GlassSegments extends StatelessWidget {
     this.index,
     required this.onChanged,
     this.compact = false,
+    this.margin = const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
   });
 
   final List<String> labels;
+
+  /// Dış kenar. Varsayılan ekran kenarı (`lg`); form ya da panel İÇİNDE
+  /// kullanan çağıran `EdgeInsets.zero` verir — eski sabit kenar sihirbazda
+  /// 40 dp, İ Ching'de 32 dp içeri itiyordu (ölçüldü, D3/D6 notları).
+  final EdgeInsets margin;
 
   /// Seçili segment; `null` = hiçbiri seçili. NEDEN nullable: cinsiyet
   /// seçici gibi "henüz seçilmedi" hâli olan formlar ilk açılışta bir
@@ -439,7 +447,7 @@ class GlassSegments extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: compact ? 36 : 42,
-      margin: const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
+      margin: margin,
       padding: const EdgeInsets.all(RythoSpace.xs),
       decoration: BoxDecoration(
         color: RythoColors.glassFill,

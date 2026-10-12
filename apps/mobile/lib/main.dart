@@ -466,7 +466,7 @@ class _Wordmark extends StatelessWidget {
   Widget build(BuildContext context) {
     TextStyle stil(double aralik) => RythoText.label(16,
         color: RythoColors.gold).copyWith(letterSpacing: aralik);
-    if (sabit) return Text('RYTHO', style: stil(5));
+    if (sabit) return Text(kMarkaAdi, style: stil(5));
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: const Duration(milliseconds: 800),
@@ -474,7 +474,7 @@ class _Wordmark extends StatelessWidget {
       curve: const Interval(0.25, 1, curve: RythoMotion.enter),
       builder: (_, t, _) => Opacity(
         opacity: t,
-        child: Text('RYTHO', style: stil(2 + 3 * t)),
+        child: Text(kMarkaAdi, style: stil(2 + 3 * t)),
       ),
     );
   }

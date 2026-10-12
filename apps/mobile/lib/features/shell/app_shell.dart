@@ -149,7 +149,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         ay == null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content:
-              Text(AppLocalizations.of(context).birthRecordSavedNoChart)));
+              // İlk kayıt "güncellendi" DEMEZ: bu kullanıcının ilk doğum
+              // kaydı, güncelleme değil (D4 bulgusu; anahtar D5'te eklendi,
+              // tüketicisi D8'e kadar bağlanmamıştı).
+              Text(AppLocalizations.of(context).onboardingSavedNoChart)));
       return;
     }
     showBigThreeReveal(context, sun: gunes, moon: ay, ascendant: yukselen);

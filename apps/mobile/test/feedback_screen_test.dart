@@ -130,7 +130,9 @@ void main() {
       expect(find.textContaining('doğrudan bize ulaşır'), findsOneWidget);
       expect(find.text('Hata 🐞'), findsOneWidget);
       expect(find.text('Öneri 💡'), findsOneWidget);
-      expect(find.text('Diğer ✨'), findsOneWidget);
+      // ✨ segment etiketinden çıktı (D8: yalnız başarı anlarında); "Diğer"
+      // artık ekran çipiyle aynı metin, o yüzden en az bir.
+      expect(find.text('Diğer'), findsAtLeastNWidgets(1));
       expect(find.text('Hangi ekran?'), findsOneWidget);
       expect(find.text('Gökyüzü'), findsOneWidget);
       expect(find.text('Kehanet'), findsOneWidget);

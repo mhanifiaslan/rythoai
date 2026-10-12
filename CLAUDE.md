@@ -433,11 +433,9 @@ izinli kalemlerden başka bir şey kalmaması) o yüzden kuruldu.
 **o soruyla** açar ama **göndermez** (`chat_screen.dart` doktrini); otomatik
 gönderim hem kullanıcının ağzına soru koyar hem jeton musluğu olur.
 
-⚠️ `bazi_tab.dart:230` `chart['missing_elements'] as List` **hoşgörüsüz
-cast**: alan gelmezse `Null is not a List` fırlar ve BaZi sekmesinin
-TAMAMI çöker. Yıl Haritası aynı riski bir üretim olayından sonra hoşgörülü
-ayrıştırmayla kapatmış (`solar_return_screen.dart:69-71`), BaZi kapatmamış.
-Ölçüldü ama onarılmadı — bu turun kapsamı yerleşimdi.
+(`bazi_tab.dart` `missing_elements` hoşgörüsüz cast'i D6'da KAPANDI —
+`(chart['missing_elements'] as List?) ?? const []`; eski not burada iki tur
+"onarılmadı" diye durdu.)
 
 ### ⚠️ CANLI KESİNTİ: Gemini 403 "Lightning dunning decision is deny"
 

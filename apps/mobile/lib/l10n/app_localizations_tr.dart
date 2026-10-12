@@ -67,23 +67,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get wizardNext => 'Devam ✦';
 
   @override
-  String get wizardFinish => 'Haritamı çiz ✨';
-
-  @override
-  String get wizardLater => 'Sonra';
-
-  @override
-  String get wizardPhoneTitle => 'Arkadaşlarını bul';
-
-  @override
-  String get wizardPhoneBody =>
-      'Numaranı doğrularsan rehberindeki Rytho kullanıcılarını görebilirsin. Numara paylaşılmaz; yalnız eşleşme için kullanılır. İstersen bu adımı sonraya bırak.';
-
-  @override
-  String get wizardPhoneVerify => 'Numaramı doğrula';
-
-  @override
-  String get wizardPhoneDone => 'Numaran doğrulandı';
+  String get wizardFinish => 'Haritamı çiz';
 
   @override
   String get wizardNotifyTitle => 'Günün okuması hazır olunca?';
@@ -253,13 +237,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get innerCalendarActive => 'Şu an etkin';
 
   @override
-  String get innerCalendarUpcoming => 'Önündeki 30 gün';
-
-  @override
-  String get innerCalendarQuiet =>
-      'Bu pencerede kesinleşen açı yok — gökyüzü sakin.';
-
-  @override
   String get innerCalendarArc => 'Yaşam yayı (solar arc)';
 
   @override
@@ -267,7 +244,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get appTagline =>
-      'Kadim bilgelik, hassas gökyüzü hesabıyla buluşur.\nHaritan çizilir, yolun aydınlanır. ✨';
+      'Kadim bilgelik, hassas gökyüzü hesabıyla buluşur.\nHaritan çizilir, yolun aydınlanır.';
 
   @override
   String get signInWithGoogle => 'Google ile giriş';
@@ -316,11 +293,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get todaysInsight => 'Bugünün İçgörüsü';
-
-  @override
-  String signToday(String sign) {
-    return '$sign · bugün';
-  }
 
   @override
   String get skyNow => 'Şu An Gökyüzünde';
@@ -423,9 +395,6 @@ class AppLocalizationsTr extends AppLocalizations {
       'İki haritanın üst üste okuması Rytho+ ile açılır.';
 
   @override
-  String get friendsTitle => 'Arkadaşlar';
-
-  @override
   String get addFriend => 'Arkadaş ekle';
 
   @override
@@ -453,16 +422,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get usernameTaken => 'Bu kullanıcı adı alınmış, başka bir tane dene.';
-
-  @override
-  String get youLabel => 'SEN';
-
-  @override
-  String get streakVisibleOn =>
-      'Arkadaşların serini ve bugün okuyup okumadığını görebilir.';
-
-  @override
-  String get streakVisibleOff => 'Serin arkadaşlarından gizli.';
 
   @override
   String get copyInviteLink => 'Davet bağlantısını kopyala';
@@ -503,9 +462,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get incomingRequests => 'Gelen davetler';
 
   @override
-  String get yourFriends => 'Arkadaşların';
-
-  @override
   String get pendingInvites => 'Yanıt bekleyen davetlerin';
 
   @override
@@ -544,9 +500,6 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get dyadDisclaimer =>
       'Bu okuma yalnızca bugün için geçerlidir ve yarın değişir. Kalıcı bir uyum puanı vermiyoruz.';
-
-  @override
-  String get dyadFailed => 'Okuma alınamadı.';
 
   @override
   String get sendReaction => 'Bir tepki gönder';
@@ -873,25 +826,12 @@ class AppLocalizationsTr extends AppLocalizations {
       'Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.';
 
   @override
-  String get errorSkyUnavailable => 'Gökyüzüne şu an ulaşılamıyor.';
-
-  @override
   String get reportUnavailable =>
       'Okumayı şu an üretemedik. Birkaç saniye sonra tekrar dene.';
 
   @override
   String get reportUnavailableRefunded =>
       'Raporu şu an üretemedik; harcanan kredi iade edildi. Birkaç saniye sonra tekrar dene.';
-
-  @override
-  String get promoTitle => 'Yıldızların ötesine geç ✨';
-
-  @override
-  String get promoBody =>
-      'Doğum haritanın derin analizini ve kişilik raporunu keşfet.';
-
-  @override
-  String get promoAction => 'Keşfet';
 
   @override
   String get chatTitle => 'Rytho AI';
@@ -905,9 +845,6 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get chatEmptyBody =>
       'Haritan, yüzün, kaderin... Aklından geçen her soruyu sor.';
-
-  @override
-  String get chatFailed => 'Kozmik bağlantı koptu. Lütfen tekrar dene.';
 
   @override
   String get suggestCareer => 'Kariyer 💼';
@@ -925,13 +862,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get suggestMarriage => 'Evlilik zamanı 💍';
 
   @override
-  String get onboardingTitle => 'Doğum Anın';
-
-  @override
-  String get onboardingBody =>
-      'Haritanın çizilebilmesi için gökyüzünün o anki dizilişi gerekir. Saat ne kadar kesinse, yükselen o kadar doğrudur.';
-
-  @override
   String get onboardingCity => 'Doğum şehri';
 
   @override
@@ -942,12 +872,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get genderOther => 'Diğer';
-
-  @override
-  String get onboardingSubmit => 'Haritamı çiz ✨';
-
-  @override
-  String get onboardingFailed => 'Kayıt başarısız.';
 
   @override
   String get onboardingStage1 => 'Gökyüzü konumlanıyor';
@@ -1057,10 +981,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get appHeadline => 'Kişisel Kozmik Zekân';
 
   @override
-  String get consentNote =>
-      'Devam ederek gizlilik ilkelerini kabul etmiş olursun.\nYorumlar içgörü amaçlıdır; tıbbi/finansal tavsiye değildir.';
-
-  @override
   String get authNameRequired => 'Adını yaz.';
 
   @override
@@ -1071,9 +991,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get authEmailInUse => 'Bu e-posta zaten kayıtlı. Giriş yapmayı dene.';
-
-  @override
-  String get authWeakPassword => 'Şifre en az 6 karakter olmalı.';
 
   @override
   String get authTooManyRequests =>
@@ -1150,15 +1067,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get atlasAspects => 'Açılar';
 
   @override
-  String get traitDetermination => 'Kararlılık';
-
-  @override
-  String get traitCommunication => 'İletişim';
-
-  @override
-  String get traitSensitivity => 'Duyarlılık';
-
-  @override
   String moonIllumination(Object percent) {
     return 'aydınlanma %$percent';
   }
@@ -1195,9 +1103,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get reportFailed => 'Şikayet gönderilemedi.';
-
-  @override
-  String get recordLabel => '✨ Kayıt';
 
   @override
   String get aFriend => 'Bir arkadaşın';
@@ -1245,16 +1150,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get iChingOracleNote => 'Rytho\'nun kehanet notu';
-
-  @override
-  String iChingQuotaFree(int left, int limit) {
-    return 'Bugünkü hak: $left/$limit';
-  }
-
-  @override
-  String iChingQuotaTokens(int n) {
-    return 'Çekim bedeli: $n kredi';
-  }
 
   @override
   String get iChingJudgmentTitle => 'Hüküm';
@@ -1415,12 +1310,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get baziFateNote => 'Rytho\'nun kader notu';
 
   @override
-  String get traitEnergy => 'Enerji';
-
-  @override
-  String get traitPracticality => 'Pratiklik';
-
-  @override
   String get defaultUserName => 'Gezgin';
 
   @override
@@ -1429,7 +1318,7 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
-  String get atlasReadingNote => '✨ Rytho\'nun okuma notu';
+  String get atlasReadingNote => 'Rytho\'nun okuma notu';
 
   @override
   String get notifications => 'Bildirimler';
@@ -1479,13 +1368,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String quietHoursRoundedNote(String range) {
     return 'Sessiz saatler tam saate yuvarlandı: $range';
   }
-
-  @override
-  String get notificationsDisabledHint =>
-      'Bildirimler cihaz ayarlarından kapalı. Açmak için sistem ayarlarına git.';
-
-  @override
-  String get enableNotifications => 'Bildirimleri aç';
 
   @override
   String get deleteAccount => 'Hesabı sil';
@@ -1622,9 +1504,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get faceScanReading => 'Firaset ile eşleştiriliyor';
 
   @override
-  String get faceCapture => 'Çek';
-
-  @override
   String get faceRetake => 'Yeniden çek';
 
   @override
@@ -1659,10 +1538,6 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get faceReadingLockedBody =>
       'Yüz hatlarından mizaç okuması Rytho+ ile açılır. Görüntü cihazında işlenir, hiçbir yere gönderilmez.';
-
-  @override
-  String get faceReadingEntryBody =>
-      'Yüzünü tarat, firaset geleneğine göre mizacını oku.';
 
   @override
   String get faceGalleryButton => 'Galeriden seç';
@@ -1760,27 +1635,11 @@ class AppLocalizationsTr extends AppLocalizations {
   String get chatEmptyTitle => 'Rytho ile konuş';
 
   @override
-  String get conversationDeleted => 'Konu silindi.';
-
-  @override
   String get contactMatchSetting => 'Rehberimden arkadaş öner';
 
   @override
   String get contactMatchSettingBody =>
       'Numaralar telefonunda özetlenir; rehberin sunucuya gönderilmez. Yalnızca ikiniz de bu ayarı açtıysanız birbirinizi görürsünüz.';
-
-  @override
-  String get contactSuggestionsLabel => 'REHBERİNDEN';
-
-  @override
-  String get contactMatchOffTitle => 'Rehberindekileri bul';
-
-  @override
-  String get contactMatchOffBody =>
-      'Rehber eşleşmesini açarsan Rytho kullanan tanıdıkların burada görünür. Numaralar cihazında şifrelenir; rehberin hiçbir zaman sunucuda saklanmaz.';
-
-  @override
-  String get contactMatchEnable => 'Eşleşmeyi aç';
 
   @override
   String get contactMatchPhoneTitle => 'Önce numaranı doğrula';
@@ -1942,9 +1801,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get deviceConflictUseHere => 'Bu cihazda kullan';
 
   @override
-  String get deviceConflictSignOut => 'Çıkış yap';
-
-  @override
   String get deviceConflictClaimFailed =>
       'Cihaz devralınamadı — bağlantını kontrol edip tekrar dene.';
 
@@ -1991,7 +1847,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get linkPasswordDone =>
-      'Şifre kaydedildi. Artık e-posta ve şifreyle de girebilirsin ✨';
+      'Şifre kaydedildi. Artık e-posta ve şifreyle de girebilirsin';
 
   @override
   String get linkGoogleDone => 'Google hesabın bağlandı ✨';
@@ -2131,9 +1987,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String tokenBalanceChip(int count) {
     return '$count kredi';
   }
-
-  @override
-  String get atlasSections => 'Haritanda ne var';
 
   @override
   String get atlasTraitsSubtitle => 'Element dağılımın';
@@ -2300,18 +2153,12 @@ class AppLocalizationsTr extends AppLocalizations {
   String get basisMovement => 'Hareket';
 
   @override
-  String get basisMeasurement => 'Ölçüm';
-
-  @override
   String get basisExact => 'Kesinleşme';
 
   @override
   String basisHouse(int house) {
     return '$house. ev';
   }
-
-  @override
-  String get basisSynthesis => 'Rytho\'nun yorumu';
 
   @override
   String get basisFootnote =>
@@ -2344,9 +2191,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get profileDiaryRow => 'Günlüğüm';
-
-  @override
-  String get profileDiaryRowSubtitle => 'Yaşadıklarını gökyüzüyle yan yana koy';
 
   @override
   String get diaryHint => 'Bugün ne oldu? Tek cümle yeter.';
@@ -2391,7 +2235,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get feedbackTypeSuggestion => 'Öneri 💡';
 
   @override
-  String get feedbackTypeOther => 'Diğer ✨';
+  String get feedbackTypeOther => 'Diğer';
 
   @override
   String get feedbackScreenLabel => 'Hangi ekran?';
@@ -2434,11 +2278,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get feedbackReportThisScreen => 'Bu ekranı bildir';
 
   @override
-  String askAboutFriend(String name) {
-    return '$name hakkında Rytho\'ya sor';
-  }
-
-  @override
   String get removeFriendConfirmTitle => 'Arkadaşlıktan çıkar';
 
   @override
@@ -2470,27 +2309,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String friendAcceptedSnack(String name) {
     return '$name artık arkadaşın.';
   }
-
-  @override
-  String get diaryQuickTitle => 'Günlüğüm';
-
-  @override
-  String get diaryQuickHint => 'Bugün ne yaşadın? Tek cümle yeter.';
-
-  @override
-  String get diaryQuickSaved => 'Kaydedildi — Rytho bunu hatırlayacak ✨';
-
-  @override
-  String get diaryQuickSeeAll => 'Tümünü gör';
-
-  @override
-  String diaryQuickLast(String date) {
-    return 'Son giriş: $date';
-  }
-
-  @override
-  String get diaryQuickEmpty =>
-      'Yaşadıklarını tek cümleyle bırak; Rytho yorumlarını sana göre derinleştirsin.';
 
   @override
   String get diaryRowSubtitle => 'Bugünü not et';
@@ -2847,9 +2665,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get atlasReportPreparing => 'Rytho okumanı yazıyor…';
 
   @override
-  String get atlasReportRetry => 'Okuma alınamadı — dokun, tekrar denesin.';
-
-  @override
   String get retrogradeMeaning =>
       'R retro: gezegen gökyüzünde geri gidiyor görünür. Klasik yorumda o alanda ilerleme dışa değil içe doğrudur — gözden geçirme, toparlama zamanı.';
 
@@ -2969,9 +2784,6 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
-  String get peopleUnnamed => 'Adsız kişi';
-
-  @override
   String get peopleHourUnknownBadge =>
       'Doğum saati bilinmiyor — Yükselen ve evler hesaplanmadı.';
 
@@ -3069,7 +2881,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get chatOpenLabel => 'Rytho ile sohbet et';
 
   @override
-  String get trialBannerTitle => 'Deneme süren aktif ✨';
+  String get trialBannerTitle => 'Deneme süren aktif';
 
   @override
   String trialBannerDays(int days) {
@@ -3079,9 +2891,6 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get trialBannerLastDay =>
       'Tüm Rytho+ özellikleri açık — bugün son gün.';
-
-  @override
-  String get chartInspectorTitle => 'Harita İnceleme';
 
   @override
   String chartWheelSemantics(int rings, int aspects) {

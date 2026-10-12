@@ -32,10 +32,15 @@ class MarkdownText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final govde = baseStyle ?? RythoType.reading;
+    final bloklar = parseBlocks(data);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final blok in parseBlocks(data)) markdownBlockWidget(blok, govde),
+        // Son blok alt dolgusuz: sohbet balonu alt dolgusunu sıfıra çekmişti
+        // (D6) ve paragrafın kendi `md` dolgusu balonun altında boşluk
+        // bırakıyordu — biri değişince öteki bozuluyordu, artık tek yerde.
+        for (var i = 0; i < bloklar.length; i++)
+          markdownBlockWidget(bloklar[i], govde, son: i == bloklar.length - 1),
       ],
     );
   }
@@ -44,7 +49,10 @@ class MarkdownText extends StatelessWidget {
 /// Tek bloğun widget'ı. Ayrı ayrı çizilebilmesi gerekiyor: okuma sayfası
 /// blokları kademeli belirtiyor (R12-B2), bu yüzden hepsini tek Column'a
 /// gömen bir çizici yetmez.
-Widget markdownBlockWidget(MarkdownBlock blok, TextStyle govde) {
+///
+/// [son]: metnin son bloğu — paragrafsa alt dolgusu yok (bkz. [MarkdownText]).
+Widget markdownBlockWidget(MarkdownBlock blok, TextStyle govde,
+    {bool son = false}) {
     switch (blok.type) {
       case MarkdownBlockType.heading:
         // Başlık seviyeleri: h1 19, h2 17, h3 15.5 — okuma metninden
@@ -77,7 +85,7 @@ Widget markdownBlockWidget(MarkdownBlock blok, TextStyle govde) {
         );
       case MarkdownBlockType.paragraph:
         return Padding(
-          padding: const EdgeInsets.only(bottom: RythoSpace.md),
+          padding: EdgeInsets.only(bottom: son ? 0 : RythoSpace.md),
           child: Text.rich(inlineSpan(blok.text, govde)),
         );
     }

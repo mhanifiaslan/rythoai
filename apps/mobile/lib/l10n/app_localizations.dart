@@ -203,38 +203,8 @@ abstract class AppLocalizations {
   /// No description provided for @wizardFinish.
   ///
   /// In tr, this message translates to:
-  /// **'Haritamı çiz ✨'**
+  /// **'Haritamı çiz'**
   String get wizardFinish;
-
-  /// No description provided for @wizardLater.
-  ///
-  /// In tr, this message translates to:
-  /// **'Sonra'**
-  String get wizardLater;
-
-  /// No description provided for @wizardPhoneTitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Arkadaşlarını bul'**
-  String get wizardPhoneTitle;
-
-  /// No description provided for @wizardPhoneBody.
-  ///
-  /// In tr, this message translates to:
-  /// **'Numaranı doğrularsan rehberindeki Rytho kullanıcılarını görebilirsin. Numara paylaşılmaz; yalnız eşleşme için kullanılır. İstersen bu adımı sonraya bırak.'**
-  String get wizardPhoneBody;
-
-  /// No description provided for @wizardPhoneVerify.
-  ///
-  /// In tr, this message translates to:
-  /// **'Numaramı doğrula'**
-  String get wizardPhoneVerify;
-
-  /// No description provided for @wizardPhoneDone.
-  ///
-  /// In tr, this message translates to:
-  /// **'Numaran doğrulandı'**
-  String get wizardPhoneDone;
 
   /// No description provided for @wizardNotifyTitle.
   ///
@@ -518,18 +488,6 @@ abstract class AppLocalizations {
   /// **'Şu an etkin'**
   String get innerCalendarActive;
 
-  /// No description provided for @innerCalendarUpcoming.
-  ///
-  /// In tr, this message translates to:
-  /// **'Önündeki 30 gün'**
-  String get innerCalendarUpcoming;
-
-  /// No description provided for @innerCalendarQuiet.
-  ///
-  /// In tr, this message translates to:
-  /// **'Bu pencerede kesinleşen açı yok — gökyüzü sakin.'**
-  String get innerCalendarQuiet;
-
   /// No description provided for @innerCalendarArc.
   ///
   /// In tr, this message translates to:
@@ -545,7 +503,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTagline.
   ///
   /// In tr, this message translates to:
-  /// **'Kadim bilgelik, hassas gökyüzü hesabıyla buluşur.\nHaritan çizilir, yolun aydınlanır. ✨'**
+  /// **'Kadim bilgelik, hassas gökyüzü hesabıyla buluşur.\nHaritan çizilir, yolun aydınlanır.'**
   String get appTagline;
 
   /// No description provided for @signInWithGoogle.
@@ -643,12 +601,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Bugünün İçgörüsü'**
   String get todaysInsight;
-
-  /// No description provided for @signToday.
-  ///
-  /// In tr, this message translates to:
-  /// **'{sign} · bugün'**
-  String signToday(String sign);
 
   /// No description provided for @skyNow.
   ///
@@ -818,12 +770,6 @@ abstract class AppLocalizations {
   /// **'İki haritanın üst üste okuması Rytho+ ile açılır.'**
   String get synastryLockedBody;
 
-  /// No description provided for @friendsTitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Arkadaşlar'**
-  String get friendsTitle;
-
   /// No description provided for @addFriend.
   ///
   /// In tr, this message translates to:
@@ -877,24 +823,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Bu kullanıcı adı alınmış, başka bir tane dene.'**
   String get usernameTaken;
-
-  /// No description provided for @youLabel.
-  ///
-  /// In tr, this message translates to:
-  /// **'SEN'**
-  String get youLabel;
-
-  /// No description provided for @streakVisibleOn.
-  ///
-  /// In tr, this message translates to:
-  /// **'Arkadaşların serini ve bugün okuyup okumadığını görebilir.'**
-  String get streakVisibleOn;
-
-  /// No description provided for @streakVisibleOff.
-  ///
-  /// In tr, this message translates to:
-  /// **'Serin arkadaşlarından gizli.'**
-  String get streakVisibleOff;
 
   /// No description provided for @copyInviteLink.
   ///
@@ -961,12 +889,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Gelen davetler'**
   String get incomingRequests;
-
-  /// No description provided for @yourFriends.
-  ///
-  /// In tr, this message translates to:
-  /// **'Arkadaşların'**
-  String get yourFriends;
 
   /// No description provided for @pendingInvites.
   ///
@@ -1045,12 +967,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Bu okuma yalnızca bugün için geçerlidir ve yarın değişir. Kalıcı bir uyum puanı vermiyoruz.'**
   String get dyadDisclaimer;
-
-  /// No description provided for @dyadFailed.
-  ///
-  /// In tr, this message translates to:
-  /// **'Okuma alınamadı.'**
-  String get dyadFailed;
 
   /// No description provided for @sendReaction.
   ///
@@ -1604,12 +1520,6 @@ abstract class AppLocalizations {
   /// **'Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.'**
   String get errorConnection;
 
-  /// No description provided for @errorSkyUnavailable.
-  ///
-  /// In tr, this message translates to:
-  /// **'Gökyüzüne şu an ulaşılamıyor.'**
-  String get errorSkyUnavailable;
-
   /// No description provided for @reportUnavailable.
   ///
   /// In tr, this message translates to:
@@ -1621,24 +1531,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Raporu şu an üretemedik; harcanan kredi iade edildi. Birkaç saniye sonra tekrar dene.'**
   String get reportUnavailableRefunded;
-
-  /// No description provided for @promoTitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Yıldızların ötesine geç ✨'**
-  String get promoTitle;
-
-  /// No description provided for @promoBody.
-  ///
-  /// In tr, this message translates to:
-  /// **'Doğum haritanın derin analizini ve kişilik raporunu keşfet.'**
-  String get promoBody;
-
-  /// No description provided for @promoAction.
-  ///
-  /// In tr, this message translates to:
-  /// **'Keşfet'**
-  String get promoAction;
 
   /// No description provided for @chatTitle.
   ///
@@ -1663,12 +1555,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Haritan, yüzün, kaderin... Aklından geçen her soruyu sor.'**
   String get chatEmptyBody;
-
-  /// No description provided for @chatFailed.
-  ///
-  /// In tr, this message translates to:
-  /// **'Kozmik bağlantı koptu. Lütfen tekrar dene.'**
-  String get chatFailed;
 
   /// No description provided for @suggestCareer.
   ///
@@ -1700,18 +1586,6 @@ abstract class AppLocalizations {
   /// **'Evlilik zamanı 💍'**
   String get suggestMarriage;
 
-  /// No description provided for @onboardingTitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Doğum Anın'**
-  String get onboardingTitle;
-
-  /// No description provided for @onboardingBody.
-  ///
-  /// In tr, this message translates to:
-  /// **'Haritanın çizilebilmesi için gökyüzünün o anki dizilişi gerekir. Saat ne kadar kesinse, yükselen o kadar doğrudur.'**
-  String get onboardingBody;
-
   /// No description provided for @onboardingCity.
   ///
   /// In tr, this message translates to:
@@ -1735,18 +1609,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Diğer'**
   String get genderOther;
-
-  /// No description provided for @onboardingSubmit.
-  ///
-  /// In tr, this message translates to:
-  /// **'Haritamı çiz ✨'**
-  String get onboardingSubmit;
-
-  /// No description provided for @onboardingFailed.
-  ///
-  /// In tr, this message translates to:
-  /// **'Kayıt başarısız.'**
-  String get onboardingFailed;
 
   /// No description provided for @onboardingStage1.
   ///
@@ -1958,12 +1820,6 @@ abstract class AppLocalizations {
   /// **'Kişisel Kozmik Zekân'**
   String get appHeadline;
 
-  /// No description provided for @consentNote.
-  ///
-  /// In tr, this message translates to:
-  /// **'Devam ederek gizlilik ilkelerini kabul etmiş olursun.\nYorumlar içgörü amaçlıdır; tıbbi/finansal tavsiye değildir.'**
-  String get consentNote;
-
   /// No description provided for @authNameRequired.
   ///
   /// In tr, this message translates to:
@@ -1987,12 +1843,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Bu e-posta zaten kayıtlı. Giriş yapmayı dene.'**
   String get authEmailInUse;
-
-  /// No description provided for @authWeakPassword.
-  ///
-  /// In tr, this message translates to:
-  /// **'Şifre en az 6 karakter olmalı.'**
-  String get authWeakPassword;
 
   /// No description provided for @authTooManyRequests.
   ///
@@ -2138,24 +1988,6 @@ abstract class AppLocalizations {
   /// **'Açılar'**
   String get atlasAspects;
 
-  /// No description provided for @traitDetermination.
-  ///
-  /// In tr, this message translates to:
-  /// **'Kararlılık'**
-  String get traitDetermination;
-
-  /// No description provided for @traitCommunication.
-  ///
-  /// In tr, this message translates to:
-  /// **'İletişim'**
-  String get traitCommunication;
-
-  /// No description provided for @traitSensitivity.
-  ///
-  /// In tr, this message translates to:
-  /// **'Duyarlılık'**
-  String get traitSensitivity;
-
   /// No description provided for @moonIllumination.
   ///
   /// In tr, this message translates to:
@@ -2221,12 +2053,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Şikayet gönderilemedi.'**
   String get reportFailed;
-
-  /// No description provided for @recordLabel.
-  ///
-  /// In tr, this message translates to:
-  /// **'✨ Kayıt'**
-  String get recordLabel;
 
   /// No description provided for @aFriend.
   ///
@@ -2305,18 +2131,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Rytho\'nun kehanet notu'**
   String get iChingOracleNote;
-
-  /// No description provided for @iChingQuotaFree.
-  ///
-  /// In tr, this message translates to:
-  /// **'Bugünkü hak: {left}/{limit}'**
-  String iChingQuotaFree(int left, int limit);
-
-  /// No description provided for @iChingQuotaTokens.
-  ///
-  /// In tr, this message translates to:
-  /// **'Çekim bedeli: {n} kredi'**
-  String iChingQuotaTokens(int n);
 
   /// No description provided for @iChingJudgmentTitle.
   ///
@@ -2576,18 +2390,6 @@ abstract class AppLocalizations {
   /// **'Rytho\'nun kader notu'**
   String get baziFateNote;
 
-  /// No description provided for @traitEnergy.
-  ///
-  /// In tr, this message translates to:
-  /// **'Enerji'**
-  String get traitEnergy;
-
-  /// No description provided for @traitPracticality.
-  ///
-  /// In tr, this message translates to:
-  /// **'Pratiklik'**
-  String get traitPracticality;
-
   /// No description provided for @defaultUserName.
   ///
   /// In tr, this message translates to:
@@ -2603,7 +2405,7 @@ abstract class AppLocalizations {
   /// No description provided for @atlasReadingNote.
   ///
   /// In tr, this message translates to:
-  /// **'✨ Rytho\'nun okuma notu'**
+  /// **'Rytho\'nun okuma notu'**
   String get atlasReadingNote;
 
   /// No description provided for @notifications.
@@ -2689,18 +2491,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Sessiz saatler tam saate yuvarlandı: {range}'**
   String quietHoursRoundedNote(String range);
-
-  /// No description provided for @notificationsDisabledHint.
-  ///
-  /// In tr, this message translates to:
-  /// **'Bildirimler cihaz ayarlarından kapalı. Açmak için sistem ayarlarına git.'**
-  String get notificationsDisabledHint;
-
-  /// No description provided for @enableNotifications.
-  ///
-  /// In tr, this message translates to:
-  /// **'Bildirimleri aç'**
-  String get enableNotifications;
 
   /// No description provided for @deleteAccount.
   ///
@@ -2948,12 +2738,6 @@ abstract class AppLocalizations {
   /// **'Firaset ile eşleştiriliyor'**
   String get faceScanReading;
 
-  /// No description provided for @faceCapture.
-  ///
-  /// In tr, this message translates to:
-  /// **'Çek'**
-  String get faceCapture;
-
   /// No description provided for @faceRetake.
   ///
   /// In tr, this message translates to:
@@ -3013,12 +2797,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Yüz hatlarından mizaç okuması Rytho+ ile açılır. Görüntü cihazında işlenir, hiçbir yere gönderilmez.'**
   String get faceReadingLockedBody;
-
-  /// No description provided for @faceReadingEntryBody.
-  ///
-  /// In tr, this message translates to:
-  /// **'Yüzünü tarat, firaset geleneğine göre mizacını oku.'**
-  String get faceReadingEntryBody;
 
   /// No description provided for @faceGalleryButton.
   ///
@@ -3188,12 +2966,6 @@ abstract class AppLocalizations {
   /// **'Rytho ile konuş'**
   String get chatEmptyTitle;
 
-  /// No description provided for @conversationDeleted.
-  ///
-  /// In tr, this message translates to:
-  /// **'Konu silindi.'**
-  String get conversationDeleted;
-
   /// No description provided for @contactMatchSetting.
   ///
   /// In tr, this message translates to:
@@ -3205,30 +2977,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Numaralar telefonunda özetlenir; rehberin sunucuya gönderilmez. Yalnızca ikiniz de bu ayarı açtıysanız birbirinizi görürsünüz.'**
   String get contactMatchSettingBody;
-
-  /// No description provided for @contactSuggestionsLabel.
-  ///
-  /// In tr, this message translates to:
-  /// **'REHBERİNDEN'**
-  String get contactSuggestionsLabel;
-
-  /// No description provided for @contactMatchOffTitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Rehberindekileri bul'**
-  String get contactMatchOffTitle;
-
-  /// No description provided for @contactMatchOffBody.
-  ///
-  /// In tr, this message translates to:
-  /// **'Rehber eşleşmesini açarsan Rytho kullanan tanıdıkların burada görünür. Numaralar cihazında şifrelenir; rehberin hiçbir zaman sunucuda saklanmaz.'**
-  String get contactMatchOffBody;
-
-  /// No description provided for @contactMatchEnable.
-  ///
-  /// In tr, this message translates to:
-  /// **'Eşleşmeyi aç'**
-  String get contactMatchEnable;
 
   /// No description provided for @contactMatchPhoneTitle.
   ///
@@ -3506,12 +3254,6 @@ abstract class AppLocalizations {
   /// **'Bu cihazda kullan'**
   String get deviceConflictUseHere;
 
-  /// No description provided for @deviceConflictSignOut.
-  ///
-  /// In tr, this message translates to:
-  /// **'Çıkış yap'**
-  String get deviceConflictSignOut;
-
   /// No description provided for @deviceConflictClaimFailed.
   ///
   /// In tr, this message translates to:
@@ -3593,7 +3335,7 @@ abstract class AppLocalizations {
   /// No description provided for @linkPasswordDone.
   ///
   /// In tr, this message translates to:
-  /// **'Şifre kaydedildi. Artık e-posta ve şifreyle de girebilirsin ✨'**
+  /// **'Şifre kaydedildi. Artık e-posta ve şifreyle de girebilirsin'**
   String get linkPasswordDone;
 
   /// No description provided for @linkGoogleDone.
@@ -3817,12 +3559,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'{count} kredi'**
   String tokenBalanceChip(int count);
-
-  /// No description provided for @atlasSections.
-  ///
-  /// In tr, this message translates to:
-  /// **'Haritanda ne var'**
-  String get atlasSections;
 
   /// No description provided for @atlasTraitsSubtitle.
   ///
@@ -4070,12 +3806,6 @@ abstract class AppLocalizations {
   /// **'Hareket'**
   String get basisMovement;
 
-  /// No description provided for @basisMeasurement.
-  ///
-  /// In tr, this message translates to:
-  /// **'Ölçüm'**
-  String get basisMeasurement;
-
   /// No description provided for @basisExact.
   ///
   /// In tr, this message translates to:
@@ -4087,12 +3817,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'{house}. ev'**
   String basisHouse(int house);
-
-  /// No description provided for @basisSynthesis.
-  ///
-  /// In tr, this message translates to:
-  /// **'Rytho\'nun yorumu'**
-  String get basisSynthesis;
 
   /// No description provided for @basisFootnote.
   ///
@@ -4147,12 +3871,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Günlüğüm'**
   String get profileDiaryRow;
-
-  /// No description provided for @profileDiaryRowSubtitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Yaşadıklarını gökyüzüyle yan yana koy'**
-  String get profileDiaryRowSubtitle;
 
   /// No description provided for @diaryHint.
   ///
@@ -4235,7 +3953,7 @@ abstract class AppLocalizations {
   /// No description provided for @feedbackTypeOther.
   ///
   /// In tr, this message translates to:
-  /// **'Diğer ✨'**
+  /// **'Diğer'**
   String get feedbackTypeOther;
 
   /// No description provided for @feedbackScreenLabel.
@@ -4316,12 +4034,6 @@ abstract class AppLocalizations {
   /// **'Bu ekranı bildir'**
   String get feedbackReportThisScreen;
 
-  /// No description provided for @askAboutFriend.
-  ///
-  /// In tr, this message translates to:
-  /// **'{name} hakkında Rytho\'ya sor'**
-  String askAboutFriend(String name);
-
   /// No description provided for @removeFriendConfirmTitle.
   ///
   /// In tr, this message translates to:
@@ -4369,42 +4081,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'{name} artık arkadaşın.'**
   String friendAcceptedSnack(String name);
-
-  /// No description provided for @diaryQuickTitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Günlüğüm'**
-  String get diaryQuickTitle;
-
-  /// No description provided for @diaryQuickHint.
-  ///
-  /// In tr, this message translates to:
-  /// **'Bugün ne yaşadın? Tek cümle yeter.'**
-  String get diaryQuickHint;
-
-  /// No description provided for @diaryQuickSaved.
-  ///
-  /// In tr, this message translates to:
-  /// **'Kaydedildi — Rytho bunu hatırlayacak ✨'**
-  String get diaryQuickSaved;
-
-  /// No description provided for @diaryQuickSeeAll.
-  ///
-  /// In tr, this message translates to:
-  /// **'Tümünü gör'**
-  String get diaryQuickSeeAll;
-
-  /// No description provided for @diaryQuickLast.
-  ///
-  /// In tr, this message translates to:
-  /// **'Son giriş: {date}'**
-  String diaryQuickLast(String date);
-
-  /// No description provided for @diaryQuickEmpty.
-  ///
-  /// In tr, this message translates to:
-  /// **'Yaşadıklarını tek cümleyle bırak; Rytho yorumlarını sana göre derinleştirsin.'**
-  String get diaryQuickEmpty;
 
   /// No description provided for @diaryRowSubtitle.
   ///
@@ -5012,12 +4688,6 @@ abstract class AppLocalizations {
   /// **'Rytho okumanı yazıyor…'**
   String get atlasReportPreparing;
 
-  /// No description provided for @atlasReportRetry.
-  ///
-  /// In tr, this message translates to:
-  /// **'Okuma alınamadı — dokun, tekrar denesin.'**
-  String get atlasReportRetry;
-
   /// No description provided for @retrogradeMeaning.
   ///
   /// In tr, this message translates to:
@@ -5228,12 +4898,6 @@ abstract class AppLocalizations {
   /// **'{used}/{limit} kişi'**
   String peopleSlots(int used, int limit);
 
-  /// No description provided for @peopleUnnamed.
-  ///
-  /// In tr, this message translates to:
-  /// **'Adsız kişi'**
-  String get peopleUnnamed;
-
   /// No description provided for @peopleHourUnknownBadge.
   ///
   /// In tr, this message translates to:
@@ -5399,7 +5063,7 @@ abstract class AppLocalizations {
   /// No description provided for @trialBannerTitle.
   ///
   /// In tr, this message translates to:
-  /// **'Deneme süren aktif ✨'**
+  /// **'Deneme süren aktif'**
   String get trialBannerTitle;
 
   /// No description provided for @trialBannerDays.
@@ -5413,12 +5077,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Tüm Rytho+ özellikleri açık — bugün son gün.'**
   String get trialBannerLastDay;
-
-  /// No description provided for @chartInspectorTitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Harita İnceleme'**
-  String get chartInspectorTitle;
 
   /// No description provided for @chartWheelSemantics.
   ///

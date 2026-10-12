@@ -147,11 +147,11 @@ class _AtlasScreenState extends ConsumerState<AtlasScreen> {
                   child: Column(children: [
                     // Görünüm seçici bir DURUM göstergesi: tek bileşen
                     // (`GlassSegments`), segment başına `selected`
-                    // semantiği oradan gelir. Kenar dolgusu seçicinin
-                    // sabit `lg` kenarından; panel dolgusuyla 24 dp —
-                    // `margin` seçeneği D8'de.
+                    // semantiği oradan gelir. Panel dolgusu zaten var;
+                    // seçicinin kendi kenarı sıfır (çift dolgu ölçülmüştü).
                     GlassSegments(
                       compact: true,
+                      margin: EdgeInsets.zero,
                       index: _gorunum,
                       labels: [
                         l10n.atlasWheelNatal,

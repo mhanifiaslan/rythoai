@@ -58,6 +58,8 @@ class IzinKapisi extends StatelessWidget {
         Text(aciklama ?? l10n.notifyDailyBody, style: RythoType.bodyDim),
         const SizedBox(height: RythoSpace.md),
         GlassSegments(
+          // Panel dolgusunun içinde: kendi kenarı sıfır.
+          margin: EdgeInsets.zero,
           labels: [l10n.wizardNotifyAllow, l10n.wizardNotifyNotNow],
           index: s == null ? null : (s ? 0 : 1),
           onChanged: (i) => onSec(i == 0),

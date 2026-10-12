@@ -600,6 +600,31 @@ ağaçta ÜRÜYORDU, ama (b)'nin sebebi bulgunun yazdığı sebep DEĞİLDİ.
 - Durum: açık — onarım kaynakta, Cloud Run'a henüz gönderilmedi
   (sıra: önce backend, sonra paket — CLAUDE.md §6).
 
+### 1.20.0+50 "onar + tekleştir" turu — cihazda ölçülecekler (2026-10-12)
+
+Dokuz dalga (D0–D8, S1) tek sürümde; bekçiler yeşil, cihaz ölçümü BEKLİYOR.
+Her satır bir senaryo; sonucu bu bölüme yazılır:
+
+- R8 optimizasyonu ilk kez açık: bildirim, Google girişi, satın alma/geri
+  yükleme, yüz okuma (ML Kit + TFLite), sohbet; edge-to-edge çubuklar.
+- Çark ♀/♂ ve burç glifleri beyaz metin (emoji yedeği değil), 320 dp'de
+  İnceleme/sky_now kırpılmıyor; açı çizgi dili (düz/kesik) lejantla uyumlu.
+- Onboarding 6 adım; cinsiyet önseçili değil; saatsiz doğumda "Evler
+  hesaplanıyor" denmiyor; bildirim "Şimdi değil" → sonraki açılışta soru.
+- Ana ekran: tek "Bugün"; sinyal hatasında "Tekrar dene"; günlük satırı
+  okumanın altında; TalkBack dock "seçili" duyuruyor.
+- Para: abonelik ekranı yüklenirken "—"; mağazada paket radyo + tek düğme;
+  BaZi/Yıl Haritası/İç Takvim/Doğum Kapısı'na ilk girişte onay kartı,
+  "Devam" sonrası üretim, ikinci girişte kart yok; kilit kartında "5 kredi";
+  yıllık ürün Console'da açılınca rozet ve "ayda ≈" satırı; 429'da sohbette
+  geri sayım notu.
+- Sohbet: hata balonu ayrı (sunucuya gitmiyor), 402'de metin giriş alanına
+  geri geliyor, uzun cevabın başı üstte, İngilizce kullanıcı promptta
+  "Traveler" (ad yoksa).
+- Sohbet personası (S1): görev isteğine nazik sınır + harita köprüsü;
+  "hissediyorum/altında/olurum" finans/ölüm reddi ÜRETMİYOR; sohbete yazılan
+  doğum tarihine burç uydurmuyor.
+
 ## 2. tur kapsamı
 
 - RYTHO_TOKENS_ENFORCE=1 → jeton tükenme/yetersiz bakiye UX'i

@@ -82,7 +82,7 @@ void main() {
       'lib/widgets/phone_number_field.dart', // ülke kodu
       // --- GÖSTERİM: D6/D8'de trBuyuk'a geçecek ya da kalkacak ---
       'lib/features/atlas/atlas_screen.dart',
-      'lib/features/auth/device_conflict_screen.dart',
+      // device_conflict_screen.dart D8'de iki değerli eşlemeye geçti.
       // contacts_screen.dart ve relationship_screen.dart D6'da temizlendi
       // (bölüm başlığı rol tipografisi, baş harf trBuyuk, eksen adı
       // tırnaklı — dönüşüm yok).

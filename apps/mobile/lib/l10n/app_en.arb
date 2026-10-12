@@ -17,12 +17,7 @@
   "wizardGenderTitle": "One detail for BaZi",
   "wizardGenderBody": "BaZi (Four Pillars) takes the direction of its luck cycles from gender. If you don’t specify, that direction isn’t computed; everything else stays the same.",
   "wizardNext": "Continue ✦",
-  "wizardFinish": "Draw my chart ✨",
-  "wizardLater": "Later",
-  "wizardPhoneTitle": "Find your friends",
-  "wizardPhoneBody": "Verify your number to see who from your contacts is on Rytho. The number is never shared; it is used only for matching. You can leave this for later.",
-  "wizardPhoneVerify": "Verify my number",
-  "wizardPhoneDone": "Number verified",
+  "wizardFinish": "Draw my chart",
   "wizardNotifyTitle": "When your reading is ready?",
   "wizardNotifyBody": "Shall we send a gentle nudge for your daily reading and streak? Quiet hours can be set under Profile.",
   "wizardNotifyAllow": "Notify me 🔔",
@@ -99,11 +94,9 @@
     }
   },
   "innerCalendarActive": "Active now",
-  "innerCalendarUpcoming": "The next 30 days",
-  "innerCalendarQuiet": "No aspect perfects in this window — a quiet sky.",
   "innerCalendarArc": "Arc of life (solar arc)",
   "innerCalendarNote": "Rytho's inner-season reading",
-  "appTagline": "Ancient wisdom, met with precise sky calculation.\nYour chart is drawn; your path lights up. ✨",
+  "appTagline": "Ancient wisdom, met with precise sky calculation.\nYour chart is drawn; your path lights up.",
   "signInWithGoogle": "Sign in with Google",
   "orDivider": "or",
   "signIn": "Sign in",
@@ -120,14 +113,6 @@
   "greetingEvening": "Good evening",
   "greetingNight": "Good night",
   "todaysInsight": "Today's Insight",
-  "signToday": "{sign} · today",
-  "@signToday": {
-    "placeholders": {
-      "sign": {
-        "type": "String"
-      }
-    }
-  },
   "skyNow": "In the Sky Right Now",
   "iChing": "I Ching",
   "iChingSubtitle": "Book of Changes",
@@ -197,7 +182,6 @@
   "iChingLockedBody": "Ask a question, cast with true probabilities, read the Rytho interpretation — opens with Rytho+.",
   "synastryLockedTitle": "Synastry wheel",
   "synastryLockedBody": "The reading of two charts laid over each other opens with Rytho+.",
-  "friendsTitle": "Friends",
   "addFriend": "Add friend",
   "usernameLabel": "USERNAME",
   "usernameHeadline": "Let your friends find you",
@@ -207,9 +191,6 @@
   "usernameInvalid": "3-20 characters; lowercase letters, numbers and underscore only.",
   "usernameEmpty": "Username can't be empty.",
   "usernameTaken": "That username is taken — try another.",
-  "youLabel": "YOU",
-  "streakVisibleOn": "Friends can see your streak and whether you've read today.",
-  "streakVisibleOff": "Your streak is hidden from friends.",
   "copyInviteLink": "Copy invite link",
   "inviteLinkCopied": "Invite link copied.",
   "shareInviteInstead": "Share my invite link instead",
@@ -235,7 +216,6 @@
   "noFriendsYet": "No one here yet",
   "noFriendsBody": "Add a friend by username — see each other's streaks and read the dynamic between you every day.",
   "incomingRequests": "Incoming invites",
-  "yourFriends": "Your friends",
   "pendingInvites": "Invites awaiting a reply",
   "accept": "Accept",
   "ignore": "Ignore",
@@ -249,7 +229,6 @@
   "readTodayDone": "Has done today's reading",
   "dyadLabel": "Between you today",
   "dyadDisclaimer": "This reading holds for today only and changes tomorrow. We don't give a fixed compatibility score.",
-  "dyadFailed": "Couldn't load the reading.",
   "sendReaction": "Send a reaction",
   "sendReactionBody": "Pick one of the ready reactions — no writing, just a small hello.",
   "reactionSent": "{emoji} sent.",
@@ -356,30 +335,21 @@
   "feedbackDiscardBody": "Your feedback won't be saved.",
   "errorGeneric": "Something unexpected happened. Please try again shortly.",
   "errorConnection": "Couldn't connect. Check your internet and try again.",
-  "errorSkyUnavailable": "The sky is out of reach right now.",
   "reportUnavailable": "We couldn't produce your reading just now. Try again in a few seconds.",
   "reportUnavailableRefunded": "We couldn't produce your report just now — the credit you spent has been refunded. Try again in a few seconds.",
-  "promoTitle": "Go beyond the stars ✨",
-  "promoBody": "Explore the full analysis of your birth chart.",
-  "promoAction": "Explore",
   "chatTitle": "Rytho AI",
   "chatSend": "Send",
   "chatHint": "Ask anything about what's ahead...",
   "chatEmptyBody": "Your chart, your patterns, your path — ask whatever is on your mind.",
-  "chatFailed": "The connection dropped. Please try again.",
   "suggestCareer": "Career 💼",
   "suggestLove": "Love life ❤️",
   "suggestMonth": "What does this month hold?",
   "suggestFinance": "Money and work 💰",
   "suggestMarriage": "Commitment 💍",
-  "onboardingTitle": "Your Birth Moment",
-  "onboardingBody": "Your chart needs the exact arrangement of the sky at that moment. The more precise the time, the more accurate your rising sign.",
   "onboardingCity": "Birth city",
   "genderFemale": "Female",
   "genderMale": "Male",
   "genderOther": "Other",
-  "onboardingSubmit": "Draw my chart ✨",
-  "onboardingFailed": "Couldn't save your details.",
   "onboardingStage1": "Positioning the sky",
   "onboardingStage2": "Calculating the houses",
   "onboardingStage3": "Drawing your chart",
@@ -415,12 +385,10 @@
   "baziWaitStage3": "Writing your fate note",
   "atlasTitle": "Birth Chart Analysis",
   "appHeadline": "Your Personal Cosmic Intelligence",
-  "consentNote": "By continuing you accept our privacy terms.\nReadings are for insight; they are not medical or financial advice.",
   "authNameRequired": "Enter your name.",
   "authInvalidEmail": "Enter a valid email address.",
   "authWrongCredentials": "Email or password is incorrect.",
   "authEmailInUse": "That email is already registered. Try signing in.",
-  "authWeakPassword": "Password must be at least 6 characters.",
   "authTooManyRequests": "Too many attempts. Please try again shortly.",
   "authDisabled": "Email sign-in is currently unavailable.",
   "authNetwork": "Couldn't connect. Check your internet.",
@@ -445,9 +413,6 @@
   "atlasPlanetPositions": "Planetary Positions",
   "atlasTraits": "Character Traits",
   "atlasAspects": "Aspects",
-  "traitDetermination": "Determination",
-  "traitCommunication": "Communication",
-  "traitSensitivity": "Sensitivity",
   "moonIllumination": "{percent}% illuminated",
   "@moonIllumination": {
     "placeholders": {
@@ -473,7 +438,6 @@
   "reportReasonOther": "Something else",
   "reportSubmitted": "Report received — we'll look into it shortly. Thank you.",
   "reportFailed": "The report couldn't be sent.",
-  "recordLabel": "✨ Your details",
   "aFriend": "A friend",
   "iChingIntro": "The 64-hexagram matrix, three thousand years old. Write your question; the coins fall on real probability, and the moving lines bridge to what comes next.",
   "iChingQuestionHint": "What's on your mind?",
@@ -511,25 +475,6 @@
     }
   },
   "iChingOracleNote": "Rytho's note on the cast",
-  "iChingQuotaFree": "Today's cast: {left}/{limit}",
-  "@iChingQuotaFree": {
-    "placeholders": {
-      "left": {
-        "type": "int"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "iChingQuotaTokens": "Cast cost: {n} credits",
-  "@iChingQuotaTokens": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
   "iChingJudgmentTitle": "Judgment",
   "iChingImageTitle": "Image",
   "iChingMovingTitle": "Moving Lines",
@@ -697,8 +642,6 @@
     }
   },
   "baziFateNote": "Rytho's note on your chart",
-  "traitEnergy": "Energy",
-  "traitPracticality": "Practicality",
   "defaultUserName": "Traveller",
   "retrogradeChip": "{planet} retrograde",
   "@retrogradeChip": {
@@ -708,7 +651,7 @@
       }
     }
   },
-  "atlasReadingNote": "✨ Rytho's note on your chart",
+  "atlasReadingNote": "Rytho's note on your chart",
   "notifications": "Notifications",
   "notifyDaily": "Daily reading",
   "notifyDailyBody": "Let me know each morning when today's sky is ready.",
@@ -733,8 +676,6 @@
   "quietHoursFrom": "From",
   "quietHoursTo": "To",
   "quietHoursRoundedNote": "Quiet hours rounded to the hour: {range}",
-  "notificationsDisabledHint": "Notifications are off in your device settings. Turn them on there to receive them.",
-  "enableNotifications": "Turn on notifications",
   "deleteAccount": "Delete account",
   "deleteAccountTitle": "You're about to delete your account",
   "deleteAccountBody": "This cannot be undone. We will delete your birth record, your chats and the notes drawn from them, your journal entries, the people you added, your friendships, your username, every reading generated for you, your AI usage records, your phone verification attempts and the feedback you sent.",
@@ -783,7 +724,6 @@
   "faceScanning": "Reading your features",
   "faceScanNodes": "Points settling",
   "faceScanReading": "Matching against firasa",
-  "faceCapture": "Capture",
   "faceRetake": "Retake",
   "faceConsentTitle": "Face reading needs your consent",
   "faceConsentBody": "Face reading processes the camera frame or a photo you pick from your gallery ON YOUR DEVICE. The image is never sent to a server, never stored anywhere, and is discarded as soon as the reading is made (on the gallery path the copy handed to the app is deleted; your original photo is untouched). Only ratios derived from your features (e.g. forehead-to-chin height) are sent; those numbers cannot identify a person.",
@@ -794,7 +734,6 @@
   "faceDetectFailed": "No face detected. Make sure the light is good and your face is inside the frame.",
   "faceReadingHint": "The tradition says: a single sign decides nothing. What follows is a tendency, not a fate.",
   "faceReadingLockedBody": "A temperament reading from your features opens with Rytho+. The image is processed on your device and never sent anywhere.",
-  "faceReadingEntryBody": "Scan your face and read your temperament through the firasa tradition.",
   "faceGalleryButton": "Choose from gallery",
   "faceLensButton": "Flip camera",
   "faceStillAnalyzing": "Analyzing photo…",
@@ -810,7 +749,7 @@
   "faceConsentWithdrawTitle": "Withdraw consent",
   "faceConsentWithdrawBody": "Your face reading consent will be withdrawn and any firasa readings produced so far will be deleted. Your other readings (natal, BaZi, daily) are not affected.",
   "faceConsentWithdrawConfirm": "Withdraw and delete",
-  "faceConsentWithdrawn": "Consent withdrawn, {count} readings deleted.",
+  "faceConsentWithdrawn": "Consent withdrawn, {count, plural, =1{1 reading} other{{count} readings}} deleted.",
   "@faceConsentWithdrawn": {
     "placeholders": {
       "count": {
@@ -830,13 +769,8 @@
   "addFriendNeedsUsername": "Pick a username first — you can claim one in the panel below.",
   "newConversation": "New topic",
   "chatEmptyTitle": "Talk with Rytho",
-  "conversationDeleted": "Conversation deleted.",
   "contactMatchSetting": "Suggest friends from my contacts",
   "contactMatchSettingBody": "Numbers are digested on your phone; your contacts are never uploaded. You only see each other if you've both enabled this.",
-  "contactSuggestionsLabel": "FROM YOUR CONTACTS",
-  "contactMatchOffTitle": "Find people you know",
-  "contactMatchOffBody": "Turn on contact matching and people from your address book who use Rytho will appear here. Numbers are hashed on your device; your contacts are never stored on our servers.",
-  "contactMatchEnable": "Turn on matching",
   "contactMatchPhoneTitle": "Verify your number first",
   "contactMatchPhoneBody": "Matching works through phone numbers. Once you verify yours, people you know can find you — and you can see them.",
   "contactMatchVerifyPhone": "Verify your number",
@@ -926,7 +860,6 @@
     }
   },
   "deviceConflictUseHere": "Use on this device",
-  "deviceConflictSignOut": "Sign out",
   "deviceConflictClaimFailed": "Couldn't take over this device — check your connection and try again.",
   "forceUpdateTitle": "Update required",
   "forceUpdateBody": "This version of Rytho is no longer supported. Update the app to continue — the stars are waiting.",
@@ -940,7 +873,7 @@
   "linkAlreadyLinked": "This sign-in method is already linked to your account.",
   "linkCredentialInUse": "This identity is linked to another account. It needs to be unlinked there first.",
   "linkRequiresRecentLogin": "For security this needs a recent sign-in: sign out, sign back in, then try again.",
-  "linkPasswordDone": "Password saved. You can now sign in with email and password too ✨",
+  "linkPasswordDone": "Password saved. You can now sign in with email and password too",
   "linkGoogleDone": "Your Google account is linked ✨",
   "setPasswordSection": "CREATE A PASSWORD",
   "setPasswordBody": "Set an email and password to sign in without Google/Apple as well.",
@@ -992,7 +925,6 @@
       }
     }
   },
-  "atlasSections": "What's in your chart",
   "atlasTraitsSubtitle": "Your element balance",
   "atlasPlanetsSubtitle": "Positions at your birth",
   "atlasFullReport": "Full report",
@@ -1048,10 +980,8 @@
   "basisAspect": "Aspect",
   "basisOrb": "Orb (measured)",
   "basisMovement": "Motion",
-  "basisMeasurement": "Measurement",
   "basisExact": "Exact on",
   "basisHouse": "house {house}",
-  "basisSynthesis": "Rytho's reading",
   "basisFootnote": "Positions come from the ephemeris, the aspect and orb are measured; the reading is built on them.",
   "relationshipOpen": "Explore the relationship",
   "relationshipOpenSubtitle": "Where your two charts flow, and where they take work",
@@ -1061,7 +991,6 @@
   "calendarWhyDate": "Why does this date matter?",
   "diaryTitle": "My Journal",
   "profileDiaryRow": "My journal",
-  "profileDiaryRowSubtitle": "Put what you live next to the sky",
   "diaryHint": "What happened today? One line is enough.",
   "diarySave": "Save",
   "diaryEmpty": "No entries yet. Leave important moments as one-liners — when you ask \"what happened this past month?\" in chat, Rytho puts these records next to the sky of those days.",
@@ -1075,7 +1004,7 @@
   "feedbackLead": "A bug, an idea or something on your mind — it reaches us directly.",
   "feedbackTypeBug": "Bug 🐞",
   "feedbackTypeSuggestion": "Idea 💡",
-  "feedbackTypeOther": "Other ✨",
+  "feedbackTypeOther": "Other",
   "feedbackScreenLabel": "Which screen?",
   "feedbackScreenChat": "Chat",
   "feedbackScreenOracle": "Oracle",
@@ -1089,7 +1018,6 @@
   "feedbackTooShort": "Write at least 10 characters.",
   "profileFeedback": "Send feedback",
   "feedbackReportThisScreen": "Report this screen",
-  "askAboutFriend": "Ask Rytho about {name}",
   "removeFriendConfirmTitle": "Remove friend",
   "removeFriendConfirmBody": "{name} leaves your list and shared readings close. You can add them again later.",
   "blockUserConfirmTitle": "Block",
@@ -1098,12 +1026,6 @@
   "inviteNeedsUsername": "An invite is waiting — pick a username first.",
   "inviteNeedsUsernameAction": "Pick a username",
   "friendAcceptedSnack": "{name} is now your friend.",
-  "diaryQuickTitle": "My Journal",
-  "diaryQuickHint": "What happened today? One line is enough.",
-  "diaryQuickSaved": "Saved — Rytho will remember this ✨",
-  "diaryQuickSeeAll": "See all",
-  "diaryQuickLast": "Last entry: {date}",
-  "diaryQuickEmpty": "Leave what you live as one-liners; Rytho deepens its readings around you.",
   "diaryRowSubtitle": "Note today",
   "diaryThemeCareer": "Career",
   "diaryThemeRelationships": "Relationships",
@@ -1215,7 +1137,6 @@
   "roleNorthNode": "North Node: the direction you are called to develop.",
   "roleSouthNode": "South Node: what already comes easily and must be left behind.",
   "atlasReportPreparing": "Rytho is writing your reading…",
-  "atlasReportRetry": "Couldn't load the reading — tap to retry.",
   "retrogradeMeaning": "R retrograde: the planet appears to move backward. Classically, progress in that area turns inward rather than outward — a time to review and gather.",
   "calendarLockedReading": "This day's reading opens with Rytho+.",
   "calendarOtherEvents": "Other movements",
@@ -1266,7 +1187,6 @@
       "limit": { "type": "int" }
     }
   },
-  "peopleUnnamed": "Unnamed person",
   "peopleHourUnknownBadge": "Birth time unknown — Ascendant and houses were not calculated.",
 
   "relationPartner": "My partner",
@@ -1302,13 +1222,12 @@
   "notifPermissionOffTitle": "Notifications are off in system settings",
   "notifPermissionOffBody": "Until you allow Rytho notifications in your phone's settings, the preferences here have no effect: Settings → Apps → Rytho → Notifications.",
   "chatOpenLabel": "Chat with Rytho",
-  "trialBannerTitle": "Your trial is active ✨",
-  "trialBannerDays": "All Rytho+ features unlocked — {days} days left.",
+  "trialBannerTitle": "Your trial is active",
+  "trialBannerDays": "All Rytho+ features unlocked — {days, plural, =1{1 day left} other{{days} days left}}.",
   "@trialBannerDays": { "placeholders": { "days": { "type": "int" } } },
   "trialBannerLastDay": "All Rytho+ features unlocked — today is the last day.",
 
-  "chartInspectorTitle": "Chart Inspector",
-  "chartWheelSemantics": "Astrology wheel: {rings} rings, {aspects} aspects. Details in the position table below.",
+  "chartWheelSemantics": "Astrology wheel: {rings, plural, =1{1 ring} other{{rings} rings}}, {aspects, plural, =1{1 aspect} other{{aspects} aspects}}. Details in the position table below.",
   "@chartWheelSemantics": { "placeholders": { "rings": { "type": "int" }, "aspects": { "type": "int" } } },
   "chartLegendInner": "Inner: {label}",
   "@chartLegendInner": { "placeholders": { "label": { "type": "String" } } },

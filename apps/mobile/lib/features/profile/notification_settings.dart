@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/notifications.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/rytho_tokens.dart';
-import '../../widgets/atlas_widgets.dart';
+import '../../widgets/glass.dart' show GlassPanel;
 import '../../widgets/common.dart';
 import '../../widgets/izin_kapisi.dart' show IzinKapaliBandi;
 
@@ -78,7 +78,7 @@ class NotificationSettings extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final prefs = ref.watch(notificationPrefsProvider);
 
-    return Plaque(
+    return GlassPanel(
       padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
       child: Column(children: [
         // OS izni reddedilmişse dürüst band + ayarlara giden düğme (D3

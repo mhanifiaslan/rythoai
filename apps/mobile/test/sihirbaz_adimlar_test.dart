@@ -182,9 +182,10 @@ void main() {
     await _pompala(tester);
     final adimlar = [_tariheGit, _saateGit, _yereGit, _cinsiyeteGit, _bildirimeGit];
     expect(_dugme(tester).text, _tr.wizardNext);
+    // "Sonra" anahtarı (`wizardLater`) D8'de ARB'den silindi; metin
+    // düzeyinde aranacak bir şey kalmadı, kaynak bekçisi sihirbaz_mantik'te.
     for (final git in adimlar) {
       await git(tester);
-      expect(find.text(_tr.wizardLater), findsNothing);
     }
     expect(_dugme(tester).text, _tr.wizardFinish);
   });

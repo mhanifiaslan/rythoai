@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core.auth import AuthUser, get_current_user
-from core.i18n import get_language
+from core.i18n import default_name, get_language
 from core.messages import text
 from core.entitlements import require_plus
 from core import entitlements, wallet
@@ -49,7 +49,9 @@ SignName = Literal[
 
 
 class BirthData(BaseModel):
-    name: str = "Gezgin"
+    # Boş = dile göre varsayılan hitap (`i18n.default_name`); sabit "Gezgin"
+    # İngilizce kullanıcıya Türkçe ad veriyordu.
+    name: str = ""
     year: int = Field(ge=1900, le=2100)
     month: int = Field(ge=1, le=12)
     day: int = Field(ge=1, le=31)
@@ -99,8 +101,8 @@ class RelationshipRequest(BaseModel):
     person_id: str | None = Field(default=None, max_length=128)
 
 
-def _natal_kwargs(d: BirthData) -> dict:
-    return dict(name=d.name, year=d.year, month=d.month, day=d.day,
+def _natal_kwargs(d: BirthData, lang: str) -> dict:
+    return dict(name=d.name or default_name(lang), year=d.year, month=d.month, day=d.day,
                 hour=d.hour, minute=d.minute, city=d.city, nation=d.nation,
                 hour_known=d.hour_known)
 
@@ -209,13 +211,13 @@ def daily(data: BirthData,
     """
     try:
         natal = astro_service.get_natal_chart(
-            **astro_service.subject_kwargs(_natal_kwargs(data)),
+            **astro_service.subject_kwargs(_natal_kwargs(data, lang)),
             hour_known=data.hour_known)
         sky = prompts.localize_sky(lang, get_sky_now())
         # birth: bugünün transitlerinin haritaya değdiği noktalar da okumaya
         # girsin (Revize R8) — ek LLM çağrısı yok, hesap yerel efemeris.
         report = report_service.daily_reading(
-            user.uid, natal, sky, lang=lang, birth=_natal_kwargs(data),
+            user.uid, natal, sky, lang=lang, birth=_natal_kwargs(data, lang),
             today=entitlements.user_local_date(user.uid))
         return {"status": "success", "data": {
             "reading": report["text"], "cached": report.get("cached", False),
@@ -242,7 +244,7 @@ def natal(data: BirthData,
           lang: str = Depends(get_language)):
     try:
         chart = astro_service.get_natal_chart(
-            **astro_service.subject_kwargs(_natal_kwargs(data)),
+            **astro_service.subject_kwargs(_natal_kwargs(data, lang)),
             hour_known=data.hour_known)
         # Token düşümü önbellek kaçırıldığında, LLM çağrısından hemen önce
         # (bkz. _cached_generate): aynı rapora ikinci bakış ücretsiz.
@@ -275,7 +277,7 @@ def bazi(data: BirthData,
             # (12:00 varsaymak öğle doğumu uydurmaktı — Revize B1).
             hour=data.hour if data.hour_known else None,
             minute=data.minute, city=data.city, nation=data.nation,
-            gender=data.gender, name=data.name,
+            gender=data.gender, name=data.name or default_name(lang),
         )
         report = report_service.bazi_report(
             user.uid, chart, lang=lang,
@@ -392,7 +394,7 @@ def solar_return(data: SolarReturnRequest,
         from services import predict_service
         profil = profile_service.get_profile(user.uid) or {}
         sr = predict_service.solar_return(
-            data.name, data.year, data.month, data.day,
+            data.name or default_name(lang), data.year, data.month, data.day,
             data.hour, data.minute, data.city, data.nation,
             hour_known=data.hour_known, target_year=data.target_year,
             relocation_city=(profil.get("residenceCity") or "").strip() or None,
@@ -424,11 +426,11 @@ def progressions(data: BirthData,
     try:
         from services import predict_service
         prog = predict_service.secondary_progressions(
-            data.name, data.year, data.month, data.day,
+            data.name or default_name(lang), data.year, data.month, data.day,
             data.hour, data.minute, data.city, data.nation,
             hour_known=data.hour_known)
         hits = predict_service.solar_arc_hits(
-            data.name, data.year, data.month, data.day,
+            data.name or default_name(lang), data.year, data.month, data.day,
             data.hour, data.minute, data.city, data.nation,
             hour_known=data.hour_known)
         report = report_service.progressions_report(
@@ -568,7 +570,7 @@ def dyad(req: RelationshipRequest,
                             detail=text("dyad.profile_missing", lang))
 
     synastry = astro_service.get_synastry(
-        profile_service.birth_kwargs(me), karsi.birth)
+        profile_service.birth_kwargs(me, lang=lang), karsi.birth)
     sky = prompts.localize_sky(lang, get_sky_now())
     # GT5: çifte özgü BUGÜN prompt'a girer — "günlük" okuma artık gerçekten
     # çift için günlük (eskiden tek günlük girdi herkese aynı Ay evresiydi).
@@ -587,7 +589,7 @@ def dyad(req: RelationshipRequest,
     # önbellekten ücretsiz görür (anahtar çift bazlı).
     report = report_service.dyad_reading(
         user.uid, karsi.key,
-        me.get("displayName") or "Gezgin", karsi.label,
+        me.get("displayName") or default_name(lang), karsi.label,
         synastry, sky, lang=lang,
         spend=wallet.spender(user.uid, "dyad", lang=lang),
         refund=lambda: wallet.refund_spend(user.uid, "dyad"),
@@ -750,7 +752,7 @@ def synastry(req: SynastryReportRequest,
              lang: str = Depends(get_language)):
     try:
         result = astro_service.get_synastry(
-            _natal_kwargs(req.person1), _natal_kwargs(req.person2)
+            _natal_kwargs(req.person1, lang), _natal_kwargs(req.person2, lang)
         )
         report = report_service.synastry_report(
             user.uid, result, lang=lang,
