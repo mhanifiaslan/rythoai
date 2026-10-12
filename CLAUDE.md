@@ -206,8 +206,10 @@ Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.20.0+50** (pubspec, D8 —
 2026-10-12); D0–D8 + S1 dalgalarının HEPSİ kodda ve commit'li. Sıradaki üç
 adım dışa dönük ve SAHİP onayı ister: `infra/deploy-backend.ps1` (D8'in
 `default_name` değişikliği canlıda değil — rev 00109 S1+D0'da kaldı) →
-`infra/build-aab.ps1` ile AAB 50 → Console'a yükleme. 49'luk AAB (`10-10
-19:53`) yalnız ölçüm artefaktıydı, yüklenmedi.
+Console'a AAB 50 yükleme. **AAB 50 ÜRETİLDİ** (`infra/build-aab.ps1`,
+2026-10-12, 114,2 MiB, 6/6 kapı OK, R8 %37,53) — `apps/mobile/build/app/
+outputs/bundle/release/app-release.aab`; henüz YÜKLENMEDİ. 49'luk AAB
+(`10-10 19:53`) yalnız ölçüm artefaktıydı, yüklenmedi.
 
 ⚠️ **Play "DEX optimizasyonu %0" uyarısı KAPANDI (kaynakta, 2026-10-10)** —
 Console'un kendi ölçümü ancak 50 yüklenince değişir. Kök: RevenueCat Amazon
