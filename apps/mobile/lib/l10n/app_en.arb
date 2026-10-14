@@ -312,7 +312,6 @@
   "termsOfUse": "Terms of Use",
   "signOut": "Sign out",
   "signOutConfirmBody": "Notifications stop on this device; sign back in to pick up where you left off.",
-  "dailyStreak": "Daily Streak",
   "streakDays": "{count, plural, =1{1 day} other{{count} days}}",
   "@streakDays": {
     "placeholders": {
@@ -321,7 +320,6 @@
       }
     }
   },
-  "streakBody": "Open your daily reading every day and watch the streak grow.",
   "birthRecord": "Birth Record",
   "birthDate": "Date",
   "birthTime": "Time",
@@ -997,7 +995,6 @@
   "diaryDeleted": "Entry deleted.",
   "diaryFootnote": "Your entries are visible only to you and feed Rytho's chat memory. Deleting your account deletes them all.",
   "diaryDeleteTitle": "Delete this entry?",
-  "profileSectionIdentity": "Birth & identity",
   "profileSectionAccount": "Account",
   "profileSectionPrefs": "Preferences",
   "feedbackTitle": "Feedback",
@@ -1026,7 +1023,6 @@
   "inviteNeedsUsername": "An invite is waiting — pick a username first.",
   "inviteNeedsUsernameAction": "Pick a username",
   "friendAcceptedSnack": "{name} is now your friend.",
-  "diaryRowSubtitle": "Note today",
   "diaryThemeCareer": "Career",
   "diaryThemeRelationships": "Relationships",
   "diaryThemeInner": "Inner life",

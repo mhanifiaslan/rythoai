@@ -796,9 +796,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Notifications stop on this device; sign back in to pick up where you left off.';
 
   @override
-  String get dailyStreak => 'Daily Streak';
-
-  @override
   String streakDays(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -808,10 +805,6 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get streakBody =>
-      'Open your daily reading every day and watch the streak grow.';
 
   @override
   String get birthRecord => 'Birth Record';
@@ -2289,9 +2282,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get diaryDeleteTitle => 'Delete this entry?';
 
   @override
-  String get profileSectionIdentity => 'Birth & identity';
-
-  @override
   String get profileSectionAccount => 'Account';
 
   @override
@@ -2386,9 +2376,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String friendAcceptedSnack(String name) {
     return '$name is now your friend.';
   }
-
-  @override
-  String get diaryRowSubtitle => 'Note today';
 
   @override
   String get diaryThemeCareer => 'Career';

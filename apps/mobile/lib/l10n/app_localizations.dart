@@ -1424,23 +1424,11 @@ abstract class AppLocalizations {
   /// **'Bildirimler bu cihazda durur; yeniden girdiğinde kaldığın yerden devam edersin.'**
   String get signOutConfirmBody;
 
-  /// No description provided for @dailyStreak.
-  ///
-  /// In tr, this message translates to:
-  /// **'Günlük Seri'**
-  String get dailyStreak;
-
   /// No description provided for @streakDays.
   ///
   /// In tr, this message translates to:
   /// **'{count, plural, =1{1 gün} other{{count} gün}}'**
   String streakDays(int count);
-
-  /// No description provided for @streakBody.
-  ///
-  /// In tr, this message translates to:
-  /// **'Günlük okumayı her gün aç, serin büyüsün.'**
-  String get streakBody;
 
   /// No description provided for @birthRecord.
   ///
@@ -3908,12 +3896,6 @@ abstract class AppLocalizations {
   /// **'Bu girişi silmek istiyor musun?'**
   String get diaryDeleteTitle;
 
-  /// No description provided for @profileSectionIdentity.
-  ///
-  /// In tr, this message translates to:
-  /// **'Doğum ve kimlik'**
-  String get profileSectionIdentity;
-
   /// No description provided for @profileSectionAccount.
   ///
   /// In tr, this message translates to:
@@ -4081,12 +4063,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'{name} artık arkadaşın.'**
   String friendAcceptedSnack(String name);
-
-  /// No description provided for @diaryRowSubtitle.
-  ///
-  /// In tr, this message translates to:
-  /// **'Bugünü not et'**
-  String get diaryRowSubtitle;
 
   /// No description provided for @diaryThemeCareer.
   ///

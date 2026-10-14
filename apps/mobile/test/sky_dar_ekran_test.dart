@@ -66,7 +66,8 @@ void main() {
           reason: 'takvim şeridi dolu çizilmeli ki hücreler ölçülsün');
       expect(find.text(tr.todaysInsight), findsOneWidget);
       expect(find.text(tr.signalsSection), findsOneWidget);
-      expect(find.text(tr.diaryTitle), findsOneWidget);
+      // Günlük başlıkta ikon-tek düğme (ipucu = adı).
+      expect(find.byTooltip(tr.diaryTitle), findsOneWidget);
     });
 
     testWidgets('SkyScreen: abone okuması + uzun zamanlama etiketi',

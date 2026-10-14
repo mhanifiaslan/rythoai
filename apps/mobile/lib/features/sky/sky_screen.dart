@@ -20,7 +20,6 @@ import '../../theme/rytho_tokens.dart';
 import '../../widgets/atlas_widgets.dart';
 import '../../widgets/common.dart';
 import '../../widgets/glass.dart';
-import '../../widgets/liste_satiri.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart';
 import '../../widgets/reading_card.dart';
@@ -85,10 +84,10 @@ const int kKesifDilimi = 3;
 /// sinyaller, okuma) onun gövdesi. Sinyallerin kendi etiketi kaldı ama
 /// başlık rolünden alt etiket rolüne indi.
 ///
-/// Günlük düğmesi başlıktan okumanın ALTINA indi (sahip kararı K7):
-/// başlıkta ikon-tek bir düğme olarak neye gittiği belli olmuyordu;
-/// okumanın altında "Günlüğüm · Bugünü not et" satırı hem adını hem
-/// eylemini söylüyor ve okuduktan sonra not etme ritüeline denk geliyor.
+/// Günlük düğmesi BAŞLIKTA, sağ üstte. K7 (2026-10-10) onu okumanın altına
+/// indirmişti; cihazda ölçüldü (2026-10-14): satır ekranın çok altında
+/// kalıyor ve görünmüyordu. Sahip kararıyla geri alındı; ikon-tek düğmenin
+/// "neye gittiği" sorunu etiket ve ipucuyla çözüldü (bkz. `_Header`).
 ///
 /// ## Önceki yeniden kurgu (R3)
 ///
@@ -452,24 +451,6 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
                   },
                 ),
 
-              // ---------- GÜNLÜĞÜM (K7) ----------
-              // Okumanın ALTINDA: başlıktaki ikon-tek düğme neye gittiğini
-              // söylemiyordu; bu satır adını ve eylemini söylüyor ve
-              // "okudum, şimdi not edeyim" anına denk geliyor. Sohbet ayrı
-              // bir kapı istemiyor — dock'un merkezinde duruyor.
-              RythoReveal(
-                index: 5,
-                child: ListeSatiri(
-                  margin: const EdgeInsets.symmetric(
-                      horizontal: RythoSpace.lg, vertical: RythoSpace.sm),
-                  leading: const Icon(Icons.auto_stories_rounded,
-                      size: 22, color: RythoColors.lilac),
-                  title: l10n.diaryTitle,
-                  subtitle: l10n.diaryRowSubtitle,
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const DiaryScreen())),
-                ),
-              ),
             ],
           ),
         ),
@@ -638,11 +619,14 @@ class _DiscoveryRingPainter extends CustomPainter {
       old.mask != mask || old.done != done || old.empty != empty;
 }
 
-/// Üst şerit: degrade halkalı avatar + selamlama + bakiye hapı.
+/// Üst şerit: degrade halkalı avatar + selamlama + günlük düğmesi + bakiye
+/// hapı.
 ///
-/// Günlük düğmesi buradan KALKTI (K7): ikon-tek bir degrade kare, neye
-/// gittiği okunmadan "bir şey" vaat ediyordu. Günlük artık okumanın
-/// altında adıyla duruyor.
+/// Günlük düğmesi BURADA (K7 cihazda geri alındı, 2026-10-14): okumanın
+/// altındaki satır ekranın çok altında kalıyor ve görünmüyordu — sahip
+/// kendi cihazında ölçtü. Sağ üst köşe ekranın hiç kaymayan noktası.
+/// İkon-tek yüzeyin "neye gittiği" sorunu etiketle çözüldü: ekran
+/// okuyucuya adı (`semanticLabel`), uzun basışta ipucu (`Tooltip`).
 class _Header extends StatelessWidget {
   const _Header({
     required this.greeting,
@@ -697,6 +681,35 @@ class _Header extends StatelessWidget {
                 style: RythoText.display(18, w: FontWeight.w600)),
           ]),
         ),
+        // Günlüğüm: K5 — ikon taşıyan dolu yüzey `ctaGradient`.
+        Tooltip(
+          message: l10n.diaryTitle,
+          child: Pressable(
+            semanticLabel: l10n.diaryTitle,
+            onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DiaryScreen())),
+            child: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                gradient: RythoColors.ctaGradient,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(RythoRadius.md),
+                  topRight: Radius.circular(RythoRadius.md),
+                  bottomRight: Radius.circular(RythoRadius.md),
+                  bottomLeft: Radius.circular(RythoRadius.xs),
+                ),
+                boxShadow: [
+                  BoxShadow(color: RythoColors.goldGlow, blurRadius: 14),
+                ],
+              ),
+              child: const Icon(Icons.auto_stories_rounded,
+                  size: 19, color: RythoColors.onGradient),
+            ),
+          ),
+        ),
+        const SizedBox(width: RythoSpace.sm),
         // Bakiye hapı (U1): ekonomi ana ekranda her an görünür; dokununca
         // mağaza açılır (Duolingo mücevher sayacı modeli).
         const TokenChip(),

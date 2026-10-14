@@ -52,6 +52,21 @@ Future<T?> showRythoSheet<T>(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SheetTutamak(),
+          // Üst kenar ışığı (GlassPanel ile aynı dil): düz inkLight zemin +
+          // gri tutamak "soğuk" okunuyordu (cihaz bulgusu, 2026-10-14).
+          // Kabuk rengi/biçimi aynı; sıcaklık kenar ışığı ve lila tutamakla.
+          Container(
+            height: 1,
+            margin: const EdgeInsets.symmetric(
+                horizontal: RythoSpace.xxl, vertical: RythoSpace.sm),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [
+                Colors.transparent,
+                RythoColors.lilac,
+                Colors.transparent,
+              ]),
+            ),
+          ),
           if (baslik != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -100,7 +115,9 @@ class SheetTutamak extends StatelessWidget {
               width: 36,
               height: RythoSpace.xs,
               decoration: BoxDecoration(
-                color: RythoColors.glassStroke,
+                // Lila tutamak: gri çizgi kabuğu "sistem diyaloğu" gibi
+                // gösteriyordu; vurgu rengi kabuğu uygulamanın parçası yapar.
+                color: RythoColors.lilac.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(RythoRadius.xs),
               ),
             ),

@@ -252,11 +252,28 @@ kavram için TEK bileşen kalır. Plan dosyası
 | D3 paylaşılan bileşenler (4 ajan paralel; `OkumaKabi`, `acPaywall`, `ozellik_katalogu`, `IzinKapisi`…) | ✅ Flutter 1033, 57/57 mutasyon | `b9b81c7` |
 | D8-web (App Store hapı, 4 sayfa rytho.css, yorum temizliği, WebP 11,7 MB→0,6 MB, ortak EN) | ✅ pytest 2541, 31+3 mutasyon | `2be3512` |
 | D4 giriş+onboarding (6 adım, önseçim yok, saat uydurulmaz, giriş sükûneti, iptal hata değil) | ✅ Flutter 1103, 48/48 mutasyon | `c16a99d` |
-| D5 ana ekran+profil (tek "Bugün", AsyncBolum, günlük satırı altta, kabuk niyeti, hikâye sükûneti, çıkış onaylı, abonelik "—", saat uydurulmaz) | ✅ Flutter 1194, 70 mutasyon | `3dfe7a3` |
+| D5 ana ekran+profil (tek "Bugün", AsyncBolum, ~~günlük satırı altta~~ → K7 cihazda GERİ ALINDI, kabuk niyeti, hikâye sükûneti, çıkış onaylı, abonelik "—", saat uydurulmaz) | ✅ Flutter 1194, 70 mutasyon | `3dfe7a3` |
 | D6 derinlik (OkumaKabi 9 yüzey, çark çizgi dili + salt önizleme, Çevrem/kişi onayları, sohbet hata balonu + 402 tek yol) | ✅ Flutter 1441, 89/89 mutasyon | `707dd4a` |
 | D7 para (bedel kapısı 4 ekran — cüzdan yüklenirken geçmez; yıllık K8 ölçülmüş rozet; abonelik üç hâl + K2; mağaza tek düğme; `purchaseErrorText` tek kapı; rozet 10 yüzey; 429 notu) — ajansız, tek elden | ✅ Flutter 1500+, backend 2749, 33/33 mutasyon | `1531471` |
 | D8 cırcır bekçileri (hareket/token/l10n — dosya başına ÖLÇÜLEN tavan), 58 ölü ARB anahtarı, ✨ 15→5, EN çoğul, Plaque/dock/TypingDots/ErrorCard/GlassSegments.margin, backend varsayılan ad dile göre, belgeler, pubspec 1.20.0+50 | ✅ Flutter 1545, backend 2751, 12/12 mutasyon | `0b687bb` |
 | **S1 sohbet personası** (plan dışı, sahip şikâyeti 2026-10-10; yalnız backend — kapı ``, yetki alanı, `persona_guard`, `tools/sohbet_olc.py`) | ✅ pytest 2750, 66+7 mutasyon · ✅ CANLI rev 00109 | `5da5ed2` |
+
+### Cihaz turu 1 (2026-10-14) — K7 geri alındı
+
+Sahip AAB 50 öncesi derlemeyi cihazda açtı, dört bulgu: (1) **günlük
+satırı okumanın altında GÖRÜNMÜYOR** — K7 kararı masada doğru, ekranda
+yanlıştı; düğme sağ üste döndü, ikon-tek düğmenin adı `semanticLabel` +
+`Tooltip` ile (K7'nin asıl itirazı "neye gittiği belli değil"di, o sorun
+etiketle çözüldü, yer değiştirmekle değil). (2) **"Rytho'ya sor" düğme gibi
+görünmüyordu** — çıplak lila metinden lila konturlu hapa (altın CTA değil:
+sohbet kapısı satış değil). (3) **Alt sayfalar "soğuk"** — kabuk rengi/biçimi
+aynı, üst kenar ışığı + lila tutamak + dayanak başlığında altın glif.
+(4) **Profil hâlâ yoğun** — seri kartı kalktı (rozet burç çiplerinin
+yanında), "Doğum ve kimlik" Hesap'a girdi: beş karttan üç.
+
+**Ders:** yerleşim kararı (K7 gibi) ancak CİHAZDA kapanır; bekçi testleri
+kararın kodda durduğunu kanıtlar, görünür olduğunu değil. Kararı değiştiren
+tur bekçiyi de tersine çevirir (`sky_hiyerarsi_test` "günlük BAŞLIKTA").
 
 ### S1 — sohbet personası kayması (ölçüldü 2026-10-10, üretim Firestore salt okuma)
 

@@ -766,9 +766,6 @@ class AppLocalizationsTr extends AppLocalizations {
       'Bildirimler bu cihazda durur; yeniden girdiğinde kaldığın yerden devam edersin.';
 
   @override
-  String get dailyStreak => 'Günlük Seri';
-
-  @override
   String streakDays(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -778,9 +775,6 @@ class AppLocalizationsTr extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get streakBody => 'Günlük okumayı her gün aç, serin büyüsün.';
 
   @override
   String get birthRecord => 'Doğum Kaydı';
@@ -2213,9 +2207,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get diaryDeleteTitle => 'Bu girişi silmek istiyor musun?';
 
   @override
-  String get profileSectionIdentity => 'Doğum ve kimlik';
-
-  @override
   String get profileSectionAccount => 'Hesap';
 
   @override
@@ -2309,9 +2300,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String friendAcceptedSnack(String name) {
     return '$name artık arkadaşın.';
   }
-
-  @override
-  String get diaryRowSubtitle => 'Bugünü not et';
 
   @override
   String get diaryThemeCareer => 'Kariyer';

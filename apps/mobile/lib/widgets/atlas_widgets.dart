@@ -258,13 +258,34 @@ class RythoyaSor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // DÜĞME GİBİ GÖRÜNÜR (cihaz bulgusu, 2026-10-14): eski hâl çıplak lila
+    // metindi ("✦ Rytho'ya sor →") ve kullanıcı dokunulabilir olduğunu
+    // anlamıyordu. Hap: lila kontur + hafif dolgu + ikon + ok. Altın CTA
+    // DEĞİL — bu bir sohbet kapısı, satın alma değil; ikisi aynı görünse
+    // "Rytho'ya sor" para ister gibi okunurdu.
     return Pressable(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Text('✦ ${l10n.signalAsk} →',
-            style: RythoText.body(13,
-                color: RythoColors.lilac, w: FontWeight.w600)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: RythoSpace.lg, vertical: RythoSpace.sm),
+        decoration: BoxDecoration(
+          color: RythoColors.lilac.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(RythoRadius.pill),
+          border: Border.all(color: RythoColors.lilac.withValues(alpha: 0.55)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.auto_awesome_rounded,
+              size: 16, color: RythoColors.lilac),
+          const SizedBox(width: RythoSpace.sm),
+          Flexible(
+            child: Text(l10n.signalAsk,
+                style: RythoText.body(13,
+                    color: RythoColors.lilac, w: FontWeight.w600)),
+          ),
+          const SizedBox(width: RythoSpace.xs),
+          const Icon(Icons.arrow_forward_rounded,
+              size: 16, color: RythoColors.lilac),
+        ]),
       ),
     );
   }

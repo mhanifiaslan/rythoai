@@ -156,8 +156,17 @@ class _BasisSheetState extends State<_BasisSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(widget.title ?? l10n.basisSheetTitle,
-                style: RythoType.sheetTitle),
+            // Başlıkta altın glif: içerik doğru ama kabuk "soğuk" okunuyordu
+            // (cihaz bulgusu 2026-10-14) — tek sıcak vurgu, süs değil.
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('✦',
+                  style: RythoText.glyph(16, color: RythoColors.goldBright)),
+              const SizedBox(width: RythoSpace.sm),
+              Expanded(
+                child: Text(widget.title ?? l10n.basisSheetTitle,
+                    style: RythoType.sheetTitle),
+              ),
+            ]),
             const SizedBox(height: 10),
             // Okuma yüzeyinin hazır rolü: 15 / 1,65. Burada `body(13)` ile
             // çizilirken sayfanın ASIL metni teknik tablodan daha küçük

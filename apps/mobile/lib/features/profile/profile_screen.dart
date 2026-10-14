@@ -231,37 +231,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       style: RythoText.body(12, w: FontWeight.w700)),
                 );
               }),
-          ]),
-        ),
-        // Takipçi/takip sayaçları kaldırıldı: tek yönlü takip yerine karşılıklı
-        // arkadaşlık modeli kullanılıyor (bkz. features/friends).
-        // Günlük seri kartı 🔥
-        GlassPanel(
-          label: l10n.dailyStreak,
-          child: Row(children: [
-            const Text('🔥', style: TextStyle(fontSize: 30)),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.streakDays(
-                          (profile['streakCount'] as num?)?.toInt() ?? 0),
-                      style: RythoText.display(20),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      l10n.streakBody,
-                      style: RythoText.body(12,
-                          color: RythoColors.parchmentDim),
-                    ),
-                  ]),
-            ),
+            // Günlük seri rozeti burç çiplerinin yanında (cihaz bulgusu
+            // 2026-10-14: "profil çok yoğun"). Eskiden tam boy bir kartı
+            // vardı — tek sayı için bir kart. Sıfırda rozet kendini gizler.
             StreakBadge(
                 count: (profile['streakCount'] as num?)?.toInt() ?? 0),
           ]),
         ),
+        // Takipçi/takip sayaçları kaldırıldı: tek yönlü takip yerine karşılıklı
+        // arkadaşlık modeli kullanılıyor (bkz. features/friends).
         // ---------- İKİ SEVİYELİ AYARLAR ----------
         //
         // Önceki hâl: yedi kart ve satır içine serpiştirilmiş on dört
@@ -277,7 +255,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         // Hesap silme de Hesap ekranının içine taşındı (mağaza "gömülü
         // olmamalı" kuralı bozulmaz: Hesap tek dokunuş uzakta ve satır
         // orada açıkça görünür).
-        _grupBaslik(l10n.profileSectionIdentity),
+        // ÜÇ grup (cihaz bulgusu 2026-10-14, "profil çok yoğun"): "Doğum ve
+        // kimlik" ayrı bir kart olmayı hak etmiyordu — iki satır; Hesap'ın
+        // içine girdi. Kalan: Hesap (sen) · Tercihler (uygulama) · Rytho
+        // (ilişki). Beş karttan üçe.
+        _grupBaslik(l10n.profileSectionAccount),
         GlassPanel(
           padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
           child: Column(children: [
@@ -298,12 +280,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               value: profile['residenceCity'] as String?,
               onTap: () => showResidenceDialog(context, ref),
             ),
-          ]),
-        ),
-        _grupBaslik(l10n.profileSectionAccount),
-        GlassPanel(
-          padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
-          child: Column(children: [
+            const Divider(height: 1, indent: RythoSpace.lg),
             SettingsRow(
               icon: Icons.person_outline_rounded,
               title: l10n.accountSection,

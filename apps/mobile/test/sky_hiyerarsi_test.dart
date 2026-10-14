@@ -168,27 +168,26 @@ void main() {
           reason: 'sinyal etiketi alt etiket rolünde kalmalı');
     });
 
-    testWidgets('günlük satırı okumanın ALTINDA; başlıkta günlük düğmesi YOK',
+    testWidgets('günlük düğmesi BAŞLIKTA (sağ üst); akışta günlük satırı YOK',
         (tester) async {
+      // K7 cihazda geri alındı (2026-10-14): okumanın altındaki satır
+      // ekranın çok altında kalıyor, görünmüyordu. Düğme ikon-tek ama adı
+      // var: ipucu (Tooltip) + ekran okuyucu etiketi.
       await skyPump(tester,
           overrides: skyOverrides(sinyaller: () => {'signals': []}));
 
-      final gunluk = find.widgetWithText(ListeSatiri, tr.diaryTitle);
-      expect(gunluk, findsOneWidget, reason: 'K7: günlük satırı');
-      expect(find.text(tr.diaryRowSubtitle), findsOneWidget);
+      final gunluk = find.byTooltip(tr.diaryTitle);
+      expect(gunluk, findsOneWidget, reason: 'başlıkta günlük düğmesi');
+      expect(find.widgetWithText(ListeSatiri, tr.diaryTitle), findsNothing,
+          reason: 'akıştaki satır kalktı — iki kapı olmaz');
 
-      // Sıra EKRAN KOORDİNATINDAN: kilit kartı (okumanın yeri) üstte,
-      // günlük satırı altında; bölüm başlığı ikisinin de üstünde.
-      final yOkuma = tester.getTopLeft(find.byType(PlusLockedCard)).dy;
+      // Sıra EKRAN KOORDİNATINDAN: düğme bölüm başlığının ÜSTÜNDE
+      // (başlık şeridinde), okuma onun altında.
       final yGunluk = tester.getTopLeft(gunluk).dy;
       final yBaslik = tester.getTopLeft(find.byType(SectionHeader)).dy;
+      final yOkuma = tester.getTopLeft(find.byType(PlusLockedCard)).dy;
+      expect(yGunluk, lessThan(yBaslik));
       expect(yBaslik, lessThan(yOkuma));
-      expect(yOkuma, lessThan(yGunluk),
-          reason: 'günlük düğmesi okumanın altına iner (K7)');
-
-      // Başlık satırında (bölüm başlığının ÜSTÜNDE) günlük yok: ilk
-      // günlük metni bölüm başlığından aşağıda.
-      expect(yGunluk, greaterThan(yBaslik));
     });
 
     testWidgets('sinyal hatası → ErrorCard + Tekrar dene; tekrar dene '
@@ -254,11 +253,10 @@ void main() {
           ));
       expect(find.byType(ReadingCard), findsOneWidget);
       expect(find.byType(PlusLockedCard), findsNothing);
+      // Günlük düğmesi başlıkta: okumanın ÜSTÜNDE (K7 geri alındı).
       final yOkuma = tester.getTopLeft(find.byType(ReadingCard)).dy;
-      final yGunluk = tester
-          .getTopLeft(find.widgetWithText(ListeSatiri, tr.diaryTitle))
-          .dy;
-      expect(yOkuma, lessThan(yGunluk));
+      final yGunluk = tester.getTopLeft(find.byTooltip(tr.diaryTitle)).dy;
+      expect(yGunluk, lessThan(yOkuma));
     });
   });
 
@@ -287,15 +285,21 @@ void main() {
       expect(yorumsuz('lib/widgets/star_burst.dart'), contains('StarBurst('));
     });
 
-    test('tek SectionHeader; başlık sınıfında günlük yok', () {
+    test('tek SectionHeader; günlük düğmesi YALNIZ başlık sınıfında', () {
       expect('SectionHeader('.allMatches(k), hasLength(1));
       final bas = k.indexOf('class _Header');
       final son = k.indexOf('class _SignalsSection');
       expect(bas, greaterThan(0));
       expect(son, greaterThan(bas));
-      expect(k.substring(bas, son), isNot(contains('DiaryScreen')),
-          reason: 'K7: başlıktaki günlük düğmesi kalktı');
-      expect(k, contains('subtitle: l10n.diaryRowSubtitle'));
+      final baslik = k.substring(bas, son);
+      expect(baslik, contains('DiaryScreen'),
+          reason: 'günlük düğmesi başlıkta (cihaz bulgusu 2026-10-14)');
+      expect(baslik, contains('semanticLabel: l10n.diaryTitle'),
+          reason: 'ikon-tek düğmenin adı olmalı');
+      // Başlık sınıfı DIŞINDA DiaryScreen yok: ikinci kapı (akış satırı)
+      // geri gelmesin.
+      expect('DiaryScreen()'.allMatches(k.replaceRange(bas, son, '')),
+          isEmpty);
     });
 
     test('paywall tek kapıdan: PaywallScreen( yok, acPaywall tanıtım', () {

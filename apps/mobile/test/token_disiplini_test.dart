@@ -59,7 +59,6 @@ const _stilTavani = <String, int>{
   'lib/features/friends/reaction_sheet.dart': 1,
   'lib/features/onboarding/onboarding_wizard.dart': 2,
   'lib/features/profile/diary_screen.dart': 1,
-  'lib/features/profile/profile_screen.dart': 1,
   'lib/features/sky/sign_story_screen.dart': 1,
   'lib/theme/rytho_theme.dart': 2, // rol tanımları
   'lib/widgets/big_three_reveal.dart': 1,

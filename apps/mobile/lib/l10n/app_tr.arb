@@ -321,7 +321,6 @@
   "termsOfUse": "Kullanım Şartları",
   "signOut": "Oturumu kapat",
   "signOutConfirmBody": "Bildirimler bu cihazda durur; yeniden girdiğinde kaldığın yerden devam edersin.",
-  "dailyStreak": "Günlük Seri",
   "streakDays": "{count, plural, =1{1 gün} other{{count} gün}}",
   "@streakDays": {
     "placeholders": {
@@ -330,7 +329,6 @@
       }
     }
   },
-  "streakBody": "Günlük okumayı her gün aç, serin büyüsün.",
   "birthRecord": "Doğum Kaydı",
   "birthDate": "Tarih",
   "birthTime": "Saat",
@@ -1050,7 +1048,6 @@
   "diaryDeleted": "Giriş silindi.",
   "diaryFootnote": "Girişlerin yalnız sana görünür ve Rytho'nun sohbet hafızasına girer. Hesabını silersen hepsi silinir.",
   "diaryDeleteTitle": "Bu girişi silmek istiyor musun?",
-  "profileSectionIdentity": "Doğum ve kimlik",
   "profileSectionAccount": "Hesap",
   "profileSectionPrefs": "Tercihler",
   "feedbackTitle": "Geri bildirim",
@@ -1083,7 +1080,6 @@
   "inviteNeedsUsernameAction": "Kullanıcı adı seç",
   "friendAcceptedSnack": "{name} artık arkadaşın.",
   "@friendAcceptedSnack": {"placeholders": {"name": {"type": "String"}}},
-  "diaryRowSubtitle": "Bugünü not et",
   "diaryThemeCareer": "Kariyer",
   "diaryThemeRelationships": "İlişkiler",
   "diaryThemeInner": "İç dünya",
