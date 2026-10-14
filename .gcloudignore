@@ -3,6 +3,10 @@
 .gitignore
 .idea/
 .agents/
+# Ajan çalışma ağaçları (`.claude/worktrees`): ölçüldü 2026-10-14, 00110
+# dağıtımının kaynak paketinde 310 MB'tı. İmaja girmiyor (Dockerfile yalnız
+# backend/ + knowledge/ kopyalıyor) ama her yüklemeyi şişiriyordu.
+.claude/
 legacy/
 apps/
 docs/

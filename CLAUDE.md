@@ -228,10 +228,16 @@ Android sürümünde `edgeToEdge` açıyor (ikinci Play uyarısı). Bekçi
 optimizasyonu ilk kez açık — bildirim, Google girişi, satın alma/geri
 yükleme, yüz okuma (ML Kit + TFLite), sohbet; ve çubukların içerikle çakışıp
 çakışmadığı.
-Backend rev **00109-vdx** — `10-10` akşam dağıtıldı (S1 sohbet personası +
-D0 `fallback`/sözlük/BaZi `unspecified` CANLI), trafiğin %100'ü, `/health`
-**200** (`gcloud run services describe` + curl ile deploy logundan BAĞIMSIZ
-doğrulandı). Bir önceki 00108 (`10-10` sabah) D0 ÖNCESİYDİ.
+Backend rev **00110-7q7** — 2026-10-14 dağıtıldı (`6a7406f`: D8 dil-duyarlı
+varsayılan ad + paket adetleri **50/100/200**), trafiğin %100'ü, iki adreste
+`/health` **200**, ilk 15 dk ERROR/5xx yok. Deploy logundan BAĞIMSIZ
+doğrulandı: `gcloud run services describe` + curl + Cloud Build'in KENDİ
+kaynak paketi indirilip `backend/core/wallet.py` okundu (50/100/200,
+`Traveler`). ⚠️ O pakette `find` önce `.claude/worktrees/` altındaki ESKİ
+bir `wallet.py`'yi (100/300/1000) buldu — doğrulamada yol tam yazılır.
+`.claude/` artık `.gcloudignore`'da. Önceki 00109-vdx (10-10) S1+D0'dı.
+Play fiyatları (sahip, 2026-10-14): abonelik ₺200, paketler ₺80/140/250;
+alıcının gördüğü fiyatın KDV dahil olup olmadığı cihazda ölçülecek (B3).
 
 **Kapalı testteki son sürüm 48 (1.18.0)** — 4 Ekim 20:29'da sunuldu, kanal
 Etkin, 172 ülke/bölge (Console ekranından ölçüldü 2026-10-10). Yani **48
