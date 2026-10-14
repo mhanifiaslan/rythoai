@@ -236,8 +236,9 @@ kaynak paketi indirilip `backend/core/wallet.py` okundu (50/100/200,
 `Traveler`). ⚠️ O pakette `find` önce `.claude/worktrees/` altındaki ESKİ
 bir `wallet.py`'yi (100/300/1000) buldu — doğrulamada yol tam yazılır.
 `.claude/` artık `.gcloudignore`'da. Önceki 00109-vdx (10-10) S1+D0'dı.
-Play fiyatları (sahip, 2026-10-14): abonelik ₺200, paketler ₺80/140/250;
-alıcının gördüğü fiyatın KDV dahil olup olmadığı cihazda ölçülecek (B3).
+Play fiyatları (sahip, 2026-10-14): Console'a **KDV HARİÇ** girildi —
+abonelik ₺200 → alıcı ₺240, paketler ₺80/140/250 → alıcı ₺96/168/300 (Play
+%20 ekler, B3). Net: abonelik ~₺170 ≈ $4,05, başabaş ~7-9 abone.
 
 **Kapalı testteki son sürüm 48 (1.18.0)** — 4 Ekim 20:29'da sunuldu, kanal
 Etkin, 172 ülke/bölge (Console ekranından ölçüldü 2026-10-10). Yani **48
@@ -404,7 +405,7 @@ istiyordu, 14,3 kat) AMA o duvara **yalnız Plus aboneleri** çarpıyor (üçü 
 `require_plus`) ve paketler **yalnız aboneye** satılıyor (K2). Yani duvara
 çarpan kişi, paketi alabilen kişiyle aynı — K1'in kurduğu ekonomi bu.
 Marj kısıt DEĞİLDİ: hak tavanı yüzünden ağır kullanıcı ~$0,054/ay'ı geçemiyor
-(abonelik neti ≥$3,37 — ₺200, 2026-10-14). Ayrıntı ve bedel tablosu
+(abonelik neti ~$4,05 — görünen ₺240, 2026-10-14). Ayrıntı ve bedel tablosu
 `docs/maliyet-calismasi.md`. ⚠️ Ölçülecek tek şey **yeni harcama hızı**;
 eski 7 jeton/gün ölçümü bu değişiklikten ÖNCEYE ait.
 

@@ -157,12 +157,11 @@ SENİN sıran (sıra ÖNEMLİ — 1 yapılmadan AAB üretme):
    yaratma). Hepsi **Activate** edilmeli, yoksa RevenueCat import'u boş
    döner. Not: Play'de "consumable" kutusu YOK — tüketilebilirlik
    istemci tarafında (RevenueCat SDK) hallediliyor.
-   **KDV tuzağı (B3, 2026-08 ölçüldü):** Play girilen fiyata %20 ekledi.
-   2026-10-14 fiyatları (paketler ₺80/₺140/₺250, abonelik ₺200) alıcının
-   GÖRDÜĞÜ fiyat olarak isteniyorsa girilecek: ₺66,67 / ₺116,67 / ₺208,33,
-   abonelikte ₺166,67. ⚠️ Console arayüzü o günden beri KDV dahil/hariç
-   sütununu ayrı gösteriyor olabilir — paywall ve mağaza ekranında görünen
-   sayı cihazda okunur; bu not ondan sonra tek satıra iner.
+   **KDV (B3, 2026-08 ölçüldü):** Play girilen fiyata %20 ekler.
+   2026-10-14'ten beri fiyatlar BİLİNÇLİ olarak KDV HARİÇ giriliyor (sahip
+   kararı): paketler ₺80/₺140/₺250 → alıcı ₺96/₺168/₺300; abonelik ₺200 →
+   alıcı ₺240. Görünen fiyatı belirli bir sayıya sabitlemek gerekirse
+   girilecek değer = hedef ÷ 1,20.
 3. **RevenueCat**: ürünleri import et → `RhytoAI Pro` yetkisine
    **yalnız** aboneliği bağla (jeton paketleri yetkisiz) → **OFFERING
    KUR**: `default` teklifi + `$rc_monthly` paketi + Current işaretle.

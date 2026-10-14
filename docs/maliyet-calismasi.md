@@ -69,7 +69,7 @@ yakalarsa aynı üretim için **bir LLM turu daha** koşuyor
 sıklıkta koştuğu **ÖLÇÜLMEDİ**; depodaki tek ölçüm natal raporlara ait ve
 oradaki oran yüksek (`_cached_generate` yorumu: üç üretimin üçünde de 2-3
 işaret, hepsi yanlış pozitif). İki katı da sonucu değiştirmiyor (§6l
-senaryoları $0,06 → ~$0,11 olur, abonelik neti ≥$3,37), o yüzden bu
+senaryoları $0,06 → ~$0,11 olur, abonelik neti ~$4,05), o yüzden bu
 belirsizlik bir fiyat gerekçesi DEĞİL — ama "maliyet şudur" diye tek sayı
 yazmanın da önünde duruyor.
 
@@ -77,16 +77,13 @@ yazmanın da önünde duruyor.
 
 | Kalem | Değer |
 |---|---|
-| Console'a girilen fiyat (2026-10-14, eski ₺179,99 görünür) | **₺200/ay** |
-| Alıcının gördüğü | ⚠️ **cihazda ölçülecek** — ₺200 ya da B3 kuralıyla ₺240 |
-| Net (alıcı ₺200 görüyorsa: ÷1,20 KDV × 0,85 Play) | **≈ ₺141,7 ≈ $3,37/ay** — ALT SINIR |
-| Net (B3 geçerliyse: ₺200 × 0,85) | ≈ ₺170 ≈ $4,05/ay |
+| Console'a girilen fiyat — **KDV HARİÇ** (sahip kararı, 2026-10-14) | **₺200/ay** |
+| KDV +%20 (Play ekler, B3) → alıcının gördüğü | **₺240/ay** |
+| Google Play −%15 → net | **≈ ₺170 ≈ $4,05/ay** |
 
-> B3 (2026-08, ölçüldü): Play o gün girilen fiyatın ÜSTÜNE %20 KDV ekledi —
-> ₺149,99 girildi, alıcı ₺179,99 gördü. Bu belge aşağıda ALT SINIRI
-> ($3,37) kullanıyor: alıcının gördüğü fiyat hangisi olursa olsun marj ve
-> başabaş en az bu kadar iyi. Paywall'da görünen sayı ölçülünce tek satıra
-> iner.
+> B3 (2026-08, ölçüldü): Play girilen fiyatın ÜSTÜNE %20 KDV ekliyor.
+> 2026-10-14'te sahip bunu BİLİNÇLİ kullandı: Console'a KDV hariç fiyat
+> girildi (eski: girilen ₺149,99 → görünen ₺179,99, net ₺127,5 ≈ $3,0).
 
 Abonenin aylık LLM maliyeti (senaryolar, jeton zorlaması AÇIK). **Aylık hak
 2026-10-02'de 300'den 100'e indirildi (K1, gerekçe §2a); tablo yeniden
@@ -97,13 +94,13 @@ beşte birdir ($0,0033 ÷ 5 jeton).
 
 | Senaryo | Kullanım | LLM maliyeti | Türetme | Brüt marj |
 |---|---|---|---|---|
-| Hafif | 20 jeton (karışık) + günlük | ~$0,09 | 20×0,0021 + 0,045 | **~%97** |
-| Orta | 60 jeton + günlük | ~$0,17 | 60×0,0021 + 0,045 | **~%95** |
-| Yoğun (jeton tavanı) | 100 jetonun TAMAMI sohbete + günlük + hafıza | **~$0,29** | 100×0,0021 + 0,045 + 0,03 | **~%91** |
-| Yoğun + 100'lük ek paket (₺140) | +$2,36 gelir, +$0,21 maliyet | — | 100×0,0021 | ek paket marjı **~%91** |
+| Hafif | 20 jeton (karışık) + günlük | ~$0,09 | 20×0,0021 + 0,045 | **~%98** |
+| Orta | 60 jeton + günlük | ~$0,17 | 60×0,0021 + 0,045 | **~%96** |
+| Yoğun (jeton tavanı) | 100 jetonun TAMAMI sohbete + günlük + hafıza | **~$0,29** | 100×0,0021 + 0,045 + 0,03 | **~%93** |
+| Yoğun + 100'lük ek paket (girilen ₺140, görünen ₺168) | +$2,83 gelir, +$0,21 maliyet | — | 100×0,0021 | ek paket marjı **~%93** |
 
-Marj = (net $3,37 − LLM) ÷ $3,37; net gelir yukarıdaki ALT SINIR satırından
-(2026-10-14; eski ₺179,99 / $3,0 ile Hafif %97 · Orta %94 · Yoğun %90).
+Marj = (net $4,05 − LLM) ÷ $4,05; net gelir yukarıdaki ₺170 satırından
+(2026-10-14; eski ₺179,99 görünür / $3,0 net ile Hafif %97 · Orta %94 · Yoğun %90).
 
 ### Eski 300'lük hakla karşılaştırma (aynı kurala göre)
 
@@ -205,20 +202,19 @@ hakka sıçrar (~$0,06 → ~$0,21/yeni kullanıcı) ve §6i'deki
 
 ## 3. Kredi paketleri
 
-| Paket | Tüketici (KDV dahil) | Net gelir | Gerçek maliyet aralığı | Marj |
+| Paket | Girilen (KDV hariç) → görünen | Net gelir (× 0,85) | Gerçek maliyet aralığı | Marj |
 |---|---|---|---|---|
-| 50 kredi | ₺80 | ~₺56,7 ≈ $1,35 (alt sınır) | $0,03 (rapor ağırlıklı) – $0,11 (sohbet) | **%92-98** |
-| 100 kredi | ₺140 | ~₺99,2 ≈ $2,36 | $0,07-0,21 | **%91-97** |
-| 200 kredi | ₺250 | ~₺177,1 ≈ $4,22 | $0,13-0,42 | **%90-97** |
+| 50 kredi | ₺80 → **₺96** | ~₺68 ≈ $1,62 | $0,03 (rapor ağırlıklı) – $0,11 (sohbet) | **%93-98** |
+| 100 kredi | ₺140 → **₺168** | ~₺119 ≈ $2,83 | $0,07-0,21 | **%93-98** |
+| 200 kredi | ₺250 → **₺300** | ~₺212,5 ≈ $5,06 | $0,13-0,42 | **%92-97** |
 
 > 2026-10-14 (sahip kararı): adetler 100/300/1000'den 50/100/200'e, fiyatlar
 > ~₺59,99/155,99/419,99'dan ₺80/140/250'ye. Gerekçe kullanım: paket aylık
-> haktan büyük olmamalı, hak bitince ayı tamamlayan bir ek. Net = fiyat ÷ 1,20
-> (KDV) × 0,85 (Play); kur 1 $ ≈ 42 ₺. Kredi başına ₺1,60 / 1,40 / 1,25 —
-> eski ₺0,60 / 0,52 / 0,42'nin ~2,7-3 katı; marj kısıt değil, kullanıcı
-> algısı izlenir (paket satış oranı). Net gelir ALT SINIR: alıcı girilen
-> fiyatı görüyorsa geçerli; B3 kuralı (Play %20 ekler) geçerliyse alıcı
-> ₺96/168/300 görür ve net ₺68/119/212,5 olur — cihazda ölçülecek (§2).
+> haktan büyük olmamalı, hak bitince ayı tamamlayan bir ek. Fiyatlar Console'a
+> KDV HARİÇ girildi (sahip kararı), Play %20 ekliyor; net = girilen × 0,85;
+> kur 1 $ ≈ 42 ₺. Alıcı için kredi başına ₺1,92 / 1,68 / 1,50 — eski görünen
+> ₺0,60 / 0,52 / 0,42'nin ~3,2-3,6 katı; marj kısıt değil, kullanıcı
+> algısı izlenir (paket satış oranı).
 
 Maliyet aralığının iki ucu: "rapor ağırlıklı" = jetonlar 5'lik raporlara
 gider (jeton başına $0,0033÷5 ≈ $0,00066), "sohbet" = jetonlar tek tek
@@ -257,18 +253,18 @@ zamanlayıcıda yalnız günlük iş var (24 üretim/gün, ölçülen birim ~$0,
 dolduruyor, yerel günü farklı olan kullanıcılar kendi kovasını kaçırıp
 üretim tetikliyor.
 
-**Başabaş: ~8-11 abone** (2026-10-14, ₺200 fiyatla ve net ALT SINIRIYLA
-yeniden türetildi; ₺179,99'da "~9-13" idi). Abone başına net katkı = net
-gelir $3,37 − LLM: hafif senaryoda $3,37 − $0,09 = **$3,28**, yoğun
-senaryoda $3,37 − $0,29 = **$3,08**. Başabaş = sabit ÷ katkı: en iyi uç
-$27 ÷ $3,28 ≈ 8,2 · yoğun senaryo ucu $32 ÷ $3,08 ≈ 10,4.
+**Başabaş: ~7-9 abone** (2026-10-14, net $4,05 ile yeniden türetildi;
+₺179,99 görünür fiyatta "~9-13" idi). Abone başına net katkı = net gelir
+$4,05 − LLM: hafif senaryoda $4,05 − $0,09 = **$3,96**, yoğun senaryoda
+$4,05 − $0,29 = **$3,76**. Başabaş = sabit ÷ katkı: en iyi uç
+$27 ÷ $3,96 ≈ 6,8 · yoğun senaryo ucu $32 ÷ $3,76 ≈ 8,5.
 
 ⚠️ Bu iki uç §2'nin SENARYO satırlarından türüyor, yani yalnız üç kalemi
 (jeton + günlük okuma + hafıza) topluyor. Belgenin kendi **en kötü durumu**
 §2'deki "tüm Plus yüzeyleri dahil GERÇEK tavan" tablosudur ($0,47): katkı
-$3,37 − $0,47 = **$2,90** ve başabaş $32 ÷ $2,90 ≈ **11,0 abone**. Yani
-"~8-11" aralığının üst ucu zaten en kötü durumu kapsıyor; gerçek bant
-**~8-11 abone**. (Pratikte her abonenin aynı anda hem 100 jetonunun
+$4,05 − $0,47 = **$3,58** ve başabaş $32 ÷ $3,58 ≈ **8,9 abone**. Yani
+"~7-9" aralığının üst ucu zaten en kötü durumu kapsıyor; gerçek bant
+**~7-9 abone**. (Pratikte her abonenin aynı anda hem 100 jetonunun
 tamamını sohbete yatırması hem takvim/sinyal/ilişki yüzeylerini doyurması
 beklenmez; $0,47 bir ÜST sınırdır, tahmin değil.)
 
@@ -285,13 +281,15 @@ kendini fazlasıyla öder; değilse FREE_CHAT_PER_DAY tek ayar noktasıdır.
 ## 5. Fiyat konumlandırması (TR pazarı)
 
 Pazar: AI destekli benzer uygulamalar ~₺600/ay'dan satılıyor. Rytho
-₺200'de **bilinçli penetrasyon** konumunda — pazar liderinin ~%33'ü.
+₺240'ta (alıcının gördüğü, KDV dahil) **bilinçli penetrasyon** konumunda —
+pazar liderinin ~%40'ı.
 KARAR (kullanıcı, 2026-08-12): fiyatlar korunur. GÜNCELLEME (sahip,
-2026-10-14): abonelik ₺179,99 → ₺200, paketler 50/100/200 kredi ₺80/140/250
-(§3); üretime geçiş öncesi tek seferlik düzeltme.
+2026-10-14): Console fiyatları KDV hariç girildi — abonelik ₺200 (görünen
+₺240, eski ₺179,99), paketler 50/100/200 kredi ₺80/140/250 (görünen
+₺96/168/300) (§3); üretime geçiş öncesi tek seferlik düzeltme.
 
 Fiyat merdiveni (ileri adımlar, şimdi uygulanmaz):
-1. **0-1.000 abone**: ₺200 koru — büyüme ve yorum/puan birikimi.
+1. **0-1.000 abone**: ₺240 (görünen) koru — büyüme ve yorum/puan birikimi.
 2. **1.000+ abone**: yeni abonelere ₺229-249 (Play'de mevcut abonelerin
    fiyatı korunabilir); marj zaten yüksek, artış aciliyet değil güç işi.
 3. **Yıllık plan**: ₺1.499-1.699 (aylığın ~8 katı) — nakit akışı +
@@ -529,10 +527,10 @@ maliyet.
 
 ### Abone başına etki (bu belgedeki sayılarla)
 
-§2'ye göre abonenin ilk ay neti **≥ ₺141,7 ≈ $3,37** (₺200, 2026-10-14;
-eski ₺127,5 ≈ $3,0), aylık net katkısı **~$3,1-3,3** (senaryoya göre; LLM
-maliyeti düşülmüş). Aşağıdaki tablo ₺179,99 dönemine ait ve oranlar
-şimdi biraz daha iyi (ödül sabit, net arttı): ilk ay netine oran ~%21. Bu aralık
+§2'ye göre abonenin ilk ay neti **≈ ₺170 ≈ $4,05** (2026-10-14; eski
+₺127,5 ≈ $3,0), aylık net katkısı **~$3,8-4,0** (senaryoya göre; LLM
+maliyeti düşülmüş). Aşağıdaki tablo ₺179,99 dönemine ait; oranlar şimdi
+daha iyi (ödül sabit, net arttı): ilk ay netine oran ~%18 (₺30 / ₺170). Bu aralık
 K1'de (aylık hak 300 → 100, §2a) ~$2,3-2,9'dan yukarı taşındı: ortak ödülü
 değişmedi, abonenin maliyet tavanı daraldı.
 
@@ -752,7 +750,7 @@ söylenmez, (b) onun üst sınırıdır.
 "Hak tavanlı" sütunu şunu söylüyor: ağır kullanıcı 450 jeton İSTESE de
 elinde 100 var, yani ayda en çok 20 üretim ödeyebiliyor. **Maliyet tarafında
 risk YOK ve bu ölçümün en net sonucu budur:** en ağır kullanıcı bile aylık
-hak tavanı yüzünden ~$0,06'yı geçemiyor, aboneliğin neti ise ≥$3,37 (§2). Üç
+hak tavanı yüzünden ~$0,06'yı geçemiyor, aboneliğin neti ise ~$4,05 (§2). Üç
 yüzeyin günlük olması **marj matematiğini bozmuyor** — §2'deki "tüm Plus
 yüzeyleri dahil GERÇEK tavan" tablosu ($0,47) zaten 100 jetonun TAMAMINI
 sohbete yatıran kullanıcıyı sayıyor ve jetonun en pahalı harcanma biçimi
@@ -819,7 +817,7 @@ değişiklikten ÖNCEYE ait. İlk kapalı test geri bildirimi bu kararın tek
 gerçek sınavı; hız ölçülünce bedel yeniden açılabilir (tablo hazır).
 
 Marj hiçbir seçenekte kısıt DEĞİLDİ: hak tavanı yüzünden ağır kullanıcı
-~$0,054/ay'ı geçemiyor (abonelik neti ≥$3,37). Yani karar bir marj kararı
+~$0,054/ay'ı geçemiyor (abonelik neti ~$4,05). Yani karar bir marj kararı
 değil, **hakkın ömrü** kararıydı.
 
 Jeton başına gelir §1'in kuralıyla ~$0,010 (100'lük paketin KDV + Play
