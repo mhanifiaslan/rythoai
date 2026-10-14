@@ -199,9 +199,16 @@ hakka sıçrar (~$0,06 → ~$0,21/yeni kullanıcı) ve §6i'deki
 
 | Paket | Tüketici (KDV dahil) | Net gelir | Gerçek maliyet aralığı | Marj |
 |---|---|---|---|---|
-| 100 kredi | ~₺59,99 | ~$1,0 | $0,07 (rapor ağırlıklı) – $0,21 (sohbet) | **%79-93** |
-| 300 kredi | ~₺155,99 | ~$2,6 | $0,20-0,63 | **%76-92** |
-| 1000 kredi | ~₺419,99 | ~$7,0 | $0,66-2,10 | **%70-91** |
+| 50 kredi | ₺80 | ~₺56,7 ≈ $1,35 | $0,03 (rapor ağırlıklı) – $0,11 (sohbet) | **%92-98** |
+| 100 kredi | ₺140 | ~₺99,2 ≈ $2,36 | $0,07-0,21 | **%91-97** |
+| 200 kredi | ₺250 | ~₺177,1 ≈ $4,22 | $0,13-0,42 | **%90-97** |
+
+> 2026-10-14 (sahip kararı): adetler 100/300/1000'den 50/100/200'e, fiyatlar
+> ~₺59,99/155,99/419,99'dan ₺80/140/250'ye. Gerekçe kullanım: paket aylık
+> haktan büyük olmamalı, hak bitince ayı tamamlayan bir ek. Net = fiyat ÷ 1,20
+> (KDV) × 0,85 (Play); kur 1 $ ≈ 42 ₺. Kredi başına ₺1,60 / 1,40 / 1,25 —
+> eski ₺0,60 / 0,52 / 0,42'nin ~2,7-3 katı; marj kısıt değil, kullanıcı
+> algısı izlenir (paket satış oranı).
 
 Maliyet aralığının iki ucu: "rapor ağırlıklı" = jetonlar 5'lik raporlara
 gider (jeton başına $0,0033÷5 ≈ $0,00066), "sohbet" = jetonlar tek tek

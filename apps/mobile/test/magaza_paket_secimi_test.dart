@@ -26,12 +26,12 @@ const _kucuk = StoreProduct(
 const _orta = StoreProduct(
     'rytho_tokens_medium', 'o', 'Orta', 249.99, '₺249,99', 'TRY');
 
-/// Sunucu `packs` gönderiyor ve istemci tablosundan FARKLI: 100 yerine 150.
+/// Sunucu `packs` gönderiyor ve istemci tablosundan FARKLI: 50 yerine 75.
 const _cuzdan = WalletStatus(
     allowance: 10,
     purchased: 0,
     monthlyAllowance: 100,
-    packs: {'rytho_tokens_small': 150});
+    packs: {'rytho_tokens_small': 75});
 
 Widget _uygulama(Widget ekran) => MaterialApp(
       locale: const Locale('tr'),
@@ -74,7 +74,7 @@ Future<void> _ciz(WidgetTester tester, {WalletStatus? cuzdan = _cuzdan}) async {
 void main() {
   group('saf', () {
     test('paketAdedi: sunucu > yedek tablo > null', () {
-      expect(paketAdedi(_cuzdan, 'rytho_tokens_small'), 150);
+      expect(paketAdedi(_cuzdan, 'rytho_tokens_small'), 75);
       expect(paketAdedi(_cuzdan, 'rytho_tokens_medium'),
           kPackDisplayAmounts['rytho_tokens_medium']);
       expect(paketAdedi(_cuzdan, 'bilinmeyen'), isNull);
@@ -111,15 +111,15 @@ void main() {
           reason: 'üç ayrı "Satın al" gitti');
     });
 
-    testWidgets('adet SUNUCUDAN: 100 değil 150; kredi başına fiyat var',
+    testWidgets('adet SUNUCUDAN: 50 değil 75; kredi başına fiyat var',
         (tester) async {
       final l10n = _tr();
       await _ciz(tester);
 
-      expect(find.text(l10n.tokenPackAmount(150)), findsOneWidget);
-      expect(find.text(l10n.tokenPackAmount(100)), findsNothing,
+      expect(find.text(l10n.tokenPackAmount(75)), findsOneWidget);
+      expect(find.text(l10n.tokenPackAmount(50)), findsNothing,
           reason: 'istemci tablosu yalnız yedek');
-      expect(find.text(l10n.tokenPackAmount(300)), findsOneWidget,
+      expect(find.text(l10n.tokenPackAmount(100)), findsOneWidget,
           reason: 'sunucu göndermeyeni yedek tablo tamamlar');
       expect(find.textContaining('/ kredi'), findsNWidgets(2));
     });
@@ -129,7 +129,7 @@ void main() {
       final l10n = _tr();
       await _ciz(tester);
 
-      await tester.tap(find.text(l10n.tokenPackAmount(300)));
+      await tester.tap(find.text(l10n.tokenPackAmount(100)));
       await tester.pump();
 
       expect(find.text(l10n.storeBuyWithPrice(_orta.priceString)),

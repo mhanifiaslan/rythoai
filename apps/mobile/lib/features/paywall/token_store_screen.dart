@@ -61,9 +61,9 @@ import 'paywall_acilis.dart';
 /// Sunucudaki `TOKEN_PACKS` ile aynı tutulmalı. Yanlışsa kullanıcı yanlış
 /// vaat görür ama yanlış bakiye ALMAZ (yükleme sunucuda).
 const Map<String, int> kPackDisplayAmounts = {
-  'rytho_tokens_small': 100,
-  'rytho_tokens_medium': 300,
-  'rytho_tokens_large': 1000,
+  'rytho_tokens_small': 50,
+  'rytho_tokens_medium': 100,
+  'rytho_tokens_large': 200,
 };
 
 /// Paketin adedi: önce sunucu (`packs`), yoksa yedek tablo, o da yoksa

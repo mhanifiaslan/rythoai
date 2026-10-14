@@ -391,7 +391,7 @@ def karsi_taraf(harita_sahte, monkeypatch):
                         lambda uid, dost: karsi)
     monkeypatch.setattr(r.profile_service, "get_profile",
                         lambda uid: {"displayName": "Ada"})
-    monkeypatch.setattr(r.profile_service, "birth_kwargs", lambda p: {})
+    monkeypatch.setattr(r.profile_service, "birth_kwargs", lambda p, lang=None: {})
     monkeypatch.setattr(r.chart_context, "has_birth_data", lambda p: True)
     monkeypatch.setattr(r.astro_service, "get_synastry",
                         lambda a, b: {"person1": {}, "person2": {}})

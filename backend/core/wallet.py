@@ -129,10 +129,17 @@ MONTHLY_TOKEN_ALLOWANCE = 100
 #: RevenueCat consumable ürün kimliği -> token adedi. Webhook yalnızca bu
 #: listedeki ürünleri paket sayar; liste dışı ürün kimliği abonelik borusuna
 #: gider. İstemciden gelen hiçbir sayıya güvenilmez.
+#:
+#: 50/100/200 (sahip kararı 2026-10-14; eski 100/300/1000): "bu kadar kredi
+#: kullanılamaz bile" — paket aylık haktan BÜYÜK olmamalı, hak bitince
+#: ayın kalanını kapatan bir tamamlayıcı. Fiyat Play'de (₺80/₺140/₺250);
+#: kod fiyatı bilmez. Kimlikler DEĞİŞMEZ: değişirse satın alma tanınmaz.
+#: ⚠️ Adet DÜŞÜNCE sıra: önce Console fiyat/ad, sonra bu dağıtım — tersi
+#: kullanıcıya eski fiyata az kredi verirdi.
 TOKEN_PACKS: dict[str, int] = {
-    "rytho_tokens_small": 100,
-    "rytho_tokens_medium": 300,
-    "rytho_tokens_large": 1000,
+    "rytho_tokens_small": 50,
+    "rytho_tokens_medium": 100,
+    "rytho_tokens_large": 200,
 }
 
 #: Kuru çalışma bayrağı. 0 iken harcama loglanır ama reddedilmez.

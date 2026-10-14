@@ -373,7 +373,7 @@ için `require_plus` dahil her kapı tek noktadan açılıyor
 gösterir.
 
 **Kredi ekonomisi:** Rytho+ ayda **100 kredi** verir (devretmez); satın
-alınan paketler (100/300/1000) **hiç yanmaz**.
+alınan paketler (50/100/200 — 2026-10-14'te 100/300/1000'den indi) **hiç yanmaz**.
 
 - **Hak 300'den 100'e indi** (K1, bu sürüm). Gerekçe ölçüldü: ~7 kredi/gün
   kullanımda 300 hiç bitmiyordu, yani parayla alınmış bakiyeye **sıra hiç

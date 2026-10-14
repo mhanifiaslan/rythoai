@@ -71,7 +71,7 @@ def sahte_motor(monkeypatch):
     monkeypatch.setattr(profile_service, "get_profile",
                         lambda uid: {"birthTime": "14:30"})
     monkeypatch.setattr(chart_context, "has_birth_data", lambda p: True)
-    monkeypatch.setattr(profile_service, "birth_kwargs", lambda p: {
+    monkeypatch.setattr(profile_service, "birth_kwargs", lambda p, lang=None: {
         "name": "t", "year": 1990, "month": 5, "day": 12,
         "hour": 14, "minute": 30, "city": "Istanbul", "nation": "TR"})
     monkeypatch.setattr(predict_service, "transit_calendar",

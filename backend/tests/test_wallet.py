@@ -539,7 +539,10 @@ def test_kredi_idempotent(depo):
     wallet.credit_pack("u1", "rytho_tokens_small", "evt-1")
     wallet.credit_pack("u1", "rytho_tokens_small", "evt-1")
 
-    assert _cuzdan(depo)["purchased"] == 100  # 200 değil
+    # Sayı tablodan: adet bir kez değişti (2026-10-14) ve literal 100 o gün
+    # kırmızı oldu — test idempotency'yi ölçüyor, paket adedini değil.
+    adet = wallet.TOKEN_PACKS["rytho_tokens_small"]
+    assert _cuzdan(depo)["purchased"] == adet  # 2 × adet değil
 
 
 def test_farkli_olaylar_ayri_yuklenir(depo):
@@ -547,13 +550,14 @@ def test_farkli_olaylar_ayri_yuklenir(depo):
     wallet.credit_pack("u1", "rytho_tokens_small", "evt-1")
     wallet.credit_pack("u1", "rytho_tokens_small", "evt-2")
 
-    assert _cuzdan(depo)["purchased"] == 200
+    assert _cuzdan(depo)["purchased"] == 2 * wallet.TOKEN_PACKS["rytho_tokens_small"]
 
 
 def test_iade_sifirda_kelepcelenir(depo):
     """Bakiye harcanmışsa iade eksiye düşürmez — borç defteri tutmayız."""
     wallet.credit_pack("u1", "rytho_tokens_small", "evt-1")
-    _cuzdan_yaz(depo, **{**_cuzdan(depo), "purchased": 30})  # 70'i harcandı
+    # Yüklenenin bir kısmı harcandı; kalan iade tutarından AZ.
+    _cuzdan_yaz(depo, **{**_cuzdan(depo), "purchased": 10})
 
     wallet.debit_refund("u1", "rytho_tokens_small", "evt-1")
 
@@ -1142,3 +1146,25 @@ def test_cuzdan_UCU_paket_adetlerini_tasir(depo, monkeypatch):
         "WalletStatus.packs yok: response_model alanı yanıttan süzer")
     yanit = billing.wallet_status(user=_Kullanici())
     assert yanit.packs == wallet.TOKEN_PACKS
+
+
+def test_istemci_yedek_tablosu_sunucuyla_AYNI():
+    """`kPackDisplayAmounts` (istemci yedeği) == `TOKEN_PACKS` (tek gerçek).
+
+    NEDEN: 1.20'den beri ekran adedi cüzdanın `packs` alanından okuyor; yedek
+    yalnız eski sunucuya karşı. Ama yedek BAYATLARSA sunucu `packs`
+    göndermediği tek pencerede ekran yanlış adet söyler — ve adetler bir kez
+    değişti (2026-10-14, 100/300/1000 → 50/100/200). İki yer arasında bekçi
+    yoktu; sunucu tablosu değişip yedek unutulsa takım yeşil kalırdı.
+    """
+    import re
+    from pathlib import Path
+    kok = Path(__file__).resolve().parents[2]
+    dart = (kok / "apps/mobile/lib/features/paywall/token_store_screen.dart"
+            ).read_text(encoding="utf-8")
+    blok = re.search(r"kPackDisplayAmounts\s*=\s*\{(.*?)\};", dart, re.S)
+    assert blok, "kPackDisplayAmounts tablosu bulunamadı"
+    istemci = {k: int(v) for k, v in
+               re.findall(r"'(rytho_tokens_[a-z]+)'\s*:\s*(\d+)", blok.group(1))}
+    assert istemci == wallet.TOKEN_PACKS, (
+        f"istemci yedeği {istemci} != sunucu {wallet.TOKEN_PACKS}")

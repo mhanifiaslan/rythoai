@@ -370,7 +370,7 @@ sunucu tarafı yetkilendirme + kredi cüzdanı (`backend/core/wallet.py`).
 | **Rytho+** (aylık; **yıllık** ürün Console'da açıldığı an paket teklifte GÖRÜNÜR — kod `kOfferedPackageTypes=[monthly, annual]`, aylık önseçili, yıllığın yanında yalnız ölçülmüş "%N tasarruf" rozeti, K8) | Kişiye özel günlük okuma + **10 kişi kontenjanı** (eş, çocuk, yakın) + **aylık 100 kredi** hakkı. Krediyle: sohbet (1), I Ching (2), ikili dinamik (3), natal/BaZi/sinastri/yüz okuma (5). Aylık hak dönem sonunda yenilenir, DEVRETMEZ. |
 > **Not (1.7.0):** ücretsiz katmandan "günde 1 I Ching çekimi" SİLİNDİ — kod `require_plus("iching")` diyor, yani İ Ching Rytho+ içinde. Mağaza metninin koda uymayan tek satırı buydu.
 
-| **Kredi paketleri** (consumable) | `rytho_tokens_small` 100 · `rytho_tokens_medium` 300 · `rytho_tokens_large` 1000. Tekrar tekrar alınabilir, bakiye aya DEVREDER. ⚠️ **Yalnız aboneye satılır** (K2) — abone olmayana kredi mağazasında hiç gösterilmez (ölçüldü: `token_store_screen.dart` aboneliği ÜÇ hâlli okuyor ve `!abone` dalında paket listesi yerine `_PaketlerPlusaOzel` çiziliyor). Gerekçe: `charge_metered` tüm depoda tek yerden çağrılıyor (`api/chat.py`), yani abone olmayanın aldığı kredinin TEK kullanım yolu "günün 6. sohbet mesajı"; ekranın kendi bedel listesinde sayılan İ Ching, ikili dinamik ve derin raporlar `require_plus` arkasında. Mağaza, parasını alıp karşılığını büyük ölçüde vermediği bir ürün gösteriyordu. ⚠️ Denemedeki kullanıcı ABONE SAYILIR ve paket onun için ayrıca anlamlıdır: `get_wallet` denemeye `allowance: 0` veriyor, yani yalnız `purchased` bakiyesinden harcıyor. |
+| **Kredi paketleri** (consumable) | `rytho_tokens_small` 50 · `rytho_tokens_medium` 100 · `rytho_tokens_large` 200 (₺80 / ₺140 / ₺250; 2026-10-14, eski 100/300/1000). Tekrar tekrar alınabilir, bakiye aya DEVREDER. ⚠️ **Yalnız aboneye satılır** (K2) — abone olmayana kredi mağazasında hiç gösterilmez (ölçüldü: `token_store_screen.dart` aboneliği ÜÇ hâlli okuyor ve `!abone` dalında paket listesi yerine `_PaketlerPlusaOzel` çiziliyor). Gerekçe: `charge_metered` tüm depoda tek yerden çağrılıyor (`api/chat.py`), yani abone olmayanın aldığı kredinin TEK kullanım yolu "günün 6. sohbet mesajı"; ekranın kendi bedel listesinde sayılan İ Ching, ikili dinamik ve derin raporlar `require_plus` arkasında. Mağaza, parasını alıp karşılığını büyük ölçüde vermediği bir ürün gösteriyordu. ⚠️ Denemedeki kullanıcı ABONE SAYILIR ve paket onun için ayrıca anlamlıdır: `get_wallet` denemeye `allowance: 0` veriyor, yani yalnız `purchased` bakiyesinden harcıyor. |
 
 > ⚠️ **Yukarıdaki üç tablo satırı da koddan ölçüldü (2026-10-02), elle
 > yazılmadı.** Aylık hak sayısı ÜÇ yük taşıyan yerde birbirinden bağımsız
@@ -434,9 +434,9 @@ değişirse mevcut satın almalar kopar):
 | Ürün kimliği | Ad (TR) | Ad (EN) |
 |---|---|---|
 | `rytho_plus_monthly` | Rytho+ Aylık | Rytho+ Monthly |
-| `rytho_tokens_small` | 100 AI Kredisi | 100 AI Credits |
-| `rytho_tokens_medium` | 300 AI Kredisi | 300 AI Credits |
-| `rytho_tokens_large` | 1000 AI Kredisi | 1000 AI Credits |
+| `rytho_tokens_small` | 50 AI Kredisi | 50 AI Credits |
+| `rytho_tokens_medium` | 100 AI Kredisi | 100 AI Credits |
+| `rytho_tokens_large` | 200 AI Kredisi | 200 AI Credits |
 
 ⚠️ Uygulama normalde KENDİ adlarını çiziyor (`paywall_screen.dart` plan
 adını `l10n.planMonthly`'den, `token_store_screen.dart` miktarı

@@ -334,7 +334,7 @@ görünüm/güven tarafında). Markalı sayfa yayında ve hazır bekliyor.
 
 Yapılmadan: Token mağazası ekranı paketleri listeleyemez ("ürün
 bulunamadı") ve satın alma yapılamaz. Sunucudaki miktarlar SABİT:
-`small=100 · medium=300 · large=1000` token — mağazadaki ürün kimlikleri
+`small=50 · medium=100 · large=200` kredi (2026-10-14; eski 100/300/1000) — mağazadaki ürün kimlikleri
 birebir şu olmalı:
 
     rytho_tokens_small
@@ -345,10 +345,10 @@ birebir şu olmalı:
 
 1. play.google.com/console → uygulama → **Para kazanma → Ürünler →
    Uygulama içi ürünler → Ürün oluştur**.
-2. Ürün kimliği: `rytho_tokens_small` · ad: **"100 AI Kredisi"** ·
-   fiyat önerisi: $1.99 karşılığı.
-3. Aynısını `rytho_tokens_medium` ("300 AI Kredisi", ~$4.99) ve
-   `rytho_tokens_large` ("1000 AI Kredisi", ~$12.99) için tekrarla.
+2. Ürün kimliği: `rytho_tokens_small` · ad: **"50 AI Kredisi"** ·
+   fiyat: ₺80 (2026-10-14).
+3. Aynısını `rytho_tokens_medium` ("100 AI Kredisi", ₺140) ve
+   `rytho_tokens_large` ("200 AI Kredisi", ₺250) için tekrarla.
    ⚠️ **"Token"/"Jeton" YAZILMAZ** — kullanıcıya gösterilen sözlükten
    R2-F2 kararıyla çıkarıldı, uygulama "AI kredisi" diyor. Ad alanı
    makbuza basılıyor ve satın alma kaydında kalan tek metin odur;
