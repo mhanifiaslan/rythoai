@@ -398,7 +398,7 @@ istiyordu, 14,3 kat) AMA o duvara **yalnız Plus aboneleri** çarpıyor (üçü 
 `require_plus`) ve paketler **yalnız aboneye** satılıyor (K2). Yani duvara
 çarpan kişi, paketi alabilen kişiyle aynı — K1'in kurduğu ekonomi bu.
 Marj kısıt DEĞİLDİ: hak tavanı yüzünden ağır kullanıcı ~$0,054/ay'ı geçemiyor
-(abonelik neti $3,00). Ayrıntı ve bedel tablosu
+(abonelik neti ≥$3,37 — ₺200, 2026-10-14). Ayrıntı ve bedel tablosu
 `docs/maliyet-calismasi.md`. ⚠️ Ölçülecek tek şey **yeni harcama hızı**;
 eski 7 jeton/gün ölçümü bu değişiklikten ÖNCEYE ait.
 

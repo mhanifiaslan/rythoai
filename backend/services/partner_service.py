@@ -82,7 +82,7 @@ _KOD_DESENI = re.compile(r"^[A-Z0-9_-]{4,24}$")
 REWARD_MODEL_FIXED = "fixed"
 
 #: Ödül tutarının üst sınırı (₺). Tavan bir YAZIM HATASI kapısıdır: 30
-#: yerine 3000 yazılırsa her kazanılan abone abonelik fiyatının (₺179,99)
+#: yerine 3000 yazılırsa her kazanılan abone abonelik fiyatının (~₺200)
 #: on katına mal olur ve bunu fark ettirecek hiçbir sinyal yoktur.
 #: `sharePercent`'in 0-90 tavanıyla (api/admin.py) aynı gerekçe.
 MAX_REWARD_TRY = 500.0
@@ -405,7 +405,7 @@ def redeem(uid: str, raw_code: str) -> dict[str, Any]:
         # Ortak kendi kodunu kendi hesabında kullanamaz. Ödül gerçek para
         # olduğu için bu kapı olmadan ortak kendi kodunu girip kendine
         # abone olarak doğrudan ödeme üretebilirdi. (Ekonomik olarak
-        # zararına — ₺179,99 ödeyip ₺30 kazanır — ama iade yoluyla
+        # zararına — ~₺200 ödeyip ₺30 kazanır — ama iade yoluyla
         # çevrilebilir; kapı o yüzden var.)
         partner_id = veri.get("partnerId")
         if partner_id:
