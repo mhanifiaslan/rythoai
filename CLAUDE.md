@@ -202,14 +202,17 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ## 6. Bugünkü durum (2026-10-10)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.20.0+50** (pubspec, D8 —
-2026-10-12); D0–D8 + S1 dalgalarının HEPSİ kodda ve commit'li. Sıradaki üç
-adım dışa dönük ve SAHİP onayı ister: `infra/deploy-backend.ps1` (D8'in
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.20.0+51** (pubspec, 2026-10-14).
+D0–D8 + S1 + cihaz turu 1 kodda ve commit'li.
+
+⚠️ **Sürüm kodu 50 YANDI** (2026-10-14): sahip D8 derlemesini (`0b687bb`,
+cihaz turu ÖNCESİ) dahili teste yükleyip kapalı teste yükseltti; Console iki
+kanalda da 50 gösteriyor. Cihaz turu düzeltmeleri (`34e754c`) o pakette
+YOK — kod 51'e çekildi, AAB 51 `infra/build-aab.ps1` ile üretildi. Sıradaki
+adımlar dışa dönük ve SAHİP onayı ister: `infra/deploy-backend.ps1` (D8'in
 `default_name` değişikliği canlıda değil — rev 00109 S1+D0'da kaldı) →
-Console'a AAB 50 yükleme. **AAB 50 ÜRETİLDİ** (`infra/build-aab.ps1`,
-2026-10-12, 114,2 MiB, 6/6 kapı OK, R8 %37,53) — `apps/mobile/build/app/
-outputs/bundle/release/app-release.aab`; henüz YÜKLENMEDİ. 49'luk AAB
-(`10-10 19:53`) yalnız ölçüm artefaktıydı, yüklenmedi.
+AAB 51 dahili teste → kapalı/üretime yükseltme → üretim başvurusu formu
+(cevaplar oturum kaydında). 49'luk AAB yalnız ölçüm artefaktıydı.
 
 ⚠️ **Play "DEX optimizasyonu %0" uyarısı KAPANDI (kaynakta, 2026-10-10)** —
 Console'un kendi ölçümü ancak 50 yüklenince değişir. Kök: RevenueCat Amazon
