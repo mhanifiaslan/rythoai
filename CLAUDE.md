@@ -202,8 +202,23 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ## 6. Bugünkü durum (2026-10-10)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.20.0+51** (pubspec, 2026-10-14).
-D0–D8 + S1 + cihaz turu 1 kodda ve commit'li.
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.20.0+52** (pubspec, 2026-10-16).
+D0–D8 + S1 + cihaz turu 1 + cihaz turu 2 (paylaşım) kodda ve commit'li.
+52'ye çekildi çünkü 51'in Console'a yüklenip yüklenmediği bilinmiyordu —
+yanmış koda çarpmak yüklemeyi durdurur, atlanan kod zarar vermez.
+
+**Cihaz turu 2 (2026-10-16):** (1) günlük düğmesi başlığın EN SAĞINA
+(bakiye hapının sağı). (2) **Paylaşımda veri kaybı:** rapor kartı uzun
+metni tek görsele sığdırmak için KESİYORDU — eski bilinçli kural ("kart
+raporun yerine geçmez, ona davet eder") sahip kararıyla tersine döndü:
+rapor artık sayfalara bölünür (`ReportShareCard.sayfalar`, cümle
+sınırından, punto sabit 36, tavan 10 sayfa, tavan aşılırsa son sayfa "…"),
+tüm sayfalar tek paylaşımda (`shareRenderedCards`). Çark kartı yalnız
+çarkı taşıyordu, ekrandaki konum tablosu yoktu — kartın altına eklendi
+(`_KonumTablosu`, `FittedBox.scaleDown` ile ikili çarkta da taşmaz).
+Ölçüldü: çarkın KENDİSİ kartta sadeleşmiyordu (aynı katmanlar), kayıp
+tablodaydı. (3) Telefonda eski paket adı/fiyatı: Play önbelleği + açık
+kalan uygulama oturumu — kod kusuru değil.
 
 ⚠️ **Sürüm kodu 50 YANDI** (2026-10-14): sahip D8 derlemesini (`0b687bb`,
 cihaz turu ÖNCESİ) dahili teste yükleyip kapalı teste yükseltti; Console iki

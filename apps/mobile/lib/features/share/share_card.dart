@@ -13,7 +13,10 @@ import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart' show kMarkaYazi;
 import '../../widgets/chart/chart_data.dart';
 import '../../widgets/chart/chart_palette.dart' show ringGlyphColor;
+import '../../widgets/chart/chart_positions.dart' show MiniGlyphPainter;
 import '../../widgets/chart/chart_wheel.dart';
+import '../../theme/rytho_glyphs.dart' show kPlanetTextGlyphs;
+import '../../widgets/nebula_widgets.dart' show signDisplayName;
 import '../../widgets/chart/wheel_painter.dart' show WheelAspectFilter;
 
 /// Üç kartın ortak zemini — aynı tuval, aynı degrade; ayrışırsa paylaşılan
@@ -37,6 +40,13 @@ const BoxDecoration _kKartZemini = BoxDecoration(
 const double _kTuvalYanPay = 96;
 const double _kTuvalUstPay = 150;
 const double _kTuvalAltPay = 110;
+
+/// Devam sayfasının kısa başlığı ve konum tablosunun puntoları — 1080 px
+/// tuval ölçeği (ekran rolleri `RythoType` 390 dp ekran içindir).
+const double _kDevamBaslik = 40;
+const double _kTabloGlif = 30;
+const double _kTabloAd = 28;
+const double _kTabloOlcum = 24;
 const EdgeInsets _kTuvalDolgu = EdgeInsets.fromLTRB(
     _kTuvalYanPay, _kTuvalUstPay, _kTuvalYanPay, _kTuvalAltPay);
 
@@ -283,9 +293,16 @@ class ReportShareCard extends StatelessWidget {
     required this.dateLabel,
     this.badges = const [],
     this.glyph,
+    this.sayfaNo = 1,
+    this.sayfaSayisi = 1,
   });
 
   final String title;
+
+  /// Bu kartın sırası ve toplam — rapor birden çok karta bölünür
+  /// ([sayfalar]); ilk kart başlık ve rozetleri taşır, sonrakiler devamı.
+  final int sayfaNo;
+  final int sayfaSayisi;
 
   /// Rapor metni — markdown işaretlerinden ARINDIRILMIŞ hâlde verilmeli
   /// (`markdownToPlain`); karta `###` basmak bu turun düzelttiği kusurun ta
@@ -305,13 +322,129 @@ class ReportShareCard extends StatelessWidget {
 
   static const double _textWidth = width - _kTuvalYanPay * 2;
 
+  /// Rapor puntosu — her sayfada AYNI. Tek sayfaya sığdırmak için küçülen
+  /// punto (eski `fittedFontSize`) sayfalar arasında boy farkı yapardı.
+  static const double punto = 36;
+
+  /// İlk sayfanın metin alanı: rozet varsa daralır (rozet satırı + çizgi).
+  static double ilkYukseklik({required bool rozetli}) =>
+      980.0 - (rozetli ? 190 : 0);
+
+  /// Devam sayfalarının metin alanı: tarih + kısa başlık satırından sonra
+  /// kalan yer (1920 − 150 − 110 dolgu − ~300 başlık/marka). Ölçüm
+  /// [ShareCard.fitsAt] ile, yazı tipi gerçek.
+  static const double devamYukseklik = 1300;
+
+  /// Bir rapor en çok bu kadar karta bölünür; paylaşım sayfası ve hikâye
+  /// akışı için makul tavan. Aşan kısım son kartta "…" ile biter.
+  static const int azamiSayfa = 10;
+
+  /// Raporu KESMEDEN sayfalara böler (sahip kararı 2026-10-16: "paylaşınca
+  /// verilerin çoğu siliniyor, bu doğru değil").
+  ///
+  /// Eski kural tam tersiydi: "kırpma istisna değil KURAL — kart raporun
+  /// yerine geçmez, ona davet eder" ve uzun bir natal raporun yalnız ilk
+  /// paragrafları karta giriyordu. Şimdi her sayfa cümle sınırından kesilir
+  /// (cümle yoksa kelime sınırından), metin kaybolmaz; yalnız [azamiSayfa]
+  /// aşılırsa son sayfa "…" ile biter.
+  static List<String> sayfalar(String body,
+      {required bool rozetli,
+      TextStyle Function(double)? styleBuilder}) {
+    var kalan = body.trim();
+    final sonuc = <String>[];
+    while (kalan.isNotEmpty) {
+      final yukseklik =
+          sonuc.isEmpty ? ilkYukseklik(rozetli: rozetli) : devamYukseklik;
+      bool sigar(String s) => ShareCard.fitsAt(s, punto,
+          maxWidth: _textWidth, maxHeight: yukseklik,
+          styleBuilder: styleBuilder);
+      if (sigar(kalan)) {
+        sonuc.add(kalan);
+        break;
+      }
+      if (sonuc.length == azamiSayfa - 1) {
+        // Tavan: kalan metin sığmıyor. "…" AÇIKÇA eklenir — cümle
+        // sınırından kesen `clampToSentence` işaret koymuyor ve okuyan
+        // kartın eksik olduğunu bilmezdi.
+        final kesim = kesimNoktasi(kalan, _sigan(kalan, sigar, ekBosluk: 2));
+        sonuc.add('${kalan.substring(0, kesim).trimRight()} …');
+        break;
+      }
+      final kesim = kesimNoktasi(kalan, _sigan(kalan, sigar));
+      sonuc.add(kalan.substring(0, kesim).trim());
+      kalan = kalan.substring(kesim).trim();
+    }
+    return sonuc;
+  }
+
+  /// [sigar] doğru kalan en uzun önek uzunluğu (ikili arama; kesim noktası
+  /// ayrıca cümle sınırına çekilir). [ekBosluk]: "…" için pay.
+  static int _sigan(String metin, bool Function(String) sigar,
+      {int ekBosluk = 0}) {
+    var alt = 1;
+    var ust = metin.length;
+    while (alt < ust) {
+      final orta = (alt + ust + 1) ~/ 2;
+      if (sigar(metin.substring(0, kesimNoktasi(metin, orta)))) {
+        alt = orta;
+      } else {
+        ust = orta - 1;
+      }
+    }
+    return (alt - ekBosluk).clamp(1, metin.length);
+  }
+
+  /// [azami] karakterden önceki son cümle sonu; yoksa son boşluk; o da
+  /// yoksa [azami]. Önek döner — "…" EKLEMEZ (sayfa bölmede metin
+  /// kaybolmasın diye; `clampToSentence` kesip "…" koyar).
+  static int kesimNoktasi(String metin, int azami) {
+    if (azami >= metin.length) return metin.length;
+    final kesit = metin.substring(0, azami);
+    var son = -1;
+    for (final isaret in ['. ', '! ', '? ', '.\n', '\n\n']) {
+      final i = kesit.lastIndexOf(isaret);
+      if (i > son) son = i;
+    }
+    if (son > azami ~/ 3) return son + 1;
+    final bosluk = kesit.lastIndexOf(' ');
+    return bosluk > 0 ? bosluk : azami;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final rozetler = badges.take(3).toList();
-    // Metin alanı rozet sayısına göre daralır; sabit bir yükseklik
-    // varsaymak rozetsiz kartta boşluk, üç rozetlide taşma üretirdi.
-    final metinYuksekligi = 980.0 - (rozetler.isEmpty ? 0 : 190);
-    final metin = _sigdir(body, metinYuksekligi);
+    final ilk = sayfaNo == 1;
+    final rozetler = ilk ? badges.take(3).toList() : const <(String, String)>[];
+    final metin = body;
+    final sayfaEki = sayfaSayisi > 1 ? '  ·  $sayfaNo/$sayfaSayisi' : '';
+
+    if (!ilk) {
+      return SizedBox(
+        width: width,
+        height: height,
+        child: DecoratedBox(
+          decoration: _kKartZemini,
+          child: Padding(
+            padding: _kTuvalDolgu,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$dateLabel$sayfaEki',
+                    style: RythoText.mono(34, color: RythoColors.parchmentDim)),
+                const SizedBox(height: 32),
+                Text(title,
+                    style: RythoText.display(_kDevamBaslik,
+                        color: RythoColors.goldBright)),
+                const SizedBox(height: 40),
+                Expanded(
+                  child: Text(metin, style: ShareCard.bodyStyle(punto)),
+                ),
+                const _MarkaSatiri(),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return SizedBox(
       width: width,
@@ -323,7 +456,7 @@ class ReportShareCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(dateLabel,
+              Text('$dateLabel$sayfaEki',
                   style: RythoText.mono(34, color: RythoColors.parchmentDim)),
               const SizedBox(height: 48),
               Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -369,13 +502,7 @@ class ReportShareCard extends StatelessWidget {
               ],
               const SizedBox(height: 48),
               Expanded(
-                child: Text(metin,
-                    style: ShareCard.bodyStyle(ShareCard.fittedFontSize(
-                      metin,
-                      maxWidth: _textWidth,
-                      maxHeight: metinYuksekligi,
-                      maxSize: 42,
-                    ))),
+                child: Text(metin, style: ShareCard.bodyStyle(punto)),
               ),
               const _MarkaSatiri(),
             ],
@@ -383,30 +510,6 @@ class ReportShareCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  /// Rapor günlük yorumdan KAT KAT uzun; en küçük punto bile yetmez. Bu
-  /// yüzden burada kırpma istisna değil KURAL — kart raporun yerine geçmez,
-  /// ona davet eder. Kırpma yine cümle sınırından yapılır.
-  static String _sigdir(String metin, double yukseklik) {
-    final temiz = metin.trim();
-    if (temiz.isEmpty) return temiz;
-
-    bool sigar(String s) => ShareCard.fitsAt(s, 30,
-        maxWidth: _textWidth, maxHeight: yukseklik);
-    if (sigar(temiz)) return temiz;
-
-    var alt = 0;
-    var ust = temiz.length;
-    while (alt < ust) {
-      final orta = (alt + ust + 1) ~/ 2;
-      if (sigar(ShareCard.clampToSentence(temiz, orta))) {
-        alt = orta;
-      } else {
-        ust = orta - 1;
-      }
-    }
-    return ShareCard.clampToSentence(temiz, alt);
   }
 }
 
@@ -446,18 +549,25 @@ Future<bool> shareReportCard(
   required String dateLabel,
   List<(String, String)> badges = const [],
   String? glyph,
-}) =>
-    shareRenderedCard(
-      context,
-      ReportShareCard(
-        title: title,
-        body: body,
-        dateLabel: dateLabel,
-        badges: badges,
-        glyph: glyph,
-      ),
-      const Size(ReportShareCard.width, ReportShareCard.height),
-    );
+}) {
+  final sayfalar = ReportShareCard.sayfalar(body, rozetli: badges.isNotEmpty);
+  return shareRenderedCards(
+    context,
+    [
+      for (var i = 0; i < sayfalar.length; i++)
+        ReportShareCard(
+          title: title,
+          body: sayfalar[i],
+          dateLabel: dateLabel,
+          badges: badges,
+          glyph: glyph,
+          sayfaNo: i + 1,
+          sayfaSayisi: sayfalar.length,
+        ),
+    ],
+    const Size(ReportShareCard.width, ReportShareCard.height),
+  );
+}
 
 /// Çarkın paylaşım kartı (Harita İnceleme): aynı 9:16 tuval, çark 900 px.
 ///
@@ -543,12 +653,116 @@ class ChartShareCard extends StatelessWidget {
                       renk: ringGlyphColor(data, 1),
                       metin: l10n.chartLegendOuter(data.rings[1].label)),
               ]),
-              const Spacer(),
+              const SizedBox(height: 28),
+              // Konum tablosu (sahip, 2026-10-16: "paylaşınca verilerin
+              // çoğu siliniyor"): kart yalnız çarkı taşıyordu, ekrandaki
+              // tablo — gezegen, burç, derece, ev, R — kartta yoktu ve
+              // altta ~450 px boş kalıyordu. Ölçek `FittedBox.scaleDown`:
+              // ikili çarkta (26 satır) da TAŞMAZ, küçülür.
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(
+                      width: wheelSize,
+                      child: _KonumTablosu(data: data),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
               const _MarkaSatiri(),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Kartın konum tablosu — `ChartPositionsTable`ın 1080 px tuval ölçeği.
+/// Tek halkada iki sütun (sıra korunarak bölünür), ikili çarkta halka başına
+/// bir sütun. Açılar (AS/MC) tabloda yok — ekrandaki tabloyla aynı kural.
+class _KonumTablosu extends StatelessWidget {
+  const _KonumTablosu({required this.data});
+
+  final ChartData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    Widget satir(ChartPoint p, int halka) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(children: [
+            SizedBox(
+              width: 44,
+              child: kPlanetTextGlyphs.containsKey(p.name)
+                  ? Text(kPlanetTextGlyphs[p.name]!,
+                      style: RythoText.glyph(_kTabloGlif,
+                          color: ringGlyphColor(data, halka)))
+                  : CustomPaint(
+                      size: const Size(28, 28),
+                      painter: MiniGlyphPainter(
+                          p.name, ringGlyphColor(data, halka))),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(p.localName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: RythoText.body(_kTabloAd)),
+            ),
+            // Değer KESİLMEZ, gerekirse küçülür: "Yengeç 23°58' · 9 · R"
+            // ölçümün kendisi; adı kısaltmak kabul, ölçümü kesmek değil.
+            Expanded(
+              flex: 3,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '${signDisplayName(l10n, p.signIndex)} '
+                  '${formatDegree(p.degreeInSign)}'
+                  '${p.houseNo != null ? ' · ${p.houseNo}' : ''}'
+                  '${p.retrograde ? ' · R' : ''}',
+                  style: RythoText.mono(_kTabloOlcum, color: RythoColors.lilac),
+                ),
+              ),
+            ),
+          ]),
+        );
+
+    final sutunlar = <List<Widget>>[];
+    if (data.isBiWheel) {
+      for (var r = 0; r < data.rings.length; r++) {
+        sutunlar.add([
+          for (final p in data.rings[r].points.where((p) => !p.isAngle))
+            satir(p, r),
+        ]);
+      }
+    } else {
+      final noktalar =
+          data.rings.first.points.where((p) => !p.isAngle).toList();
+      final yari = (noktalar.length + 1) ~/ 2;
+      sutunlar
+        ..add([for (final p in noktalar.take(yari)) satir(p, 0)])
+        ..add([for (final p in noktalar.skip(yari)) satir(p, 0)]);
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < sutunlar.length; i++) ...[
+          if (i > 0) const SizedBox(width: 40),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: sutunlar[i],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -599,25 +813,33 @@ Future<bool> shareChartCard(
 /// HI-turu'nda dışa açıldı (eski `_paylas`): Harita İnceleme çark
 /// görüntüsünü de bu boru hattıyla paylaşıyor.
 Future<bool> shareRenderedCard(
-    BuildContext context, Widget kart, Size boyut) async {
+        BuildContext context, Widget kart, Size boyut) =>
+    shareRenderedCards(context, [kart], boyut);
+
+/// Birden çok kartı tek paylaşımda gönderir (sayfalanmış rapor).
+Future<bool> shareRenderedCards(
+    BuildContext context, List<Widget> kartlar, Size boyut) async {
   final l10n = AppLocalizations.of(context);
   final mediaQuery = MediaQuery.of(context);
   final locale = Localizations.localeOf(context);
 
   try {
-    final bayt = await renderCard(kart,
-        size: boyut, mediaQuery: mediaQuery, locale: locale);
-
     final dizin = await getTemporaryDirectory();
-    final dosya = File('${dizin.path}/rytho-${DateTime.now()
-        .millisecondsSinceEpoch}.png');
-    await dosya.writeAsBytes(bayt);
+    final damga = DateTime.now().millisecondsSinceEpoch;
+    final dosyalar = <XFile>[];
+    for (var i = 0; i < kartlar.length; i++) {
+      final bayt = await renderCard(kartlar[i],
+          size: boyut, mediaQuery: mediaQuery, locale: locale);
+      final dosya = File('${dizin.path}/rytho-$damga-${i + 1}.png');
+      await dosya.writeAsBytes(bayt);
+      dosyalar.add(XFile(dosya.path));
+    }
 
     // Görselin yanındaki metin kullanıcının dilinde tanıtım cümlesi: logo
     // yazısı (`kMarkaYazi`) tek başına paylaşım sayfasında bağlamsız bir
     // "RYTHO" bırakıyordu; alan kişinin uygulamayı ne yaptığını okusun.
     await SharePlus.instance.share(
-      ShareParams(files: [XFile(dosya.path)], text: l10n.shareText),
+      ShareParams(files: dosyalar, text: l10n.shareText),
     );
     return true;
   } catch (e) {

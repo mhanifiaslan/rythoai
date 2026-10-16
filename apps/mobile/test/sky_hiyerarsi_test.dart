@@ -35,6 +35,7 @@ import 'package:rytho/l10n/app_localizations_tr.dart';
 import 'package:rytho/theme/rytho_theme.dart';
 import 'package:rytho/widgets/common.dart';
 import 'package:rytho/widgets/glass.dart';
+import 'package:rytho/widgets/token_chip.dart' show TokenChip;
 import 'package:rytho/widgets/liste_satiri.dart';
 import 'package:rytho/widgets/reading_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -188,6 +189,10 @@ void main() {
       final yOkuma = tester.getTopLeft(find.byType(PlusLockedCard)).dy;
       expect(yGunluk, lessThan(yBaslik));
       expect(yBaslik, lessThan(yOkuma));
+      // EN SAĞDA (sahip, 2026-10-16): bakiye hapının da sağında.
+      expect(tester.getTopLeft(gunluk).dx,
+          greaterThan(tester.getTopLeft(find.byType(TokenChip)).dx),
+          reason: 'günlük düğmesi başlığın en sağında olmalı');
     });
 
     testWidgets('sinyal hatası → ErrorCard + Tekrar dene; tekrar dene '

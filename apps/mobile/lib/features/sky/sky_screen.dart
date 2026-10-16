@@ -681,7 +681,12 @@ class _Header extends StatelessWidget {
                 style: RythoText.display(18, w: FontWeight.w600)),
           ]),
         ),
-        // Günlüğüm: K5 — ikon taşıyan dolu yüzey `ctaGradient`.
+        // Bakiye hapı (U1): ekonomi ana ekranda her an görünür; dokununca
+        // mağaza açılır (Duolingo mücevher sayacı modeli).
+        const TokenChip(),
+        const SizedBox(width: RythoSpace.sm),
+        // Günlüğüm EN SAĞDA (sahip, 2026-10-16): ekranın en sabit köşesi.
+        // K5 — ikon taşıyan dolu yüzey `ctaGradient`.
         Tooltip(
           message: l10n.diaryTitle,
           child: Pressable(
@@ -709,10 +714,6 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: RythoSpace.sm),
-        // Bakiye hapı (U1): ekonomi ana ekranda her an görünür; dokununca
-        // mağaza açılır (Duolingo mücevher sayacı modeli).
-        const TokenChip(),
       ]),
     );
   }

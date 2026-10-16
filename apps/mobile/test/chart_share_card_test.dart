@@ -139,5 +139,56 @@ void main() {
         findsOneWidget);
     expect(find.text('HARİTA İNCELEME'), findsOneWidget,
         reason: 'başlık Türkçe büyütülür (İ korunur)');
+    // Konum tablosu kartta (sahip, 2026-10-16: "paylaşınca verilerin çoğu
+    // siliniyor"): her gezegen adı ve ölçümü — burç, derece — kartta.
+    for (final ad in ['Sun', 'Moon', 'Saturn']) {
+      expect(find.text(ad), findsOneWidget, reason: '$ad satırı kartta yok');
+    }
+    expect(find.textContaining("10°00'"), findsWidgets,
+        reason: 'derece ölçümü kartta yok');
+  });
+
+  group('rapor kartı: metin KESİLMEZ, sayfalanır', () {
+    // Eski kural "kırpma KURAL — kart raporun yerine geçmez" idi; uzun natal
+    // raporun yalnız ilk paragrafları karta giriyordu. Şimdi sayfa sayfa.
+    String uzun(int n) => List.filled(
+        n,
+        'Güneş Yengeç burcunda ve dokuzuncu evde; bu yerleşim duygusal '
+        'derinliği uzak ufuklara taşır. ').join();
+    String kelimeler(String s) => s.split(RegExp(r'\s+')).join(' ').trim();
+
+    testWidgets('uzun rapor birden çok sayfa; birleşince metin AYNEN geri',
+        (tester) async {
+      final govde = uzun(60);
+      final sayfalar = ReportShareCard.sayfalar(govde, rozetli: true);
+      expect(sayfalar.length, greaterThan(1));
+      expect(sayfalar.length, lessThanOrEqualTo(ReportShareCard.azamiSayfa));
+      expect(kelimeler(sayfalar.join(' ')), kelimeler(govde),
+          reason: 'sayfa bölmede metin kayboldu ya da değişti');
+      expect(sayfalar.any((s) => s.endsWith('…')), isFalse,
+          reason: 'tavan aşılmadıkça "…" yok');
+    });
+
+    testWidgets('kısa rapor tek sayfa', (tester) async {
+      final govde = uzun(2);
+      expect(ReportShareCard.sayfalar(govde, rozetli: false),
+          [govde.trim()]);
+    });
+
+    testWidgets('tavan aşılırsa son sayfa "…" ile biter, sayfa sayısı tavan',
+        (tester) async {
+      final sayfalar =
+          ReportShareCard.sayfalar(uzun(400), rozetli: false);
+      expect(sayfalar.length, ReportShareCard.azamiSayfa);
+      expect(sayfalar.last.endsWith('…'), isTrue);
+    });
+
+    test('kaynak: paylaşım tüm sayfaları tek seferde gönderir', () {
+      final k = _yorumsuz('lib/features/share/share_card.dart');
+      expect(k, contains('ReportShareCard.sayfalar('));
+      expect(k, contains('shareRenderedCards('));
+      expect(k, isNot(contains('_sigdir(')),
+          reason: 'eski kırpıcı geri geldi');
+    });
   });
 }
