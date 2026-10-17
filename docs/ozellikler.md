@@ -477,10 +477,18 @@ Ayrıca motor bir varsayım yaptığında **beyan eder**: şehir çözülemediys
   kerykeion 5.12.9 / pyswisseph 2.10.3.2 — sürümler sabit.
 - **Konum:** offline GeoNames şehir veritabanı (~34 bin şehir) — ağa
   bağımlı değil, deterministik.
-- **AI:** Google Gemini (flash), RAG korpusu **240 parça** (EN 168 / TR 72):
-  Ptolemaios *Tetrabiblos* (Ashmand 1822 çevirisi, kamu malı), Erzurumlu
-  İbrahim Hakkı *Marifetname* (Rytho aktarımı), Legge'nin 384 yao metni
-  (kamu malı) + altı özgün doktrin dosyası.
+- **AI:** Google Gemini (flash), RAG korpusu **TR 1.253 / EN 1.255 parça**
+  (canlıdan ölçüldü 2026-10-17, `GET /health/rag`; bu satır bir tur boyunca
+  kitaplar eklenmeden önceki "240 parça"yı söyledi). Yedi kamu malı kitap
+  (`knowledge/corpus/books/*.jsonl`, parçalar TR'ye aktarılmış): Lilly
+  *Christian Astrology* (1647) 457 · Lilly *An Introduction to Astrology*
+  (1852) 233 · Alan Leo *How to Judge a Nativity* 221 · Ptolemaios
+  *Tetrabiblos* (Ashmand 1822) 160 · Bonatti & Cardan *Anima Astrologiae*
+  74 · Sepharial *Astrology* 62 · Rosa Baughan *The Influence of the Stars*
+  (1904) 38. Yanında dile göre ayrı yazılmış sekiz özgün doktrin dosyası
+  (BaZi, Çin metafiziği, İ Ching, aile, servet, tahmin, ilm-i nücum,
+  *Marifetname* aktarımı). Legge'nin 384 yao metni RAG'de değil
+  `hexagrams.json`'da.
 - **Telif kuralı:** eser kamu malı olsa bile **çevirisi ayrı telif taşır**
   — bu yüzden Ashmand/Legge kullanılır, Robbins/Wilhelm-Baynes kullanılmaz.
 - **Sunucu:** FastAPI + Cloud Run; Firestore; RevenueCat + Google Play.
@@ -498,7 +506,7 @@ ilkesini çiğner:
    test_honesty.py — geri gelemez.)*
 2. **"NASA verisiyle hesaplıyoruz"** — NASA yalnızca gezegen uzaklığı
    göstergesi için; tüm konum/açı hesabı Swiss Ephemeris.
-3. **"Yüzlerce kadim kitap"** — korpus 240 parça (EN 168 / TR 72); dürüst tarif: *seçilmiş
+3. **"Yüzlerce kadim kitap"** — korpus yedi kitap + doktrin dosyaları (~1.250 parça/dil); dürüst tarif: *seçilmiş
    kamu malı klasikler + özgün doktrin sentezi*.
 4. **"Gerçek Güneş Zamanı kullanıyoruz"** — yalnız **BaZi** için doğru;
    Batı haritasında standart saat dilimi kullanılıyor.
