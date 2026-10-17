@@ -159,8 +159,11 @@ def _kur_oku() -> float:
 #: monkeypatch eder, emsal `ECONOMICS_TOP_N`.
 USD_TRY = _kur_oku()
 
-#: Rollup bu kadar saatten eskiyse "bayat" (gecelik iş kaçmış demektir).
-ROLLUP_STALE_HOURS = 30
+#: Rollup bu kadar saatten eskiyse "bayat". İş 2026-10-17'den beri SAATLİK;
+#: 2 saat = bir koşu kaçmış ve ikincisi de gecikiyor. Panelin
+#: `OZET_BAYAT_SAAT`i (bilesenler.js) aynı sayı — zil ile sayfa ayrışmasın
+#: (eşik 30 iken sayfa "bayat", zil "taze" diyordu).
+ROLLUP_STALE_HOURS = 2
 
 #: economics() tarafından kullanılan önbellek anahtarları — recompute
 #: sonrası temizlenmek için (core.cache anahtar sayamaz).
@@ -600,9 +603,16 @@ def _kullanici_adlari(client, uidler: list[str]) -> dict[str, dict[str, Any]]:
 
 
 def _economics_docs(client, days: int) -> list[dict[str, Any]]:
+    """Son N TAKVİM gününün ekonomi dokümanları (bkz. `read_days`: pencere
+    doküman sayısı değil takvim — eksik gün pencereyi geriye uzatmaz)."""
+    from google.cloud.firestore_v1.base_query import FieldFilter
+
+    bugun = dt.datetime.now(dt.timezone.utc).date()
+    alt = (bugun - dt.timedelta(days=max(1, min(int(days), 365)) - 1)
+           ).isoformat()
     sorgu = (client.collection("adminEconomics")
-             .order_by("date", direction="DESCENDING")
-             .limit(max(1, min(int(days), 365))))
+             .where(filter=FieldFilter("date", ">=", alt))
+             .order_by("date", direction="DESCENDING"))
     return [a.to_dict() or {} for a in sorgu.stream()]
 
 
@@ -1049,8 +1059,7 @@ def attention() -> list[dict[str, Any]]:
     try:
         son = gunler[0] if gunler else None
         if son is None:
-            gunler = stats_service.read_days(1)
-            son = gunler[0] if gunler else None
+            son = stats_service.son_dokuman()
         damga = (son or {}).get("generatedAt")
         saat = ((simdi.timestamp() - _ts(damga)) / 3600
                 if damga is not None else ROLLUP_STALE_HOURS * 24)

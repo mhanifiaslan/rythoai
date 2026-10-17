@@ -1,12 +1,13 @@
 /* Paylaşılan arayüz bileşenleri v3 (AD15).
 
    İki katman:
-   - HTML dizesi üreten yardımcılar (v2 mirası + yeni): e, sayi, para,
-     tarih, kpi, rozet, tablo, modul, satir, delta, istatistikKarti, bant,
-     sayfaBaslik, bosDurum, hataDurum, iskelet, planRozeti, rolRozeti…
-     Görünüm innerHTML'e gömer.
+   - HTML dizesi üreten yardımcılar: e, sayi, para, yuzde, tarih,
+     rozet, modul, istatistikKarti, bant, sayfaBaslik, bosDurum,
+     hataDurum, iskelet, planRozeti, rolRozeti… Görünüm innerHTML'e gömer.
    - Etkileşimli bileşenler (Element döner): veriTablosu, modal, yanPanel,
-     onayla (Promise), toast, filtreCipleri, sekmeler, form.
+     onayla (Promise), toast, filtreCipleri, secimCipleri/donemSecici,
+     sekmeler, form; ve görünümlerin veri bölgesini yarışsız tazeleyen
+     `tazeleyici`.
 
    Tüm çıktılar admin.css sınıflarına dayanır — inline stil yalnız dinamik
    genişlik (sütun) ve modal genişliği (CSS değişkeni). Her serbest metin
@@ -46,22 +47,32 @@
     return typeof v === 'number' ? v.toLocaleString('tr-TR') : String(v);
   }
 
+  /* Para: 2 basamak; yalnız bir sentin ALTINDAKİ (sıfır olmayan) tutarlar 4
+     basamak. Eski kural 1 doların altını 4 basamak yazıyordu ve aynı
+     tabloda "$0,4500" ile "$1,20" yan yana duruyordu; 4 basamağın tek
+     gerekçesi tek çağrılık AI maliyeti gibi sent altı tutarların "$0,00"
+     diye silinmemesi. */
   function para(v, birim) {
     if (v == null || v === -1) return '—';
     var n = Number(v);
     if (isNaN(n)) return '—';
-    return (birim || '$') + n.toLocaleString('tr-TR', {
-      minimumFractionDigits: n !== 0 && Math.abs(n) < 1 ? 4 : 2,
-      maximumFractionDigits: Math.abs(n) < 1 ? 4 : 2
+    var kucuk = n !== 0 && Math.abs(n) < 0.01;
+    // Eksi işaret birimin ÖNÜNDE ("−$1,12"; "$-1,12" değil).
+    return (n < 0 ? '−' : '') + (birim || '$') + Math.abs(n).toLocaleString('tr-TR', {
+      minimumFractionDigits: kucuk ? 4 : 2,
+      maximumFractionDigits: kucuk ? 4 : 2
     });
   }
 
+  /* Yüzde Türkçe yazımla: işaret ÖNDE ("%12,5"); eksi işaret yüzdenin
+     önüne gelir ("−%3,0"). */
   function yuzde(v, basamak) {
     if (v == null || !isFinite(Number(v))) return '—';
-    return Number(v).toLocaleString('tr-TR', {
-      minimumFractionDigits: basamak == null ? 1 : basamak,
-      maximumFractionDigits: basamak == null ? 1 : basamak
-    }) + '%';
+    var n = Number(v);
+    var b = basamak == null ? 1 : basamak;
+    return (n < 0 ? '−' : '') + '%' + Math.abs(n).toLocaleString('tr-TR', {
+      minimumFractionDigits: b, maximumFractionDigits: b
+    });
   }
 
   /* Firestore zaman değeri ISO dizge, {seconds}, {_seconds}, ms sayı ya da
@@ -78,15 +89,37 @@
     return isNaN(d.getTime()) ? null : d;
   }
 
+  /* Görünen saat dilimi SABİT: işletme Türkiye'de, yönetici hangi
+     makineden açarsa açsın "dün 23:50" aynı an olmalı. Eskiden tarayıcının
+     dilimi kullanılıyordu — yurt dışından açılan panelde aynı olay başka
+     güne düşüyordu. */
+  var SAAT_DILIMI = 'Europe/Istanbul';
+  var GUN_DESENI = /^\d{4}-\d{2}-\d{2}$/;
+
+  /* Tek tarih biçimi: "17 Eki 2026", saatliyse "17 Eki 2026 14:05".
+     Çıplak "YYYY-AA-GG" bir AN değil bir GÜN etiketidir (rollup kovaları
+     UTC günü) — dilime çevrilmez, aynen o gün yazılır; çevrilseydi gece
+     yarısına yakın bir kova komşu güne kayabilirdi. */
   function tarih(v, saatli) {
     if (!v) return '—';
+    var gunEtiketi = typeof v === 'string' && GUN_DESENI.test(v);
     var d = tarihNesnesi(v);
     if (!d) return String(v);
+    var dilim = gunEtiketi ? 'UTC' : SAAT_DILIMI;
     var gun = d.toLocaleDateString('tr-TR',
-      { day: 'numeric', month: 'short', year: 'numeric' });
-    if (!saatli) return gun;
+      { day: 'numeric', month: 'short', year: 'numeric', timeZone: dilim });
+    if (!saatli || gunEtiketi) return gun;
     return gun + ' ' + d.toLocaleTimeString('tr-TR',
-      { hour: '2-digit', minute: '2-digit' });
+      { hour: '2-digit', minute: '2-digit', timeZone: SAAT_DILIMI });
+  }
+
+  /* Kısa gün: "17.10" (grafik ekseniyle aynı). */
+  function kisaGun(v) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || ''));
+    if (m) return Number(m[3]) + '.' + m[2];
+    var d = tarihNesnesi(v);
+    if (!d) return '—';
+    return d.toLocaleDateString('tr-TR', { day: 'numeric', month: '2-digit', timeZone: SAAT_DILIMI });
   }
 
   /* "az önce", "12 dk önce", "3 sa önce", "dün", "5 gün önce", sonra tarih. */
@@ -102,6 +135,41 @@
     return tarih(d);
   }
 
+  /* Süreklilik: "12 dakikadır", "3 saattir", "5 gündür". "…önceden beri"
+     kuruluşu Türkçe değildi ("3 sa önceden beri"); birim kelimeleri sabit
+     olduğu için ek uyumu burada elle doğru yazılabiliyor. */
+  function sureMetni(v) {
+    var d = tarihNesnesi(v);
+    if (!d) return '—';
+    var fark = Math.max(0, (Date.now() - d.getTime()) / 1000);
+    if (fark < 60) return 'bir dakikadan az süredir';
+    if (fark < 3600) return Math.round(fark / 60) + ' dakikadır';
+    if (fark < 86400) return Math.round(fark / 3600) + ' saattir';
+    return Math.round(fark / 86400) + ' gündür';
+  }
+
+  /* UTC gün anahtarı ("YYYY-AA-GG") — rollup kovalarıyla AYNI takvim. */
+  function utcGun(farkGun) {
+    return new Date(Date.now() - (farkGun || 0) * 86400000).toISOString().slice(0, 10);
+  }
+
+  /* İstatistik özeti saatlik üretiliyor (Cloud Scheduler `rytho-stats`).
+     Bir koşu kaçabilir; iki saat geçmişse bir şey ters gidiyor demektir.
+     Eşik tek yerde: Genel, Gelir ve Sistem aynı hükmü versin. */
+  var OZET_BAYAT_SAAT = 2;
+
+  function saatFarki(v) {
+    var d = tarihNesnesi(v);
+    return d ? (Date.now() - d.getTime()) / 3600000 : null;
+  }
+
+  /* "Güncelleme: saatte bir · son: 12 dk önce" — en yeni rollup
+     dokümanının `generatedAt`ından. Doküman yoksa söyler, uydurmaz. */
+  function guncellemeMetni(generatedAt) {
+    if (!tarihNesnesi(generatedAt)) return 'Güncelleme: saatte bir · henüz toplanmış özet yok';
+    return 'Güncelleme: saatte bir · son: ' + goreliZaman(generatedAt);
+  }
+
   /* Ad/e-postadan 1-2 harfli avatar kısaltması. */
   function basHarfler(ad, eposta) {
     var kaynak = String(ad || '').trim() || String(eposta || '').split('@')[0];
@@ -113,17 +181,6 @@
   }
 
   /* ---------------- v2 mirası (HTML dizesi) ---------------- */
-
-  function kpi(deger, ad, sec) {
-    sec = sec || {};
-    var sayacAttr = (typeof sec.sayac === 'number' && isFinite(sec.sayac))
-      ? ' data-hedef="' + sec.sayac + '"' : '';
-    return '<div class="istat-kart"><span class="ad">' + e(ad) + '</span>' +
-      '<span class="deger' + (sec.altin ? ' altin' : '') + '"' + sayacAttr +
-      '>' + e(deger) + '</span>' +
-      (sec.alt ? '<span class="alt">' + e(sec.alt) + '</span>' : '') +
-      '</div>';
-  }
 
   /* Tam sayı KPI'ları 0'dan hedefe sayar (~600ms, easeOut). */
   function canlandir(kok) {
@@ -143,47 +200,17 @@
     });
   }
 
-  function marjPanosu(t, donemEtiketi) {
-    var marj = t.marginUsd || 0;
-    return '<div class="marj-panosu">' +
-      '<div class="marj-etiket">' + e(donemEtiketi) +
-      ' — tahmini katkı marjı</div>' +
-      '<div class="marj-deger' + (marj < 0 ? ' eksi' : '') + '">' +
-      para(marj) + '</div>' +
-      '<div class="marj-formul">' +
-      '<div class="kalem"><b>' + para(t.revenueUsd) +
-      '</b><span>Brüt gelir</span></div>' +
-      '<div class="kalem"><b>−' + para(t.storeCutUsd) +
-      '</b><span>Mağaza kesintisi (~%' +
-      Math.round((t.storeCutRate || 0.15) * 100) + ')</span></div>' +
-      '<div class="kalem"><b>−' + para(t.aiCostUsd) +
-      '</b><span>Tahmini AI maliyeti</span></div>' +
-      '</div>' +
-      '<div class="marj-not">Sabit giderler (Cloud Run + Firestore, ' +
-      '~$32-35/ay) hariçtir; AI maliyeti ölçülen token × birim fiyattır.' +
-      '</div></div>';
-  }
-
   function rozet(metin, tur) {
     return '<span class="rozet rozet-' + e(tur || 'notr') + '">' +
       e(metin) + '</span>';
   }
 
-  function abonelikRozeti(sub) {
-    if (sub && sub.active) {
-      if (sub.isTrial) return rozet('Mağaza denemesi', 'trial');
-      return rozet('Abone', 'plus');
-    }
-    if (sub && sub.productId) return rozet('Süresi dolmuş', 'dolmus');
-    return rozet('Ücretsiz', 'free');
-  }
-
-  /* plan ∈ {plus, trial, free}; createdAt 3 gün içindeyse "Yeni" eklenir. */
-  var PLANLAR = { plus: ['Rytho+', 'plus'], trial: ['Deneme', 'trial'],
-                  free: ['Ücretsiz', 'free'] };
+  /* plan ∈ {plus, trial, free}; createdAt 3 gün içindeyse "Yeni" eklenir.
+     Ad sözlükten (sozluk.js), burada yalnız rozet rengi. */
+  var PLAN_ROZET = { plus: 'plus', trial: 'trial', free: 'free' };
   function planRozeti(plan, createdAt) {
-    var p = PLANLAR[plan] || PLANLAR.free;
-    var html = rozet(p[0], p[1]);
+    var anahtar = PLAN_ROZET[plan] ? plan : 'free';
+    var html = rozet(RY.sozluk ? RY.sozluk.planAdi(anahtar) : anahtar, PLAN_ROZET[anahtar]);
     var d = tarihNesnesi(createdAt);
     if (d && Date.now() - d.getTime() < 3 * 86400 * 1000) {
       html += ' ' + rozet('Yeni', 'yeni');
@@ -197,15 +224,6 @@
     return r ? rozet(r[0], r[1]) : rozet('—', 'notr');
   }
   function rolAdi(rol) { return (ROLLER[rol] || ['—'])[0]; }
-
-  function tablo(basliklar, satirlarHtml) {
-    var th = basliklar.map(function (b) {
-      return '<th scope="col">' + e(b) + '</th>';
-    }).join('');
-    return '<div class="tablo-sarici"><table class="tablo">' +
-      '<thead><tr>' + th + '</tr></thead>' +
-      '<tbody>' + satirlarHtml + '</tbody></table></div>';
-  }
 
   /* iskelet('kpi'|'tablo'|'modul'); argümansız → v2 birleşik (kpi + blok). */
   function iskelet(tur, adet) {
@@ -248,19 +266,6 @@
       'Tekrar dene</button></div>';
   }
 
-  function girdi(ad, yertutucu, tur, ekSinif) {
-    return '<input class="girdi' + (ekSinif ? ' ' + e(ekSinif) : '') +
-      '" name="' + e(ad) + '" placeholder="' + e(yertutucu) + '"' +
-      (tur ? ' type="' + e(tur) + '"' : '') +
-      ' aria-label="' + e(yertutucu) + '">';
-  }
-
-  function grafikPanel(kimlik, baslik, kisa) {
-    return modul(baslik, '<div class="grafik-kap"><canvas id="' + e(kimlik) +
-      '" class="grafik' + (kisa ? ' grafik-kucuk' : '') +
-      '" aria-label="' + e(baslik) + '"></canvas></div>');
-  }
-
   /* modul(baslik, icHtml, kontrolHtml, {alt, kimlik}) */
   function modul(baslik, icHtml, kontrolHtml, sec) {
     sec = sec || {};
@@ -274,52 +279,6 @@
 
   function etiket(metin) {
     return '<span class="modul-etiket">' + e(metin) + '</span>';
-  }
-
-  /* İkonlu liste satırı. sec: {ikon, ikonSinif, avatar, baslik, alt,
-     sagUst, sagUstSinif ('arti'|'eksi'), sagAlt, veri:{ad:deger}, href} */
-  function satir(sec) {
-    var ikonHucre;
-    if (sec.avatar) {
-      ikonHucre = '<span class="satir-ikon avatar-hucre">' +
-        e(basHarfler(sec.avatar)) + '</span>';
-    } else {
-      ikonHucre = '<span class="satir-ikon' +
-        (sec.ikonSinif ? ' ' + e(sec.ikonSinif) : '') + '">' +
-        ik(sec.ikon || 'kivilcim') + '</span>';
-    }
-    var veriAttr = '';
-    Object.keys(sec.veri || {}).forEach(function (ad) {
-      veriAttr += ' data-' + e(ad) + '="' + e(sec.veri[ad]) + '"';
-    });
-    var sag = (sec.sagUst != null || sec.sagAlt != null)
-      ? '<span class="satir-sag">' +
-        (sec.sagUst != null
-          ? '<b class="' + e(sec.sagUstSinif || '') + '">' + e(sec.sagUst) +
-            '</b>' : '') +
-        (sec.sagAlt != null ? '<span>' + e(sec.sagAlt) + '</span>' : '') +
-        '</span>'
-      : '';
-    var govde = ikonHucre +
-      '<span class="satir-govde"><b>' + e(sec.baslik) + '</b>' +
-      (sec.alt ? '<span>' + e(sec.alt) + '</span>' : '') + '</span>' + sag;
-    if (sec.href) {
-      return '<a class="satir" href="' + e(sec.href) + '"' + veriAttr + '>' +
-        govde + ik('ok', 16) + '</a>';
-    }
-    return '<div class="satir' + (sec.veri ? ' tikla' : '') + '"' +
-      veriAttr + '>' + govde + '</div>';
-  }
-
-  function delta(fark, birim) {
-    if (fark == null || !isFinite(fark)) return '';
-    var yon = fark > 0 ? 'yukari' : (fark < 0 ? 'asagi' : 'duz');
-    var ok = fark > 0 ? '▲' : (fark < 0 ? '▼' : '◆');
-    var deger = Math.abs(fark);
-    var metin = birim === '$' ? para(deger)
-      : birim === '%' ? yuzde(deger)
-      : deger.toLocaleString('tr-TR');
-    return '<span class="delta ' + yon + '">' + ok + ' ' + metin + '</span>';
   }
 
   /* ---------------- Yeni HTML yardımcıları ---------------- */
@@ -978,6 +937,125 @@
     return kok;
   }
 
+  /* ---------------- Tek seçimli çipler / dönem seçici ---------------- */
+
+  /* secimCipleri({etiket, grupAdi, secenekler:[{deger, etiket, ipucu}],
+     deger, altin, bitisik, kimlik, onDegis(deger)}) → el; el.deger(),
+     el.ayarla(deger) (onDegis çağırmaz).
+
+     NEDEN ayrı bileşen: tek seçimli süzgeçler (dönem, ortam) her görünümde
+     elle yazılmış `aria-pressed` düğmeleriydi ve davranışları ayrışmıştı;
+     etiketler de "30g" / "30 gün" diye ikiye bölünmüştü. Gelir'deki ortam
+     çipi radyo gibi görünüp ("Üretim" | "Test alımlarını göster") anahtar
+     gibi okunuyordu. Tek seçim her zaman bir değer taşır, o yüzden ARIA
+     radyo grubu: ok tuşları seçimi taşır, seçili olan tek sekme durağıdır.
+     `bitisik` iki seçenekli "biri ya da öteki" kontrollerini birleşik bir
+     şerit olarak çizer — iki ayrı çip gibi görünüp ikisinin birden açık
+     olabileceği izlenimini vermesin. */
+  function secimCipleri(o) {
+    o = o || {};
+    var secenekler = o.secenekler || [];
+    var deger = o.deger != null ? String(o.deger)
+      : (secenekler[0] ? String(secenekler[0].deger) : '');
+    var kok = el('<span class="cip-grup secim-cipleri" role="radiogroup" aria-label="' +
+      e(o.etiket || o.grupAdi || 'Seçim') + '"' +
+      (o.kimlik ? ' id="' + e(o.kimlik) + '"' : '') + '></span>');
+
+    function ciz() {
+      var dugmeler = secenekler.map(function (s) {
+        var secili = String(s.deger) === deger;
+        return '<button type="button" class="adm-cip' + (o.altin ? ' altin' : '') +
+          '" role="radio" aria-checked="' + (secili ? 'true' : 'false') + '" tabindex="' +
+          (secili ? '0' : '-1') + '" data-deger="' + e(s.deger) + '"' +
+          (s.ipucu ? ' title="' + e(s.ipucu) + '"' : '') + '>' + e(s.etiket) + '</button>';
+      }).join('');
+      kok.innerHTML = (o.grupAdi ? '<span class="grup-ad" aria-hidden="true">' + e(o.grupAdi) + '</span>' : '') +
+        (o.bitisik ? '<span class="segment">' + dugmeler + '</span>' : dugmeler);
+    }
+
+    function odakla() {
+      Array.prototype.forEach.call(kok.querySelectorAll('[role="radio"]'), function (d) {
+        if (d.getAttribute('data-deger') === deger) d.focus();
+      });
+    }
+
+    function sec(v) {
+      v = String(v);
+      if (v === deger) return;
+      deger = v;
+      ciz();
+      odakla();
+      if (o.onDegis) o.onDegis(deger);
+    }
+
+    kok.addEventListener('click', function (ev) {
+      var d = ev.target.closest('[role="radio"]');
+      if (d) sec(d.getAttribute('data-deger'));
+    });
+    kok.addEventListener('keydown', function (ev) {
+      var sira = secenekler.map(function (s) { return String(s.deger); });
+      var i = sira.indexOf(deger);
+      var hedef = null;
+      if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') hedef = sira[(i + 1) % sira.length];
+      else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') hedef = sira[(i - 1 + sira.length) % sira.length];
+      else if (ev.key === 'Home') hedef = sira[0];
+      else if (ev.key === 'End') hedef = sira[sira.length - 1];
+      if (hedef != null) { ev.preventDefault(); sec(hedef); }
+    });
+
+    kok.deger = function () { return deger; };
+    kok.ayarla = function (v) { deger = String(v); ciz(); };
+    ciz();
+    return kok;
+  }
+
+  /* Dönem seçici: her görünümde AYNI etiket ("7 gün / 30 gün / 90 gün"),
+     aynı yer (sayfa başlığının hemen altındaki süzgeç şeridi), aynı
+     davranış (anında uygulanır, adrese sessizce yazılır). `notlar` bir
+     seçeneğin neyi farklı ölçtüğünü ipucu olarak söyler — örn. ekonomi
+     tablosu 7 günü hesaplamıyorsa bu seçimin üstünde yazılı durur. */
+  function donemSecici(o) {
+    o = o || {};
+    var notlar = o.notlar || {};
+    return secimCipleri({
+      kimlik: o.kimlik, etiket: 'Dönem', grupAdi: 'Dönem', altin: true,
+      secenekler: (o.secenekler || [7, 30, 90]).map(function (g) {
+        return { deger: g, etiket: g + ' gün', ipucu: notlar[g] };
+      }),
+      deger: o.deger,
+      onDegis: function (v) { if (o.onDegis) o.onDegis(Number(v)); }
+    });
+  }
+
+  /* ---------------- Yarışsız veri bölgesi ---------------- */
+
+  /* tazeleyici(baglam) → yeni() → {sinyal, gecerli()}.
+
+     NEDEN: süzgeç değişince yalnız veri bölgesi yeniden çekiliyor; kullanıcı
+     7 → 30 → 90'a hızlı basarsa üç istek yarışır ve YAVAŞ gelen eski cevap
+     yenisinin üstüne çizer — ekranda "90 gün" basılıyken 7 günün sayıları
+     durur. Her `yeni()` bir öncekini iptal eder; `gecerli()` hem bu isteğin
+     hâlâ son istek olduğunu hem de görünümün hâlâ ekranda olduğunu
+     (router bağlamı, app.js) sorar. Çizimden hemen önce bakılır. */
+  function tazeleyici(baglam) {
+    var son = null;
+    return function () {
+      if (son) son.abort();
+      var d = son = new AbortController();
+      var ust = baglam && baglam.sinyal;
+      if (ust) {
+        if (ust.aborted) d.abort();
+        else ust.addEventListener('abort', function () { d.abort(); }, { once: true });
+      }
+      return {
+        sinyal: d.signal,
+        gecerli: function () {
+          return !d.signal.aborted && (!baglam || !baglam.aktif || baglam.aktif());
+        }
+      };
+    };
+  }
+
   /* ---------------- Sekmeler ---------------- */
 
   /* sekmeler({kimlik, sekmeler:[{ad, etiket, icerik()→el|html, sayac}],
@@ -1295,14 +1373,13 @@
   RY.b = {
     // temel
     e: e, el: el, ik: ik, kucult: kucult, sayi: sayi, para: para, yuzde: yuzde,
-    tarih: tarih, tarihNesnesi: tarihNesnesi, goreliZaman: goreliZaman,
+    tarih: tarih, kisaGun: kisaGun, tarihNesnesi: tarihNesnesi, goreliZaman: goreliZaman,
+    sureMetni: sureMetni, utcGun: utcGun, saatFarki: saatFarki,
+    OZET_BAYAT_SAAT: OZET_BAYAT_SAAT, guncellemeMetni: guncellemeMetni,
     basHarfler: basHarfler,
-    // v2 mirası
-    kpi: kpi, canlandir: canlandir, marjPanosu: marjPanosu, rozet: rozet,
-    abonelikRozeti: abonelikRozeti, tablo: tablo, iskelet: iskelet,
-    bosDurum: bosDurum, hataDurum: hataDurum, girdi: girdi,
-    grafikPanel: grafikPanel, modul: modul, etiket: etiket, satir: satir,
-    delta: delta,
+    // HTML dizesi
+    canlandir: canlandir, rozet: rozet, iskelet: iskelet,
+    bosDurum: bosDurum, hataDurum: hataDurum, modul: modul, etiket: etiket,
     // v3 HTML
     istatistikKarti: istatistikKarti, bant: bant, sayfaBaslik: sayfaBaslik,
     planRozeti: planRozeti, rolRozeti: rolRozeti, rolAdi: rolAdi,
@@ -1310,7 +1387,7 @@
     // v3 etkileşimli
     veriTablosu: veriTablosu, modal: modal, yanPanel: yanPanel,
     onayla: onayla, toast: toast, filtreCipleri: filtreCipleri,
-    sekmeler: sekmeler, form: form, segmentler: segmentler,
-    acikDiyalogSayisi: function () { return diyaloglar.length; }
+    secimCipleri: secimCipleri, donemSecici: donemSecici, tazeleyici: tazeleyici,
+    sekmeler: sekmeler, form: form, segmentler: segmentler
   };
 })();

@@ -236,8 +236,12 @@ html { scroll-behavior: auto; }
 
 .adm-cip { min-height: 32px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--cizgi); background: transparent; color: var(--parchment-mid); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; transition: color var(--fast), border-color var(--fast), background var(--fast); }
 .adm-cip:hover { color: var(--parchment); border-color: var(--lilac); }
-.adm-cip[aria-pressed="true"], .adm-cip.aktif { background: var(--vurgu-zemin); color: var(--parchment); border-color: color-mix(in srgb, var(--lilac) 50%, transparent); }
-.adm-cip.altin[aria-pressed="true"] { background: var(--altin-zemin); color: var(--gold); border-color: color-mix(in srgb, var(--gold) 50%, transparent); }
+.adm-cip[aria-pressed="true"], .adm-cip[aria-checked="true"], .adm-cip.aktif { background: var(--vurgu-zemin); color: var(--parchment); border-color: color-mix(in srgb, var(--lilac) 50%, transparent); }
+.adm-cip.altin[aria-pressed="true"], .adm-cip.altin[aria-checked="true"] { background: var(--altin-zemin); color: var(--gold); border-color: color-mix(in srgb, var(--gold) 50%, transparent); }
+/* İki seçenekli "biri ya da öteki" şeridi (ortam): tek kap, içinde çipler —
+   iki bağımsız çip gibi görünüp ikisinin birden açılabileceğini düşündürmesin. */
+.segment { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--cizgi); border-radius: var(--r-pill); background: var(--yuzey); }
+.segment .adm-cip { border-color: transparent; }
 .adm-cip .x { opacity: .6; }
 .adm-cip svg { width: 14px; height: 14px; }
 .filtre-cipleri { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; }
@@ -320,6 +324,22 @@ html { scroll-behavior: auto; }
 
 /* ================= Süzgeç satırı ================= */
 .suzgec { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Süzgeç şeridi: her görünümde sayfa başlığının hemen altında, aynı yerde.
+   Grupların arası, grup içinden geniş — hangi çipin hangi gruba ait
+   olduğu boşluktan okunur. Not (ör. "Günler UTC'ye göre") sağa yaslanır. */
+.suzgec-seridi { display: flex; align-items: center; gap: 10px 20px; flex-wrap: wrap; }
+.suzgec-seridi .suzgec-not { margin-left: auto; }
+/* Denetim izi süzgeç formu: alanlar yan yana, dar ekranda alt alta. */
+.suzgec-form { display: flex; gap: 10px 12px; flex-wrap: wrap; align-items: flex-end; }
+.suzgec-form .form-alan { flex: 1 1 170px; max-width: 260px; }
+.suzgec-form .form-alan.dar { flex: 0 1 170px; }
+/* Görünüm kökü (app.js router): çizime ait kap. Kutusu yok — düzen ve giriş
+   animasyonu #icerik'in doğrudan çocuklarıymış gibi işler. */
+.gorunum-kok { display: contents; }
+/* Veri bölgesi: süzgeç değişince yalnız bu bölge yeniden çizilir; çekilirken
+   eski sayılar soluk kalır (tam sayfa iskelet yanıp sönmesin). */
+.veri-alani { display: flex; flex-direction: column; gap: 20px; min-width: 0; transition: opacity var(--fast); }
+.veri-alani[aria-busy="true"] { opacity: .55; pointer-events: none; }
 .ara { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; width: 340px; max-width: 100%; border-radius: var(--r-md); background: var(--yuzey); border: 1px solid var(--cizgi); color: var(--parchment-mid); transition: border-color var(--fast); }
 .ara:focus-within { border-color: var(--lilac); }
 .ara svg { width: 16px; height: 16px; flex: none; }
@@ -406,7 +426,9 @@ html { scroll-behavior: auto; }
 select.girdi { cursor: pointer; appearance: auto; }
 textarea.girdi { min-height: 88px; resize: vertical; line-height: 1.5; }
 .girdi-genis { flex: 1 1 220px; }
-.girdi-kisa { width: 120px; }
+/* Tarih girdisi tarayıcının takvim düğmesiyle 120 px'e sığmıyordu ("gg.aa.yyyy"
+   kesiliyordu). */
+.girdi-kisa { width: 160px; max-width: 100%; }
 .form-alan .mono { color: var(--parchment); }
 .anahtar { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; min-height: 32px; }
 .anahtar input { width: 18px; height: 18px; accent-color: var(--violet); cursor: pointer; }
@@ -521,10 +543,10 @@ body.modal-acik { overflow: hidden; }
 
 /* ================= Odak + hareket ================= */
 :focus-visible { outline: 2px solid var(--lilac); outline-offset: 2px; }
-.icerik > * { animation: belir var(--base) var(--enter) backwards; }
-.icerik > *:nth-child(2) { animation-delay: 50ms; }
-.icerik > *:nth-child(3) { animation-delay: 100ms; }
-.icerik > *:nth-child(n+4) { animation-delay: 150ms; }
+.icerik > *, .gorunum-kok > * { animation: belir var(--base) var(--enter) backwards; }
+.icerik > *:nth-child(2), .gorunum-kok > *:nth-child(2) { animation-delay: 50ms; }
+.icerik > *:nth-child(3), .gorunum-kok > *:nth-child(3) { animation-delay: 100ms; }
+.icerik > *:nth-child(n+4), .gorunum-kok > *:nth-child(n+4) { animation-delay: 150ms; }
 @keyframes belir { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
@@ -639,6 +661,9 @@ table.tablo { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 }
 @media (max-width: 768px) {
   .icerik { padding: 16px 14px 40px; gap: 14px; }
+  .veri-alani { gap: 14px; }
+  .suzgec-seridi .suzgec-not { margin-left: 0; }
+  .suzgec-form .form-alan, .suzgec-form .form-alan.dar { flex: 1 1 100%; max-width: none; }
   .ust-cubuk { padding: 0 12px; gap: 8px; }
   .kimlik .kim { display: none; }
   .kimlik { padding-left: 0; border-left: 0; }

@@ -2,9 +2,12 @@
    çipleri + segmentler + owner CSV) ve Kullanıcı 360 (destek masası).
 
    Rotalar:
-   - #/kullanicilar?q&alan&plan&language&platform&disabled&activeSince&
+   - #/kullanicilar?q&alan&plan&language&platform&disabled&aktif&
      belowBuild&sort → liste. Süzgeç durumu adres çubuğuna SESSİZ yazılır
-     (rotaYaz sessiz), yer imi/paylaşım çalışır.
+     (rotaYaz sessiz), yer imi/paylaşım çalışır. `aktif` GÖRELİ gün sayısıdır
+     (7 | 30 …); uca giden `activeSince` tarihi istek anında ondan türetilir.
+     Eski yer imlerindeki mutlak `activeSince=YYYY-AA-GG` okunur ve göreliye
+     çevrilir.
    - #/kullanicilar/{uid}[/{sekme}] → 360; sekme ∈ ozet | abonelik |
      kullanim | bildirim | zaman | denetim (hash ile eşzamanlı).
    - #/kullanicilar/ara/{q} → eski üst-çubuk bağlantısı; listeye düşer.
@@ -51,35 +54,18 @@
   function burc(kod) { return kod ? (BURC[String(kod).toLowerCase()] || '') : ''; }
   function burcAdi(kod) { return kod ? (BURC_ADI[String(kod).toLowerCase()] || String(kod)) : ''; }
 
-  var DIL_ADI = { tr: 'Türkçe', en: 'İngilizce', de: 'Almanca', fr: 'Fransızca',
-                  es: 'İspanyolca', ar: 'Arapça', ru: 'Rusça' };
-  function dilAdi(k) { return k ? (DIL_ADI[k] || String(k)) : '—'; }
-  var PLATFORM_ADI = { android: 'Android', ios: 'iOS', web: 'Web' };
-  function platformAdi(k) { return k ? (PLATFORM_ADI[k] || String(k)) : '—'; }
-
-  var OZELLIK = {
-    chat: 'Sohbet', signal: 'Sinyal paketi', natal: 'Natal rapor', iching: 'İ Ching',
-    iching_verdict: 'İ Ching hükmü', face: 'Yüz okuma', bazi: 'BaZi', dyad: 'İkili',
-    synastry: 'Sinastri', relationship: 'İlişki', birth_hexagram: 'Doğum heksagramı',
-    solar_return: 'Yıl haritası', progressions: 'Progresyon', calendar: 'Takvim', daily: 'Günlük',
-    horoscope: 'Burç yorumu', memory_extract: 'Hafıza çıkarımı', push_daily: 'Günlük push', unknown: 'Bilinmeyen'
-  };
-  function ozellikAdi(k) { return OZELLIK[k] || String(k); }
+  function S() { return RY.sozluk; }
+  function dilAdi(k) { return S().dilAdi(k); }
+  function platformAdi(k) { return S().platformAdi(k); }
+  function ozellikAdi(k) { return S().ozellikAdi(k); }
 
   var ALANLAR = [['eposta', 'E-posta'], ['kullanici', 'Kullanıcı adı'], ['ad', 'Ad']];
   var PLANLAR = ['free', 'trial', 'plus'];
   var SIRALAMALAR = ['createdAt', 'lastSeenDaily', 'streakCount'];
   var SEKMELER = ['ozet', 'abonelik', 'kullanim', 'bildirim', 'zaman', 'denetim'];
 
-  var NOTIFY_ADI = { daily: 'Günlük (sabah)', midday: 'Öğle', checkin: 'Check-in', streak: 'Seri' };
   var ASAMA = { sent: ['gonder', 'Kod gönderildi'], auto: ['kivilcim', 'Otomatik doğrulandı'],
                 verified: ['basari', 'Doğrulandı'], failed: ['hata', 'Hata'] };
-
-  /* Denetim eylemi → okunur ad (sistem.js ile aynı). */
-  var EYLEM_ADI = {
-    'user.credit': 'Kredi', 'user.disable': 'Devre dışı bırak', 'user.enable': 'Devreye al',
-    'user.delete': 'Hesap sil', 'user.auth_link': 'Kimlik bağlantısı', 'device.release': 'Cihaz kilidi sıfırla'
-  };
 
   var adOnbellek = {};  // uid → görünen ad (kırıntı)
 
@@ -129,7 +115,7 @@
       language: params.language ? String(params.language).slice(0, 8) : undefined,
       platform: params.platform ? String(params.platform).slice(0, 16) : undefined,
       disabled: params.disabled === 'true' || params.disabled === '1' ? 'true' : undefined,
-      activeSince: /^\d{4}-\d{2}-\d{2}$/.test(params.activeSince || '') ? params.activeSince : undefined,
+      aktif: aktiflikOku(params),
       belowBuild: Number(params.belowBuild) > 0 ? Math.round(Number(params.belowBuild)) : undefined,
       sort: SIRALAMALAR.indexOf(params.sort) >= 0 ? params.sort : undefined
     };
@@ -140,31 +126,55 @@
     return d;
   }
 
+  /* Aktiflik süzgeci GÖRELİ saklanır (adres, segment). Eskiden çip
+     "Son 7 gün"ü mutlak bir tarih olarak (`activeSince=2026-10-10`)
+     yazıyordu: yer imi bir hafta sonra "son 14 gün" demeye başlıyor, çip
+     ise o tarihi tanımayıp HİÇBİR durumu basılı göstermiyordu — süzgeç
+     uygulanıyor ama görünmüyordu. Eski biçim okunur ve göreliye çevrilir. */
+  function aktiflikOku(params) {
+    var n = Number(params.aktif);
+    if (n > 0 && n <= 365) return Math.round(n);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(params.activeSince || '')) {
+      var fark = gunFarki(params.activeSince);
+      if (fark != null && fark >= 0) return Math.max(1, Math.min(365, fark));
+    }
+    return undefined;
+  }
+
   function paramsTemizle(d) {
     var p = {};
     if (d.q) { p.q = d.q; p.alan = d.alan; }
-    ['plan', 'language', 'platform', 'disabled', 'activeSince', 'belowBuild', 'sort'].forEach(function (k) {
+    ['plan', 'language', 'platform', 'disabled', 'aktif', 'belowBuild', 'sort'].forEach(function (k) {
       if (d[k] !== undefined && d[k] !== '' && d[k] !== null) p[k] = d[k];
     });
     return p;
   }
 
-  function cipDegeri(d, minBuild) {
-    var fark = d.activeSince ? gunFarki(d.activeSince) : null;
+  /* Uca giden süzgeç: göreli aktiflik İSTEK ANINDA tarihe çevrilir. */
+  function sorguSuzgeci(d) {
+    var p = paramsTemizle(d);
+    delete p.aktif;
+    if (d.aktif) p.activeSince = gunOnce(d.aktif);
+    return p;
+  }
+
+  function cipDegeri(d) {
     return {
       plan: d.plan, language: d.language, platform: d.platform, disabled: d.disabled,
-      aktif: fark == null ? undefined : (fark <= 7 ? '7' : (fark <= 30 ? '30' : undefined)),
-      esik: d.belowBuild && minBuild && d.belowBuild === minBuild ? '1' : undefined
+      aktif: d.aktif ? String(d.aktif) : undefined,
+      esik: d.belowBuild ? String(d.belowBuild) : undefined
     };
   }
 
-  async function liste(icerik, params) {
+  async function liste(icerik, params, baglam) {
     var b = RY.b;
     var sahip = RY.sahipMi();
     var durum = durumOku(params);
-    var imlec = null, denetleyici = null, bekleyici = null, mod = null;
+    var imlec = null, bekleyici = null, mod = null, istek = null;
+    var yeniIstek = b.tazeleyici(baglam);
 
     var mb = await RY.get('/api/v1/admin/min-build').catch(function () { return null; });
+    if (baglam && !baglam.aktif()) return;
     var minBuild = mb && Number(mb.min_build) > 0 ? Number(mb.min_build) : 0;
 
     var eylemler = '<button type="button" class="buton ikincil" id="kul-segment-kaydet">' + b.ik('yildiz', 16) + 'Segmenti kaydet</button>' +
@@ -176,8 +186,8 @@
     }).join('');
 
     icerik.innerHTML =
-      b.sayfaBaslik({ baslik: 'Kullanıcılar', alt: 'Arama önek eşleşir, süzgeçler eşitlik · sayfa ' + SAYFA + ' · imleçli',
-        eylemlerHtml: eylemler }) +
+      b.sayfaBaslik({ baslik: 'Kullanıcılar', alt: 'Arama adın, e-postanın ya da kullanıcı adının başından eşleşir · ' +
+        'süzgeçler tam eşleşir · sayfa başına ' + SAYFA, eylemlerHtml: eylemler }) +
       '<div class="suzgec" id="kul-arama">' +
       '<label class="ara">' + b.ik('arama', 16) + '<input id="kul-ara" type="search" autocomplete="off" spellcheck="false" ' +
       'placeholder="Ara: e-posta, @kullanıcıadı ya da ad (önek)" aria-label="Kullanıcı ara" value="' +
@@ -189,10 +199,11 @@
       '<div id="kul-filtre"></div>' +
       '<div id="kul-segment"></div>' +
       b.modul('Kullanıcılar', '<div id="kul-tablo"></div>', '<span class="dipnot" id="kul-sayac"></span>',
-        { alt: 'satıra tıkla → 360 · sıralama sunucuda (yeniden eskiye)' }) +
-      '<p class="dipnot">Arama modunda eşitlik süzgeçleri sayfa içinde uygulanır: sayfa boş görünse de ' +
+        { alt: 'satıra tıkla → ayrıntı · sıralama sunucuda (yeniden eskiye)' }) +
+      '<p class="dipnot">Arama yapılırken süzgeçler sayfa içinde uygulanır: sayfa boş görünse de ' +
       '"Daha fazla" devam eder (ilk ' + OTO_ATLAMA + ' boş sayfa otomatik atlanır). Aktiflik ve eşik süzgeçleri ' +
-      'birlikte kullanılamaz (Firestore tek aralık). CSV yalnız sahibe; q ve eşik CSV\'ye girmez.</p>';
+      'birlikte kullanılamaz (veritabanı tek aralık süzgecine izin veriyor). CSV yalnız sahibe; arama ve ' +
+      'eşik süzgeci CSV\'ye girmez.</p>';
 
     var modEl = icerik.querySelector('#kul-mod');
     var sayacEl = icerik.querySelector('#kul-sayac');
@@ -206,7 +217,7 @@
         { ad: 'plan', baslik: 'Plan', bicim: function (u) {
           return b.planRozeti(u.plan, u.createdAt) +
             (u.authDisabled ? ' ' + b.rozet('Devre dışı', 'hata') : '') +
-            (u.onboardingCompleted === false ? ' ' + b.rozet('onboarding yarım', 'uyari') : '');
+            (u.onboardingCompleted === false ? ' ' + b.rozet('Kurulum yarım', 'uyari') : '');
         } },
         { ad: 'language', baslik: 'Dil', bicim: function (u) { return b.e(dilAdi(u.language)); } },
         { ad: 'platform', baslik: 'Platform', bicim: function (u) { return b.e(platformAdi(u.platform)); } },
@@ -218,11 +229,11 @@
         { ad: 'createdAt', baslik: 'Kayıt', siralanir: true, bicim: function (u) { return b.e(b.tarih(u.createdAt)); } },
         { ad: 'lastSeenDaily', baslik: 'Son görülme', siralanir: true, bicim: function (u) {
           if (!u.lastSeenDaily) return '<span class="dipnot">—</span>';
-          return '<span class="mono" title="' + b.e(String(u.lastSeenDaily)) + '">' + b.e(b.goreliZaman(u.lastSeenDaily)) + '</span>';
+          return '<span title="' + b.e(b.tarih(u.lastSeenDaily, true)) + '">' + b.e(b.goreliZaman(u.lastSeenDaily)) + '</span>';
         } },
         { ad: 'streakCount', baslik: 'Seri', hizala: 'sag', siralanir: true,
           bicim: function (u) { return b.e(b.sayi(Number(u.streakCount) || 0)); } },
-        { ad: 'hasPush', baslik: 'Push', bicim: function (u) { return u.hasPush ? b.rozet('açık', 'aktif') : b.rozet('yok', 'notr'); } }
+        { ad: 'hasPush', baslik: 'Bildirim', bicim: function (u) { return u.hasPush ? b.rozet('alıyor', 'aktif') : b.rozet('almıyor', 'notr'); } }
       ],
       anahtar: function (u) { return u.uid; },
       satirHref: function (u) { return RY.rotaBagi('kullanicilar', [u.uid]); },
@@ -243,32 +254,50 @@
     });
     icerik.querySelector('#kul-tablo').appendChild(vt.el);
 
+    /* Boş sonuç metni ETKİN süzgeci söyler: "kayıt yok" ile "bu süzgeçte
+       kayıt yok" farklı teşhislerdir. */
+    function bosMetni() {
+      var parcalar = [];
+      if (durum.q) parcalar.push('"' + durum.q + '" araması');
+      if (durum.plan) parcalar.push(S().planAdi(durum.plan));
+      if (durum.language) parcalar.push(dilAdi(durum.language));
+      if (durum.platform) parcalar.push(platformAdi(durum.platform));
+      if (durum.disabled) parcalar.push('devre dışı');
+      if (durum.aktif) parcalar.push('son ' + durum.aktif + ' günde aktif');
+      if (durum.belowBuild) parcalar.push('sürüm < ' + durum.belowBuild);
+      return parcalar.length
+        ? 'Bu süzgeçle eşleşen kullanıcı yok (' + parcalar.join(' · ') + ') — aramayı kısalt ya da süzgeci gevşet.'
+        : 'Henüz kullanıcı yok.';
+    }
+
     function urlYaz() {
       RY.rotaYaz('kullanicilar', [], paramsTemizle(durum), { sessiz: true });
     }
 
     function yukle(devam, atlama) {
-      if (!devam) { imlec = null; vt.durum('yukleniyor'); }
-      if (denetleyici) denetleyici.abort();
-      denetleyici = new AbortController();
-      var bu = denetleyici;
-      var p = Object.assign(paramsTemizle(durum), { limit: SAYFA, cursor: devam ? imlec : null });
-      return RY.sorgu('/api/v1/admin/users', p, { sinyal: bu.signal }).then(function (res) {
-        if (bu.signal.aborted) return;
+      // Yeni sorgu bir öncekini iptal eder; "Daha fazla" aynı sorgunun
+      // devamıdır, kendi isteğini iptal etmez.
+      if (!devam) { imlec = null; vt.durum('yukleniyor'); istek = yeniIstek(); }
+      var bu = istek;
+      var p = Object.assign(sorguSuzgeci(durum), { limit: SAYFA, cursor: devam ? imlec : null });
+      return RY.sorgu('/api/v1/admin/users', p, { sinyal: bu.sinyal }).then(function (res) {
+        if (!bu.gecerli()) return;
         var satirlar = Array.isArray(res && res.users) ? res.users : [];
         imlec = (res && res.nextCursor) || null;
         mod = (res && res.mode) || null;
         satirlar.forEach(function (u) { adOnbellek[u.uid] = u.displayName || u.email || u.uid; });
         var sayfa = { daha: !!imlec, onDaha: function () { return yukle(true, 0); } };
         if (devam) vt.ekle(satirlar, sayfa); else vt.guncelle(satirlar, sayfa);
+        if (!devam && !satirlar.length && !imlec) vt.durum('bos', bosMetni());
         var n = vt.satirlar().length;
         sayacEl.textContent = n ? b.sayi(n) + ' satır' + (imlec ? ' · devamı var' : '') : '';
-        modEl.textContent = mod === 'search' ? 'arama modu · ' + (ALANLAR.filter(function (a) { return a[0] === durum.alan; })[0] || [])[1] + ' öneki'
-          : (mod === 'filter' ? 'süzgeç modu' : '');
-        // Arama modunda süzgeç sayfa içinde uygulanır: boş sayfa + imleç → kendiliğinden devam.
+        var alanAdi = ((ALANLAR.filter(function (a) { return a[0] === durum.alan; })[0] || [])[1] || '').toLocaleLowerCase('tr-TR');
+        modEl.textContent = mod === 'search' ? 'arama: ' + alanAdi + ' başından'
+          : (mod === 'filter' ? 'süzgeç uygulanıyor' : '');
+        // Arama yapılırken süzgeç sayfa içinde uygulanır: boş sayfa + imleç → kendiliğinden devam.
         if (!satirlar.length && imlec && (atlama || 0) < OTO_ATLAMA) return yukle(true, (atlama || 0) + 1);
       }).catch(function (h) {
-        if (h && h.iptal) return;
+        if (!bu.gecerli() || (h && h.iptal)) return;
         if (devam) hataToast(h); else vt.durum('hata', RY.hataMetni(h));
       });
     }
@@ -304,45 +333,68 @@
       if (durum.q) { urlYaz(); yukle(false); }
     });
 
-    /* ---- Süzgeç çipleri ---- */
-    var cipler = b.filtreCipleri({
-      etiket: 'Süzgeçler',
-      filtreler: [
-        { ad: 'plan', etiket: 'Plan', secenekler: [{ deger: 'plus', etiket: 'Rytho+' }, { deger: 'trial', etiket: 'Deneme' }, { deger: 'free', etiket: 'Ücretsiz' }] },
-        { ad: 'language', etiket: 'Dil', secenekler: Object.keys(DIL_ADI).map(function (k) { return { deger: k, etiket: DIL_ADI[k] }; }) },
-        { ad: 'platform', etiket: 'Platform', secenekler: [{ deger: 'android', etiket: 'Android' }, { deger: 'ios', etiket: 'iOS' }] },
+    /* ---- Süzgeç çipleri ----
+       Seçenekler DURUMDAN kurulur ve durum değişince yeniden kurulur:
+       adresten ya da segmentten gelen bir değer (ör. "son 14 gün", "sürüm
+       < 40") sabit listede yoksa çip HİÇ basılı görünmüyordu — süzgeç
+       uygulanıyor ama ekranda izi yoktu. Artık o değer kendi adıyla bir
+       çip olarak görünür ve kapatılabilir. */
+    var filtreKap = icerik.querySelector('#kul-filtre');
+    var cipler = null;
+    function cipSecenekleri() {
+      var aktifSec = [7, 30];
+      if (durum.aktif && aktifSec.indexOf(durum.aktif) < 0) aktifSec.push(durum.aktif);
+      var esikEtiket = durum.belowBuild && durum.belowBuild !== minBuild
+        ? 'Sürüm < ' + durum.belowBuild
+        : (minBuild ? 'Eşik altı (< ' + minBuild + ')' : 'Eşik altı (eşik yok)');
+      return [
+        { ad: 'plan', etiket: 'Plan', secenekler: ['plus', 'trial', 'free'].map(function (k) { return { deger: k, etiket: S().planAdi(k) }; }) },
+        { ad: 'language', etiket: 'Dil', secenekler: Object.keys(S().DIL).map(function (k) { return { deger: k, etiket: S().DIL[k] }; }) },
+        { ad: 'platform', etiket: 'Platform', secenekler: ['android', 'ios'].map(function (k) { return { deger: k, etiket: platformAdi(k) }; }) },
         { ad: 'disabled', etiket: 'Durum', secenekler: [{ deger: 'true', etiket: 'Devre dışı', ikon: 'kilit' }] },
-        { ad: 'aktif', etiket: 'Aktiflik', altin: true, secenekler: [{ deger: '7', etiket: 'Son 7 gün' }, { deger: '30', etiket: 'Son 30 gün' }] },
-        { ad: 'esik', etiket: 'Sürüm', secenekler: [{ deger: '1', etiket: minBuild ? 'Eşik altı (<' + minBuild + ')' : 'Eşik altı (eşik yok)' }] }
-      ],
-      deger: cipDegeri(durum, minBuild),
-      onDegis: function (d) {
-        durum.plan = d.plan; durum.language = d.language; durum.platform = d.platform;
-        durum.disabled = d.disabled === 'true' ? 'true' : undefined;
-        durum.activeSince = d.aktif ? gunOnce(Number(d.aktif)) : undefined;
-        if (d.esik && !minBuild) {
-          b.toast('Zorunlu güncelleme eşiği 0 — eşik altı süzgeci anlamsız. Sistem sayfasından eşik yaz.', 'uyari');
-          durum.belowBuild = undefined;
-          cipler.ayarla(cipDegeri(durum, minBuild));
-        } else durum.belowBuild = d.esik ? minBuild : undefined;
-        // Sunucu kuralı: eşik altı süzgeci (appBuild aralığı) BAŞKA hiçbir
-        // süzgeçle birleşmez (Firestore tek aralık + indeks). Eşik seçilince
-        // diğerleri düşer; başka bir süzgeç seçilince eşik düşer.
-        if (durum.belowBuild && (durum.plan || durum.language || durum.platform ||
-            durum.disabled || durum.activeSince)) {
-          b.toast('Eşik altı süzgeci tek başına çalışır — diğer süzgeçler kaldırıldı.', 'uyari');
-          if (d.esik && !cipler.deger().esik) {
-            durum.belowBuild = undefined;
-          } else {
-            durum.plan = durum.language = durum.platform = undefined;
-            durum.disabled = durum.activeSince = undefined;
-          }
-          cipler.ayarla(cipDegeri(durum, minBuild));
-        }
-        urlYaz(); yukle(false);
+        { ad: 'aktif', etiket: 'Aktiflik', altin: true, secenekler: aktifSec.map(function (n) { return { deger: String(n), etiket: 'Son ' + n + ' gün' }; }) },
+        { ad: 'esik', etiket: 'Sürüm', secenekler: [{ deger: String(durum.belowBuild || minBuild || 1), etiket: esikEtiket }] }
+      ];
+    }
+    function cipleriKur() {
+      var odak = cipler && cipler.contains(document.activeElement)
+        ? { f: document.activeElement.getAttribute('data-filtre'), d: document.activeElement.getAttribute('data-deger') } : null;
+      var yeni = b.filtreCipleri({ etiket: 'Süzgeçler', filtreler: cipSecenekleri(), deger: cipDegeri(durum), onDegis: cipDegisti });
+      if (cipler) cipler.replaceWith(yeni); else filtreKap.appendChild(yeni);
+      cipler = yeni;
+      if (odak) {
+        var hedef = cipler.querySelector('[data-filtre="' + odak.f + '"]');
+        if (hedef) hedef.focus();
       }
-    });
-    icerik.querySelector('#kul-filtre').appendChild(cipler);
+    }
+    function cipDegisti(d) {
+      var esikOnce = durum.belowBuild;
+      durum.plan = d.plan; durum.language = d.language; durum.platform = d.platform;
+      durum.disabled = d.disabled === 'true' ? 'true' : undefined;
+      durum.aktif = d.aktif ? Number(d.aktif) : undefined;
+      if (d.esik && !esikOnce && !minBuild) {
+        b.toast('Zorunlu güncelleme eşiği 0 — eşik altı süzgeci anlamsız. Sistem sayfasından eşik yaz.', 'uyari');
+        durum.belowBuild = undefined;
+      } else if (d.esik) {
+        durum.belowBuild = esikOnce || minBuild;
+      } else durum.belowBuild = undefined;
+      // Sunucu kuralı: eşik altı süzgeci (sürüm aralığı) BAŞKA hiçbir
+      // süzgeçle birleşmez (veritabanı tek aralık + dizin). Eşik seçilince
+      // diğerleri düşer; başka bir süzgeç seçilince eşik düşer.
+      if (durum.belowBuild && (durum.plan || durum.language || durum.platform ||
+          durum.disabled || durum.aktif)) {
+        b.toast('Eşik altı süzgeci tek başına çalışır — diğer süzgeçler kaldırıldı.', 'uyari');
+        if (esikOnce) {
+          durum.belowBuild = undefined;
+        } else {
+          durum.plan = durum.language = durum.platform = undefined;
+          durum.disabled = durum.aktif = undefined;
+        }
+      }
+      cipleriKur();
+      urlYaz(); yukle(false);
+    }
+    cipleriKur();
 
     /* ---- Segmentler (localStorage) ---- */
     var segKap = icerik.querySelector('#kul-segment');
@@ -352,7 +404,7 @@
       segKap.innerHTML = '<span class="cip-grup" role="group" aria-label="Kayıtlı segmentler">' +
         '<span class="grup-ad" aria-hidden="true">Segmentler</span>' + liste.map(function (s) {
           return '<button type="button" class="adm-cip" data-segment="' + b.e(s.ad) + '" title="' +
-            b.e(Object.keys(s.filtre || {}).map(function (k) { return k + '=' + s.filtre[k]; }).join(' · ') || 'süzgeçsiz') + '">' +
+            b.e(segmentOzeti(s.filtre) || 'süzgeçsiz') + '">' +
             b.ik('yildiz', 14) + b.e(s.ad) + '</button>' +
             '<button type="button" class="adm-cip" data-segment-sil="' + b.e(s.ad) + '" aria-label="Segmenti sil: ' + b.e(s.ad) + '"><span class="x" aria-hidden="true">×</span></button>';
         }).join('') + '</span>';
@@ -374,7 +426,7 @@
       durum = durumOku(s.filtre || {});
       ara.value = durum.q ? (durum.alan === 'kullanici' ? '@' + durum.q : durum.q) : '';
       alanCiz();
-      cipler.ayarla(cipDegeri(durum, minBuild));
+      cipleriKur();
       urlYaz(); yukle(false);
     });
     icerik.querySelector('#kul-segment-kaydet').addEventListener('click', function () {
@@ -396,6 +448,20 @@
     });
     segmentCiz();
 
+    /* Segment ipucu Türkçe: "plan=plus · aktif=7" yerine "Plan: Rytho+ · Son 7 gün aktif". */
+    function segmentOzeti(f) {
+      var d = durumOku(f || {});
+      var p = [];
+      if (d.q) p.push('Arama: ' + d.q);
+      if (d.plan) p.push('Plan: ' + S().planAdi(d.plan));
+      if (d.language) p.push('Dil: ' + dilAdi(d.language));
+      if (d.platform) p.push('Platform: ' + platformAdi(d.platform));
+      if (d.disabled) p.push('Devre dışı');
+      if (d.aktif) p.push('Son ' + d.aktif + ' gün aktif');
+      if (d.belowBuild) p.push('Sürüm < ' + d.belowBuild);
+      return p.join(' · ');
+    }
+
     /* ---- CSV (owner) ---- */
     var csv = icerik.querySelector('#kul-csv');
     if (csv) csv.addEventListener('click', function () { csvIndir(durum); });
@@ -406,7 +472,7 @@
   function csvIndir(durum) {
     var b = RY.b;
     var p = { plan: durum.plan, language: durum.language, platform: durum.platform,
-              disabled: durum.disabled, activeSince: durum.activeSince };
+              disabled: durum.disabled, activeSince: durum.aktif ? gunOnce(durum.aktif) : undefined };
     var gun = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     var t = b.toast('CSV hazırlanıyor…', 'bilgi', { sure: 0 });
     return RY.indir('/api/v1/admin/users/export.csv' + RY.sorguDizesi(p), 'rytho-kullanicilar-' + gun + '.csv')
@@ -434,7 +500,7 @@
             return (!isFinite(n) || n < 1 || n > 5000 || n !== Math.round(n)) ? '1–5000 arası tam sayı.' : null;
           } },
         { ad: 'reason', etiket: 'Gerekçe', tur: 'textarea', zorunlu: true, max: 300, satir: 2,
-          yardim: 'Defter + denetim izine yazılır (en az 3 karakter).',
+          yardim: 'Cüzdan defterine ve denetim izine yazılır (en az 3 karakter).',
           dogrula: function (v) { return v.trim().length < 3 ? 'En az 3 karakter.' : null; } }
       ],
       gonderMetin: 'Kredi ver',
@@ -481,7 +547,7 @@
       alanlar: [
         { ad: 'kind', etiket: 'Bağlantı türü', tur: 'select', deger: 'reset',
           secenekler: [{ deger: 'reset', etiket: 'Şifre sıfırlama' }, { deger: 'verify', etiket: 'E-posta doğrulama' }],
-          yardim: eposta ? 'Hedef: ' + eposta : 'Hesabın e-postası yok — sunucu 400 döner.' }
+          yardim: eposta ? 'Hedef: ' + eposta : 'Hesabın e-postası yok — bağlantı üretilemez.' }
       ],
       gonderMetin: 'Bağlantı üret',
       iptal: { metin: 'Kapat', onTikla: function () { m.kapat(); } },
@@ -513,7 +579,7 @@
     var b = RY.b;
     return b.onayla(kapat
       ? { baslik: 'Hesabı devre dışı bırak — ' + ad, tehlike: true, onaylaMetin: 'Devre dışı bırak', gerekce: true,
-          mesaj: 'Firebase Auth hesabı kapanır, oturumları düşer; kullanıcı uygulamaya giremez. Veri silinmez.',
+          mesaj: 'Giriş hesabı kapanır, oturumları düşer; kullanıcı uygulamaya giremez. Veri silinmez.',
           aciklama: 'Geri alınabilir: "Aktif et" ile açılır. Denetim izine yazılır.' }
       : { baslik: 'Hesabı aktif et — ' + ad, onaylaMetin: 'Aktif et', gerekce: true,
           mesaj: 'Hesap yeniden açılır; kullanıcı bir sonraki girişte içeri alınır.' })
@@ -532,7 +598,7 @@
     return b.onayla({
       baslik: 'Hesabı KALICI olarak sil — ' + ad, tehlike: true, onaylaMetin: 'Hesabı sil',
       mesaj: 'Bu hesap ve TÜM verisi silinir (mobildeki "Hesabı sil" ile aynı boru: veri önce, kimlik en son). Geri alınamaz.',
-      aciklama: 'İz yazılamazsa sunucu 503 döner ve hesap DURUR. E-posta yalnız denetim izinde kalır.',
+      aciklama: 'Denetim izi yazılamazsa işlem yapılmaz ve hesap DURUR. E-posta yalnız denetim izinde kalır.',
       gerekce: true, yazili: 'SIL'
     }).then(function (r) {
       if (!r) return null;
@@ -555,7 +621,7 @@
   var DEFTER = {
     debit: ['', '−', 'Harcama'], credit: ['altin', '+', 'Paket alımı'], promo: ['altin', '+', 'Promosyon kodu'],
     admin: ['altin', '+', 'Yönetici kredisi'], refund: ['madder', '−', 'Paket iadesi'],
-    spend_refund: ['altin', '+', 'Üretim iadesi'], allowance: ['altin', '+', 'Aylık hak']
+    spend_refund: ['altin', '+', 'Harcama iadesi'], allowance: ['altin', '+', 'Aylık hak']
   };
 
   function zamanOlaylari(b, d) {
@@ -568,9 +634,10 @@
       olaylar.push({
         at: o.at, ts: ts(o.at), grup: 'parasal',
         sinif: PARASAL_SINIF[tur] != null ? PARASAL_SINIF[tur] : '',
-        baslik: tur + (o.productId ? ' · ' + o.productId : ''),
-        alt: [o.store, o.periodType, o.currency && o.price ? o.currency + ' ' + b.sayi(Number(o.price)) : null,
-              o.environment].filter(Boolean).join(' · '),
+        baslik: S().olayAdi(tur) + (o.productId ? ' · ' + o.productId : ''),
+        alt: [o.store ? S().magazaAdi(o.store) : null, o.periodType ? S().donemTuruAdi(o.periodType) : null,
+              o.currency && o.price ? o.currency + ' ' + b.sayi(Number(o.price)) : null,
+              o.environment ? S().ortamAdi(o.environment) : null].filter(Boolean).join(' · '),
         tutar: parasal ? (tur === 'REFUND' ? '−' : '') + b.para(Math.abs(Number(o.price))) : ''
       });
     });
@@ -643,7 +710,7 @@
      hükmü `marginUsd === -1` testiyle DEĞİL, sunucunun kendi koşulunu
      (girdilerden biri negatif) aynalayarak veriliyor: gerçek bir marj da
      −1,00 olabilir ve o durumda "ölçülemedi" demek yalan olurdu. */
-  var HAKEDIS_ADI = { pending: 'bekliyor (15 gün olgunlaşma)',
+  var HAKEDIS_ADI = { pending: 'bekliyor (15 gün kesinleşme süresi)',
                       qualified: 'kesinleşti', void: 'iptal' };
 
   /* Uç ortak alanlarını HİÇ gönderiyor mu?
@@ -701,7 +768,7 @@
     // sunucunun marjı iki terimlidir ve üçüncü terimi yazmak, düşülmemiş
     // bir maliyeti düşülmüş göstermek olur (bu cümlenin ilk hâlinin ters
     // yönde yaptığı hatanın aynısı).
-    var formul = '<p class="dipnot">Marj = üretim geliri × (1 − mağaza %' + magaza +
+    var formul = '<p class="dipnot">Marj = gerçek alım geliri × (1 − mağaza %' + magaza +
       ') − AI maliyeti' +
       (ucGondermiyor ? '' : ' − <b>ortak edinme maliyeti</b>') + ' = <b>' +
       b.e(marjYazisi(b, eko)) + '</b>' +
@@ -712,13 +779,11 @@
     if (ucGondermiyor) {
       // "Ölçülemedi" DEĞİL: hiç istenmedi. Sorun panelde de kullanıcıda da
       // değil, dağıtım sırasında — bu yüzden ne yapılacağı yazılı.
-      ayrinti = 'Ortak edinme maliyeti bu uçtan <b>gelmiyor</b> ' +
-        '(<code>partnerCostUsd</code> alanı yok): backend, paneldeki bu ' +
-        'sürümden eski. Yukarıdaki marj bu yüzden İKİ terimli — ortak ' +
-        'ödemesi DÜŞÜLMEMİŞ. Bu kullanıcı bir ortak koduna atfedilmişse ' +
-        'marj olduğundan yüksektir; atfın olup olmadığı da bu uçtan ' +
-        'gelmiyor, yani BİLİNMİYOR. Backend dağıtılınca kendiliğinden ' +
-        'düzelir (infra/deploy-backend.ps1).';
+      ayrinti = 'Ortak edinme maliyeti sunucudan <b>gelmiyor</b>: sunucu ' +
+        'bu panelden eski sürümde. Yukarıdaki marj bu yüzden İKİ terimli — ' +
+        'ortak ödemesi DÜŞÜLMEMİŞ. Bu kullanıcı bir ortak bağlantısıyla ' +
+        'geldiyse marj olduğundan yüksektir; geldiği de sunucudan gelmiyor, ' +
+        'yani BİLİNMİYOR. Sunucu güncellenince kendiliğinden düzelir.';
     } else if (!(ortakTry >= 0)) {
       // Hem ₺ hem $ bilinmiyor: hakediş dokümanı okunamadı ya da
       // `rewardTry` çözümlenemedi (ör. elle "30,00" dizesi yazılmış).
@@ -729,13 +794,13 @@
       // ₺ ölçüldü ama kur yok (`RYTHO_USD_TRY` pozitif değil): dolar
       // karşılığı türetilemiyor, marj da düşüyor. ₺ tutarı yine dürüst.
       ayrinti = 'Ortak edinme maliyeti <b>' + b.e(b.para(ortakTry, '₺')) +
-        '</b> — <b>kur ayarlı değil</b> (RYTHO_USD_TRY), dolara çevrilemedi. ' +
-        'Marj bu yüzden hesaplanamıyor.';
+        '</b> — <b>kur ayarlı değil</b>: sunucu ayarına USD/TRY kuru girilmeli, ' +
+        'dolara çevrilemedi. Marj bu yüzden hesaplanamıyor.';
     } else if (durum === null) {
       ayrinti = 'Ortak edinme maliyeti <b>yok</b>: bu kullanıcı bir ortak ' +
-        'koduna atfedilmiş değil.';
+        'bağlantısıyla gelmedi.';
     } else if (durum === 'void') {
-      ayrinti = 'Ortak hakedişi <b>iptal</b> (void) — yükümlülük ortadan ' +
+      ayrinti = 'Ortak hakedişi <b>iptal</b> — yükümlülük ortadan ' +
         'kalktı, marjdan düşülmüyor.';
     } else {
       ayrinti = 'Düşülen ortak edinme maliyeti: <b>' + b.e(b.para(ortakUsd)) +
@@ -746,9 +811,12 @@
     return formul + '<p class="dipnot">' + ayrinti + '</p>';
   }
 
-  async function detay(icerik, uid, sekme) {
+  async function detay(icerik, uid, sekme, baglam) {
     var b = RY.b;
-    var d = await RY.get(kullaniciYolu(uid));
+    var d = await RY.get(kullaniciYolu(uid), { sinyal: baglam && baglam.sinyal });
+    // Kırıntı ve sekme başlığı kabın DIŞINDA: eski bir 360 geç gelirse
+    // yeni sayfanın başlığını ezmesin.
+    if (baglam && !baglam.aktif()) return;
     var p = d.profile || {}, sub = d.subscription || {}, w = d.wallet || {};
     var kul = d.usage || {}, toplamlar = kul.totals || null, sayilar = d.counts || {};
     var bild = d.notifications || {}, kota = d.quota || {}, cihaz = d.device || {};
@@ -764,17 +832,18 @@
 
     /* ---- Kimlik başlığı ---- */
     var rozetler = b.planRozeti(p.plan, p.createdAt) +
-      (devreDisi ? ' ' + b.rozet('Devre dışı', 'hata') : (p.authDisabled == null ? ' ' + b.rozet('Auth ?', 'notr') : '')) +
-      ' ' + (p.hasPush ? b.rozet('Push açık', 'aktif') : b.rozet('Push yok', 'notr')) +
+      (devreDisi ? ' ' + b.rozet('Devre dışı', 'hata') : (p.authDisabled == null ? ' ' + b.rozet('Giriş durumu bilinmiyor', 'notr') : '')) +
+      ' ' + (p.hasPush ? b.rozet('Bildirim alıyor', 'aktif') : b.rozet('Bildirim almıyor', 'notr')) +
       (p.sunSign ? ' ' + b.rozet(burcAdi(p.sunSign) + ' ' + burc(p.sunSign), 'yeni') : '') +
-      (p.onboardingCompleted === false ? ' ' + b.rozet('onboarding yarım', 'uyari') : '');
+      (p.onboardingCompleted === false ? ' ' + b.rozet('Kurulum yarım', 'uyari') : '');
     var meta = [
       p.email ? '<span class="mono">' + b.e(p.email) + '</span>' : '',
       p.username ? '<span class="mono">@' + b.e(p.username) + '</span>' : '',
-      '<span class="mono" title="uid">' + b.e(uid) + '</span>',
+      '<span class="mono" title="Kullanıcı kimliği">' + b.e(uid) + '</span>',
       '<span>Kayıt ' + b.e(b.tarih(p.createdAt)) + '</span>',
       '<span>Son görülme ' + b.e(p.lastSeenDaily ? b.goreliZaman(p.lastSeenDaily) : '—') + '</span>',
-      '<span>' + b.e([platformAdi(p.platform), p.appBuild != null ? 'sürüm ' + p.appBuild : null, p.language].filter(Boolean).join(' · ') || '—') + '</span>',
+      '<span>' + b.e([p.platform ? platformAdi(p.platform) : null, p.appBuild != null ? 'sürüm ' + p.appBuild : null,
+        p.language ? dilAdi(p.language) : null].filter(Boolean).join(' · ') || '—') + '</span>',
       '<span>Seri ' + b.e(b.sayi(Number(p.streakCount) || 0)) + (Number(p.streakCount) > 0 ? ' 🔥' : '') + '</span>'
     ].filter(Boolean).join('');
     var eylemler =
@@ -794,7 +863,8 @@
     icerik.innerHTML = kimlik +
       (devreDisi ? b.bant('<b>Hesap devre dışı</b> — kullanıcı giriş yapamaz.' + (sahip ? ' "Aktif et" ile açılır.' : ''), 'uyari', { html: true }) : '') +
       (eko.revenueUsd === -1 || eko.aiCostUsd === -1
-        ? b.bant('Kullanıcı rollup\'ı (revenueTotals / usageTotals) yok — ekonomi alanları "—". Backfill betikleri tamamlar.', 'bilgi') : '') +
+        ? b.bant('Bu kullanıcının gelir ve kullanım toplamı henüz yok — ekonomi alanları "—". Eski hesaplarda ' +
+          'toplamlar, geçmişi dolduran bakım işi çalıştırılınca oluşur.', 'bilgi') : '') +
       '<div id="k360-sekmeler"></div>';
 
     /* ---- Sekme içerikleri ---- */
@@ -810,13 +880,13 @@
     function abonelikListesi(tam) {
       var s = '<dl class="alan-liste">' +
         '<dt>Ürün</dt><dd>' + b.e(sub.productId || '—') + '</dd>' +
-        '<dt>Mağaza</dt><dd>' + b.e(sub.store || '—') + '</dd>' +
+        '<dt>Mağaza</dt><dd>' + b.e(sub.store ? S().magazaAdi(sub.store) : '—') + '</dd>' +
         '<dt>' + (sub.willRenew ? 'Yenileme' : 'Bitiş') + '</dt><dd>' + b.e(b.tarih(sub.expiresAt)) + '</dd>' +
         '<dt>Otomatik yenileme</dt><dd>' + b.e(sub.willRenew == null ? '—' : (sub.willRenew ? 'açık' : 'kapalı')) + '</dd>' +
         '<dt>Deneme</dt><dd>' + b.e(sub.isTrial == null ? '—' : (sub.isTrial ? 'evet' : 'hayır')) + '</dd>' +
-        '<dt>Son olay</dt><dd>' + b.e(sub.lastEvent || '—') + (sub.updatedAt ? ' · ' + b.e(b.tarih(sub.updatedAt)) : '') + '</dd>';
+        '<dt>Son olay</dt><dd>' + b.e(sub.lastEvent ? S().olayAdi(sub.lastEvent) : '—') + (sub.updatedAt ? ' · ' + b.e(b.tarih(sub.updatedAt)) : '') + '</dd>';
       if (tam) {
-        s += '<dt>Plan aynası</dt><dd>' + b.e(p.plan || '—') + (p.planProduct ? ' · ' + b.e(p.planProduct) : '') + '</dd>' +
+        s += '<dt>Profildeki plan</dt><dd>' + b.e(p.plan ? S().planAdi(p.plan) : '—') + (p.planProduct ? ' · ' + b.e(p.planProduct) : '') + '</dd>' +
           '<dt>Ortak kodu</dt><dd>' + b.e(d.attribution && d.attribution.code ? d.attribution.code : '—') + '</dd>';
       }
       return s + '</dl>';
@@ -829,7 +899,7 @@
         '<dt>Devralma</dt><dd>' + b.e(b.tarih(cihaz.claimedAt, true)) + '</dd>' +
         sonlar.slice(0, 3).map(function (k) {
           var tur = k.replace(/LastSent$/, '');
-          return '<dt>Son ' + b.e(NOTIFY_ADI[tur] || tur) + '</dt><dd>' + b.e(b.goreliZaman(bild[k])) + '</dd>';
+          return '<dt>Son ' + b.e(S().bildirimAdi(tur)) + '</dt><dd>' + b.e(b.goreliZaman(bild[k])) + '</dd>';
         }).join('') +
         (bild.dailyTheme ? '<dt>Tema</dt><dd>' + b.e(bild.dailyTheme) + '</dd>' : '') +
         '</dl>';
@@ -844,8 +914,8 @@
           var el = b.el('<div class="sutun"></div>');
           el.innerHTML =
             '<section class="izgara-kpi" aria-label="Özet sayılar">' +
-            b.istatistikKarti({ ad: 'Gelir (üretim)', deger: b.para(eko.revenueUsd), altin: true,
-              alt: gelirT && gelirT.PRODUCTION ? b.sayi(Number(gelirT.PRODUCTION.events) || 0) + ' olay · iade ' + b.para(Number(gelirT.PRODUCTION.refundsUsd) || 0) : 'rollup yok' }) +
+            b.istatistikKarti({ ad: 'Gelir (gerçek alımlar)', deger: b.para(eko.revenueUsd), altin: true,
+              alt: gelirT && gelirT.PRODUCTION ? b.sayi(Number(gelirT.PRODUCTION.events) || 0) + ' olay · iade ' + b.para(Number(gelirT.PRODUCTION.refundsUsd) || 0) : 'toplam yok' }) +
             // "AI maliyeti $X · marj $Y" yan yana durunca okuyucu marjı
             // gelir×(1−mağaza)−X sanıp aradaki farkı panel hatası okuyor —
             // formül cümlesi düzeltilse bile ÖZET ilk görülen ekran olduğu
@@ -862,8 +932,8 @@
               alt: 'konuşma · ' + (sayilar.friends >= 0 ? b.sayi(sayilar.friends) + ' kişi Çevrem\'de' : 'çevre sayılamadı') }) +
             '</section>' +
             '<div class="izgara-3">' +
-            b.modul('Abonelik', abonelikListesi(false), abonelikRozeti(), { alt: (sub.store || 'RevenueCat') }) +
-            b.modul('Cihaz & bildirim', cihazListesi(), '', { alt: 'Tek cihaz kilidi · push' }) +
+            b.modul('Abonelik', abonelikListesi(false), abonelikRozeti(), { alt: sub.store ? S().magazaAdi(sub.store) : 'mağaza bilgisi yok' }) +
+            b.modul('Cihaz & bildirim', cihazListesi(), '', { alt: 'Tek cihaz kilidi · bildirim' }) +
             b.modul('Kullanım', '<div class="grafik-kap"><canvas id="g-360-ozellik" class="grafik grafik-kucuk" aria-label="Özellik başına maliyet"></canvas></div>',
               '', { alt: byFeatureMaliyet ? 'Ömür boyu · özellik başına maliyet' : 'Son 30 olay · özellik başına çağrı' }) +
             '</div>' +
@@ -890,13 +960,14 @@
           var gelirHtml = envler.length ? '<dl class="alan-liste">' + envler.map(function (env) {
             var k = gelirT[env] || {};
             var brut = Number(k.grossUsd) || 0, iade = Number(k.refundsUsd) || 0;
-            return '<dt>' + b.e(env) + ' brüt</dt><dd>' + b.e(b.para(brut)) + '</dd>' +
-              '<dt>' + b.e(env) + ' iade</dt><dd>−' + b.e(b.para(iade)) + '</dd>' +
-              '<dt>' + b.e(env) + ' net</dt><dd>' + b.e(b.para(brut - iade)) + ' · ' + b.e(b.sayi(Number(k.events) || 0)) + ' olay</dd>';
-          }).join('') + '</dl>' : b.bosDurum('revenueTotals yok — parasal olay gelince oluşur.', { ikon: 'gelir' });
+            var ad = S().ortamAdi(env);
+            return '<dt>' + b.e(ad) + ' · brüt</dt><dd>' + b.e(b.para(brut)) + '</dd>' +
+              '<dt>' + b.e(ad) + ' · iade</dt><dd>−' + b.e(b.para(iade)) + '</dd>' +
+              '<dt>' + b.e(ad) + ' · net</dt><dd>' + b.e(b.para(brut - iade)) + ' · ' + b.e(b.sayi(Number(k.events) || 0)) + ' olay</dd>';
+          }).join('') + '</dl>' : b.bosDurum('Gelir toplamı yok — ilk parasal olayla oluşur.', { ikon: 'gelir' });
           el.innerHTML =
             '<div class="izgara-2">' +
-            b.modul('Abonelik', abonelikListesi(true), abonelikRozeti(), { alt: 'users/{uid}/private/subscription' }) +
+            b.modul('Abonelik', abonelikListesi(true), abonelikRozeti(), { alt: 'mağazadan gelen son durum' }) +
             b.modul('Gelir toplamları', gelirHtml + marjCumlesi(b, eko),
               '', { alt: 'ortam başına · ömür boyu · ortak maliyeti düşülmüş' }) +
             '</div>' +
@@ -910,11 +981,11 @@
               '', { alt: 'yalnız pozitif kredi · düşüm yok' }) +
             b.modul('Günlük kota', Object.keys(kota).filter(function (k) { return k !== 'date' && k !== 'resetAtUtc'; }).length
               ? '<dl class="alan-liste">' + Object.keys(kota).filter(function (k) { return k !== 'date' && k !== 'resetAtUtc'; }).map(function (k) {
-                  return '<dt>' + b.e(k) + '</dt><dd>' + b.e(b.sayi(kota[k])) + '</dd>';
+                  return '<dt>' + b.e(ozellikAdi(k)) + '</dt><dd>' + b.e(b.sayi(kota[k])) + '</dd>';
                 }).join('') + '</dl>'
-              : b.bosDurum('Bugün sayaç yok.'), '', { alt: kota.date ? 'gün ' + kota.date : 'bugün' }) +
+              : b.bosDurum('Bugün sayaç yok.'), '', { alt: kota.date ? 'gün ' + b.tarih(kota.date) : 'bugün' }) +
             '</div>' +
-            b.modul('Cüzdan defteri', '<div id="k360-defter"></div>', b.etiket('ledger'), { alt: 'son 50 hareket' });
+            b.modul('Cüzdan defteri', '<div id="k360-defter"></div>', '', { alt: 'son 50 hareket' });
           el.querySelector('#k360-kredi2').addEventListener('click', function () { krediVerAc(uid, ad); });
           var vt = b.veriTablosu({
             kimlik: 'k360-defter-vt', etiket: 'Cüzdan defteri', yogunluk: 'sik',
@@ -949,10 +1020,10 @@
           el.innerHTML =
             '<section class="izgara-kpi" aria-label="Kullanım toplamları">' +
             b.istatistikKarti({ ad: 'Çağrı (ömür boyu)', deger: toplamlar ? b.sayi(Number(t.calls) || 0) : '—',
-              alt: t.lastAt ? 'son ' + b.goreliZaman(t.lastAt) : 'usageTotals yok' }) +
-            b.istatistikKarti({ ad: 'Tahmini maliyet', deger: toplamlar ? b.para(Number(t.estCostUsd) || 0) : '—', altin: true, alt: 'token × birim fiyat' }) +
-            b.istatistikKarti({ ad: 'Girdi token', deger: toplamlar ? b.sayi(Number(t.promptTokens) || 0) : '—' }) +
-            b.istatistikKarti({ ad: 'Çıktı token', deger: toplamlar ? b.sayi(Number(t.outputTokens) || 0) : '—',
+              alt: t.lastAt ? 'son ' + b.goreliZaman(t.lastAt) : 'toplam yok' }) +
+            b.istatistikKarti({ ad: 'Tahmini maliyet', deger: toplamlar ? b.para(Number(t.estCostUsd) || 0) : '—', altin: true, alt: 'model birimi × birim fiyat' }) +
+            b.istatistikKarti({ ad: 'Girdi birimi', deger: toplamlar ? b.sayi(Number(t.promptTokens) || 0) : '—' }) +
+            b.istatistikKarti({ ad: 'Çıktı birimi', deger: toplamlar ? b.sayi(Number(t.outputTokens) || 0) : '—',
               alt: t.thinkingTokens ? 'düşünme ' + b.sayi(Number(t.thinkingTokens)) : 'düşünme dahil' }) +
             '</section>' +
             '<div class="izgara-2">' +
@@ -960,9 +1031,10 @@
               '', { alt: byFeatureMaliyet ? 'ömür boyu · tahmini $' : 'son 30 olay · çağrı' }) +
             b.modul('Son 30 olay özeti', '<dl class="alan-liste"><dt>Çağrı</dt><dd>' + b.e(b.sayi(Number(kul.calls) || 0)) + '</dd>' +
               '<dt>Maliyet</dt><dd>' + b.e(b.para(Number(kul.estCostUsd) || 0)) + '</dd></dl>' +
-              '<p class="dipnot">Composite indeks (uid + at) yoksa liste boş kalır; 360 düşmez.</p>', '', { alt: 'usageEvents · tek sorgu' }) +
+              '<p class="dipnot">Liste hep boşsa ilgili veritabanı dizini eksik olabilir (Sistem → Veritabanı dizinleri); sayfanın geri kalanı etkilenmez.</p>',
+              '', { alt: 'son 30 çağrı' }) +
             '</div>' +
-            b.modul('Son olaylar', '<div id="k360-kullanim-tablo"></div>', b.etiket('usageEvents'), { alt: 'son 30 · yeniden eskiye' });
+            b.modul('Son çağrılar', '<div id="k360-kullanim-tablo"></div>', '', { alt: 'son 30 · yeniden eskiye' });
           var vt = b.veriTablosu({
             kimlik: 'k360-kullanim-vt', etiket: 'Son kullanım olayları', yogunluk: 'sik',
             sutunlar: [
@@ -1000,7 +1072,7 @@
             ? '<dl class="alan-liste">' + (bild.dailyTheme ? '<dt>Bugünkü tema</dt><dd>' + b.e(bild.dailyTheme) + '</dd>' : '') +
               sonlar.map(function (k) {
                 var tur = k.replace(/LastSent$/, '');
-                return '<dt>' + b.e(NOTIFY_ADI[tur] || tur) + '</dt><dd>' + b.e(b.tarih(bild[k], true)) + ' · ' + b.e(b.goreliZaman(bild[k])) + '</dd>';
+                return '<dt>' + b.e(S().bildirimAdi(tur)) + '</dt><dd>' + b.e(b.tarih(bild[k], true)) + ' · ' + b.e(b.goreliZaman(bild[k])) + '</dd>';
               }).join('') + '</dl>'
             : b.bosDurum('Gönderim kaydı yok.', { ikon: 'zil' });
           var tel = d.phoneAttempts || [];
@@ -1013,12 +1085,12 @@
           }).join('') + '</div>' : b.bosDurum('Telefon denemesi yok.');
           el.innerHTML =
             '<div class="izgara-2">' +
-            b.modul('Bildirim', bildHtml, p.hasPush ? b.rozet('Push açık', 'aktif') : b.rozet('Push yok', 'notr'),
-              { alt: 'meta yalnız · gövde metinleri dönmez' }) +
+            b.modul('Bildirim', bildHtml, p.hasPush ? b.rozet('Bildirim alıyor', 'aktif') : b.rozet('Bildirim almıyor', 'notr'),
+              { alt: 'yalnız zamanlar · bildirim metinleri gelmez' }) +
             b.modul('Cihaz kilidi', cihazListesi() +
               '<div class="eylem-satir"><button type="button" class="buton ikincil kucuk" id="k360-cihaz2"' + (cihaz.deviceId ? '' : ' disabled title="Kayıtlı cihaz yok"') + '>' +
               b.ik('cihaz', 14) + 'Cihaz kilidini sıfırla</button></div>' +
-              '<p class="dipnot">Kimlik maskeli (son 6). "Son görülme" yok: sunucu lastSeenAt\'i yalnız devralma anında yazar.</p>',
+              '<p class="dipnot">Cihaz kimliği maskeli (son 6). Burada "son görülme" yok: sunucu cihaz kaydını yalnız devralma anında günceller.</p>',
               '', { alt: 'yalnız ücretli abonede etkin' }) +
             '</div>' +
             b.modul('Telefon doğrulama denemeleri', telHtml + '<p class="dipnot">"Kod gelmiyor" başvurusunda ilk bakılacak yer; numara maskeli tutulur.</p>',
@@ -1045,9 +1117,12 @@
         } },
         { ad: 'denetim', etiket: 'Denetim', icerik: function () {
           var el = b.el('<div class="sutun"></div>');
-          el.innerHTML = b.modul('Bu kullanıcıya yapılan yönetici işlemleri', '<div id="k360-denetim"></div>', b.etiket('adminAudit'),
-            { alt: 'targetUid = ' + uid + ' · at DESC · imleçli' });
-          var imlec = null;
+          el.innerHTML = b.modul('Bu kullanıcıya yapılan yönetici işlemleri', '<div id="k360-denetim"></div>', '',
+            { alt: 'en yeniden eskiye' });
+          var imlec = null, istek = null;
+          // Sekme 360'ın ömrüne bağlı: 360'tan çıkılınca uçuştaki istek
+          // kesilir; tekrar dene / daha fazla bir öncekini iptal eder.
+          var yeniIstek = b.tazeleyici(baglam);
           var vt = b.veriTablosu({
             kimlik: 'k360-denetim-vt', etiket: 'Denetim izi', yogunluk: 'sik',
             sutunlar: [
@@ -1058,20 +1133,12 @@
               { ad: 'action', baslik: 'Eylem', bicim: function (k) {
                 var a = String(k.action || '?');
                 var tur = /delete|disable/.test(a) ? 'hata' : (/credit|enable/.test(a) ? 'altin' : 'notr');
-                return b.rozet(EYLEM_ADI[a] || a, tur);
+                return b.rozet(S().eylemAdi(a), tur);
               } },
-              { ad: 'phase', baslik: 'Faz', bicim: function (k) {
-                if (!k.phase) return '<span class="dipnot">—</span>';
-                return b.rozet(k.phase === 'done' ? 'tamam' : (k.phase === 'failed' ? 'düştü' : 'niyet'),
-                  k.phase === 'done' ? 'aktif' : (k.phase === 'failed' ? 'hata' : 'uyari'));
-              } },
-              { ad: 'params', baslik: 'Ayrıntı', bicim: function (k) {
-                var pr = k.params && typeof k.params === 'object' ? k.params : {};
-                var parcalar = Object.keys(pr).filter(function (a) { return pr[a] != null && pr[a] !== '' && typeof pr[a] !== 'object'; })
-                  .map(function (a) { return a + '=' + String(pr[a]).slice(0, 60); });
-                if (k.error) parcalar.push('hata=' + String(k.error).slice(0, 60));
-                return parcalar.length ? '<span class="mono dipnot">' + b.e(parcalar.join(' · ')) + '</span>' : '—';
-              } }
+              // Sonuç ve ayrıntı Sistem → Denetim izi ile AYNI çizim (sistem.js):
+              // aynı kayıt iki ekranda iki dille görünmesin.
+              { ad: 'phase', baslik: 'Sonuç', bicim: function (k) { return RY.denetimFazRozeti(b, k.phase); } },
+              { ad: 'params', baslik: 'Ayrıntı', bicim: function (k) { return RY.denetimAyrinti(b, k); } }
             ],
             anahtar: function (k) { return k.id; },
             satirSinif: function (k) { return k.phase === 'failed' ? 'durum-hata' : (k.phase === 'intent' ? 'durum-uyari' : ''); },
@@ -1081,15 +1148,18 @@
           });
           el.querySelector('#k360-denetim').appendChild(vt.el);
           function yukle(devam) {
-            if (!devam) { vt.durum('yukleniyor'); imlec = null; }
-            return RY.sorgu('/api/v1/admin/audit', { targetUid: uid, limit: DENETIM_SAYFA, cursor: devam ? imlec : null })
+            if (!devam) { vt.durum('yukleniyor'); imlec = null; istek = yeniIstek(); }
+            var bu = istek;
+            return RY.sorgu('/api/v1/admin/audit', { targetUid: uid, limit: DENETIM_SAYFA, cursor: devam ? imlec : null },
+              { sinyal: bu.sinyal })
               .then(function (res) {
+                if (!bu.gecerli()) return;
                 var kayitlar = Array.isArray(res && res.entries) ? res.entries : [];
                 imlec = (res && res.nextCursor) || null;
                 var sayfa = { daha: !!imlec, onDaha: function () { return yukle(true); } };
                 if (devam) vt.ekle(kayitlar, sayfa); else vt.guncelle(kayitlar, sayfa);
               }).catch(function (h) {
-                if (h && h.iptal) return;
+                if (!bu.gecerli() || (h && h.iptal)) return;
                 if (devam) hataToast(h); else vt.durum('hata', RY.hataMetni(h));
               });
           }
@@ -1114,11 +1184,11 @@
      Rota
      ===================================================================== */
 
-  RY.gorunumler.kullanicilar = async function (icerik, args, params) {
+  RY.gorunumler.kullanicilar = async function (icerik, args, params, baglam) {
     args = args || [];
-    if (!args.length) return liste(icerik, params);
-    if (args[0] === 'ara') return liste(icerik, { q: args[1] || '' });
-    return detay(icerik, args[0], args[1]);
+    if (!args.length) return liste(icerik, params, baglam);
+    if (args[0] === 'ara') return liste(icerik, { q: args[1] || '' }, baglam);
+    return detay(icerik, args[0], args[1], baglam);
   };
 
   RY.kirintiSaglayici.kullanicilar = function (args) {

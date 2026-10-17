@@ -65,6 +65,18 @@
     kutu.hidden = !metin;
   }
 
+  /* Firebase hata kodu ("auth/network-request-failed") kullanıcıya
+     gösterilmez — iç koddur ve İngilizcedir. Bilinenler Türkçe cümleye,
+     gerisi genel cümleye düşer; ham kod konsolda kalır (teşhis için). */
+  function girisHataMetni(kod) {
+    if (window.console && kod) console.warn('giriş hatası:', kod);
+    if (kod === 'auth/network-request-failed') return 'Bağlantı kurulamadı — ağını kontrol edip tekrar dene.';
+    if (kod === 'auth/user-disabled') return 'Bu hesap devre dışı.';
+    if (kod === 'auth/unauthorized-domain') return 'Bu adresten giriş yapılamıyor.';
+    if (kod === 'auth/popup-blocked') return 'Giriş penceresi engellendi — tarayıcının açılır pencere iznini aç.';
+    return 'Giriş yapılamadı — tekrar dene.';
+  }
+
   /* Yetki YÖNTEMDEN değil admin claim'inden gelir; hata metinleri hesap
      varlığını ele vermez (mobil anti-enumeration duruşuyla aynı). */
   $('eposta-form').addEventListener('submit', function (ev) {
@@ -85,7 +97,7 @@
         } else if (kod === 'auth/invalid-email') {
           girisHatasi('Geçerli bir e-posta gir.');
         } else {
-          girisHatasi('Giriş başarısız: ' + (kod || hata));
+          girisHatasi(girisHataMetni(kod));
         }
       })
       .then(function () { dugme.disabled = false; });
@@ -117,12 +129,12 @@
         girisHatasi('Pencere kapandı — tekrar dene.');
         return;
       }
-      girisHatasi('Giriş başarısız: ' + (kod || hata));
+      girisHatasi(girisHataMetni(kod));
     });
   });
 
   auth.getRedirectResult().catch(function (hata) {
-    girisHatasi('Giriş başarısız: ' + ((hata && hata.code) || hata));
+    girisHatasi(girisHataMetni(hata && hata.code));
   });
 
   $('cikis').addEventListener('click', function () {
@@ -308,12 +320,36 @@
   /* ---------------- Router ---------------- */
 
   var rotaSayaci = 0;
+  var rotaDenetleyici = null;
 
+  /* Her rota çizimi KENDİ kabına yazar ve kendi bağlamını taşır.
+
+     NEDEN (yarış, ölçülen kusur): görünümler `await` sonrası
+     `icerik.innerHTML` yazıyordu; sayaç yalnız router'ın kendi
+     `then`ini koruyordu. Yavaş bir Gelir isteği sürerken Kullanıcılar'a
+     geçilirse Gelir'in cevabı gelince Kullanıcılar ekranının ÜSTÜNE
+     çiziliyordu — adres "kullanicilar" derken ekranda gelir. Tek tek her
+     görünüme kontrol eklemek yetmez (biri unutulur), o yüzden iki katlı
+     kapı merkezde:
+     1. Kap: görünüm `#icerik`e değil, bu çizime ait bir alt kaba yazar. Yeni
+        rota kabı DOM'dan çıkarır; eski görünüm geç gelse de ayrık bir
+        düğüme yazar, ekrana hiçbir şey sızmaz.
+     2. Bağlam: `{sinyal, aktif()}`. Yeni rota eski sinyali iptal eder,
+        uçuştaki istekler kesilir; görünüm `await` sonrası `aktif()`e
+        bakarak kırıntı/başlık gibi kap DIŞI yazımları da atlar.
+     Kap `display: contents` (admin.css): düzen ve giriş animasyonu
+     `#icerik`in doğrudan çocuklarıymış gibi işler. */
   function rota() {
     var r = rotaCozumle();
     if (!RY.gorunumler[r.ad]) { r.ad = 'genel'; r.args = []; }
     mevcut = r;
     var sira = ++rotaSayaci;
+    if (rotaDenetleyici) rotaDenetleyici.abort();
+    var denetleyici = rotaDenetleyici = new AbortController();
+    var baglam = {
+      sinyal: denetleyici.signal,
+      aktif: function () { return sira === rotaSayaci && !denetleyici.signal.aborted; }
+    };
     cekmeceKapat();
     paletKapat();
     zilKapat();
@@ -329,22 +365,30 @@
 
     var icerik = $('icerik');
     icerik.setAttribute('aria-busy', 'true');
-    icerik.innerHTML = b.iskelet();
+    var kap = document.createElement('div');
+    kap.className = 'gorunum-kok';
+    kap.innerHTML = b.iskelet();
+    icerik.replaceChildren(kap);
     window.scrollTo(0, 0);
 
     Promise.resolve().then(function () {
-      return RY.gorunumler[r.ad](icerik, r.args, r.params);
+      return RY.gorunumler[r.ad](kap, r.args, r.params, baglam);
     }).then(function () {
-      if (sira !== rotaSayaci) return;
+      if (!baglam.aktif()) return;
       icerik.setAttribute('aria-busy', 'false');
       rotaSonrasi(r);
     }).catch(function (hata) {
-      if (sira !== rotaSayaci) return;
+      if (!baglam.aktif()) return;
       icerik.setAttribute('aria-busy', 'false');
-      if (hata && (hata.message === 'yetkisiz' || hata.iptal)) return;
-      icerik.innerHTML = b.sayfaBaslik({ baslik: BASLIKLAR[r.ad] }) +
-        b.hataDurum(RY.hataMetni(hata));
-      var tekrar = $('tekrar-dene');
+      // Yetkisiz: RY.yetkisiz jenerik ekrana geçti; iskeleti de kaldır ki
+      // yeniden girişte yarım bir sayfa görünmesin.
+      if (hata && hata.message === 'yetkisiz') { kap.innerHTML = ''; return; }
+      // Görünüm hâlâ ekrandayken gelen iptal router'ın değil, görünümün
+      // kendi işidir; eskiden burada sessizce dönülüyor ve iskelet sonsuza
+      // dek dönüyordu. Tekrar denenebilir bir durum olarak gösterilir.
+      kap.innerHTML = b.sayfaBaslik({ baslik: BASLIKLAR[r.ad] }) +
+        b.hataDurum(hata && hata.iptal ? 'Yükleme yarıda kesildi.' : RY.hataMetni(hata));
+      var tekrar = kap.querySelector('#tekrar-dene');
       if (tekrar) tekrar.addEventListener('click', rota);
       rotaSonrasi(r);
       if (window.console) console.error(hata);
@@ -570,27 +614,10 @@
 
   /* ---------------- Dikkat zili ---------------- */
 
-  var DIKKAT_HARITA = {
-    failedPush: { etiket: 'Başarısız push', alt: 'Son koşuda geçersiz jeton', href: '#/bildirimler', tur: 'hata' },
-    pushFailed: { etiket: 'Başarısız push', alt: 'Son koşuda geçersiz jeton', href: '#/bildirimler', tur: 'hata' },
-    billingIssue: { etiket: 'Fatura sorunu (7 gün)', alt: 'BILLING_ISSUE olayları', href: '#/gelir', tur: 'uyari' },
-    billingIssues: { etiket: 'Fatura sorunu (7 gün)', alt: 'BILLING_ISSUE olayları', href: '#/gelir', tur: 'uyari' },
-    trialExpiring: { etiket: 'Süresi dolan deneme (3 gün)', alt: 'Dönüşüm fırsatı', href: '#/kullanicilar?plan=trial', tur: 'uyari' },
-    trialsExpiring: { etiket: 'Süresi dolan deneme (3 gün)', alt: 'Dönüşüm fırsatı', href: '#/kullanicilar?plan=trial', tur: 'uyari' },
-    belowMinBuild: { etiket: 'Eşik altı istemci', alt: 'Zorunlu güncelleme eşiğinin altında', href: '#/sistem', tur: 'bilgi' },
-    belowBuild: { etiket: 'Eşik altı istemci', alt: 'Zorunlu güncelleme eşiğinin altında', href: '#/sistem', tur: 'bilgi' },
-    disabled: { etiket: 'Devre dışı hesap', alt: 'authDisabled', href: '#/kullanicilar?disabled=true', tur: 'bilgi' },
-    disabledUsers: { etiket: 'Devre dışı hesap', alt: 'authDisabled', href: '#/kullanicilar?disabled=true', tur: 'bilgi' },
-    staleRollup: { etiket: 'Bayat rollup', alt: 'adminStats bugün yazılmamış', href: '#/sistem', tur: 'uyari' },
-    rollupStale: { etiket: 'Bayat rollup', alt: 'adminStats 30 saatten eski (değer: saat)', href: '#/sistem', tur: 'hata' },
-    /* admin_service.attention() gerçek `tur` anahtarları (AD7). */
-    failedPushesToday: { etiket: 'Başarısız push (bugün)', alt: 'Bugünkü koşularda geçersiz jeton', href: '#/bildirimler', tur: 'uyari' },
-    billingIssues7d: { etiket: 'Fatura sorunu (7 gün)', alt: 'BILLING_ISSUE olayları · üretim', href: '#/gelir', tur: 'uyari' },
-    trialsExpiring3d: { etiket: 'Süresi dolan deneme (3 gün)', alt: 'Dönüşüm fırsatı', href: '#/kullanicilar?plan=trial', tur: 'bilgi' },
-    belowMin: { etiket: 'Eşik altı istemci', alt: 'Zorunlu güncelleme eşiğinin altında', href: '#/sistem', tur: 'bilgi' },
-    disabledTotal: { etiket: 'Devre dışı hesap', alt: 'authDisabled', href: '#/kullanicilar?disabled=true', tur: 'bilgi' },
-    newFeedback: { etiket: 'Yeni geri bildirim', alt: 'Uygulama içi · yanıt bekliyor', href: '#/geribildirim?status=new', tur: 'bilgi' }
-  };
+  /* Kalem adları sözlükte (sozluk.js `dikkat`): zil ve Genel'deki Dikkat
+     listesi aynı cümleyi okusun. Eskiden iki ayrı harita vardı ve aynı
+     kalem zilde "Bayat rollup", Genel'de başka bir altyazıyla çıkıyordu. */
+  function dikkatSablonu(k) { return RY.sozluk.dikkat(k); }
 
   RY.dikkat = { veri: null, maddeler: [] };
 
@@ -605,12 +632,14 @@
     if (Array.isArray(kaynak)) {
       return kaynak.filter(function (m) { return m && typeof m === 'object'; }).map(function (m) {
         var anahtar = m.tur || m.key || m.kind || m.id || m.label;
-        var sabl = DIKKAT_HARITA[anahtar] || {};
+        var sabl = dikkatSablonu(anahtar) || {};
         var sayi = m.sayi != null ? m.sayi : (m.count != null ? m.count : m.value);
+        // Sözlükteki Türkçe ad önce: sunucu bir gün İngilizce `label`
+        // gönderirse o yalnız sözlükte karşılığı olmayan kalemde görünür.
         return {
           anahtar: anahtar,
-          etiket: m.label || m.title || m.etiket || sabl.etiket || (anahtar || 'Madde'),
-          alt: m.detail || m.description || m.alt || sabl.alt || '',
+          etiket: sabl.etiket || m.label || m.title || m.etiket || (anahtar || 'Madde'),
+          alt: sabl.alt || m.detail || m.description || m.alt || '',
           sayi: Number(sayi) || 0,
           href: m.rota || m.route || m.href || sabl.href || '#/genel',
           tur: m.seviye || m.level || m.severity || sabl.tur || 'bilgi'
@@ -618,7 +647,7 @@
       });
     }
     return Object.keys(res).filter(function (k) { return k !== 'status'; }).map(function (k) {
-      var sabl = DIKKAT_HARITA[k];
+      var sabl = dikkatSablonu(k);
       var v = res[k];
       var sayi = typeof v === 'number' ? v : (v && typeof v === 'object' ? Number(v.count) || 0 : (v === true ? 1 : 0));
       if (!sabl && typeof v !== 'number' && v !== true) return null;
@@ -683,12 +712,12 @@
     return RY.saglik('/health').then(function (res) {
       $('backend-nokta').className = 'durum-nokta iyi';
       var rev = res && (res.revision || res.rev || res.build);
-      $('backend-durum').textContent = 'Backend' + (rev ? ' · ' + String(rev).slice(-8) : ' çalışıyor');
-      $('backend-satir').setAttribute('title', 'Backend çalışıyor' + (rev ? ' · ' + rev : ''));
+      $('backend-durum').textContent = 'Sunucu çalışıyor';
+      $('backend-satir').setAttribute('title', 'Sunucu çalışıyor' + (rev ? ' · sürüm ' + rev : ''));
     }).catch(function () {
       $('backend-nokta').className = 'durum-nokta kotu';
-      $('backend-durum').textContent = 'Backend erişilemiyor';
-      $('backend-satir').setAttribute('title', 'Backend erişilemiyor');
+      $('backend-durum').textContent = 'Sunucuya erişilemiyor';
+      $('backend-satir').setAttribute('title', 'Sunucuya erişilemiyor');
     });
   }
 

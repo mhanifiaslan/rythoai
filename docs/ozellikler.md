@@ -300,27 +300,34 @@ Google bağlama) · bildirimler (aşağıda) · gizlilik anahtarları · **dil
 · abonelik ve krediler · avatar düzenleyici (sürükle-yakınlaştır) ·
 **hesap silme** (ne silinip ne silinmeyeceği tek tek yazılır, yazarak onay).
 
-### Bildirimler — DÖRT zamanlı tür, ÜÇ anahtar
+### Bildirimler — ALTI zamanlı tür, ÜÇ anahtar
 
-Belge bir tur boyunca üç tür sayıyordu (günlük okuma, seri, arkadaş
-tepkisi); öğle ve akşam slotları eklendikten sonra güncellenmemişti.
-Sunucunun gönderdiği zamanlı türler (`notify_runner.RUN_TYPES`, dördü de
-Cloud Scheduler'da kayıtlı — `infra/create-scheduler.ps1`):
+Belge iki kez bayatladı: önce üç tür sayıyordu (öğle/akşam eklenince), sonra
+dört (2026-10-03'te `circle` ve `winback` eklenince). Sunucunun gönderdiği
+zamanlı türler `notify_runner.RUN_TYPES`; tanımları
+`infra/create-scheduler.ps1`'de. ⚠️ 2026-10-17 ölçümü: canlı Cloud
+Scheduler'da `rytho-notify-circle` ve `rytho-notify-winback` işleri **YOK**
+— betik o tarihten beri yeniden koşturulmamış, yani bu iki tür kodda var
+ama hiç gönderilmiyor. Betik koşunca kapanır.
 
 | Tür | Ne zaman / ne | Hangi anahtar kapatır |
 |---|---|---|
 | `daily` | sabah günlük okuma | `notifyDaily` |
 | `midday` | öğle — **yalnız bugün gerçekten olay varsa** gider; sabah gövdesinin kopyası asla | `notifyDaily` |
+| `circle` | 18:00 — Çevrem'deki bir kişi ya da arkadaşla bugün ölçülen geçiş; başlıkta karşı tarafın adı/ilişki etiketi | `notifyFriends` |
+| `winback` | 19:00 — 3/10/30 gün sessizlikte birer kez, sonra susar; 10. gün bir Çevrem kişisine değinebilir | `notifyDaily` |
 | `checkin` | akşam — günün sinyaline bağlı kişisel soru, dokununca Sohbet açılır | `notifyStreak` |
 | `streak` | seri hatırlatıcı | `notifyStreak` |
 
 Buna EK olarak olay tetikli **arkadaş tepkisi** bildirimi var
 (`notifyFriends`) — zamanlı değil, karşı taraf bastığında gider.
 
-Yani **tür sayısı anahtar sayısına eşit değil**: `notifyDaily` iki türü
-(sabah + öğle), `notifyStreak` iki türü (akşam + seri) birlikte kapatıyor
+Yani **tür sayısı anahtar sayısına eşit değil**: `notifyDaily` üç türü
+(sabah + öğle + geri kazanım), `notifyStreak` iki türü (akşam + seri),
+`notifyFriends` Çevrem notunu ve arkadaş tepkisini birlikte kapatıyor
 (`notification_service.py` tür→tercih eşlemesi). Ekranda üç anahtar
-görünür, sunucu dört zamanlı tür gönderir. **Sessiz saatler** 22:00-08:00.
+görünür, sunucu altı zamanlı tür gönderir. Gizlilik politikası (j) iki yeni
+türü 2026-10-17'de anlatmaya başladı. **Sessiz saatler** 22:00-08:00.
 
 > ⚠️ **İlk üç türün GÖVDESİ kullanıcının kendi haritasından gelir**, burcundan
 > değil: `daily` birincil yolda `signal_push` (kendi sinyal paketindeki o güne

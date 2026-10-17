@@ -1,16 +1,20 @@
-/* Kullanım & AI (AD19): adminStats rollup'ından çağrı/maliyet/token
+/* Kullanım & AI (AD19): adminStats rollup'ından çağrı/maliyet/model birimi
    kırılımı — usageEvents TARANMAZ.
 
    Rota: #/kullanim?days=7|30|90 (varsayılan 30; başka değer 30'a düşer).
+   Dönem değişince yalnız veri bölgesi yeniden çekilir; adres sessizce
+   güncellenir (geçmişe kayıt düşmez, yenilemede seçim kalır).
    Uç: GET /api/v1/admin/usage?days → {days, byDay:{gün:{calls,
    estCostUsd}}, byFeature:{öz:{calls, estCostUsd, promptTokens,
    outputTokens}}, byModel:{model:{calls, estCostUsd}}, totals:{calls,
    estCostUsd, promptTokens, outputTokens}, topUsers:[{uid, aiCostUsd,
-   calls, displayName, email}], costs:{öz: jeton}}.
+   calls, displayName, email}], costs:{öz: kredi bedeli}}.
 
-   Maliyetler TAHMİNİDİR (ölçülen token × birim fiyat); gerçek fatura Cloud
-   Console'da. Anomali: son günün maliyeti önceki 7 günün ortalamasının
-   1,5 katını aşarsa uyarı bandı. */
+   Maliyetler TAHMİNİDİR (ölçülen model birimi × birim fiyat); gerçek fatura
+   Google Cloud'da. Ekranda "token" kelimesi yok: kullanıcıya görünen tek
+   sayaç kelimesi "kredi" (depo sözlük kuralı) ve modelin faturalandırma
+   birimi kredi DEĞİL — ona "birim" deniyor. Anomali: son günün maliyeti
+   önceki 7 günün ortalamasının 1,5 katını aşarsa uyarı bandı. */
 (function () {
   'use strict';
 
@@ -18,22 +22,13 @@
   RY.gorunumler = RY.gorunumler || {};
 
   var GUNLER = [7, 30, 90];
+  var VARSAYILAN_GUN = 30;
 
-  /* Özellik anahtarı → okunur ad (bilinmeyen anahtar olduğu gibi). */
-  var OZELLIK = {
-    chat: 'Sohbet', signal: 'Sinyal paketi', natal: 'Natal rapor',
-    iching: 'İ Ching', iching_verdict: 'İ Ching hükmü', face: 'Yüz okuma',
-    bazi: 'BaZi', dyad: 'İkili', synastry: 'Sinastri', relationship: 'İlişki',
-    birth_hexagram: 'Doğum heksagramı', solar_return: 'Yıl haritası',
-    progressions: 'Progresyon', calendar: 'Takvim', daily: 'Günlük',
-    horoscope: 'Burç yorumu', memory_extract: 'Hafıza çıkarımı',
-    push_daily: 'Günlük push', unknown: 'Bilinmeyen'
-  };
-  function ozellikAdi(k) { return OZELLIK[k] || String(k); }
+  function ozellikAdi(k) { return RY.sozluk.ozellikAdi(k); }
 
   function gunSec(params) {
     var d = Number(params && params.days);
-    return GUNLER.indexOf(d) >= 0 ? d : 30;
+    return GUNLER.indexOf(d) >= 0 ? d : VARSAYILAN_GUN;
   }
 
   /* byDay {gün: {...}} → [{gun, calls, cost}] eskiden yeniye. */
@@ -62,11 +57,48 @@
       (alt ? '<span>' + b.e(alt) + '</span>' : '') + '</div></span>';
   }
 
-  RY.gorunumler.kullanim = async function (icerik, args, params) {
+  RY.gorunumler.kullanim = async function (icerik, args, params, baglam) {
     var b = RY.b;
     var gun = gunSec(params);
+    var yeniIstek = b.tazeleyici(baglam);
 
-    var veri = await RY.sorgu('/api/v1/admin/usage', { days: gun });
+    icerik.innerHTML = b.sayfaBaslik({
+      baslik: 'Kullanım & AI',
+      alt: 'Model çağrıları, tahmini maliyet ve kredi bedelleri · saatlik özetten'
+    }) +
+      '<div class="suzgec-seridi" id="kullanim-suzgec"><span class="dipnot suzgec-not">Günler UTC\'ye göre (Türkiye saatinden 3 saat geride)</span></div>' +
+      '<div class="veri-alani" id="kullanim-veri">' + b.iskelet() + '</div>';
+
+    var alan = icerik.querySelector('#kullanim-veri');
+    var serit = icerik.querySelector('#kullanim-suzgec');
+    serit.insertBefore(b.donemSecici({
+      secenekler: GUNLER, deger: gun,
+      onDegis: function (yeni) {
+        gun = yeni;
+        RY.rotaYaz('kullanim', [], gun === VARSAYILAN_GUN ? {} : { days: gun }, { sessiz: true });
+        yukle();
+      }
+    }), serit.firstChild);
+
+    function yukle() {
+      var istek = yeniIstek();
+      alan.setAttribute('aria-busy', 'true');
+      return RY.sorgu('/api/v1/admin/usage', { days: gun }, { sinyal: istek.sinyal }).then(function (veri) {
+        if (!istek.gecerli()) return;
+        alan.removeAttribute('aria-busy');
+        veriCiz(alan, veri || {}, gun);
+      }).catch(function (h) {
+        if (!istek.gecerli() || (h && h.iptal)) return;
+        alan.removeAttribute('aria-busy');
+        alan.innerHTML = b.hataDurum(RY.hataMetni(h), { kimlik: 'kullanim-tekrar' });
+        alan.querySelector('#kullanim-tekrar').addEventListener('click', yukle);
+      });
+    }
+    await yukle();
+  };
+
+  function veriCiz(alan, veri, gun) {
+    var b = RY.b;
     var toplam = veri.totals || {};
     var seri = gunSerisi(veri.byDay);
     var son = seri.length ? seri[seri.length - 1] : null;
@@ -75,24 +107,11 @@
     var costs = veri.costs || {};
     var topUsers = Array.isArray(veri.topUsers) ? veri.topUsers : [];
 
-    var cipler = GUNLER.map(function (d) {
-      return '<button type="button" class="adm-cip altin" data-gun="' + d +
-        '" aria-pressed="' + (d === gun ? 'true' : 'false') + '">' + d + ' gün</button>';
-    }).join('');
-
-    var bas = b.sayfaBaslik({
-      baslik: 'Kullanım & AI',
-      alt: 'Son ' + gun + ' gün · gecelik rollup · maliyetler tahmini',
-      eylemlerHtml: '<div class="cip-grup" role="group" aria-label="Dönem" id="kullanim-donem">' +
-        cipler + '</div>'
-    });
-
     if (!toplam.calls) {
-      icerik.innerHTML = bas + b.bosDurum(
-        'Bu dönemde kullanım olayı yok — ilk LLM çağrısı ve gecelik toplamayla ' +
-        'dolmaya başlar. Önbellekten servis edilen istekler burada görünmez.',
+      alan.innerHTML = b.bosDurum(
+        'Son ' + gun + ' günde model çağrısı yok — ilk çağrı ve sonraki saatlik toplamayla ' +
+        'dolmaya başlar. Önbellekten verilen yanıtlar burada görünmez.',
         { ikon: 'ai' });
-      donemBagla(icerik, gun);
       return;
     }
 
@@ -104,19 +123,26 @@
           { html: true })
       : '';
 
-    var ciktiToken = Number(toplam.outputTokens) || 0;
+    // Son gün çoğu zaman BUGÜNDÜR ve özet saatlik: sayı günün tamamı değil,
+    // o ana kadarki kısmıdır. Etiket bunu söylemezse dünün tam günüyle
+    // kıyaslanan yarım bir gün "düşüş" gibi okunur.
+    var sonBugun = son && son.gun === b.utcGun(0);
+    var sonAlt = son ? (sonBugun ? 'bugün, şu ana kadar' : b.tarih(son.gun)) : '—';
+
+    var ciktiBirimi = Number(toplam.outputTokens) || 0;
     var kpiler = '<section class="izgara-kpi" aria-label="Kullanım özeti">' +
-      b.istatistikKarti({ ad: son ? 'Son gün çağrı' : 'Bugün çağrı',
-        deger: b.sayi(son ? son.calls : 0), alt: son ? b.tarih(son.gun) : '—',
+      b.istatistikKarti({ ad: 'Son gün çağrı',
+        deger: b.sayi(son ? son.calls : 0), alt: sonAlt,
         kivilcim: seri.map(function (g) { return g.calls; }) }) +
-      b.istatistikKarti({ ad: son ? 'Son gün maliyet' : 'Bugün maliyet',
-        deger: b.para(son ? son.cost : 0), alt: an ? 'ortalamanın üstünde' : 'tahmini',
+      b.istatistikKarti({ ad: 'Son gün maliyet',
+        deger: b.para(son ? son.cost : 0), alt: an ? 'ortalamanın üstünde' : sonAlt + ' · tahmini',
         kivilcim: seri.map(function (g) { return g.cost; }), renk: an ? 'madder' : 'lilac' }) +
       b.istatistikKarti({ ad: gun + ' gün çağrı', deger: b.sayi(toplam.calls) }) +
       b.istatistikKarti({ ad: gun + ' gün maliyet', deger: b.para(toplam.estCostUsd),
         altin: true, alt: 'tahmini' }) +
-      b.istatistikKarti({ ad: 'Girdi token', deger: b.sayi(toplam.promptTokens || 0) }) +
-      b.istatistikKarti({ ad: 'Çıktı token', deger: b.sayi(ciktiToken),
+      b.istatistikKarti({ ad: 'Girdi birimi', deger: b.sayi(toplam.promptTokens || 0),
+        alt: 'modele giden metin' }) +
+      b.istatistikKarti({ ad: 'Çıktı birimi', deger: b.sayi(ciktiBirimi),
         alt: 'düşünme dahil' }) +
       '</section>';
 
@@ -135,31 +161,30 @@
         'class="grafik" aria-label="Model başına maliyet"></canvas></div></div>', '',
         { alt: 'tahmini maliyet payı' }) +
       '</div>' +
-      b.modul('Özellik başına girdi ve çıktı token', '<div class="grafik-kap"><canvas id="g-kul-token" ' +
-        'class="grafik" aria-label="Özellik başına girdi ve çıktı token"></canvas></div>', '',
+      b.modul('Özellik başına girdi ve çıktı birimi', '<div class="grafik-kap"><canvas id="g-kul-birim" ' +
+        'class="grafik" aria-label="Özellik başına girdi ve çıktı birimi"></canvas></div>', '',
         { alt: 'girdi + çıktı' });
 
     var tablolar = '<div class="izgara-2">' +
       b.modul('En çok maliyet üreten kullanıcılar', '<div id="kul-top"></div>', '',
-        { alt: 'son rollup günü · ilk 20 · 360\'a gider' }) +
+        { alt: 'son özet günü · ilk 20 · satır → ayrıntı' }) +
       b.modul('Kredi bedelleri', '<div id="kul-bedel"></div>', '',
-        { alt: 'sunucu gerçeği · özellik başına düşülen kredi' }) +
+        { alt: 'sunucudaki değer · özellik başına düşülen kredi' }) +
       '</div>' +
-      '<p class="dipnot">Tahmini maliyet = ölçülen token × sabit birim fiyat. Gerçek fatura ' +
-      'için Cloud Console. Yalnız GERÇEK model çağrıları sayılır — önbellek isabetleri ' +
-      'bedava ve burada yok. Günler UTC.</p>';
+      '<p class="dipnot">Tahmini maliyet = ölçülen model birimi × sabit birim fiyat. Gerçek fatura ' +
+      'Google Cloud hesabında. Yalnız GERÇEK model çağrıları sayılır — önbellekten verilen yanıtlar ' +
+      'bedava ve burada yok.</p>';
 
-    icerik.innerHTML = bas + bant + kpiler + grafikler + tablolar;
-    donemBagla(icerik, gun);
+    alan.innerHTML = bant + kpiler + grafikler + tablolar;
 
-    /* Grafikler */
+    /* Grafikler — kap içinden aranır (bkz. bildirimler.js aynı not). */
     var g = RY.grafik;
-    g.cizgi(document.getElementById('g-kul-cagri'), {
+    g.cizgi(alan.querySelector('#g-kul-cagri'), {
       seriler: [{ ad: 'Çağrı', renk: 'magenta',
         veri: seri.map(function (x) { return { x: x.gun, y: x.calls }; }) }],
       alan: true, bicim: 'sayi', etiket: 'Günlük çağrı'
     });
-    g.cizgi(document.getElementById('g-kul-maliyet'), {
+    g.cizgi(alan.querySelector('#g-kul-maliyet'), {
       seriler: [{ ad: 'Maliyet', renk: 'gold',
         veri: seri.map(function (x) { return { x: x.gun, y: x.cost }; }) }],
       alan: true, bicim: 'para', etiket: 'Günlük maliyet'
@@ -168,7 +193,7 @@
     var ozellikler = Object.keys(byFeature).sort(function (x, y) {
       return (Number(byFeature[y].estCostUsd) || 0) - (Number(byFeature[x].estCostUsd) || 0);
     });
-    g.cubuk(document.getElementById('g-kul-ozellik'), {
+    g.cubuk(alan.querySelector('#g-kul-ozellik'), {
       etiketler: ozellikler.map(ozellikAdi),
       degerler: ozellikler.map(function (k) { return Number(byFeature[k].estCostUsd) || 0; }),
       yatay: true, bicim: 'para', enCok: 10, etiket: 'Özellik başına maliyet'
@@ -176,7 +201,7 @@
 
     var modeller = Object.keys(byModel);
     var modelMaliyetVar = modeller.some(function (m) { return (Number(byModel[m].estCostUsd) || 0) > 0; });
-    g.halka(document.getElementById('g-kul-model'), {
+    g.halka(alan.querySelector('#g-kul-model'), {
       dilimler: modeller.map(function (m) {
         return { ad: m, deger: modelMaliyetVar ? (Number(byModel[m].estCostUsd) || 0)
                                                : (Number(byModel[m].calls) || 0) };
@@ -185,17 +210,17 @@
       merkezAlt: modelMaliyetVar ? 'maliyet' : 'çağrı', etiket: 'Model kırılımı'
     });
 
-    var tokenVar = ozellikler.some(function (k) {
+    var birimVar = ozellikler.some(function (k) {
       return (Number(byFeature[k].promptTokens) || 0) + (Number(byFeature[k].outputTokens) || 0) > 0;
     });
-    g.yigin(document.getElementById('g-kul-token'), {
-      etiketler: tokenVar ? ozellikler.map(ozellikAdi) : [],
+    g.yigin(alan.querySelector('#g-kul-birim'), {
+      etiketler: birimVar ? ozellikler.map(ozellikAdi) : [],
       seriler: [
         { ad: 'Girdi', renk: 'lilac', veri: ozellikler.map(function (k) { return Number(byFeature[k].promptTokens) || 0; }) },
         { ad: 'Çıktı', renk: 'gold', veri: ozellikler.map(function (k) { return Number(byFeature[k].outputTokens) || 0; }) }
       ],
-      bicim: 'sayi', etiket: 'Özellik başına girdi ve çıktı token',
-      bosMetin: 'Token kırılımı rollup\'ta yok — ilk toplamayla dolar'
+      bicim: 'sayi', etiket: 'Özellik başına girdi ve çıktı birimi',
+      bosMetin: 'Birim kırılımı özette yok — ilk toplamayla dolar'
     });
 
     /* Top kullanıcılar */
@@ -211,44 +236,30 @@
       anahtar: function (u) { return u.uid; },
       satirHref: function (u) { return RY.rotaBagi('kullanicilar', [u.uid]); },
       siralama: { ad: 'aiCostUsd', yon: 'desc' },
-      bosMetin: 'Rollup\'ta kullanıcı satırı yok — adminEconomics ilk toplamayla dolar.'
+      bosMetin: 'Özette kullanıcı satırı yok — ilk toplamayla dolar.'
     });
-    document.getElementById('kul-top').appendChild(vt.el);
+    alan.querySelector('#kul-top').appendChild(vt.el);
     vt.guncelle(topUsers);
 
     /* Bedel tablosu */
     var bedeller = Object.keys(costs).map(function (k) {
       var kova = byFeature[k] || {};
-      return { ad: k, etiket: ozellikAdi(k), jeton: Number(costs[k]) || 0,
+      return { ad: k, etiket: ozellikAdi(k), kredi: Number(costs[k]) || 0,
                calls: Number(kova.calls) || 0 };
     });
     var bt = b.veriTablosu({
       kimlik: 'kul-bedel-tablo', etiket: 'Kredi bedelleri', yogunluk: 'sik',
       sutunlar: [
-        { ad: 'etiket', baslik: 'Özellik', siralanir: true,
-          bicim: function (s) { return b.e(s.etiket) + ' <span class="mono dipnot">' + b.e(s.ad) + '</span>'; } },
-        { ad: 'jeton', baslik: 'Kredi', hizala: 'sag', siralanir: true },
-        { ad: 'calls', baslik: 'Çağrı (' + gun + 'g)', hizala: 'sag', siralanir: true }
+        { ad: 'etiket', baslik: 'Özellik', siralanir: true },
+        { ad: 'kredi', baslik: 'Kredi', hizala: 'sag', siralanir: true },
+        { ad: 'calls', baslik: 'Çağrı (' + gun + ' gün)', hizala: 'sag', siralanir: true }
       ],
       anahtar: function (s) { return s.ad; },
-      siralama: { ad: 'jeton', yon: 'desc' },
+      siralama: { ad: 'kredi', yon: 'desc' },
       bosMetin: 'Bedel tablosu gelmedi.'
     });
-    document.getElementById('kul-bedel').appendChild(bt.el);
+    alan.querySelector('#kul-bedel').appendChild(bt.el);
     bt.guncelle(bedeller);
-  };
-
-  /* Dönem çipleri: URL'ye yazılır, görünüm yeniden çizilir (rotaYaz). */
-  function donemBagla(icerik, gun) {
-    var kap = icerik.querySelector('#kullanim-donem');
-    if (!kap) return;
-    kap.addEventListener('click', function (ev) {
-      var d = ev.target.closest('.adm-cip');
-      if (!d) return;
-      var yeni = Number(d.getAttribute('data-gun'));
-      if (yeni === gun) return;
-      RY.rotaYaz('kullanim', [], { days: yeni });
-    });
   }
 
   RY.kirintiSaglayici.kullanim = function () {

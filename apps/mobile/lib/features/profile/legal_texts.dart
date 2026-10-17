@@ -21,8 +21,8 @@ typedef LegalSections = List<(String?, String)>;
 /// okuduğuna göre farklı bir beyan görüyordu; iki tarih bunu görünür kılmak
 /// yerine gizliyordu. Metin bu turda değiştiği için tarih de ileri alındı:
 /// değişmiş bir politikayı eski tarihle sunmak yanlış beyandır.
-const String kLegalLastUpdatedTr = '2 Ekim 2026';
-const String kLegalLastUpdatedEn = '2 October 2026';
+const String kLegalLastUpdatedTr = '17 Ekim 2026';
+const String kLegalLastUpdatedEn = '17 October 2026';
 
 /// Kullanım şartlarının tarihi gizlilik politikasından AYRI tutulur: ortaklık
 /// programı maddesi yalnız şartlara eklendi, politika metni değişmedi. Tek
@@ -230,7 +230,12 @@ const LegalSections kPrivacyPolicyTr = [
         'gönderilecek bir sinyal çıkmazsa yerine burcuna göre hazırlanan '
         'ortak metin gider; seri hatırlatıcısı ve arkadaş tepkisi bildirimi '
         'ise sabit şablondur (serinin kaç gün olduğu, tepkiyi gönderenin '
-        'adı). Sohbet geçmişin bildirim üretiminde kullanılmaz. '
+        'adı). Akşamki Çevrem notu, Çevrem\'e eklediğin bir kişiyle ya da '
+        'bir arkadaşınla aranızda o gün ölçülen bir geçişi anlatır; '
+        'başlığında o kişinin görünen adı ya da ilişki etiketi yer alır. '
+        'Uygulamayı 3, 10 ve 30 gün açmadığında birer kez hatırlatma gider '
+        've sonra susar; 10. gün hatırlatması Çevrem\'indeki bir kişiye '
+        'değinebilir. Sohbet geçmişin bildirim üretiminde kullanılmaz. '
         'Bildirim türlerini ve sessiz saatleri Profil > Bildirimler '
         'bölümünden kapatabilir, cihaz ayarlarından tümüyle kaldırabilirsin. '
         'Uygulamayı sildiğinde bildirim kimliği geçersizleşir ve ilk '
@@ -587,7 +592,13 @@ const LegalSections kPrivacyPolicyEn = [
         'chart. On a day when your chart yields no signal to send, the '
         'shared per-sign text goes out instead; the streak reminder and the '
         'friend-reaction notification are fixed templates (how many days '
-        'your streak is, who sent the reaction). Your chat history is never '
+        'your streak is, who sent the reaction). The evening circle note '
+        'describes a transit measured that day between you and someone you '
+        'added to your circle or a friend; its title carries that person\'s '
+        'display name or relation label. If you do not open the app for 3, '
+        '10 and 30 days, one reminder goes out at each step and then they '
+        'stop; the day-10 reminder may mention someone in your circle. '
+        'Your chat history is never '
         'used to produce any of them. You can switch types off and set quiet '
         'hours under Profile > Notifications, or turn them off entirely in '
         'your device settings. If you delete the app the token stops working '

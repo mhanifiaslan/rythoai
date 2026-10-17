@@ -1,7 +1,7 @@
 """Admin istatistik toplayıcısı (W5 → AD7 rollup'lar).
 
-Gecelik `rytho-stats` Scheduler işi (ya da panelden elle tetikleme) tüm
-sayımları BURADA yapar ve sonucu iki dokümana yazar:
+SAATLİK `rytho-stats` Scheduler işi (`zamanlanmis_kosu`; ya da panelden
+elle tetikleme) tüm sayımları BURADA yapar ve sonucu iki dokümana yazar:
 
 * `adminStats/{YYYY-MM-DD}` — panelin okuduğu günlük özet. İki yarım:
   `_snapshot_users` (BUGÜNÜN kullanıcı/abonelik taraması: DAU, plan
@@ -756,8 +756,58 @@ def recompute(start_date: dt.date, end_date: dt.date) -> dict[str, Any]:
         _recompute_lock.release()
 
 
+def zamanlanmis_kosu(simdi: dt.datetime | None = None) -> dict[str, Any]:
+    """Scheduler'ın SAATLİK koşusu: bugünün tam dokümanı + gerekirse dünün
+    olay kapanışı.
+
+    İş eskiden gecede BİR kez (23:40 UTC) koşuyordu ve iki kusuru vardı
+    (ölçüldü 2026-10-17): (1) bugünün geliri panelde HİÇ görünmüyordu —
+    ertesi gece 23:40'a kadar; sahip görmek için "Yeniden hesapla"ya tarih
+    girip basmak zorundaydı. (2) 23:40–24:00 arasındaki olaylar o günün
+    dokümanına HİÇ girmiyordu; kimse elle yeniden hesaplamazsa kalıcı kayıp.
+
+    Saatlik koşu (1)'i kapatır — panel yine yalnız rollup okur (AD7: panel
+    okuması tarama yapmaz), yalnız rollup en çok bir saat bayat. (2)'yi
+    "dün, gün BİTTİKTEN SONRA hiç toplanmadıysa olaylarını yeniden topla"
+    kuralı kapatır. Kural saate ("gece yarısından sonraki ilk koşu") değil
+    DAMGAYA bağlı: o koşu düşerse bir sonraki koşu yine kapatır.
+    """
+    simdi = simdi or dt.datetime.now(dt.timezone.utc)
+    bugun = simdi.date()
+    dun = bugun - dt.timedelta(days=1)
+    dokuman = collect(bugun)
+
+    # Dünün kapanışı BEST-EFFORT: okunamazsa bugünün yazılmış dokümanı
+    # bunun yüzünden 500'e dönmez; kural damgaya bağlı olduğu için bir
+    # sonraki koşu kapanışı yine dener.
+    gun_sonu = dt.datetime.combine(bugun, dt.time.min, tzinfo=dt.timezone.utc)
+    kapandi = True
+    try:
+        client = firestore_client.get_client()
+        if client is not None:
+            anlik = client.collection("adminStats").document(
+                dun.isoformat()).get()
+            eski = ((anlik.to_dict() or {})
+                    if getattr(anlik, "exists", False) else {})
+            damgalar = [eski.get("generatedAt"), eski.get("eventsRecomputedAt")]
+            kapandi = any(d is not None and _ts(d) >= gun_sonu.timestamp()
+                          for d in damgalar)
+            if not kapandi:
+                collect(dun, snapshot=False)
+    except Exception as exc:
+        logger.warning("adminStats/%s kapanışı ertelendi: %s", dun, exc)
+        kapandi = True
+    return {"date": dokuman["date"], "durationMs": dokuman["durationMs"],
+            "closedDay": None if kapandi else dun.isoformat()}
+
+
 def read_days(days: int) -> list[dict[str, Any]]:
-    """Son N günün hazır istatistik dokümanları (yeniden eskiye).
+    """Son N TAKVİM gününün hazır istatistik dokümanları (yeniden eskiye).
+
+    Pencere takvimdir, doküman sayısı DEĞİL: eskiden `limit(N)` "son N
+    doküman" dönüyordu ve rollup'ın atladığı her gün "30 gün" penceresini
+    sessizce geriye uzatıyordu (panel 30 gün derken 40 günü topluyordu).
+    Eksik gün artık eksik görünür.
 
     Sıralama `date` ALANINA göre — doküman kimliğiyle aynı değer ama
     `__name__` üzerinden azalan sıralama otomatik indekslenmiyor
@@ -767,7 +817,27 @@ def read_days(days: int) -> list[dict[str, Any]]:
     client = firestore_client.get_client()
     if client is None:
         return []
+    from google.cloud.firestore_v1.base_query import FieldFilter
+
+    bugun = dt.datetime.now(dt.timezone.utc).date()
+    alt = (bugun - dt.timedelta(days=max(1, min(days, 365)) - 1)).isoformat()
     sorgu = (client.collection("adminStats")
-             .order_by("date", direction="DESCENDING")
-             .limit(max(1, min(days, 365))))
+             .where(filter=FieldFilter("date", ">=", alt))
+             .order_by("date", direction="DESCENDING"))
     return [anlik.to_dict() or {} for anlik in sorgu.stream()]
+
+
+def son_dokuman() -> dict[str, Any] | None:
+    """Tarihi ne olursa olsun EN SON rollup dokümanı — bayatlık ölçümü için.
+
+    `read_days` takvim penceresine geçince "7 günde hiç doküman yoksa en
+    sonuncusu ne zaman?" sorusunu artık cevaplamıyor; o soru buraya taşındı.
+    """
+    client = firestore_client.get_client()
+    if client is None:
+        return None
+    sorgu = (client.collection("adminStats")
+             .order_by("date", direction="DESCENDING").limit(1))
+    for anlik in sorgu.stream():
+        return anlik.to_dict() or {}
+    return None

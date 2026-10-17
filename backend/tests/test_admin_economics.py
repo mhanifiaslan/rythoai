@@ -312,3 +312,15 @@ def test_recompute_onbellegi_temizler(depo, monkeypatch):
     stats_service.recompute(_SIMDI.date(), _SIMDI.date())
     yeni = admin_service.economics(days=30, env="PRODUCTION")
     assert yeni["users"][0]["aiCostUsd"] == pytest.approx(5.5)
+
+
+def test_bayatlik_esigi_panelle_ayni():
+    """Zil (`attention`) ile Gelir/Sistem sayfaları aynı eşiği kullanmalı:
+    eşik 30 saat iken sayfa "bayat", zil "taze" diyordu (2026-10-17)."""
+    import re
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[2] / "web" / "rytho-admin"
+          / "bilesenler.js").read_text(encoding="utf-8")
+    eslesme = re.search(r"var OZET_BAYAT_SAAT = (\d+);", js)
+    assert eslesme, "bilesenler.js OZET_BAYAT_SAAT bulunamadı"
+    assert int(eslesme.group(1)) == admin_service.ROLLUP_STALE_HOURS

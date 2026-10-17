@@ -62,20 +62,29 @@
   function bicimle(v, bicim) {
     if (v == null || !isFinite(v)) return '—';
     if (bicim === 'para') return b().para ? b().para(v) : '$' + v;
-    if (bicim === 'yuzde') return b().yuzde ? b().yuzde(v) : v + '%';
+    if (bicim === 'yuzde') return b().yuzde ? b().yuzde(v) : '%' + v;
     return Number(v).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
   }
+  /* Pay metni Türkçe yazımla, işaret önde: "%12,5". Halka grafiği dört
+     yerde "12,5%" basıyordu; panelin geri kalanı (b.yuzde) ile ayrışmıştı. */
+  function payMetni(deger, toplam, basamak) {
+    if (!toplam) return '—';
+    var p = deger / toplam * 100;
+    return b().yuzde ? b().yuzde(p, basamak == null ? 1 : basamak)
+      : '%' + p.toFixed(basamak == null ? 1 : basamak).replace('.', ',');
+  }
+  /* Eksen kısaltması Türkçe: bin → "B", milyon → "Mn" ("k"/"M" İngilizce). */
   function eksenKisa(v, bicim) {
-    var on = bicim === 'para' ? '$' : '', son = bicim === 'yuzde' ? '%' : '';
+    var on = bicim === 'para' ? '$' : (bicim === 'yuzde' ? '%' : '');
     var m = Math.abs(v);
     var s;
-    if (m >= 1e6) s = (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
-    else if (m >= 1000) s = (v / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    if (m >= 1e6) s = (v / 1e6).toFixed(1).replace(/\.0$/, '') + ' Mn';
+    else if (m >= 1000) s = (v / 1000).toFixed(1).replace(/\.0$/, '') + ' B';
     else if (m === 0) s = '0';
     else if (m < 1) s = v.toFixed(2);
     else if (m < 10) s = v.toFixed(1).replace(/\.0$/, '');
     else s = String(Math.round(v));
-    return on + s.replace('.', ',') + son;
+    return on + s.replace('.', ',');
   }
   function eksenEtiket(x) {
     // ISO tarih gelirse gün.ay; aksi halde olduğu gibi.
@@ -704,7 +713,7 @@
     var vurgu = -1, oran = 1, merkez = null, yaricap = 0, acilar = [];
 
     srTablo(k.tablo, ['Dilim', 'Değer', 'Pay'], dilimler.map(function (d) {
-      return [d.ad, bicimle(d.deger, bicim), (d.deger / toplam * 100).toFixed(1).replace('.', ',') + '%'];
+      return [d.ad, bicimle(d.deger, bicim), payMetni(d.deger, toplam)];
     }), canvas.getAttribute('aria-label') || sec.etiket);
 
     var lejant = document.createElement('ul');
@@ -713,8 +722,7 @@
     lejant.innerHTML = dilimler.map(function (d, i) {
       return '<li data-i="' + i + '"><i class="lejant-nokta renk-' + e(d.renk) + '"></i>' +
         '<span class="ad">' + e(d.ad) + '</span><span class="deger">' + e(bicimle(d.deger, bicim)) +
-        '</span><span class="oran">' + (d.deger / toplam * 100).toFixed(1).replace('.', ',') +
-        '%</span></li>';
+        '</span><span class="oran">' + e(payMetni(d.deger, toplam)) + '</span></li>';
     }).join('');
     // Lejant kabın yanına: halka-kap varsa oraya, yoksa grafik-kap'ın ardına.
     var dis = k.kap.parentElement && k.kap.parentElement.classList.contains('halka-kap')
@@ -748,7 +756,7 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = '700 ' + Math.max(13, yaricap * 0.3) + 'px Sora, sans-serif';
-      ctx.fillText(orta ? (orta.deger / toplam * 100).toFixed(0) + '%' :
+      ctx.fillText(orta ? payMetni(orta.deger, toplam, 0) :
         (sec.merkez != null ? String(sec.merkez) : bicimle(toplam, bicim)), merkez.x, merkez.y - 2);
       ctx.fillStyle = parchmentMid();
       ctx.font = '11px Manrope, sans-serif';
@@ -796,7 +804,7 @@
       html: function (i) {
         var d = dilimler[i];
         return '<b>' + e(d.ad) + '</b>' + e(bicimle(d.deger, bicim)) + ' · ' +
-          (d.deger / toplam * 100).toFixed(1).replace('.', ',') + '%';
+          e(payMetni(d.deger, toplam));
       },
       metin: function (i) {
         var d = dilimler[i];

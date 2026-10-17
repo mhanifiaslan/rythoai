@@ -206,6 +206,9 @@ Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.20.0+52** (pubspec, 2026-10-16).
 D0–D8 + S1 + cihaz turu 1 + cihaz turu 2 (paylaşım) kodda ve commit'li.
 52'ye çekildi çünkü 51'in Console'a yüklenip yüklenmediği bilinmiyordu —
 yanmış koda çarpmak yüklemeyi durdurur, atlanan kod zarar vermez.
+**52 YANDI ve üç kanalda** (sahip, 2026-10-17): dahili → kapalı → **açık
+test (yalnız Türkiye)**. Üretim erişimi 2026-10-17'de verildi; üretim
+kanalı henüz "Etkin değil". Sıradaki kod **53**.
 
 **Cihaz turu 2 (2026-10-16):** (1) günlük düğmesi başlığın EN SAĞINA
 (bakiye hapının sağı). (2) **Paylaşımda veri kaybı:** rapor kartı uzun
@@ -537,6 +540,45 @@ talebi** — Google'ın kendi forumunda aynı mesajla onlarca vaka var ve
 birkaçında **ödeme yapmak tek başına yetmemiş**. YAPMA: anahtar üretmek,
 kısıt gevşetmek, API'yi kapatıp açmak, faturayı söküp bağlamak — hiçbiri
 işe yaramıyor (ölçüldü + forum kaydı).
+
+### ⚠️ CANLI KESİNTİ 2: fatura hesabı ÖN ÖDEMELİYE çevrildi (2026-10-17)
+
+Google fatura hesabını (`01156B-3E95EE-A8BB8F`) sahibe sormadan **ön
+ödemeli** yaptı; bakiye 0 olduğu an her Gemini çağrısı
+`402 RESOURCE_EXHAUSTED — Your prepayment credits are depleted` aldı.
+Ölçüldü: ilk red **01:31Z**, son **03:22Z** (10 günlük logda başka yok),
+66 başarısız çağrı; sahip AI Studio → Billing'den ₺1.000 yükledi,
+**03:26Z'de üretimde ilk başarılı `daily` çağrısı** (`usageEvents`).
+Bu 403 "dunning"ten AYRI bir sınıf: artık risk ay başı çekim değil,
+**bakiyenin sıfıra inmesi** — o an kesinti anında ve tam.
+
+- Ölçülen gider: son 30 gün `estCostUsd` toplamı **~$2,2** (2.060 çağrı,
+  ~69/gün). Embedding ve aynı fatura hesabındaki **ikinci proje
+  `steameuradio`** bu sayıda YOK ama aynı bakiyeden düşer.
+- Önlem: **otomatik yeniden yükleme** (Auto-reload) — kapalıyken her
+  sıfırlanma bir kesinti. Uyarı bandı ("0$'ın üzerinde bakiye gerekir")
+  bakiye doluyken de durur; "tekrar yükle" demek DEĞİL.
+- Kesintide üretilen yedekler: sinyal paketi 1 sa önbellekli (kendini
+  onarır), push satırı **36 sa** (o günün burç satırları şablonda kalır).
+
+### Panel + site turu (2026-10-17) — gelir "kendiliğinden gelmiyordu"
+
+Ölçülen kök: `rytho-stats` gecede BİR kez (23:40 UTC) koşuyordu → bugünün
+geliri panelde ertesi geceye kadar yoktu, sahip "Yeniden hesapla"ya tarih
+girip basıyordu; 23:40–24:00 olayları o güne hiç girmiyordu; `read_days`
+"son N DOKÜMAN" döndüğü için eksik gün pencereyi geriye uzatıyordu; panel
+varsayılanı PRODUCTION iken satın almaların HEPSİ SANDBOX'tı (gelir hep 0).
+Onarım: iş SAATLİK (`zamanlanmis_kosu` + dünün damgaya bağlı kapanışı),
+pencere takvim, bayatlık eşiği 2 sa (zil = sayfa, bekçili). Panel
+(`web/rytho-admin/`) tek Türkçe sözlük (`sozluk.js`), yarışsız yönlendirici,
+tek dönem seçici, sessiz URL kalıcılığı. ⚠️ Canlıya almak için
+`infra/create-scheduler.ps1` KOŞMALI — aynı koşu canlıda HİÇ olmayan
+`rytho-notify-circle` ve `rytho-notify-winback` işlerini de kurar (betikte
+2026-10-03'ten beri tanımlı, Scheduler'da yok: iki bildirim türü hiç
+gitmedi). ⚠️ `rytho.css` panelde de yükleniyor: sitenin çıplak `.uyari`
+kuralı panelin `uyari` SEVİYE sınıfını bozuyordu — site kuralları artık
+`.uyarilar` kabına bağlı. Ölçülen ek: abonelik olayı `priceInPurchasedCurrency
+239.99` — B3 (Play %20 KDV ekler) DOĞRULANDI.
 
 ### ⚠️ Zamanlanmış işler bir AY boyunca YEŞİL yalan söyledi
 

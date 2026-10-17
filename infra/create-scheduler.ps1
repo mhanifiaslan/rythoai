@@ -133,7 +133,14 @@ $isler = @(
     @{ ad = "rytho-notify-streak"; tur = "streak"; cron = "10 * * * *" }
     # Sohbet arsivi temizligi (R4): 30 gundur kullanilmayan konusmalar.
     @{ ad = "rytho-cleanup"; uri = "/api/v1/maintenance/cleanup"; cron = "20 3 * * *" }
-    # Admin istatistik toplama (W5): gecelik adminStats/{tarih} dokumani.
+    # Admin istatistik toplama (W5): adminStats/{tarih} dokumani.
+    # SAATLIK (2026-10-17, eskiden yalniz 23:40): gecede bir kosu bugunun
+    # gelirini panelde ertesi geceye kadar HIC gostermiyordu ve 23:40-24:00
+    # olaylari o gune hic girmiyordu (olculdu). Tarihsiz cagri artik
+    # `stats_service.zamanlanmis_kosu`: bugunun tam dokumani + dun gun
+    # bittikten sonra toplanmadiysa olay bolumlerini kapatir. Asagidaki
+    # 23:40 gerekcesi dakika (:40) icin hala gecerli: gunun SON kosusu
+    # 23:40'ta, gece yarisini gecmeden.
     # UTC gununun SONUNDA toplanir. Uc tarih parametresi almazsa BUGUNU
     # toplar ve gun penceresi [00:00, +1 gun) oldugu icin 02:40'taki eski
     # saat gunun yalniz ilk 2s40d'sini goruyordu: DAU ~0, gelir/AI/jeton
@@ -159,7 +166,7 @@ $isler = @(
     # Gunun OLAY bolumleri (gelir, AI, jeton) etkilenmiyor — onlarin
     # penceresi [00:00, +1 gun) ve purge'un sildigi sey 30 gundur
     # kullanilmayan konusmalar.
-    @{ ad = "rytho-stats"; uri = "/api/v1/admin/collect"; cron = "40 23 * * *" }
+    @{ ad = "rytho-stats"; uri = "/api/v1/admin/collect"; cron = "40 * * * *" }
     # Ortaklik hakedisi olgunlastirma (OP): satin almadan 15 gun sonra,
     # iade gelmediyse bekleyen hakedis KESINLESIR.
     #

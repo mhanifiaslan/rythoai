@@ -450,16 +450,21 @@ def test_economics_marj_matematigi(depo, monkeypatch):
     da sonuç aynı)."""
     monkeypatch.setattr(admin_service.cache, "get", lambda k: None)
     monkeypatch.setattr(admin_service.cache, "set", lambda *a, **k: None)
-    depo.docs["adminEconomics/2026-09-11"] = {
-        "date": "2026-09-11",
+    # Günler BUGÜNE göre: pencere takvimdir (son 30 GÜN), sabit 2026-09
+    # tarihleri pencere ilerledikçe dışarıda kalırdı.
+    bugun = dt.datetime.now(dt.timezone.utc).date()
+    g1 = (bugun - dt.timedelta(days=6)).isoformat()
+    g2 = (bugun - dt.timedelta(days=5)).isoformat()
+    depo.docs[f"adminEconomics/{g1}"] = {
+        "date": g1,
         "users": {"u1": {"r": 4.99, "rs": 0, "c": 0.05, "n": 1, "t": 3}},
         "others": {"r": 0, "rs": 0, "c": 0, "n": 0, "t": 0},
         # `partnerTry: 0.0` = ortak maliyeti ÖLÇÜLDÜ ve sıfır (P4). Alan
         # olmasa gün "ölçülmedi" sayılır, marj −1 döner ve aşağıdaki iki
         # terimli matematik sınanamaz olurdu.
         "shared": {"c": 0.01, "n": 1}, "partnerTry": 0.0, "count": 1}
-    depo.docs["adminEconomics/2026-09-12"] = {
-        "date": "2026-09-12",
+    depo.docs[f"adminEconomics/{g2}"] = {
+        "date": g2,
         "users": {"u1": {"r": -1.0, "rs": 2.5, "c": 0, "n": 0, "t": 0}},
         "others": {"r": 0, "rs": 0, "c": 0, "n": 0, "t": 0},
         "shared": {"c": 0, "n": 0}, "partnerTry": 0.0, "count": 1}
@@ -474,6 +479,6 @@ def test_economics_marj_matematigi(depo, monkeypatch):
     assert u1["marginUsd"] == pytest.approx(3.99 * 0.85 - 0.05)
     assert sonuc["totals"]["sharedAiCostUsd"] == pytest.approx(0.01)
     assert sonuc["totals"]["aiCostUsd"] == pytest.approx(0.06)
-    assert sonuc["coverage"] == {"daysFound": 2, "oldest": "2026-09-11"}
+    assert sonuc["coverage"] == {"daysFound": 2, "oldest": g1}
     # Hareketsiz kullanıcı rollup'ta yok → satır da yok (top-N tablosu).
     assert all(s["uid"] != "u2" for s in sonuc["users"])

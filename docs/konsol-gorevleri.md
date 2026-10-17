@@ -498,8 +498,12 @@ gerçekten uygulanıyor: bakiye yetmezse 402 + `X-Paywall-Reason: tokens`.
   yazılı "SIL" onayı, mobil silme borusunun aynısı), şifre sıfırlama
   e-postası (istemci SDK). Kendi hesabında devre dışı/sil YASAK.
   Girişte e-posta+şifre formu da var (yetki yine claim'den).
-- **İstatistikler:** her gece 23:40 UTC `rytho-stats` işi `adminStats/`
-  dokümanını üretir; panel Genel Bakış'tan "Topla" ile elle de tetiklenir.
+- **İstatistikler:** her saat :40 UTC `rytho-stats` işi `adminStats/`
+  dokümanını üretir (2026-10-17'ye kadar yalnız gecede bir, 23:40'ta — o
+  hâlde bugünün geliri panelde ertesi geceye kadar görünmüyordu); gece
+  yarısından sonraki koşu dünün olaylarını da kapatır
+  (`stats_service.zamanlanmis_kosu`). Panel Genel Bakış'tan "Topla" ile
+  elle de tetiklenir.
   Saat UTC gününün SONU: uç tarih almazsa BUGÜNÜ topluyor ve gün penceresi
   `[00:00, +1 gün)` olduğu için sabaha karşı koşan iş günün yalnız ilk
   saatlerini görürdü (DAU ~0, gelir/AI/jeton serileri boş) — üstelik

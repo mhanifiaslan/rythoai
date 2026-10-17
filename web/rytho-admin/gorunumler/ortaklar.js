@@ -175,7 +175,7 @@
      o anda ölçmediği bir bağı beyan etmiş olur, kusur da rozetin arkasında
      saklanır. Gerçek Firebase uid'i boşluk ya da @ içermez. */
   function uidDogrula(v) {
-    if (/[\s@]/.test(v)) return 'uid bekleniyor (e-posta değil).';
+    if (/[\s@]/.test(v)) return 'Kullanıcı kimliği bekleniyor (e-posta değil).';
     return v.length >= 6 ? null : 'En az 6 karakter.';
   }
 
@@ -187,26 +187,26 @@
   /* `access.reason` çevirisi — YALNIZ "bilinmiyor" hâlinde gösterilir.
      Üç neden üç ayrı iş demek: uid gir / uid'i düzelt / tekrar dene. */
   var ERISIM_NEDEN = {
-    no_uid: 'Firebase hesabı bağlı değil — sorgulanacak bir hesap yok.',
-    user_not_found: 'Bu uid ile Firebase hesabı yok.',
-    unavailable: 'Firebase Auth şu an okunamadı — durum ÖLÇÜLEMEDİ.'
+    no_uid: 'Giriş hesabı bağlı değil — sorgulanacak bir hesap yok.',
+    user_not_found: 'Bu kullanıcı kimliğiyle bir giriş hesabı yok.',
+    unavailable: 'Giriş sistemi şu an okunamadı — durum ÖLÇÜLEMEDİ.'
   };
 
   /* POST /access 400 gövdesindeki kodlar. `RY.hataMetni` bu kodları olduğu
      gibi (`no_uid`) gösterirdi; makine kodu operatöre ne yapacağını
      söylemez. */
   var ERISIM_HATA = {
-    no_uid: 'Ortağın Firebase hesabı bağlı değil: önce "Ödülü değiştir" ' +
-      'penceresinden uid gir.',
-    user_not_found: 'Bu uid ile Firebase hesabı yok — uid yanlış yazılmış olabilir.',
-    uid_taken: 'Bu hesap BAŞKA bir ortağa bağlı. Bir Firebase hesabı yalnız ' +
+    no_uid: 'Ortağın giriş hesabı bağlı değil: önce "Ödülü değiştir" ' +
+      'penceresinden kullanıcı kimliğini gir.',
+    user_not_found: 'Bu kullanıcı kimliğiyle bir giriş hesabı yok — kimlik yanlış yazılmış olabilir.',
+    uid_taken: 'Bu hesap BAŞKA bir ortağa bağlı. Bir giriş hesabı yalnız ' +
       'tek ortak panosu görebilir; önce öteki ortağın erişimini kapat.',
     // 500 `unavailable` da buraya giriyor: `hataMetni` gövdedeki `detail`i
     // 500 dalından ÖNCE okuduğu için operatör ham "unavailable" görürdü.
     // Son cümle sunucunun kendi gerekçesiyle aynı: geçici arıza görüp
     // `partners/{id}.uid` alanını "düzeltmeye" başlamak asıl zararı verir.
-    unavailable: 'Firebase Auth şu an okunamadı — claim YAZILMADI. Birazdan ' +
-      'tekrar dene; uid alanını düzeltmeye çalışma, sorun uid değil.'
+    unavailable: 'Giriş sistemi şu an okunamadı — erişim izni YAZILMADI. Birazdan ' +
+      'tekrar dene; kullanıcı kimliği alanını düzeltmeye çalışma, sorun kimlikte değil.'
   };
 
   function erisimHataToast(h) {
@@ -429,8 +429,7 @@
       // diye okunurdu ve operatör IBAN'ı aramaya devam ederdi.
       '<p class="dipnot">Vergi kimliği ve IBAN panelden <b>girilmiyor ve ' +
       'gösterilmiyor</b> (yalnız var/yok): bu ekran paylaşılabilir bir ' +
-      'yüzey. Değerler Firestore\'da <span class="mono">partners/{id}</span> ' +
-      'altında durur.</p>';
+      'yüzey. Değerler veritabanında ortağın kaydında durur.</p>';
     if (!sahip) return ic;
     ic += '<div class="eylem-satir">' +
       '<button type="button" class="buton ikincil" id="ortak-odeme-ayar">' +
@@ -440,9 +439,10 @@
 
   /* ---------------- Liste ---------------- */
 
-  async function liste(icerik) {
+  async function liste(icerik, baglam) {
     var b = RY.b;
-    var veri = await RY.get(yol());
+    var veri = await RY.get(yol(), { sinyal: baglam && baglam.sinyal });
+    if (baglam && !baglam.aktif()) return;
     var ortaklar = Array.isArray(veri.partners) ? veri.partners : [];
     ortaklar.forEach(function (p) { adOnbellek[p.id] = p.name; });
     var sahip = RY.sahipMi();
@@ -453,7 +453,7 @@
       baslik: 'Ortaklar',
       alt: ortaklar.length
         ? b.sayi(ortaklar.length) + ' ortak · ' + b.sayi(aktifSayisi) + ' aktif'
-        : 'Affiliate kodları ve hakediş',
+        : 'Ortaklık bağlantıları ve hakediş',
       eylemlerHtml: sahip
         ? '<button type="button" class="buton" id="ortak-yeni">' + b.ik('arti', 16) + 'Yeni ortak</button>'
         : ''
@@ -465,7 +465,7 @@
       'penceresi). Mağaza fiyat indirimi buradan yapılamaz — gerekiyorsa RevenueCat/Play ' +
       'konsolundan elle. <b>Tıklama kişi DEĞİL</b> (aynı kişinin iki cihazı iki ' +
       'tıklamadır) ve <b>Kullanan</b> kurulumdan sonra kod uygulanan hesap sayısıdır — ' +
-      'ikisinin uzun sınırları ortak detayında yazılı. İki sütunda "—" görüyorsan uç o ' +
+      'ikisinin uzun sınırları ortak detayında yazılı. İki sütunda "—" görüyorsan sunucu o ' +
       'sayıları döndürmedi; sıfır demek değil.</p>';
 
     var vt = b.veriTablosu({
@@ -564,8 +564,8 @@
         // yoksa formu gönderen gerekçesiz bir 422 görürdü.
         // `update_partner` alanı sonradan BOŞALTMAYA da izin vermiyor;
         // aksi hâlde tek bir PATCH kapıyı sessizce kapatırdı.
-        { ad: 'uid', etiket: 'Firebase hesabı (uid)', zorunlu: true, max: 128,
-          otomatik: 'off', yertutucu: 'Firebase Auth kullanıcı kimliği',
+        { ad: 'uid', etiket: 'Giriş hesabı (kullanıcı kimliği)', zorunlu: true, max: 128,
+          otomatik: 'off', yertutucu: 'Kullanıcı kimliği',
           // NEREDEN BULUNUR da yazılıyor: alan zorunlu ama panel uid'i
           // hiçbir yerde aratmıyor, yani operatör "nereden alacağım"
           // sorusunda kalıyordu. Yol ÖLÇÜLDÜ (`gorunumler/kullanicilar.js`):
@@ -573,7 +573,7 @@
           // kimlik kartında uid'i `title="uid"` ile gösteriyor.
           yardim: 'Ortağın kendi panosunu görmesi ve KENDİ kodunu kullanamaması ' +
             'buna bağlı — bu yüzden zorunlu. Nereden: Kullanıcılar → e-posta ile ' +
-            'ara → hesabı aç → kimlik kartındaki uid.',
+            'ara → hesabı aç → kimlik kartındaki kullanıcı kimliği.',
           dogrula: uidDogrula },
         { ad: 'notes', etiket: 'Not', tur: 'textarea', max: 500, satir: 2 }
       ],
@@ -636,7 +636,7 @@
           (er.granted === true ? b.rozet('Erişim açık', 'aktif')
             : (er.granted === false ? b.rozet('Erişim kapalı', 'notr')
               : b.rozet('Bilinmiyor', 'uyari'))) + '</dd>' +
-        '<dt>Bağlı hesap (uid)</dt><dd>' +
+        '<dt>Bağlı hesap (kimlik)</dt><dd>' +
           (er.uid ? '<span class="mono">' + b.e(er.uid) + '</span>' : '—') + '</dd>' +
         // E-posta, yöneticinin DOĞRU hesabı bağladığını gözle doğrulamasının
         // tek yolu: uid karşılaştırılabilir bir şey değil, e-posta insanın
@@ -651,15 +651,15 @@
     if (!er.olcumVar) {
       // Uç `access` alanını hiç döndürmediyse (panel yeni, backend eski)
       // durum ÖLÇÜLMEMİŞTİR; sessizce "kapalı" çizmek yerine söylenir.
-      ic += '<p class="dipnot">Uç bu istekte <b>access</b> alanını döndürmedi — ' +
-        'erişim durumu panelden ölçülemiyor.</p>';
+      ic += '<p class="dipnot">Sunucu bu istekte erişim durumunu döndürmedi — ' +
+        'erişim panelden ölçülemiyor.</p>';
     }
 
     // ⚠️ Propagasyon: bu cümle olmadan sahip "açtım ama giremiyor" diye
     // geri döner. Firebase custom claim ANINDA geçmez; ölçülmüş davranış,
     // tahmin değil.
-    ic += '<p class="dipnot">Erişim Firebase custom claim ile verilir ve ANINDA ' +
-      'geçerli olmaz: ortağın ID jetonu yenilenene kadar (en çok 1 saat, ya da ' +
+    ic += '<p class="dipnot">Erişim, ortağın giriş hesabına işlenen bir izinle verilir ve ANINDA ' +
+      'geçerli olmaz: ortağın oturum jetonu yenilenene kadar (en çok 1 saat, ya da ' +
       'çıkış + yeniden giriş) eski hâl sürer. Yani açtıktan hemen sonra ' +
       '"giremiyorum" demesi normaldir — çıkıp yeniden girmesini söyle.</p>';
 
@@ -674,7 +674,7 @@
     ic += '<p class="dipnot">Erişimi henüz geçmemiş ortak "yetkin yok" yazan bir ekran ' +
       'GÖRMEZ: pano, hesap sayımını engellemek için jenerik <b>"böyle bir sayfa yok"</b> ' +
       'görünümü çizer ve oturumu kapatır. Ortak "adres yanlış" diye dönerse adres ' +
-      'doğrudur — eksik olan claim.</p>';
+      'doğrudur — eksik olan erişim izni.</p>';
 
     if (!sahip) return ic;
 
@@ -682,8 +682,8 @@
       // Düğme GÖSTERİLMEZ: uid yokken uç kesin 400 `no_uid` döner, yani
       // yalnız başarısız olabilecek bir düğme olurdu. Onun yerine gerçek
       // sıradaki iş söylenir.
-      ic += '<p class="dipnot">Erişim açılabilmesi için önce Firebase hesabı bağlanmalı: ' +
-        '"Ödülü değiştir" penceresinden uid gir.</p>';
+      ic += '<p class="dipnot">Erişim açılabilmesi için önce giriş hesabı bağlanmalı: ' +
+        '"Ödülü değiştir" penceresinden kullanıcı kimliğini gir.</p>';
       return ic;
     }
 
@@ -701,10 +701,10 @@
         // beyan etmek olurdu (ölçüldü: `set_partner_access` o uid için
         // `user_not_found` fırlatıyor, hiçbir şey yazmıyor).
         ? (er.reason === 'user_not_found'
-            ? '<span class="dipnot">Bu uid ile hesap bulunmadığı sürece açma denemesi ' +
-              'başarısız olur — önce uid düzeltilmeli.</span>'
-            : '<span class="dipnot">Durum bilinmiyorken açmak zararsız: claim, hesabın ' +
-              'öteki claim değerleriyle BİRLEŞTİRİLİR — ezilmez.</span>')
+            ? '<span class="dipnot">Bu kullanıcı kimliğiyle hesap bulunmadığı sürece açma denemesi ' +
+              'başarısız olur — önce kimlik düzeltilmeli.</span>'
+            : '<span class="dipnot">Durum bilinmiyorken açmak zararsız: izin, hesabın ' +
+              'öteki izinleriyle BİRLEŞTİRİLİR — ezilmez.</span>')
         : '') +
       '</div>';
     return ic;
@@ -712,9 +712,11 @@
 
   /* ---------------- Detay ---------------- */
 
-  async function detay(icerik, id) {
+  async function detay(icerik, id, baglam) {
     var b = RY.b;
-    var d = await RY.get(yol(id));
+    var d = await RY.get(yol(id), { sinyal: baglam && baglam.sinyal });
+    // Kırıntı kabın DIŞINDA: geç gelen eski bir detay yeni sayfanınkini ezmesin.
+    if (baglam && !baglam.aktif()) return;
     var p = d.partner || {};
     var kodlar = Array.isArray(d.codes) ? d.codes : [];
     var odemeler = Array.isArray(d.payouts) ? d.payouts : [];
@@ -770,7 +772,7 @@
         : 'Bu ortakta doğrulanmamış bir adım var. ';
       adimBant = b.bant(bandBas + (sahip
         ? 'Kalan: ' + adimlar.map(function (a, i) { return (i + 1) + ') ' + a; }).join(' · ') + '.'
-        : 'Kalan ' + b.sayi(adimlar.length) + ' adım owner yetkisi ister.'), 'uyari');
+        : 'Kalan ' + b.sayi(adimlar.length) + ' adım sahip yetkisi ister.'), 'uyari');
     }
 
     icerik.innerHTML =
@@ -794,11 +796,11 @@
       // ÇIKARILDI: aynı şeyi aşağıdaki "Ortak erişimi" modülü durumla
       // birlikte söylüyor. İki yerde birden söylenen uyarı okunmaz, ve bu
       // bandın işi para riskini yalnız başına taşımak.
-      (p.uid ? '' : b.bant('Bu ortağın Firebase hesabı BAĞLI DEĞİL ve bunun PARA ' +
+      (p.uid ? '' : b.bant('Bu ortağın giriş hesabı BAĞLI DEĞİL ve bunun PARA ' +
         'sonucu var: kendi kodunu kendi hesabında kullanıp kendine ödül yazdırması ' +
-        'engellenemez — kapı uid karşılaştırmasına dayanıyor, boş uid ile hiç tutmaz. ' +
-        'Yeni kayıtlarda uid zorunlu, yani bu kayıt zorunluluk öncesinden kalma ya da ' +
-        'elle açılmış. "Ödülü değiştir" penceresinden hemen uid girilmeli.', 'hata')) +
+        'engellenemez — kapı hesap kimliği karşılaştırmasına dayanıyor, boş kimlikle hiç tutmaz. ' +
+        'Yeni kayıtlarda kimlik zorunlu, yani bu kayıt zorunluluk öncesinden kalma ya da ' +
+        'elle açılmış. "Ödülü değiştir" penceresinden hemen kullanıcı kimliği girilmeli.', 'hata')) +
       adimBant +
       // ⚠️ SIRA BİLİNÇLİ: sahibin bulamadığı iki şey (bağlantı ve ortak
       // erişimi) sayısal kartların ÜSTÜNDE. Önceki sırada kodlar sayfanın
@@ -946,8 +948,8 @@
         { alt: 'birim · alt sınır · ödeme kimliği' }) +
       b.modul('Atfedilen gelir (bilgi)',
         '<p class="dipnot">Bu ortağa atfedilen <b>' + b.sayi(d.attributedEvents || 0) +
-        '</b> üretim olayından ' + b.para(d.attributedGrossUsd) + ' brüt geldi (iade ' +
-        'düşülmüş, SANDBOX süzülmüş). Ödülü bu sayı BELİRLEMEZ — ödül kazanılan abone ' +
+        '</b> gerçek alım olayından ' + b.para(d.attributedGrossUsd) + ' brüt geldi (iade ' +
+        'düşülmüş, test alımları çıkarılmış). Ödülü bu sayı BELİRLEMEZ — ödül kazanılan abone ' +
         'başına sabittir; bu kart yalnız programın getirisini görmek için.</p>') +
       (p.notes ? b.modul('Not', '<p class="dipnot">' + b.e(p.notes) + '</p>') : '') +
       // `izgara-2` DÜŞTÜ: kodlar modülü artık tam bağlantıyı taşıyor ve yarım
@@ -1120,7 +1122,7 @@
             ? (p.name || 'Ortak') + ' adına bağlı hesap ortak panosuna girebilecek.'
             : (p.name || 'Ortak') + ' ortak panosunu artık göremeyecek; kodları, atıfları ve ' +
               'hakedişi DEĞİŞMEZ.',
-          aciklama: 'Firebase custom claim ANINDA geçmez: ortağın ID jetonu yenilenene ' +
+          aciklama: 'Erişim izni ANINDA geçmez: ortağın oturum jetonu yenilenene ' +
             'kadar (en çok 1 saat, ya da çıkış + yeniden giriş) eski hâl sürer. ' +
             'Denetim izine yazılır.',
           tehlike: !ac,
@@ -1129,7 +1131,7 @@
           if (!r) return null;
           return RY.post(yol(id, '/access'), { grant: ac }).then(function () {
             b.toast(ac
-              ? 'Erişim açıldı. Ortak, ID jetonu yenilenene kadar (en çok 1 saat) hâlâ ' +
+              ? 'Erişim açıldı. Ortak, oturum jetonu yenilenene kadar (en çok 1 saat) hâlâ ' +
                 'giremeyebilir — çıkıp yeniden girmesi hızlandırır.'
               : 'Erişim kapatıldı. Açık oturumu, jetonu yenilenene kadar (en çok 1 saat) ' +
                 'panoyu görmeye devam edebilir.',
@@ -1160,11 +1162,11 @@
           // demek (aşağıda boş uid gönderilmiyor) ve `dogrula` boş değerde
           // hiç çağrılmıyor — yani ödül tutarını tek başına düzeltmek
           // isteyen operatör uid yazmaya zorlanmıyor.
-          { ad: 'uid', etiket: 'Firebase hesabı (uid)', max: 128, otomatik: 'off',
+          { ad: 'uid', etiket: 'Giriş hesabı (kullanıcı kimliği)', max: 128, otomatik: 'off',
             deger: p.uid || '', dogrula: uidDogrula,
             yardim: 'Kendi panosu ve kendi kodunu kullanma kapısı buna bağlı. ' +
               'Nereden: Kullanıcılar → e-posta ile ara → hesabı aç → kimlik ' +
-              'kartındaki uid.' }
+              'kartındaki kullanıcı kimliği.' }
         ],
         gonderMetin: 'Kaydet',
         iptal: { metin: 'Vazgeç', onTikla: function () { m.kapat(); } },
@@ -1221,7 +1223,7 @@
             yardim: od.birim == null
               ? 'Uç bu ortağın birimini döndürmedi, yani kayıtta ne yazdığı ' +
                 'BİLİNMİYOR — alan bu yüzden kapalı ve kaydetmek onu ' +
-                'DEĞİŞTİRMEZ. Backend dağıtıldıktan sonra açılır.'
+                'DEĞİŞTİRMEZ. Sunucu güncellendikten sonra açılır.'
               : '3 harfli kod. Ödeme kayıtları bu birimde yazılır ve ' +
                 'sunucu başka birimli kaydı reddeder.',
             dogrula: function (v) {
@@ -1422,8 +1424,11 @@
         var geri = tutar < 0;
         if (geri && !String(v.note || '').trim()) {
           // Sunucu da reddediyor (`reason_required`); burada erken durmak
-          // kullanıcıya formu kaybetmeden söyler.
-          return Promise.reject(new Error('Geri alma kaydı için not zorunlu.'));
+          // kullanıcıya formu kaybetmeden söyler. Düz `Error` fırlatmak
+          // form özetine "Veri alınamadı (…)" sargısıyla düşüyordu — bu bir
+          // veri hatası değil, alan hatası.
+          odemeForm.hata('note', 'Geri alma kaydı için not zorunlu.');
+          return null;
         }
         var yazi = birim === 'TRY' ? b.para(tutar, '₺')
           : (birim === 'USD' ? b.para(tutar) : b.sayi(tutar) + ' ' + birim);
@@ -1450,9 +1455,9 @@
 
   /* ---------------- Rota ---------------- */
 
-  RY.gorunumler.ortaklar = async function (icerik, args) {
-    if (args && args[0]) return detay(icerik, args[0]);
-    return liste(icerik);
+  RY.gorunumler.ortaklar = async function (icerik, args, params, baglam) {
+    if (args && args[0]) return detay(icerik, args[0], baglam);
+    return liste(icerik, baglam);
   };
 
   RY.kirintiSaglayici.ortaklar = function (args) {
@@ -1464,6 +1469,6 @@
     return parcalar;
   };
 
-  RY.palet.eylemEkle({ ad: 'ortak-yeni', etiket: 'Yeni ortak ekle', aciklama: 'Affiliate kaydı',
+  RY.palet.eylemEkle({ ad: 'ortak-yeni', etiket: 'Yeni ortak ekle', aciklama: 'Ortaklık kaydı',
     ikon: 'ortaklar', rol: 'owner', calistir: yeniOrtakAc });
 })();

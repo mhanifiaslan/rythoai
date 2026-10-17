@@ -37,26 +37,25 @@
   var YANIT_MAX = 110;   // = backend notification_service.MAX_PUSH_BODY
   var NOT_MAX = 1000;
 
+  // Adlar sözlükte (sozluk.js): denetim izi de `feedback.update` kaydının
+  // durumunu aynı adla gösteriyor. Burada yalnız sıra ve rozet rengi.
   var DURUMLAR = [
-    { deger: 'new', etiket: 'Yeni', rozet: 'yeni' },
-    { deger: 'in_review', etiket: 'İnceleniyor', rozet: 'uyari' },
-    { deger: 'closed', etiket: 'Kapandı', rozet: 'notr' }
+    { deger: 'new', etiket: RY.sozluk.GB_DURUM.new, rozet: 'yeni' },
+    { deger: 'in_review', etiket: RY.sozluk.GB_DURUM.in_review, rozet: 'uyari' },
+    { deger: 'closed', etiket: RY.sozluk.GB_DURUM.closed, rozet: 'notr' }
   ];
   var TURLER = [
-    { deger: 'bug', etiket: 'Hata', rozet: 'madder' },
-    { deger: 'suggestion', etiket: 'Öneri', rozet: 'lilac' },
-    { deger: 'other', etiket: 'Diğer', rozet: 'notr' }
+    { deger: 'bug', etiket: RY.sozluk.GB_TUR.bug, rozet: 'madder' },
+    { deger: 'suggestion', etiket: RY.sozluk.GB_TUR.suggestion, rozet: 'lilac' },
+    { deger: 'other', etiket: RY.sozluk.GB_TUR.other, rozet: 'notr' }
   ];
   var DURUM_ADI = {}, DURUM_ROZET = {};
   DURUMLAR.forEach(function (d) { DURUM_ADI[d.deger] = d.etiket; DURUM_ROZET[d.deger] = d.rozet; });
   var TUR_ADI = {}, TUR_ROZET = {};
   TURLER.forEach(function (t) { TUR_ADI[t.deger] = t.etiket; TUR_ROZET[t.deger] = t.rozet; });
 
-  var DIL_ADI = { tr: 'Türkçe', en: 'İngilizce', de: 'Almanca', fr: 'Fransızca',
-                  es: 'İspanyolca', ar: 'Arapça', ru: 'Rusça' };
-  function dilAdi(k) { return k ? (DIL_ADI[k] || String(k)) : '—'; }
-  var PLATFORM_ADI = { android: 'Android', ios: 'iOS', web: 'Web' };
-  function platformAdi(k) { return k ? (PLATFORM_ADI[k] || String(k)) : '—'; }
+  function dilAdi(k) { return RY.sozluk.dilAdi(k); }
+  function platformAdi(k) { return RY.sozluk.platformAdi(k); }
 
   function durumRozeti(b, s) { return b.rozet(DURUM_ADI[s] || String(s || '—'), DURUM_ROZET[s] || 'notr'); }
   function turRozeti(b, t) { return b.rozet(TUR_ADI[t] || String(t || '—'), TUR_ROZET[t] || 'notr'); }
@@ -74,7 +73,7 @@
   }
 
   function baglamMetni(k) {
-    return [k.appBuild != null ? String(k.appBuild) : null, platformAdi(k.platform),
+    return [k.appBuild != null ? 'sürüm ' + String(k.appBuild) : null, k.platform ? platformAdi(k.platform) : null,
             k.language ? dilAdi(k.language) : null].filter(Boolean).join(' · ') || '—';
   }
 
@@ -82,7 +81,7 @@
     if (!k.reply) return '<span class="dipnot">—</span>';
     return k.reply.pushSent
       ? b.rozet('✓ gönderildi', 'aktif')
-      : '<span title="Yanıt kaydedildi; kullanıcının push jetonu yoktu">' + b.rozet('✓ push yok', 'uyari') + '</span>';
+      : '<span title="Yanıt kaydedildi; kullanıcının cihazına bildirim gidemedi (cihaz jetonu yok)">' + b.rozet('✓ bildirim gitmedi', 'uyari') + '</span>';
   }
 
   function kisiHucresi(b, k) {
@@ -90,7 +89,7 @@
     var ad = u.displayName || u.email || k.uid || '—';
     var alt = u.displayName && u.email ? u.email : (ad !== k.uid ? k.uid : '');
     if (!k.uid) return b.e(ad);
-    return '<a href="' + b.e(RY.rotaBagi('kullanicilar', [k.uid])) + '" class="gb-kisi" title="Kullanıcı 360">' +
+    return '<a href="' + b.e(RY.rotaBagi('kullanicilar', [k.uid])) + '" class="gb-kisi" title="Kullanıcı ayrıntısı">' +
       b.e(ad) + (alt ? '<span class="mono">' + b.e(alt) + '</span>' : '') + '</a>';
   }
 
@@ -147,7 +146,7 @@
       bas.innerHTML = baglamHtml() + yanitHtml();
       if (odakIcerde) panel.el.focus();
       var yanitAlt = govde.querySelector('#gb-m-yanit + p');
-      if (yanitAlt) yanitAlt.textContent = doc.reply ? 'yeni yanıt yeni push gönderir' : 'kullanıcının telefonuna push gider';
+      if (yanitAlt) yanitAlt.textContent = doc.reply ? 'yeni yanıt yeni bir bildirim gönderir' : 'kullanıcının telefonuna bildirim gider';
       govde.querySelector('#gb-notlar').innerHTML = notlarHtml();
       var sayac = govde.querySelector('#gb-not-sayac');
       sayac.innerHTML = Array.isArray(doc.notes) ? b.etiket(String(doc.notes.length)) : '';
@@ -161,12 +160,12 @@
         '<div class="avatar" aria-hidden="true">' + b.e(b.basHarfler(u.displayName, u.email)) + '</div>' +
         '<div class="gb-kim"><b>' + b.e(ad) + '</b>' +
         (u.email && u.displayName ? '<span class="mono">' + b.e(u.email) + '</span>' : '') +
-        '<span class="mono dipnot" title="uid">' + b.e(doc.uid || '—') + '</span></div>' +
+        '<span class="mono dipnot" title="Kullanıcı kimliği">' + b.e(doc.uid || '—') + '</span></div>' +
         (doc.uid ? '<a class="buton ikincil kucuk" href="' + b.e(RY.rotaBagi('kullanicilar', [doc.uid])) + '">' +
-          b.ik('kullanici', 14) + '360</a>' : '') +
+          b.ik('kullanici', 14) + 'Ayrıntı</a>' : '') +
         '</section>' +
         '<div class="rozet-grup">' + turRozeti(b, doc.type) + ' ' + durumRozeti(b, doc.status) +
-        (doc.reply ? ' ' + (doc.reply.pushSent ? b.rozet('Yanıtlandı · push gitti', 'aktif') : b.rozet('Yanıtlandı · push yok', 'uyari')) : '') +
+        (doc.reply ? ' ' + (doc.reply.pushSent ? b.rozet('Yanıtlandı · bildirim gitti', 'aktif') : b.rozet('Yanıtlandı · bildirim gitmedi', 'uyari')) : '') +
         '</div>' +
         '<p class="gb-metin">' + b.e(doc.text || '') + '</p>' +
         '<dl class="alan-liste">' +
@@ -184,7 +183,7 @@
       if (!r) return '';
       return '<div class="gb-yanit"><div class="gb-yanit-bas">' + b.ik('gonder', 14) + '<b>Yanıt</b>' +
         '<span class="dipnot">' + b.e(b.tarih(r.at, true)) + (r.adminUid ? ' · ' + b.e(String(r.adminUid).slice(0, 8)) : '') + '</span>' +
-        (r.pushSent ? b.rozet('push gitti', 'aktif') : b.rozet('push gitmedi', 'uyari')) + '</div>' +
+        (r.pushSent ? b.rozet('bildirim gitti', 'aktif') : b.rozet('bildirim gitmedi', 'uyari')) + '</div>' +
         '<p class="gb-metin">' + b.e(r.text || '') + '</p></div>';
     }
 
@@ -205,7 +204,7 @@
 
     function ciz() {
       govde.innerHTML = '<div id="gb-bas" class="sutun"></div>' +
-        b.modul('Yanıtla', '<div id="gb-yanit-form"></div>', '', { kimlik: 'gb-m-yanit', alt: 'telefona push olarak gider · uygulamada yanıtı gösteren ekran YOK' }) +
+        b.modul('Yanıtla', '<div id="gb-yanit-form"></div>', '', { kimlik: 'gb-m-yanit', alt: 'telefona bildirim olarak gider · uygulamada yanıtı gösteren ekran YOK' }) +
         b.modul('Durum', '<div id="gb-durum-form"></div>', '', { kimlik: 'gb-m-durum', alt: 'denetim izine yazılır' }) +
         b.modul('İç notlar', '<div id="gb-notlar"></div><div id="gb-not-form"></div>',
           '<span id="gb-not-sayac"></span>', { kimlik: 'gb-m-not', alt: 'yalnız panelde görünür' });
@@ -217,7 +216,7 @@
       /* Yanıt */
       yanitF = b.form({
         alanlar: [{ ad: 'text', etiket: 'Yanıt metni', tur: 'textarea', zorunlu: true, max: YANIT_MAX, satir: 4,
-          yardim: 'En fazla ' + YANIT_MAX + ' karakter — push gövdesi sınırı, fazlası kırpılır · kullanıcının dilinde yaz (' + dilAdi(doc.language) + ').',
+          yardim: 'En fazla ' + YANIT_MAX + ' karakter — bildirim metni sınırı, fazlası kırpılır · kullanıcının dilinde yaz (' + dilAdi(doc.language) + ').',
           dogrula: function (v) {
             var n = v.trim().length;
             return n < 1 ? 'Boş yanıt gönderilmez.' : (n > YANIT_MAX ? 'En fazla ' + YANIT_MAX + ' karakter.' : null);
@@ -227,14 +226,14 @@
           var metin = d.text.trim();
           return b.onayla({
             baslik: 'Yanıtı gönder',
-            mesaj: 'Kullanıcının telefonuna push bildirimi gider; metin geri alınamaz.',
-            aciklama: 'Push jetonu yoksa ya da kullanıcı bildirimi kaydırıp atarsa yanıt kaydedilir ama kullanıcıya HİÇ ulaşmaz: uygulamada yanıtı gösteren ekran yok. Durum "İnceleniyor" olur.',
+            mesaj: 'Kullanıcının telefonuna bildirim gider; metin geri alınamaz.',
+            aciklama: 'Cihaz jetonu yoksa ya da kullanıcı bildirimi kaydırıp atarsa yanıt kaydedilir ama kullanıcıya HİÇ ulaşmaz: uygulamada yanıtı gösteren ekran yok. Durum "İnceleniyor" olur.',
             onaylaMetin: 'Gönder'
           }).then(function (r) {
             if (!r) return null;
             return RY.post(yol(id, '/reply'), { text: metin }).then(function (res) {
               var pushGitti = !!(res && (res.pushSent || (res.reply && res.reply.pushSent)));
-              b.toast('Yanıt gönderildi · push ' + (pushGitti ? 'gitti' : 'gitmedi'), pushGitti ? 'basari' : 'uyari', { sure: 7000 });
+              b.toast('Yanıt kaydedildi · bildirim ' + (pushGitti ? 'gitti' : 'gitmedi'), pushGitti ? 'basari' : 'uyari', { sure: 7000 });
               var yeni = { reply: (res && res.reply) || { text: metin, at: new Date().toISOString(), pushSent: pushGitti } };
               if (doc.status === 'new') yeni.status = 'in_review';
               yenile(yeni);
@@ -311,18 +310,19 @@
      Liste
      ===================================================================== */
 
-  async function liste(icerik, params, acikId) {
+  async function liste(icerik, params, acikId, baglam) {
     var b = RY.b;
     var durum = durumOku(params);
-    var imlec = null, denetleyici = null, sayfaObj = null, acikPanel = null;
+    var imlec = null, istek = null, sayfaObj = null, acikPanel = null;
+    var yeniIstek = b.tazeleyici(baglam);
 
     icerik.innerHTML =
       b.sayfaBaslik({ baslik: 'Geri bildirimler',
-        alt: 'Uygulama içi Profil → Geri bildirim · yanıt push olarak gider · sayfa ' + SAYFA + ' · imleçli' }) +
+        alt: 'Uygulama içi Profil → Geri bildirim · yanıt kullanıcıya bildirim olarak gider · sayfa başına ' + SAYFA }) +
       '<div id="gb-filtre"></div>' +
       b.modul('Kayıtlar', '<div id="gb-tablo"></div>', '<span class="dipnot" id="gb-sayac"></span>',
         { alt: 'satıra tıkla → ayrıntı · yeniden eskiye' }) +
-      '<p class="dipnot">Yanıt kullanıcının telefonuna push olarak gider ve durumu "İnceleniyor" yapar; ' +
+      '<p class="dipnot">Yanıt kullanıcının telefonuna bildirim olarak gider ve durumu "İnceleniyor" yapar; ' +
       'iç notlar yalnız panelde görünür. Durum ve not değişiklikleri denetim izine yazılır.</p>';
 
     var sayacEl = icerik.querySelector('#gb-sayac');
@@ -352,6 +352,18 @@
       onTekrar: function () { yukle(false); }
     });
     icerik.querySelector('#gb-tablo').appendChild(vt.el);
+
+    /* Boş liste metni ETKİN süzgeci söyler. Varsayılan süzgeç "Yeni" ve
+       eskiden boş liste "Geri bildirim yok" diyordu — yeni kayıt yokken
+       sahip hiç geri bildirim gelmediğini sanıyordu; oysa İnceleniyor ve
+       Kapandı'da kayıtlar duruyordu. */
+    function bosMetni() {
+      var parca = [];
+      if (durum.status !== 'all') parca.push('"' + DURUM_ADI[durum.status] + '" durumunda');
+      if (durum.type) parca.push('"' + TUR_ADI[durum.type] + '" türünde');
+      if (!parca.length) return 'Geri bildirim yok — testçiler uygulamadan Profil → Geri bildirim ile yazar.';
+      return parca.join(' ve ') + ' geri bildirim yok. Öteki kayıtlar için Durum: Tümü\'nü seç.';
+    }
 
     function urlYaz(id) {
       RY.rotaYaz('geribildirim', id ? [id] : [], paramsTemizle(durum), { sessiz: true });
@@ -394,17 +406,16 @@
     });
 
     function yukle(devam) {
-      if (!devam) { imlec = null; vt.durum('yukleniyor'); }
-      if (denetleyici) denetleyici.abort();
-      denetleyici = new AbortController();
-      var bu = denetleyici;
+      if (!devam) { imlec = null; vt.durum('yukleniyor'); istek = yeniIstek(); }
+      var bu = istek;
       var p = Object.assign(sorguParametreleri(durum), { limit: SAYFA, cursor: devam ? imlec : null });
-      return RY.sorgu('/api/v1/admin/feedback', p, { sinyal: bu.signal }).then(function (res) {
-        if (bu.signal.aborted) return;
+      return RY.sorgu('/api/v1/admin/feedback', p, { sinyal: bu.sinyal }).then(function (res) {
+        if (!bu.gecerli()) return;
         var satirlar = Array.isArray(res && res.items) ? res.items : [];
         imlec = (res && res.nextCursor) || null;
         sayfaObj = { daha: !!imlec, onDaha: function () { return yukle(true); } };
         if (devam) vt.ekle(satirlar, sayfaObj); else vt.guncelle(satirlar, sayfaObj);
+        if (!devam && !satirlar.length && !imlec) vt.durum('bos', bosMetni());
         var n = vt.satirlar().length;
         sayacEl.textContent = n ? b.sayi(n) + ' kayıt' + (imlec ? ' · devamı var' : '') : '';
         if (acikId && !devam) {
@@ -413,7 +424,7 @@
           panelAc(id, hedef);
         }
       }).catch(function (h) {
-        if (h && h.iptal) return;
+        if (!bu.gecerli() || (h && h.iptal)) return;
         if (devam) hataToast(h); else vt.durum('hata', RY.hataMetni(h));
       });
     }
@@ -445,9 +456,9 @@
      Rota, kırıntı, palet
      ===================================================================== */
 
-  RY.gorunumler.geribildirim = async function (icerik, args, params) {
+  RY.gorunumler.geribildirim = async function (icerik, args, params, baglam) {
     args = args || [];
-    return liste(icerik, params, args[0] || null);
+    return liste(icerik, params, args[0] || null, baglam);
   };
 
   RY.kirintiSaglayici.geribildirim = function (args) {

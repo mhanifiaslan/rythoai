@@ -430,3 +430,56 @@ def test_collect_dev_admin_bayragiyla_da_gecer(sahte, monkeypatch):
     with TestClient(app) as client:
         yanit = client.post("/api/v1/admin/collect")
     assert yanit.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Saatlik koşu + takvim penceresi (2026-10-17)
+# ---------------------------------------------------------------------------
+
+def test_saatlik_kosu_dunu_gun_bittikten_sonra_toplanmadiysa_kapatir(
+        sahte, monkeypatch):
+    """23:40'ta toplanmış dün, 23:40–24:00 olaylarını kaçırmıştır: bir
+    sonraki koşu onu YALNIZ olay bölümleriyle yeniden toplar."""
+    simdi = dt.datetime(2026, 10, 17, 0, 40, tzinfo=dt.timezone.utc)
+    sahte.docs["adminStats/2026-10-16"] = {
+        "date": "2026-10-16",
+        "generatedAt": dt.datetime(2026, 10, 16, 23, 40,
+                                   tzinfo=dt.timezone.utc)}
+    cagrilar = []
+    monkeypatch.setattr(stats_service, "collect",
+                        lambda tarih=None, *, snapshot=True: (
+                            cagrilar.append((tarih.isoformat(), snapshot))
+                            or {"date": tarih.isoformat(), "durationMs": 1}))
+    sonuc = stats_service.zamanlanmis_kosu(simdi)
+    assert cagrilar == [("2026-10-17", True), ("2026-10-16", False)]
+    assert sonuc["closedDay"] == "2026-10-16"
+
+
+def test_saatlik_kosu_kapanmis_gunu_yeniden_toplamaz(sahte, monkeypatch):
+    simdi = dt.datetime(2026, 10, 17, 5, 40, tzinfo=dt.timezone.utc)
+    sahte.docs["adminStats/2026-10-16"] = {
+        "date": "2026-10-16",
+        "generatedAt": dt.datetime(2026, 10, 16, 23, 40,
+                                   tzinfo=dt.timezone.utc),
+        "eventsRecomputedAt": dt.datetime(2026, 10, 17, 0, 40,
+                                          tzinfo=dt.timezone.utc)}
+    cagrilar = []
+    monkeypatch.setattr(stats_service, "collect",
+                        lambda tarih=None, *, snapshot=True: (
+                            cagrilar.append((tarih.isoformat(), snapshot))
+                            or {"date": tarih.isoformat(), "durationMs": 1}))
+    sonuc = stats_service.zamanlanmis_kosu(simdi)
+    assert cagrilar == [("2026-10-17", True)]
+    assert sonuc["closedDay"] is None
+
+
+def test_read_days_takvim_penceresi_eksik_gunle_geriye_uzamaz(sahte):
+    """Eskiden `limit(N)` son N DOKÜMANI dönüyordu: rollup bir gün
+    atlayınca "2 gün" penceresi 3 gün öncesini içeri alıyordu."""
+    bugun = dt.datetime.now(dt.timezone.utc).date()
+    gun = lambda n: (bugun - dt.timedelta(days=n)).isoformat()
+    for n in (0, 2):
+        sahte.docs[f"adminStats/{gun(n)}"] = {"date": gun(n)}
+    assert [d["date"] for d in stats_service.read_days(2)] == [gun(0)]
+    assert [d["date"] for d in stats_service.read_days(3)] == [gun(0), gun(2)]
+    assert stats_service.son_dokuman()["date"] == gun(0)

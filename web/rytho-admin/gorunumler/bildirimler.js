@@ -1,9 +1,11 @@
-/* Bildirimler (AD8/AD19): koşu sağlığı (notifyRuns 14 gün), dil dağılımı,
+/* Bildirimler (AD8/AD19): koşu sağlığı (notifyRuns), dil dağılımı,
    atlanma nedenleri, başarısız eğilimi; "Prova" ve "Kendime test gönder".
 
-   Rota: #/bildirimler (parametre yok).
+   Rota: #/bildirimler?days=7|14|30 (varsayılan 14; uç en çok 30 kabul
+   ediyor). Dönem değişince yalnız veri bölgesi yeniden çekilir, adres
+   sessizce güncellenir.
    Uçlar:
-   - GET  /api/v1/admin/notify-runs?days=14 → {runs:[{id, date, type, runs,
+   - GET  /api/v1/admin/notify-runs?days → {runs:[{id, date, type, runs,
      scanned, queued, sent, failed, pruned, skipped:{neden:n},
      languages:{dil:n}, lastStatus, lastRunAt}]}
    - POST /api/v1/admin/notify/dry-run {type, force} → {result:{status,
@@ -29,21 +31,28 @@
   // edebildi — koşu türü seçicisinde HİÇ görünmüyorlardı ve koşu kayıtları
   // "—" diye çiziliyordu. Aynı küme depoda ALTI yerde yaşıyordu; beşi tek
   // kaynağa bağlandı, bu altıncısı bekçiyle bağlı.
+  //
+  // Panelin TEK bildirim türü listesi budur: Sistem ve Kullanıcı 360 da
+  // adları buradan (RY.sozluk.bildirimAdi) okur. Eskiden onlarda dörtlük
+  // ayrı kopyalar vardı ve `circle`/`winback` orada "—" çiziliyordu.
   var TURLER = [
-    { deger: 'daily', etiket: 'Günlük (sabah)' },
-    { deger: 'midday', etiket: 'Öğle' },
-    { deger: 'circle', etiket: 'Çevrem (yakınların)' },
+    { deger: 'daily', etiket: 'Sabah okuması' },
+    { deger: 'midday', etiket: 'Öğle anı' },
+    { deger: 'circle', etiket: 'Çevrem notu' },
     { deger: 'winback', etiket: 'Geri kazanım' },
-    { deger: 'checkin', etiket: 'Check-in (akşam)' },
+    { deger: 'checkin', etiket: 'Akşam sorusu' },
     { deger: 'streak', etiket: 'Seri hatırlatma' }
   ];
-  var TUR_ADI = {};
-  TURLER.forEach(function (t) { TUR_ADI[t.deger] = t.etiket; });
-  function turAdi(t) { return TUR_ADI[t] || String(t || '—'); }
+  RY.sozluk.bildirimTurleriKaydet(TURLER);
+  function turAdi(t) { return RY.sozluk.bildirimAdi(t); }
+  function dilAdi(k) { return RY.sozluk.dilAdi(k); }
 
-  var DIL_ADI = { tr: 'Türkçe', en: 'İngilizce', de: 'Almanca', fr: 'Fransızca',
-                  es: 'İspanyolca', ar: 'Arapça', ru: 'Rusça' };
-  function dilAdi(k) { return DIL_ADI[k] || String(k); }
+  var GUNLER = [7, 14, 30];
+  var VARSAYILAN_GUN = 14;
+  function gunSec(params) {
+    var d = Number(params && params.days);
+    return GUNLER.indexOf(d) >= 0 ? d : VARSAYILAN_GUN;
+  }
 
   /* Atlanma nedeni anahtarı → okunur ad (bilinmeyen olduğu gibi). */
   var NEDEN = { 'jeton-yok': 'Jeton yok', 'jeton-baska-hesapta': 'Jeton başka hesapta',
@@ -77,8 +86,8 @@
     var f = b.form({
       alanlar: [
         { ad: 'type', etiket: 'Koşu türü', tur: 'select', secenekler: TURLER, deger: 'daily' },
-        { ad: 'force', etiket: 'Saat penceresini yok say (force)', tur: 'checkbox',
-          yardim: 'Kapalıyken yalnız şu an gönderim saatinde olan kullanıcılar kuyruğa girer.' }
+        { ad: 'force', etiket: 'Gönderim saatini bekleme', tur: 'checkbox',
+          yardim: 'İşaretsizken yalnız şu an gönderim saatinde olan kullanıcılar kuyruğa girer; işaretliyse saati gelmemiş olanlar da sayılır.' }
       ],
       gonderMetin: 'Provayı çalıştır',
       iptal: { metin: 'Vazgeç', onTikla: function () { m.kapat(); } },
@@ -91,7 +100,7 @@
       }
     });
     var govde = b.el('<div class="form"></div>');
-    govde.insertAdjacentHTML('beforeend', '<p class="aciklama">Gönderim YAPILMAZ, LastSent ' +
+    govde.insertAdjacentHTML('beforeend', '<p class="aciklama">Gönderim YAPILMAZ ve "son gönderim" ' +
       'işaretlenmez; yalnız kim kuyruğa girerdi ve hangi dilde görünür. Denetim izine düşer.</p>');
     govde.appendChild(f.el);
     var sonucKutu = b.el('<div id="prova-sonuc" hidden></div>');
@@ -133,7 +142,7 @@
         return RY.post('/api/v1/admin/notify/test-send', { type: d.type })
           .then(function (res) {
             var r = (res && res.result) || res || {};
-            var ozet = (r.lang ? '[' + r.lang + '] ' : '') + (r.title || '') +
+            var ozet = (r.lang ? '[' + dilAdi(r.lang) + '] ' : '') + (r.title || '') +
               (r.body ? ' — ' + r.body : '');
             if (r.failed && !r.sent) {
               b.toast('Gönderim başarısız: ' + ozet, 'hata');
@@ -150,7 +159,7 @@
     });
     var govde = b.el('<div class="form"></div>');
     govde.insertAdjacentHTML('beforeend', '<p class="aciklama">Yalnız senin hesabına (bu ' +
-      'oturumun uid\'i) gerçek push gider; LastSent işaretlenmez. Mobilde bu hesapla giriş ' +
+      'oturumdaki hesap) gerçek bildirim gider; "son gönderim" işaretlenmez. Mobilde bu hesapla giriş ' +
       'yapılmış olmalı.</p>');
     govde.appendChild(f.el);
     var m = b.modal({ baslik: 'Kendime test bildirimi', icerik: govde, genislik: 480 });
@@ -164,10 +173,56 @@
 
   /* ---------------- Görünüm ---------------- */
 
-  RY.gorunumler.bildirimler = async function (icerik) {
+  RY.gorunumler.bildirimler = async function (icerik, args, params, baglam) {
     var b = RY.b;
-    var veri = await RY.sorgu('/api/v1/admin/notify-runs', { days: 14 });
-    var kosular = Array.isArray(veri.runs) ? veri.runs : [];
+    var gun = gunSec(params);
+    var yeniIstek = b.tazeleyici(baglam);
+
+    icerik.innerHTML = b.sayfaBaslik({
+      baslik: 'Bildirimler', alt: 'Koşu sağlığı, dil dağılımı, atlanma nedenleri',
+      eylemlerHtml:
+        '<button type="button" class="buton ikincil" id="bil-prova">' + b.ik('prova', 16) + 'Prova</button>' +
+        '<button type="button" class="buton" id="bil-test">' + b.ik('gonder', 16) + 'Kendime test gönder</button>'
+    }) +
+      '<div class="suzgec-seridi" id="bil-suzgec"><span class="dipnot suzgec-not">Günler UTC\'ye göre (Türkiye saatinden 3 saat geride)</span></div>' +
+      '<div class="veri-alani" id="bil-veri">' + b.iskelet() + '</div>';
+    eylemBagla(icerik);
+
+    var alan = icerik.querySelector('#bil-veri');
+    var donem = b.donemSecici({
+      secenekler: GUNLER, deger: gun,
+      onDegis: function (yeni) {
+        gun = yeni;
+        RY.rotaYaz('bildirimler', [], gun === VARSAYILAN_GUN ? {} : { days: gun }, { sessiz: true });
+        yukle();
+      }
+    });
+    icerik.querySelector('#bil-suzgec').insertBefore(donem, icerik.querySelector('#bil-suzgec').firstChild);
+
+    function yukle() {
+      var istek = yeniIstek();
+      alan.setAttribute('aria-busy', 'true');
+      return RY.sorgu('/api/v1/admin/notify-runs', { days: gun }, { sinyal: istek.sinyal }).then(function (veri) {
+        if (!istek.gecerli()) return;
+        alan.removeAttribute('aria-busy');
+        veriCiz(alan, Array.isArray(veri && veri.runs) ? veri.runs : [], gun);
+      }).catch(function (h) {
+        if (!istek.gecerli() || (h && h.iptal)) return;
+        alan.removeAttribute('aria-busy');
+        alan.innerHTML = b.hataDurum(RY.hataMetni(h), { kimlik: 'bil-tekrar' });
+        alan.querySelector('#bil-tekrar').addEventListener('click', yukle);
+      });
+    }
+    await yukle();
+  };
+
+  function veriCiz(alan, kosular, gun) {
+    var b = RY.b;
+    if (!kosular.length) {
+      alan.innerHTML = b.bosDurum('Son ' + gun + ' günde koşu kaydı yok — zamanlayıcının ilk koşusuyla ' +
+        'dolar. Prova ve test gönderimi yine çalışır.', { ikon: 'bildirim' });
+      return;
+    }
 
     var toplamGonderilen = 0, toplamBasarisiz = 0, toplamTemizlenen = 0, sonKosu = null;
     kosular.forEach(function (k) {
@@ -180,41 +235,28 @@
     var oran = toplamGonderilen + toplamBasarisiz
       ? (toplamGonderilen / (toplamGonderilen + toplamBasarisiz)) * 100 : null;
 
-    var bas = b.sayfaBaslik({
-      baslik: 'Bildirimler', alt: 'Son 14 gün · koşu sağlığı, dil dağılımı, atlanma nedenleri',
-      eylemlerHtml:
-        '<button type="button" class="buton ikincil" id="bil-prova">' + b.ik('prova', 16) + 'Prova</button>' +
-        '<button type="button" class="buton" id="bil-test">' + b.ik('gonder', 16) + 'Kendime test gönder</button>'
-    });
-
-    if (!kosular.length) {
-      icerik.innerHTML = bas + b.bosDurum('Henüz koşu kaydı yok — zamanlayıcının ilk koşusuyla ' +
-        'dolar. Prova ve test gönderimi yine çalışır.', { ikon: 'bildirim' });
-      eylemBagla(icerik);
-      return;
-    }
-
-    var bugunBasarisiz = kosular.filter(function (k) {
-      return k.date === new Date().toISOString().slice(0, 10);
-    }).reduce(function (t, k) { return t + (Number(k.failed) || 0); }, 0);
+    // Koşu dokümanının `date`i UTC günü; "bugün" de UTC gününe göre.
+    var bugun = b.utcGun(0);
+    var bugunBasarisiz = kosular.filter(function (k) { return k.date === bugun; })
+      .reduce(function (t, k) { return t + (Number(k.failed) || 0); }, 0);
     var bant = bugunBasarisiz
-      ? b.bant('<b>' + b.e(b.sayi(bugunBasarisiz)) + ' push bugün başarısız</b> — geçersiz ' +
-          'jetonlar temizlenir; tekrar edenlerde cihaz/oturum kontrolü gerekir.', 'uyari', { html: true })
+      ? b.bant('<b>Bugün ' + b.e(b.sayi(bugunBasarisiz)) + ' bildirim gönderilemedi</b> — geçersiz ' +
+          'cihaz jetonları temizlenir; tekrar edenlerde cihaz/oturum kontrolü gerekir.', 'uyari', { html: true })
       : '';
 
     var kpiler = '<section class="izgara-kpi" aria-label="Bildirim özeti">' +
-      b.istatistikKarti({ ad: 'Gönderilen (14g)', deger: b.sayi(toplamGonderilen), altin: true }) +
-      b.istatistikKarti({ ad: 'Başarısız (14g)', deger: b.sayi(toplamBasarisiz),
-        alt: toplamBasarisiz ? 'jeton temizlendi' : 'temiz' }) +
+      b.istatistikKarti({ ad: 'Gönderilen (' + gun + ' gün)', deger: b.sayi(toplamGonderilen), altin: true }) +
+      b.istatistikKarti({ ad: 'Başarısız (' + gun + ' gün)', deger: b.sayi(toplamBasarisiz),
+        alt: toplamBasarisiz ? 'cihaz jetonu temizlendi' : 'temiz' }) +
       b.istatistikKarti({ ad: 'Başarı oranı', deger: oran == null ? '—' : b.yuzde(oran) }) +
-      b.istatistikKarti({ ad: 'Temizlenen jeton', deger: b.sayi(toplamTemizlenen) }) +
+      b.istatistikKarti({ ad: 'Temizlenen cihaz jetonu', deger: b.sayi(toplamTemizlenen) }) +
       b.istatistikKarti({ ad: 'Son koşu', deger: sonKosu ? b.goreliZaman(sonKosu) : '—',
         alt: sonKosu ? b.tarih(sonKosu, true) : 'kayıt yok' }) +
       '</section>';
 
     var grafikler = '<div class="izgara-3">' +
       b.modul('Diller', '<div class="halka-kap"><div class="grafik-kap"><canvas id="g-bil-dil" class="grafik" ' +
-        'aria-label="Kuyruğa giren mesajların dil dağılımı"></canvas></div></div>', '', { alt: 'kuyruğa giren · 14 gün' }) +
+        'aria-label="Kuyruğa giren mesajların dil dağılımı"></canvas></div></div>', '', { alt: 'kuyruğa giren · ' + gun + ' gün' }) +
       b.modul('Atlanma nedenleri', '<div class="grafik-kap"><canvas id="g-bil-neden" class="grafik grafik-kucuk" ' +
         'aria-label="Atlanma nedenleri"></canvas></div>', '', { alt: 'sessiz düşenler görünür' }) +
       b.modul('Başarısız eğilimi', '<div class="grafik-kap"><canvas id="g-bil-basarisiz" class="grafik grafik-kucuk" ' +
@@ -222,23 +264,23 @@
       '</div>';
 
     var tablo = b.modul('Koşular', '<div id="bil-tablo"></div>', '',
-      { alt: 'gün × tür · sayılar saatlik koşularda birikir' });
+      { alt: 'gün × tür · sayılar gün içindeki koşularda birikir' });
 
-    icerik.innerHTML = bas + bant + kpiler + grafikler + tablo +
-      '<p class="dipnot">Bir gün-tür dokümanı zamanlayıcının o günkü tüm koşularını toplar ' +
-      '(Increment). Prova iz bırakmaz; test gönderimi yalnız çağıranın hesabına gider.</p>';
-    eylemBagla(icerik);
+    alan.innerHTML = bant + kpiler + grafikler + tablo +
+      '<p class="dipnot">Bir gün-tür kaydı zamanlayıcının o günkü tüm koşularını toplar. ' +
+      'Prova iz bırakmaz; test gönderimi yalnız çağıranın hesabına gider.</p>';
 
-    /* Grafikler */
+    /* Grafikler — kap içinden aranır: aynı kimlik eski bir çizimde de
+       olabilir, `document.getElementById` yanlış tuvale çizebilirdi. */
     var g = RY.grafik;
     var diller = sozlukTopla(kosular, 'languages');
-    g.halka(document.getElementById('g-bil-dil'), {
+    g.halka(alan.querySelector('#g-bil-dil'), {
       dilimler: Object.keys(diller).map(function (k) { return { ad: dilAdi(k), deger: diller[k] }; }),
       merkezAlt: 'mesaj', etiket: 'Dil dağılımı', bosMetin: 'Dil dökümü henüz yok'
     });
     var nedenler = sozlukTopla(kosular, 'skipped');
     var nedenSira = Object.keys(nedenler).sort(function (x, y) { return nedenler[y] - nedenler[x]; });
-    g.cubuk(document.getElementById('g-bil-neden'), {
+    g.cubuk(alan.querySelector('#g-bil-neden'), {
       etiketler: nedenSira.map(nedenAdi), degerler: nedenSira.map(function (k) { return nedenler[k]; }),
       yatay: true, enCok: 8, etiket: 'Atlanma nedenleri', bosMetin: 'Atlanan yok'
     });
@@ -248,7 +290,7 @@
       gunler[k.date] = (gunler[k.date] || 0) + (Number(k.failed) || 0);
     });
     var gunSira = Object.keys(gunler).sort();
-    g.cizgi(document.getElementById('g-bil-basarisiz'), {
+    g.cizgi(alan.querySelector('#g-bil-basarisiz'), {
       seriler: [{ ad: 'Başarısız', renk: 'madder',
         veri: gunSira.map(function (d) { return { x: d, y: gunler[d] }; }) }],
       alan: true, bicim: 'sayi', etiket: 'Başarısız eğilimi'
@@ -259,7 +301,7 @@
       kimlik: 'bil-kosu-tablo', etiket: 'Bildirim koşuları', yogunluk: 'sik',
       sutunlar: [
         { ad: 'date', baslik: 'Gün', siralanir: true,
-          bicim: function (k) { return '<span class="mono">' + b.e(k.date || '') + '</span>'; } },
+          bicim: function (k) { return b.e(b.tarih(k.date)); } },
         { ad: 'type', baslik: 'Tür', siralanir: true,
           bicim: function (k) { return b.rozet(turAdi(k.type), k.type === 'daily' ? 'altin' : 'notr'); } },
         { ad: 'runs', baslik: 'Koşu', hizala: 'sag', siralanir: true },
@@ -277,7 +319,7 @@
           bicim: function (k) {
             return '<span class="mono">' + b.e(b.tarih(k.lastRunAt, true)) + '</span>' +
               (k.lastStatus && k.lastStatus !== 'ok'
-                ? ' ' + b.rozet(String(k.lastStatus), 'uyari') : '');
+                ? ' ' + b.rozet(kosuDurumAdi(k.lastStatus), 'uyari') : '');
           } }
       ],
       anahtar: function (k) { return k.id || (k.date + '-' + k.type); },
@@ -285,9 +327,11 @@
       siralama: { ad: 'date', yon: 'desc' },
       bosMetin: 'Koşu yok'
     });
-    document.getElementById('bil-tablo').appendChild(vt.el);
+    alan.querySelector('#bil-tablo').appendChild(vt.el);
     vt.guncelle(kosular);
-  };
+  }
+
+  function kosuDurumAdi(k) { return RY.sozluk.kosuDurumAdi(k); }
 
   function eylemBagla(icerik) {
     var p = icerik.querySelector('#bil-prova'), t = icerik.querySelector('#bil-test');

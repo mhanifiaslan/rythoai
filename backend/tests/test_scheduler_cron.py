@@ -39,9 +39,12 @@ def _cron(ad: str) -> str:
     return esleme.group(1)
 
 
-def test_rollup_gun_penceresinin_sonunda_toplanir():
+def test_rollup_saatlik_ve_gunun_son_kosusu_gece_yarisindan_once():
+    """Saatlik (2026-10-17): gecede tek koşu bugünün gelirini panelde ertesi
+    geceye kadar göstermiyordu. Dakika payı aynı gerekçeyle duruyor —
+    günün SON koşusu 23:MM'de, gece yarısını geçmeden."""
     dakika, saat = _cron("rytho-stats").split()[:2]
-    assert int(saat) == 23, "rollup UTC gününün SONUNDA koşmalı"
+    assert saat == "*", "rollup her saat koşmalı"
     # Gece yarısını GEÇEN bir tetik `now().date()`i ertesi güne taşır ve o gün
     # HİÇ yazılmaz. Kalan pay YALNIZ sevk gecikmesi + koşu süresi içindir:
     # betik `--max-retry-attempts` vermiyor, yani düşen koşu yeniden
@@ -69,4 +72,5 @@ def test_dokuman_kod_ile_ayni_saati_soyluyor():
     belge = (_KOK / "docs" / "konsol-gorevleri.md").read_text(
         encoding="utf-8")
     dakika, saat = _cron("rytho-stats").split()[:2]
-    assert f"{int(saat):02d}:{int(dakika):02d} UTC `rytho-stats`" in belge
+    assert saat == "*"
+    assert f"her saat :{int(dakika):02d} UTC `rytho-stats`" in belge

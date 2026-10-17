@@ -10,7 +10,9 @@
 
    v2'den farklar: AbortController (sinyal), 429 → toast + err.retryAfter,
    RY.sorgu (boş parametreleri atlayan sorgu dizesi), RY.indir (yetkili
-   blob indirme), 503 denetim izi mesajı olduğu gibi geçer, 204 → null. */
+   blob indirme), 503 denetim izi mesajı olduğu gibi geçer, 204 → null.
+   Kamu arayüzü (RY.get/post/patch/del/sorgu/indir/saglik/hataMetni,
+   hata.durum/detay/retryAfter/iptal) iki pano için SABİT tutulur. */
 (function () {
   'use strict';
 
@@ -127,26 +129,54 @@
     return JSON.parse(metin);
   }
 
-  /* Ham hata → yöneticinin okuyacağı cümle. 503 denetim izi mesajı
-     sunucudan geldiği gibi (detail) geçer — "Denetim izi yazılamadı;
-     işlem yapılmadı." kelimesi kelimesine görünür. */
+  /* Sunucu metni Türkçe mi? Backend'in KENDİ yazdığı cümleler Türkçe
+     ("Denetim izi yazılamadı; işlem yapılmadı.", K9'un 400'ü); ama aynı
+     `detail` alanından pydantic'in İngilizce 422'si ("Input should be…")
+     ve yakalanmış istisnanın ham `str(exc)`i de geliyor. Ayıracak tek
+     ucuz işaret Türkçeye özgü harf: Türkçe cümlenin neredeyse hepsi en az
+     birini taşır, İngilizce cümle hiçbirini. Kör nokta bilinçli: harfsiz
+     kısa bir Türkçe cümle ("Kod yok.") genel metne düşer — yanlış dilde
+     ham metin göstermekten ucuz bir kayıp. */
+  var TURKCE_HARF = /[ğüşıöçĞÜŞİÖÇ]/;
+
+  var DURUM_METNI = {
+    400: 'İstek geçersiz — girdiyi kontrol edip tekrar dene.',
+    401: 'Oturum düştü — yeniden giriş yap.',
+    403: 'Bu işlem için yetkin yok.',
+    404: 'Kayıt bulunamadı.',
+    409: 'İşlem zaten sürüyor — birazdan tekrar dene.',
+    413: 'Gönderilen veri çok büyük.',
+    422: 'Girilen değerlerden biri geçersiz.',
+    503: 'Hizmet şu an kullanılamıyor — birazdan tekrar dene.'
+  };
+
+  /* Ham hata → yöneticinin okuyacağı Türkçe cümle. Sunucunun Türkçe
+     `detail`i olduğu gibi geçer (503 denetim izi mesajı kelimesi
+     kelimesine görünür); Türkçe olmayan ayrıntı GÖSTERİLMEZ, durum koduna
+     göre genel bir Türkçe cümle gelir. Ham ayrıntı `hata.detay`da kalır —
+     ortak panosu (ortak.js) kendi dil haritasında onu okuyor, bu yüzden
+     alanın kendisi değişmedi. */
   function hataMetni(hata) {
-    if (!hata) return 'Bilinmeyen hata.';
+    if (!hata) return 'Bilinmeyen bir hata oldu.';
     if (hata.iptal || hata.message === 'iptal') return '';
     if (hata.message === 'ag-hatasi') {
       return 'Bağlantı kurulamadı — ağını kontrol edip tekrar dene.';
     }
-    if (hata.message === 'oturum-yok') return 'Oturum bulunamadı.';
+    if (hata.message === 'oturum-yok') return 'Oturum bulunamadı — yeniden giriş yap.';
     if (hata.message === 'yetkisiz') return 'Yetki yok.';
     if (hata.durum === 429) {
       return 'İstek sınırı aşıldı — ' + (hata.retryAfter || 60) +
         ' sn sonra tekrar dene.';
     }
-    if (hata.detay) return hata.detay;
-    if (hata.durum === 404) return 'Kayıt bulunamadı.';
-    if (hata.durum === 409) return 'İşlem zaten sürüyor — birazdan tekrar dene.';
+    if (hata.detay && TURKCE_HARF.test(hata.detay)) return hata.detay;
+    if (hata.durum && DURUM_METNI[hata.durum]) return DURUM_METNI[hata.durum];
     if (hata.durum >= 500) return 'Sunucu hatası — birazdan tekrar dene.';
-    return 'Veri alınamadı (' + (hata.message || hata) + ').';
+    if (hata.durum) return 'Beklenmeyen bir yanıt geldi (' + hata.durum + ') — tekrar dene.';
+    // Durum kodu yok: istemcinin kendi attığı hata. Panel bazı doğrulama
+    // hatalarını Türkçe `Error` olarak fırlatıyor; onlar olduğu gibi geçer.
+    var m = hata.message || String(hata);
+    if (TURKCE_HARF.test(m)) return m;
+    return 'Beklenmeyen bir hata oldu — tekrar dene.';
   }
 
   /* Sorgu dizesi: undefined/null/'' atlanır, her değer encodeURIComponent.
@@ -210,10 +240,7 @@
       hata.durum = yanit.status;
       try {
         var govde = await yanit.json();
-        if (govde && govde.detail) {
-          hata.detay = typeof govde.detail === 'string'
-            ? govde.detail : JSON.stringify(govde.detail);
-        }
+        if (govde && govde.detail) hata.detay = detayMetni(govde.detail);
       } catch (yok) { /* gövdesiz */ }
       throw hata;
     }

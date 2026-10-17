@@ -359,14 +359,18 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
 
 /* ---- Yüzen uyarı kartları (hero) ---- */
 .uyarilar { display: grid; gap: 12px; }
-.uyari {
+/* Kart kuralları `.uyarilar` kabına bağlı: rytho.css yönetim panelinde de
+   yükleniyor ve orada `uyari` bir SEVİYE sınıfı (bant, dikkat noktası) —
+   çıplak `.uyari` paneldeki noktayı karta, bant içindeki kalın kelimeyi
+   ayrı satıra çeviriyordu. */
+.uyarilar .uyari {
   display: flex; gap: 12px; align-items: flex-start; text-align: left;
   background: rgba(28, 19, 38, 0.82);
   border: 1px solid var(--glass-stroke);
   border-radius: 18px; padding: 13px 15px;
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
-.uyari .im {
+.uyarilar .uyari .im {
   width: 30px; height: 30px; flex: none; border-radius: 10px;
   display: grid; place-items: center;
   background: rgba(123, 47, 247, 0.22);
@@ -376,8 +380,8 @@ main > section.sarici + section.sarici { margin-top: clamp(48px, 5vw, 80px); }
   color: var(--gold-bright); fill: none; stroke: currentColor;
   stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
-.uyari b { display: block; font-size: 13px; font-weight: 700; }
-.uyari p { font-size: 11.5px; color: var(--parchment-dim); line-height: 1.45; }
+.uyarilar .uyari b { display: block; font-size: 13px; font-weight: 700; }
+.uyarilar .uyari p { font-size: 11.5px; color: var(--parchment-dim); line-height: 1.45; }
 
 /* Geniş ekran: kartlar hero'nun sol üstünde yüzer — başlığın ÜSTÜNDE
    kalırlar (hero'nun üst boşluğu onlara ayrılmış), çakışma olmaz. */

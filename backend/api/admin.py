@@ -163,9 +163,14 @@ async def collect(
                                            lang=lang)
         require_owner(require_admin(kullanici))
 
-    tarih = dt.date.fromisoformat(date) if date else None
     try:
-        dokuman = stats_service.collect(tarih)
+        # Tarihsiz çağrı scheduler'ın saatlik koşusudur: bugün + gerekirse
+        # dünün olay kapanışı (bkz. `zamanlanmis_kosu`). Tarihli çağrı
+        # sahibin elle tek gün toplamasıdır.
+        if date:
+            dokuman = stats_service.collect(dt.date.fromisoformat(date))
+        else:
+            dokuman = stats_service.zamanlanmis_kosu()
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     if kullanici is not None:
@@ -173,7 +178,8 @@ async def collect(
         # scheduler'ın gecelik koşusu rutindir, denetim izi değil.
         _audit(kullanici, "stats.collect", params={"date": dokuman["date"]})
     return {"status": "ok", "date": dokuman["date"],
-            "durationMs": dokuman["durationMs"]}
+            "durationMs": dokuman["durationMs"],
+            "closedDay": dokuman.get("closedDay")}
 
 
 @router.get("/stats")
