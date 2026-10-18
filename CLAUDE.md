@@ -202,7 +202,7 @@ interceptor'larından `apiProvider`'ı izleyen bir sağlayıcıya dokunmak
 
 ## 6. Bugünkü durum (2026-10-10)
 
-Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.20.0+52** (pubspec, 2026-10-16).
+Dal: `yuz-okuma-cihaz-usti-olcum`. Sürüm **1.20.0+53** (pubspec, 2026-10-18; 52 yandı — üç kanalda).
 D0–D8 + S1 + cihaz turu 1 + cihaz turu 2 (paylaşım) kodda ve commit'li.
 52'ye çekildi çünkü 51'in Console'a yüklenip yüklenmediği bilinmiyordu —
 yanmış koda çarpmak yüklemeyi durdurur, atlanan kod zarar vermez.
