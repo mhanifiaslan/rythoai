@@ -59,6 +59,15 @@ class TestSolarReturn:
         assert "sr_ascendant" not in sr
         assert "sr_sun_house" not in sr
         assert "sr_hour_unknown" in sr["disclosures"]
+        # 2026-10-18: gezegen başına ev de gitmiyor (öğlene göre
+        # hesaplanmış ev ölçülmüş gibi görünürdü) ve köşe açısı yok.
+        assert all("house_no" not in p and "house" not in p
+                   for p in sr["points"])
+        assert not [a for a in sr["aspects"]
+                    if {a.get("p1"), a.get("p2")} & predict_service._KOSELER]
+        saatli = predict_service.solar_return(
+            "t", 1990, 5, 12, 12, 0, "Istanbul")
+        assert any(p.get("house_no") for p in saatli["points"])
 
     def test_hedef_yil_secimi(self):
         sr = predict_service.solar_return(

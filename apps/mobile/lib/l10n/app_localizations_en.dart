@@ -3133,4 +3133,267 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chartOuterLoading => 'Loading the outer ring…';
+
+  @override
+  String get aspectSubjectSun => 'your sense of self';
+
+  @override
+  String get aspectSubjectMoon => 'your feelings';
+
+  @override
+  String get aspectSubjectMercury => 'your mind';
+
+  @override
+  String get aspectSubjectVenus => 'the way you love';
+
+  @override
+  String get aspectSubjectMars => 'your drive';
+
+  @override
+  String get aspectSubjectJupiter => 'your urge to grow';
+
+  @override
+  String get aspectSubjectSaturn => 'your sense of duty';
+
+  @override
+  String get aspectSubjectUranus => 'your need for freedom';
+
+  @override
+  String get aspectSubjectNeptune => 'your imagination';
+
+  @override
+  String get aspectSubjectPluto => 'your power to transform';
+
+  @override
+  String get aspectSubjectChiron => 'your old wound';
+
+  @override
+  String get aspectSubjectLilith => 'your untamed side';
+
+  @override
+  String get aspectSubjectNorthNode => 'your direction of growth';
+
+  @override
+  String get aspectSubjectSouthNode => 'your familiar ground';
+
+  @override
+  String get aspectSubjectAscendant => 'the face you show';
+
+  @override
+  String get aspectSubjectMidheaven => 'your aims';
+
+  @override
+  String get aspectSubjectDescendant => 'what you seek in others';
+
+  @override
+  String get aspectSubjectImumCoeli => 'your roots';
+
+  @override
+  String aspectSentenceConjunction(String a, String b) {
+    return '$a and $b are fused; they act together.';
+  }
+
+  @override
+  String aspectSentenceOpposition(String a, String b) {
+    return '$a and $b face each other; balance comes when both get room.';
+  }
+
+  @override
+  String aspectSentenceSquare(String a, String b) {
+    return '$a and $b rub against each other; it pushes you, and moves you forward.';
+  }
+
+  @override
+  String aspectSentenceTrine(String a, String b) {
+    return '$a and $b flow easily; a natural gift.';
+  }
+
+  @override
+  String aspectSentenceSextile(String a, String b) {
+    return '$a and $b open doors for each other; it works once you act.';
+  }
+
+  @override
+  String get aspectStrengthVeryStrong => 'Very strong';
+
+  @override
+  String get aspectStrengthStrong => 'Strong';
+
+  @override
+  String get aspectStrengthMild => 'Mild';
+
+  @override
+  String get traitsLevelNone => 'None';
+
+  @override
+  String get traitsLevelLow => 'Low';
+
+  @override
+  String get traitsLevelBalanced => 'Balanced';
+
+  @override
+  String get traitsLevelStrong => 'Strong';
+
+  @override
+  String traitsCountCaption(String sayi, String toplam) {
+    return '$sayi of your $toplam key points';
+  }
+
+  @override
+  String get traitsLevelNote =>
+      'Nothing here is good or bad: what is strong comes easily to you, what is low asks for conscious effort.';
+
+  @override
+  String get elementFireWord => 'passion';
+
+  @override
+  String get elementEarthWord => 'grounding';
+
+  @override
+  String get elementAirWord => 'ideas';
+
+  @override
+  String get elementWaterWord => 'feeling';
+
+  @override
+  String get modalityCardinalWord => 'starting';
+
+  @override
+  String get modalityFixedWord => 'persistence';
+
+  @override
+  String get modalityMutableWord => 'adapting';
+
+  @override
+  String get signClimateAri =>
+      'a climate of beginnings: courage, first steps, acting for yourself.';
+
+  @override
+  String get signClimateTau =>
+      'a climate of settling: calm, the body, building what lasts.';
+
+  @override
+  String get signClimateGem =>
+      'a climate of curiosity: learning, talking, new connections.';
+
+  @override
+  String get signClimateCan =>
+      'a climate of home: family, shelter, returning to your roots.';
+
+  @override
+  String get signClimateLeo =>
+      'a climate of light: creating, being seen, living from the heart.';
+
+  @override
+  String get signClimateVir =>
+      'a climate of order: tidying up, fine-tuning, daily rhythm.';
+
+  @override
+  String get signClimateLib =>
+      'a climate of relating: balance, partnership, beauty.';
+
+  @override
+  String get signClimateSco =>
+      'a climate of depth: transformation, intimacy, facing what is hidden.';
+
+  @override
+  String get signClimateSag =>
+      'a climate of horizons: travel, the search for meaning, expanding.';
+
+  @override
+  String get signClimateCap =>
+      'a climate of building: responsibility, goals, the reward of effort.';
+
+  @override
+  String get signClimateAqu =>
+      'a climate of freedom: the new, community, your own path.';
+
+  @override
+  String get signClimatePis =>
+      'a climate of dissolving: intuition, imagination, letting go.';
+
+  @override
+  String get progPhaseMeaningNewMoon =>
+      'New Moon phase: a cycle begins; a time to plant seeds.';
+
+  @override
+  String get progPhaseMeaningWaxingCrescent =>
+      'Crescent phase: growing what you started, pushing past first resistance.';
+
+  @override
+  String get progPhaseMeaningFirstQuarter =>
+      'First quarter: decision and action; forks in the road.';
+
+  @override
+  String get progPhaseMeaningWaxingGibbous =>
+      'Gibbous phase: fine-tuning, letting your effort ripen.';
+
+  @override
+  String get progPhaseMeaningFullMoon =>
+      'Full Moon phase: becoming visible, fruit and realisation.';
+
+  @override
+  String get progPhaseMeaningWaningGibbous =>
+      'Disseminating phase: sharing what you have learned.';
+
+  @override
+  String get progPhaseMeaningLastQuarter =>
+      'Last quarter: reviewing, letting go of what is no longer needed.';
+
+  @override
+  String get progPhaseMeaningWaningCrescent =>
+      'Closing phase: rest, digestion, preparing for a new cycle.';
+
+  @override
+  String get innerJourneyTitle => 'Your inner journey';
+
+  @override
+  String get innerJourneyNow => 'Now';
+
+  @override
+  String innerJourneyNowTitle(String burc) {
+    return 'Your inner climate: $burc';
+  }
+
+  @override
+  String innerJourneyNextWhen(String tarih) {
+    return 'From $tarih';
+  }
+
+  @override
+  String innerJourneyNextTitle(String burc) {
+    return 'Next inner climate: $burc';
+  }
+
+  @override
+  String innerJourneyMilestone(String tarih) {
+    return 'Turning point · $tarih';
+  }
+
+  @override
+  String get solarReturnJourneyTitle => 'Your journey this year';
+
+  @override
+  String solarReturnJourneyMonth(String ay) {
+    return 'You are in month $ay of the journey';
+  }
+
+  @override
+  String get solarReturnRealmsTitle =>
+      'The realms you\'ll travel most this year';
+
+  @override
+  String solarReturnRealmPlanets(String gezegenler) {
+    return 'Here: $gezegenler';
+  }
+
+  @override
+  String get solarReturnRealmsNoTime =>
+      'Without your birth time the year\'s realms can\'t be computed; the year\'s emotional climate is still below.';
+
+  @override
+  String get solarReturnMoonClimate => 'The year\'s emotional climate';
+
+  @override
+  String get readingFullToggle => 'The full reading';
 }

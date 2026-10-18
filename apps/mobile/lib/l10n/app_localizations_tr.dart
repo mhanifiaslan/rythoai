@@ -3029,4 +3029,263 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get chartOuterLoading => 'Dış halka yükleniyor…';
+
+  @override
+  String get aspectSubjectSun => 'kimliğin';
+
+  @override
+  String get aspectSubjectMoon => 'duyguların';
+
+  @override
+  String get aspectSubjectMercury => 'zihnin';
+
+  @override
+  String get aspectSubjectVenus => 'sevme biçimin';
+
+  @override
+  String get aspectSubjectMars => 'enerjin';
+
+  @override
+  String get aspectSubjectJupiter => 'büyüme isteğin';
+
+  @override
+  String get aspectSubjectSaturn => 'sorumluluk duygun';
+
+  @override
+  String get aspectSubjectUranus => 'özgürlük ihtiyacın';
+
+  @override
+  String get aspectSubjectNeptune => 'hayal gücün';
+
+  @override
+  String get aspectSubjectPluto => 'dönüşüm gücün';
+
+  @override
+  String get aspectSubjectChiron => 'eski yaran';
+
+  @override
+  String get aspectSubjectLilith => 'evcilleşmeyen yanın';
+
+  @override
+  String get aspectSubjectNorthNode => 'büyüme yönün';
+
+  @override
+  String get aspectSubjectSouthNode => 'alıştığın yanın';
+
+  @override
+  String get aspectSubjectAscendant => 'dışa görünen yüzün';
+
+  @override
+  String get aspectSubjectMidheaven => 'hedeflerin';
+
+  @override
+  String get aspectSubjectDescendant => 'ilişki arayışın';
+
+  @override
+  String get aspectSubjectImumCoeli => 'köklerin';
+
+  @override
+  String aspectSentenceConjunction(String a, String b) {
+    return '$a ile $b iç içe; birlikte çalışıyorlar.';
+  }
+
+  @override
+  String aspectSentenceOpposition(String a, String b) {
+    return '$a ile $b karşı karşıya; ikisine de yer açınca denge kuruluyor.';
+  }
+
+  @override
+  String aspectSentenceSquare(String a, String b) {
+    return '$a ile $b sürtüşüyor; zorluyor ama ilerletiyor.';
+  }
+
+  @override
+  String aspectSentenceTrine(String a, String b) {
+    return '$a ile $b kolayca akıyor; doğal bir yetenek.';
+  }
+
+  @override
+  String aspectSentenceSextile(String a, String b) {
+    return '$a ile $b birbirine kapı açıyor; adım atınca çalışıyor.';
+  }
+
+  @override
+  String get aspectStrengthVeryStrong => 'Çok güçlü';
+
+  @override
+  String get aspectStrengthStrong => 'Güçlü';
+
+  @override
+  String get aspectStrengthMild => 'Hafif';
+
+  @override
+  String get traitsLevelNone => 'Yok';
+
+  @override
+  String get traitsLevelLow => 'Az';
+
+  @override
+  String get traitsLevelBalanced => 'Dengeli';
+
+  @override
+  String get traitsLevelStrong => 'Güçlü';
+
+  @override
+  String traitsCountCaption(String sayi, String toplam) {
+    return '$toplam ana noktadan $sayi tanesi';
+  }
+
+  @override
+  String get traitsLevelNote =>
+      'İyi ya da kötü yok: güçlü olan sana kolay gelen, az olan bilinçli çaba isteyen yanındır.';
+
+  @override
+  String get elementFireWord => 'tutku';
+
+  @override
+  String get elementEarthWord => 'somutluk';
+
+  @override
+  String get elementAirWord => 'fikir';
+
+  @override
+  String get elementWaterWord => 'duygu';
+
+  @override
+  String get modalityCardinalWord => 'başlatma';
+
+  @override
+  String get modalityFixedWord => 'sebat';
+
+  @override
+  String get modalityMutableWord => 'uyum';
+
+  @override
+  String get signClimateAri =>
+      'başlangıç iklimi: cesaret, ilk adım, kendin için harekete geçmek.';
+
+  @override
+  String get signClimateTau =>
+      'yerleşme iklimi: sakinlik, beden, kalıcı olanı kurmak.';
+
+  @override
+  String get signClimateGem =>
+      'merak iklimi: öğrenmek, konuşmak, yeni bağlantılar.';
+
+  @override
+  String get signClimateCan => 'yuva iklimi: aile, korunmak, köklerine dönmek.';
+
+  @override
+  String get signClimateLeo =>
+      'ışık iklimi: yaratmak, görünmek, kalpten yaşamak.';
+
+  @override
+  String get signClimateVir =>
+      'düzen iklimi: toparlanmak, ince ayar, gündelik ritim.';
+
+  @override
+  String get signClimateLib => 'ilişki iklimi: denge, ortaklık, güzellik.';
+
+  @override
+  String get signClimateSco =>
+      'derinlik iklimi: dönüşüm, yakınlık, gizli olanla yüzleşmek.';
+
+  @override
+  String get signClimateSag =>
+      'ufuk iklimi: yolculuk, anlam arayışı, genişlemek.';
+
+  @override
+  String get signClimateCap =>
+      'inşa iklimi: sorumluluk, hedef, emeğin karşılığı.';
+
+  @override
+  String get signClimateAqu =>
+      'özgürlük iklimi: yenilik, topluluk, kendi yolun.';
+
+  @override
+  String get signClimatePis => 'çözülme iklimi: sezgi, hayal, bırakmak.';
+
+  @override
+  String get progPhaseMeaningNewMoon =>
+      'Yeni Ay evresi: bir döngü başlıyor; tohum ekme zamanı.';
+
+  @override
+  String get progPhaseMeaningWaxingCrescent =>
+      'Hilal evresi: başladığını büyütme, ilk dirençleri aşma.';
+
+  @override
+  String get progPhaseMeaningFirstQuarter =>
+      'İlk dördün: karar ve eylem; yol ayrımları.';
+
+  @override
+  String get progPhaseMeaningWaxingGibbous =>
+      'Şişkin Ay evresi: ince ayar, emeği olgunlaştırma.';
+
+  @override
+  String get progPhaseMeaningFullMoon =>
+      'Dolunay evresi: görünür olma, meyve ve fark ediş.';
+
+  @override
+  String get progPhaseMeaningWaningGibbous =>
+      'Yayan Ay evresi: öğrendiğini paylaşma.';
+
+  @override
+  String get progPhaseMeaningLastQuarter =>
+      'Son dördün: elden geçirme, gereksizi bırakma.';
+
+  @override
+  String get progPhaseMeaningWaningCrescent =>
+      'Kapanış evresi: dinlenme, sindirme, yeni döngüye hazırlık.';
+
+  @override
+  String get innerJourneyTitle => 'İç yolculuğun';
+
+  @override
+  String get innerJourneyNow => 'Şu an';
+
+  @override
+  String innerJourneyNowTitle(String burc) {
+    return 'İç iklimin: $burc';
+  }
+
+  @override
+  String innerJourneyNextWhen(String tarih) {
+    return '$tarih itibarıyla';
+  }
+
+  @override
+  String innerJourneyNextTitle(String burc) {
+    return 'Sonraki iç iklim: $burc';
+  }
+
+  @override
+  String innerJourneyMilestone(String tarih) {
+    return 'Dönüm noktası · $tarih';
+  }
+
+  @override
+  String get solarReturnJourneyTitle => 'Bu yılki yolculuğun';
+
+  @override
+  String solarReturnJourneyMonth(String ay) {
+    return 'Yolculuğun $ay. ayındasın';
+  }
+
+  @override
+  String get solarReturnRealmsTitle => 'Bu yıl en çok gezeceğin evrenler';
+
+  @override
+  String solarReturnRealmPlanets(String gezegenler) {
+    return 'Burada: $gezegenler';
+  }
+
+  @override
+  String get solarReturnRealmsNoTime =>
+      'Doğum saatin olmadan yılın evrenleri hesaplanamıyor; yılın duygusal iklimi yine de aşağıda.';
+
+  @override
+  String get solarReturnMoonClimate => 'Yılın duygusal iklimi';
+
+  @override
+  String get readingFullToggle => 'Okumanın tamamı';
 }

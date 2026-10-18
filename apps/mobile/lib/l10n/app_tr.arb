@@ -1368,5 +1368,179 @@
   "chartShareTooltip": "Çarkı paylaş",
   "chartExpandTooltip": "Harita İnceleme'de aç",
   "chartSelectedDetail": "Detay →",
-  "chartOuterLoading": "Dış halka yükleniyor…"
+  "chartOuterLoading": "Dış halka yükleniyor…",
+  "aspectSubjectSun": "kimliğin",
+  "aspectSubjectMoon": "duyguların",
+  "aspectSubjectMercury": "zihnin",
+  "aspectSubjectVenus": "sevme biçimin",
+  "aspectSubjectMars": "enerjin",
+  "aspectSubjectJupiter": "büyüme isteğin",
+  "aspectSubjectSaturn": "sorumluluk duygun",
+  "aspectSubjectUranus": "özgürlük ihtiyacın",
+  "aspectSubjectNeptune": "hayal gücün",
+  "aspectSubjectPluto": "dönüşüm gücün",
+  "aspectSubjectChiron": "eski yaran",
+  "aspectSubjectLilith": "evcilleşmeyen yanın",
+  "aspectSubjectNorthNode": "büyüme yönün",
+  "aspectSubjectSouthNode": "alıştığın yanın",
+  "aspectSubjectAscendant": "dışa görünen yüzün",
+  "aspectSubjectMidheaven": "hedeflerin",
+  "aspectSubjectDescendant": "ilişki arayışın",
+  "aspectSubjectImumCoeli": "köklerin",
+  "aspectSentenceConjunction": "{a} ile {b} iç içe; birlikte çalışıyorlar.",
+  "@aspectSentenceConjunction": {
+    "placeholders": {
+      "a": {
+        "type": "String"
+      },
+      "b": {
+        "type": "String"
+      }
+    }
+  },
+  "aspectSentenceOpposition": "{a} ile {b} karşı karşıya; ikisine de yer açınca denge kuruluyor.",
+  "@aspectSentenceOpposition": {
+    "placeholders": {
+      "a": {
+        "type": "String"
+      },
+      "b": {
+        "type": "String"
+      }
+    }
+  },
+  "aspectSentenceSquare": "{a} ile {b} sürtüşüyor; zorluyor ama ilerletiyor.",
+  "@aspectSentenceSquare": {
+    "placeholders": {
+      "a": {
+        "type": "String"
+      },
+      "b": {
+        "type": "String"
+      }
+    }
+  },
+  "aspectSentenceTrine": "{a} ile {b} kolayca akıyor; doğal bir yetenek.",
+  "@aspectSentenceTrine": {
+    "placeholders": {
+      "a": {
+        "type": "String"
+      },
+      "b": {
+        "type": "String"
+      }
+    }
+  },
+  "aspectSentenceSextile": "{a} ile {b} birbirine kapı açıyor; adım atınca çalışıyor.",
+  "@aspectSentenceSextile": {
+    "placeholders": {
+      "a": {
+        "type": "String"
+      },
+      "b": {
+        "type": "String"
+      }
+    }
+  },
+  "aspectStrengthVeryStrong": "Çok güçlü",
+  "aspectStrengthStrong": "Güçlü",
+  "aspectStrengthMild": "Hafif",
+  "traitsLevelNone": "Yok",
+  "traitsLevelLow": "Az",
+  "traitsLevelBalanced": "Dengeli",
+  "traitsLevelStrong": "Güçlü",
+  "traitsCountCaption": "{toplam} ana noktadan {sayi} tanesi",
+  "@traitsCountCaption": {
+    "placeholders": {
+      "sayi": {
+        "type": "String"
+      },
+      "toplam": {
+        "type": "String"
+      }
+    }
+  },
+  "traitsLevelNote": "İyi ya da kötü yok: güçlü olan sana kolay gelen, az olan bilinçli çaba isteyen yanındır.",
+  "elementFireWord": "tutku",
+  "elementEarthWord": "somutluk",
+  "elementAirWord": "fikir",
+  "elementWaterWord": "duygu",
+  "modalityCardinalWord": "başlatma",
+  "modalityFixedWord": "sebat",
+  "modalityMutableWord": "uyum",
+  "signClimateAri": "başlangıç iklimi: cesaret, ilk adım, kendin için harekete geçmek.",
+  "signClimateTau": "yerleşme iklimi: sakinlik, beden, kalıcı olanı kurmak.",
+  "signClimateGem": "merak iklimi: öğrenmek, konuşmak, yeni bağlantılar.",
+  "signClimateCan": "yuva iklimi: aile, korunmak, köklerine dönmek.",
+  "signClimateLeo": "ışık iklimi: yaratmak, görünmek, kalpten yaşamak.",
+  "signClimateVir": "düzen iklimi: toparlanmak, ince ayar, gündelik ritim.",
+  "signClimateLib": "ilişki iklimi: denge, ortaklık, güzellik.",
+  "signClimateSco": "derinlik iklimi: dönüşüm, yakınlık, gizli olanla yüzleşmek.",
+  "signClimateSag": "ufuk iklimi: yolculuk, anlam arayışı, genişlemek.",
+  "signClimateCap": "inşa iklimi: sorumluluk, hedef, emeğin karşılığı.",
+  "signClimateAqu": "özgürlük iklimi: yenilik, topluluk, kendi yolun.",
+  "signClimatePis": "çözülme iklimi: sezgi, hayal, bırakmak.",
+  "progPhaseMeaningNewMoon": "Yeni Ay evresi: bir döngü başlıyor; tohum ekme zamanı.",
+  "progPhaseMeaningWaxingCrescent": "Hilal evresi: başladığını büyütme, ilk dirençleri aşma.",
+  "progPhaseMeaningFirstQuarter": "İlk dördün: karar ve eylem; yol ayrımları.",
+  "progPhaseMeaningWaxingGibbous": "Şişkin Ay evresi: ince ayar, emeği olgunlaştırma.",
+  "progPhaseMeaningFullMoon": "Dolunay evresi: görünür olma, meyve ve fark ediş.",
+  "progPhaseMeaningWaningGibbous": "Yayan Ay evresi: öğrendiğini paylaşma.",
+  "progPhaseMeaningLastQuarter": "Son dördün: elden geçirme, gereksizi bırakma.",
+  "progPhaseMeaningWaningCrescent": "Kapanış evresi: dinlenme, sindirme, yeni döngüye hazırlık.",
+  "innerJourneyTitle": "İç yolculuğun",
+  "innerJourneyNow": "Şu an",
+  "innerJourneyNowTitle": "İç iklimin: {burc}",
+  "@innerJourneyNowTitle": {
+    "placeholders": {
+      "burc": {
+        "type": "String"
+      }
+    }
+  },
+  "innerJourneyNextWhen": "{tarih} itibarıyla",
+  "@innerJourneyNextWhen": {
+    "placeholders": {
+      "tarih": {
+        "type": "String"
+      }
+    }
+  },
+  "innerJourneyNextTitle": "Sonraki iç iklim: {burc}",
+  "@innerJourneyNextTitle": {
+    "placeholders": {
+      "burc": {
+        "type": "String"
+      }
+    }
+  },
+  "innerJourneyMilestone": "Dönüm noktası · {tarih}",
+  "@innerJourneyMilestone": {
+    "placeholders": {
+      "tarih": {
+        "type": "String"
+      }
+    }
+  },
+  "solarReturnJourneyTitle": "Bu yılki yolculuğun",
+  "solarReturnJourneyMonth": "Yolculuğun {ay}. ayındasın",
+  "@solarReturnJourneyMonth": {
+    "placeholders": {
+      "ay": {
+        "type": "String"
+      }
+    }
+  },
+  "solarReturnRealmsTitle": "Bu yıl en çok gezeceğin evrenler",
+  "solarReturnRealmPlanets": "Burada: {gezegenler}",
+  "@solarReturnRealmPlanets": {
+    "placeholders": {
+      "gezegenler": {
+        "type": "String"
+      }
+    }
+  },
+  "solarReturnRealmsNoTime": "Doğum saatin olmadan yılın evrenleri hesaplanamıyor; yılın duygusal iklimi yine de aşağıda.",
+  "solarReturnMoonClimate": "Yılın duygusal iklimi",
+  "readingFullToggle": "Okumanın tamamı"
 }

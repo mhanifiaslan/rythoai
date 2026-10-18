@@ -87,6 +87,15 @@ void _yuzey(WidgetTester tester, {double genislik = 420}) {
 }
 
 /// `pumpAndSettle` KULLANILMAZ: yıldız alanı ve usturlap sürekli animatör.
+/// İç Mevsim ve Yıl Haritası'nda hazır okuma KATLI başlıyor (2026-10-18);
+/// okumayı ölçen testler önce katı açar. Katı olmayan ekranda iş yapmaz.
+Future<void> _okumayiAc(WidgetTester tester) async {
+  final kat = find.text(AppLocalizationsTr().readingFullToggle);
+  if (kat.evaluate().isEmpty) return;
+  await tester.tap(kat);
+  await _yerles(tester);
+}
+
 Future<void> _yerles(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 1500));
@@ -316,6 +325,7 @@ void main() {
         _yuzey(tester);
         await tester.pumpWidget(_sar(y.ekran, overrides: y.overrides(false)));
         await _yerles(tester);
+        await _okumayiAc(tester);
 
         expect(find.byType(MarginNote), findsOneWidget);
         expect(find.textContaining('ROOKUMA'), findsOneWidget);
@@ -338,6 +348,7 @@ void main() {
         await tester.pumpWidget(_sar(y.ekran,
             overrides: y.overrides(false), olcek: kMaxTextScale));
         await _yerles(tester);
+        await _okumayiAc(tester);
         expect(tester.takeException(), isNull,
             reason: '${y.ad}: dar ekranda taşma');
         expect(find.byType(RythoyaSor), findsOneWidget);

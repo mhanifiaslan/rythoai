@@ -561,6 +561,22 @@ Bu 403 "dunning"ten AYRI bir sınıf: artık risk ay başı çekim değil,
 - Kesintide üretilen yedekler: sinyal paketi 1 sa önbellekli (kendini
   onarır), push satırı **36 sa** (o günün burç satırları şablonda kalır).
 
+### "Astroloğa gerek bırakma" turu (2026-10-18) — dört yüzey sözle
+
+Sahip cihazda: "Toprak 2/8 iyi mi kötü mü?", "Ay ☍ Plüton 0° ne?", İç
+Mevsim/Yıl Haritası "makale gibi". Onarım YALNIZ ölçülmüş veri × sabit
+metin (`features/atlas/anlam_cevirici.dart`, sıfır LLM): açı satırı önce
+rol×tür cümlesi + güç sözü (derece dayanakta), alt sayfada iki gezegenin
+rolü; Kişilik'te düzey sözü + "8 ana noktadan 2 tanesi" + baskın nitelik;
+İç Mevsim ve Yıl Haritası'nda önce YOLCULUK (`widgets/yolculuk.dart`),
+okuma KATLI (hazır değilse açık — yoksa "Tekrar dene" katta saklanır,
+bekçi yakaladı), ölçüm en altta. ⚠️ Lifestyle turunun "okuma önde" kararı
+bu iki ekranda TERSİNE döndü; `anlam_once_bes_ekran_test` buna göre.
+Backend: saatsiz yıl haritasında `points[].house_no` ve köşe açıları artık
+gitmiyor (öğlene göre ev ölçülmüş gibi görünürdü). Minör açılara cümle
+bilinçli YOK. Kalan: ilerlemiş Ay'ın sonraki ikinci geçişi ve burca
+giriş tarihi hesaplanmadı (tahmin edilmedi).
+
 ### Panel + site turu (2026-10-17) — gelir "kendiliğinden gelmiyordu"
 
 Ölçülen kök: `rytho-stats` gecede BİR kez (23:40 UTC) koşuyordu → bugünün

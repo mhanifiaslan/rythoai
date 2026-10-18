@@ -260,11 +260,21 @@ void main() {
           reason: 'progres Ay derecesi kalkmış — ölçüm silinemez');
       expect(find.textContaining('Neptün'), findsWidgets);
 
-      final okuma = find.byType(MarginNote);
-      expect(okuma, findsOneWidget, reason: 'insan cümlesi ekrandan düşmüş');
-      expect(tester.getTopLeft(okuma).dy,
-          lessThan(tester.getTopLeft(find.textContaining('12.4').first).dy),
+      // 2026-10-18 (sahip, cihazda): anlam artık YOLCULUK şeridi; okuma
+      // katlanmış. İkisi de ölçümün (12.4) ÜSTÜNDE.
+      final olcum = tester.getTopLeft(find.textContaining('12.4').first).dy;
+      final yolculuk = find.text(_tr.innerJourneyTitle);
+      expect(yolculuk, findsOneWidget, reason: 'yolculuk şeridi yok');
+      expect(tester.getTopLeft(yolculuk).dy, lessThan(olcum),
           reason: 'ekran yine bir SAYIYLA açılıyor');
+      final kat = find.text(_tr.readingFullToggle);
+      expect(tester.getTopLeft(kat).dy, lessThan(olcum));
+      expect(find.byType(MarginNote), findsNothing,
+          reason: 'okuma açılışta KATLI olmalı (makale duvarı)');
+      await tester.tap(kat);
+      await _yerles(tester);
+      expect(find.byType(MarginNote), findsOneWidget,
+          reason: 'insan cümlesi ekrandan düşmüş');
     });
 
     testWidgets('"Rytho\'ya sor" var ve sohbeti O SORUYLA açıyor',
@@ -277,6 +287,8 @@ void main() {
             raporKapisiProvider.overrideWithValue(PlusHali.abone),
             innerCalendarProvider.overrideWith((ref) async => _icTakvimYuku()),
           ]));
+      await _yerles(tester);
+      await tester.tap(find.text(_tr.readingFullToggle));
       await _yerles(tester);
 
       final dugme = find.byType(RythoyaSor);
@@ -299,14 +311,22 @@ void main() {
       ]));
       await _yerles(tester);
 
-      // Dakika hassasiyetli dönüş anı YERİNDE — yalnız okumanın arkasında.
-      final an = find.textContaining('2026-05-12');
-      expect(an, findsWidgets, reason: 'dönüş anı kalkmış — ölçüm silinemez');
-      final okuma = find.byType(MarginNote);
-      expect(okuma, findsOneWidget);
-      expect(tester.getTopLeft(okuma).dy,
-          lessThan(tester.getTopLeft(an.first).dy),
+      // Dakika hassasiyetli dönüş anı YERİNDE — yolculuk ve okumanın
+      // arkasında. `.last`: yıl çubuğu da uç tarihi yazıyor (yolculuk).
+      final an = find.text('20:16');
+      expect(an, findsOneWidget, reason: 'dönüş anı kalkmış — ölçüm silinemez');
+      final olcum = tester.getTopLeft(an).dy;
+      final yolculuk = find.text(_tr.solarReturnJourneyTitle);
+      expect(yolculuk, findsOneWidget, reason: 'yıl çubuğu yok');
+      expect(tester.getTopLeft(yolculuk).dy, lessThan(olcum),
           reason: 'ekran yine bir TARİH-SAAT ile açılıyor');
+      final kat = find.text(_tr.readingFullToggle);
+      expect(tester.getTopLeft(kat).dy, lessThan(olcum));
+      expect(find.byType(MarginNote), findsNothing,
+          reason: 'okuma açılışta KATLI olmalı');
+      await tester.tap(kat);
+      await _yerles(tester);
+      expect(find.byType(MarginNote), findsOneWidget);
     });
 
     testWidgets('"Rytho\'ya sor" sohbeti O SORUYLA açıyor', (tester) async {
@@ -318,6 +338,8 @@ void main() {
             raporKapisiProvider.overrideWithValue(PlusHali.abone),
             solarReturnProvider.overrideWith((ref) async => _yilHaritasiYuku()),
           ]));
+      await _yerles(tester);
+      await tester.tap(find.text(_tr.readingFullToggle));
       await _yerles(tester);
 
       await tester.tap(find.byType(RythoyaSor));
@@ -524,27 +546,28 @@ void main() {
     // (eski `blok(Padding(` kopyası silindi) ve kap `OkumaKabi(`. Boş
     // okuma koşulu (`if (okuma.isNotEmpty)`) da gitti — kap boş metni
     // kendi "üretilemedi" dalında karşılıyor, ekranın koşulu kalmadı.
-    test('İç Takvim: okuma listenin ilk kalemi', () {
+    // 2026-10-18: bu iki ekranda ilk kalem artık YOLCULUK (ölçümün görsel
+    // çevirisi), okuma katlanmış ikinci kalem. Üstüne yine başka blok
+    // giremez.
+    test('İç Takvim: yolculuk listenin ilk kalemi', () {
       ilkKalem('lib/features/atlas/inner_calendar_screen.dart',
-          'OkumaKabi(',
+          'YolculukSeridi(',
           izinli: const [
             'RythoReveal(',
             'index: 0,',
-            'child: Padding(',
-            'padding:',
-            'const EdgeInsets.symmetric(horizontal: RythoSpace.lg),',
+            'child: GlassPanel(',
+            'label: l10n.innerJourneyTitle,',
+            'glow: true,',
             'child:',
           ]);
     });
 
-    test('Yıl Haritası: okuma listenin ilk kalemi', () {
-      ilkKalem('lib/features/atlas/solar_return_screen.dart', 'OkumaKabi(',
+    test('Yıl Haritası: yolculuk listenin ilk kalemi', () {
+      ilkKalem('lib/features/atlas/solar_return_screen.dart', '_YilCubugu(',
           izinli: const [
+            'if (bas != null && son != null)',
             'RythoReveal(',
             'index: 0,',
-            'child: Padding(',
-            'padding:',
-            'const EdgeInsets.symmetric(horizontal: RythoSpace.lg),',
             'child:',
           ]);
     });

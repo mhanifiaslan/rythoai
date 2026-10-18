@@ -595,8 +595,10 @@ void main() {
       // Kare (6.0°) lider DEGIL.
       expect(find.text(_tr.aspectMeaningSquare), findsNothing);
 
+      // Satır artık dereceyi değil güç SÖZÜNÜ taşıyor (2026-10-18; derece
+      // alt sayfanın dayanağında). 0.4° tek "çok güçlü" satır.
       for (final teknik in [
-        find.text('0.4°'),
+        find.text(_tr.aspectStrengthVeryStrong),
         find.text(_tr.aspectsGroupTension),
         find.text(_tr.aspectsGroupFlow),
       ]) {
@@ -669,7 +671,8 @@ void main() {
       final anlam = find.text(_tr.elementFireLine);
       expect(anlam, findsOneWidget);
       expect(_dy(tester, anlam),
-          lessThan(_dy(tester, find.text('4/8').first)));
+          lessThan(_dy(tester,
+              find.text(_tr.traitsCountCaption('4', '8')).first)));
       expect(_dy(tester, anlam),
           lessThan(_dy(tester, find.text(_tr.traitsElements))));
     });

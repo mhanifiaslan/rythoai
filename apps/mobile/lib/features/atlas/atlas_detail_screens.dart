@@ -43,6 +43,7 @@ import '../../widgets/glass.dart';
 import '../../widgets/motion.dart';
 import '../../widgets/nebula_widgets.dart';
 import '../chat/chat_screen.dart';
+import 'anlam_cevirici.dart';
 import 'atlas_screen.dart'
     show aspectKindLabel, aspectPairLabel, planetSignLabel;
 
@@ -592,6 +593,9 @@ class AtlasTraitsScreen extends StatelessWidget {
     // yerde duruyor (bkz. oranın gerekçesi orada): eşitlikte cümle hiç
     // çizilmez — "ölçülmeyen söylenmez"in bu ekrandaki hâli.
     final baskin = baskinElement(elementler);
+    // Nitelik de aynı kuralla (eşitlikte söylenmez): eskiden yalnız element
+    // cümlesi vardı, nitelik çubukları anlamsız kalıyordu.
+    final baskinKip = baskinNitelik(nitelikler);
 
     return _DetayIskelet(
       title: l10n.atlasTraits,
@@ -608,8 +612,17 @@ class AtlasTraitsScreen extends StatelessWidget {
                   List<String>.from((elementUye[baskin] as List? ?? const [])),
               points: points,
             ),
-            child: Text(elementLine(l10n, baskin),
-                style: RythoText.body(14, height: 1.5)),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(elementLine(l10n, baskin),
+                      style: RythoText.body(14, height: 1.5)),
+                  if (baskinKip != null) ...[
+                    const SizedBox(height: RythoSpace.xs),
+                    Text(modalityLine(l10n, baskinKip),
+                        style: RythoText.body(14, height: 1.5)),
+                  ],
+                ]),
           ),
         GlassPanel(
           label: l10n.traitsElements,
@@ -617,6 +630,7 @@ class AtlasTraitsScreen extends StatelessWidget {
             for (final e in const ['fire', 'earth', 'air', 'water'])
               _OranSatiri(
                 ad: elementName(l10n, e),
+                kelime: elementKelimesi(l10n, e),
                 sayi: (elementler[e] as num?)?.toInt() ?? 0,
                 toplam: toplam,
                 renk: kElementTints[elementRenk[e]!],
@@ -648,6 +662,7 @@ class AtlasTraitsScreen extends StatelessWidget {
             for (final m in const ['cardinal', 'fixed', 'mutable'])
               _OranSatiri(
                 ad: modalityName(l10n, m),
+                kelime: nitelikKelimesi(l10n, m),
                 sayi: (nitelikler[m] as num?)?.toInt() ?? 0,
                 toplam: toplam,
                 renk: nitelikRenk[m]!,
@@ -663,7 +678,8 @@ class AtlasTraitsScreen extends StatelessWidget {
               ),
           ]),
         ),
-        _Dipnot('${l10n.traitsSetNote}\n${l10n.traitsTapHint}'),
+        _Dipnot('${l10n.traitsLevelNote}\n${l10n.traitsSetNote}\n'
+            '${l10n.traitsTapHint}'),
         _SohbetKapisi(tohum: l10n.traitsAskPrefill),
       ],
     );
@@ -814,6 +830,7 @@ class _DagilimSheet extends StatelessWidget {
 class _OranSatiri extends StatelessWidget {
   const _OranSatiri({
     required this.ad,
+    required this.kelime,
     required this.sayi,
     required this.toplam,
     required this.renk,
@@ -821,6 +838,7 @@ class _OranSatiri extends StatelessWidget {
   });
 
   final String ad;
+  final String kelime;
   final int sayi;
   final int toplam;
   final Color renk;
@@ -828,18 +846,27 @@ class _OranSatiri extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final oran = toplam == 0 ? 0.0 : sayi / toplam;
+    // "Toprak 2/8" bilmeyene bir şey söylemiyordu, "iyi mi kötü mü?"
+    // sorusunu doğuruyordu (sahip, cihazda, 2026-10-18). Sağda artık düzey
+    // SÖZÜ, adın yanında gündelik karşılık, sayı da çubuğun altında cümle
+    // olarak ("8 ana noktadan 2 tanesi") — kesir hâlâ dürüst, yüzde yok.
     return Pressable(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 7),
-        child: Column(children: [
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Expanded(
-                child: Text(ad,
-                    style: RythoText.body(14, w: FontWeight.w600))),
-            Text('$sayi/$toplam',
-                style: RythoText.mono(12.5, color: renk)),
+            // Ad AYRI metin: `atlas_detail_test` adı birebir sayıyor.
+            Text(ad, style: RythoText.body(14, w: FontWeight.w600)),
+            if (kelime.isNotEmpty)
+              Expanded(
+                  child: Text(' · $kelime', style: RythoType.bodyDim))
+            else
+              const Spacer(),
+            Text(dengeDuzeyiMetni(l10n, dengeDuzeyi(sayi)),
+                style: RythoType.dataSmall.copyWith(color: renk)),
             const SizedBox(width: 6),
             const Icon(Icons.chevron_right,
                 size: 15, color: RythoColors.parchmentDim),
@@ -854,6 +881,9 @@ class _OranSatiri extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation(renk),
             ),
           ),
+          const SizedBox(height: RythoSpace.xs),
+          Text(l10n.traitsCountCaption('$sayi', '$toplam'),
+              style: RythoType.caption),
         ]),
       ),
     );
@@ -957,7 +987,19 @@ class AtlasAspectsScreen extends StatelessWidget {
           GlassPanel(
             label: aspectPairLabel(context, lider),
             onTap: () => showAspectSheet(context, lider),
-            child: Text(liderAnlam, style: RythoText.body(14, height: 1.5)),
+            // Önce BU çiftin cümlesi (iki gezegenin rolü × açı), sonra açı
+            // türünün genel anlamı: türün tanımı tek başına "Ay ne, Plüton
+            // ne" sorusunu cevaplamıyordu (sahip, cihazda, 2026-10-18).
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (aciCumlesi(l10n, lider, turkce: _turkce(context))
+                      case final cumle?) ...[
+                    Text(cumle, style: RythoType.cardTitle),
+                    const SizedBox(height: RythoSpace.xs),
+                  ],
+                  Text(liderAnlam, style: RythoText.body(14, height: 1.5)),
+                ]),
           ),
         bolum('tension', l10n.aspectsGroupTension),
         bolum('focus', l10n.aspectsGroupFocus),
@@ -970,6 +1012,10 @@ class AtlasAspectsScreen extends StatelessWidget {
   }
 }
 
+/// Cümle baş harfi dile göre büyütülür (`basHarfBuyuk`): Türkçe `i → İ`.
+bool _turkce(BuildContext context) =>
+    Localizations.localeOf(context).languageCode != 'en';
+
 class _AspectRow extends StatelessWidget {
   const _AspectRow({required this.aspect});
 
@@ -980,6 +1026,14 @@ class _AspectRow extends StatelessWidget {
     // Korumasız `as num` cast'i çöküyordu (orb eksikse ekran kapanıyordu).
     final orb = (aspect['orbit'] as num?)?.toDouble();
     final hareket = aspect['movement_local'] as String?;
+    final l10n = AppLocalizations.of(context);
+    // ANLAM ÖNCE: satır "Ay — Plüton · Karşıt · 0.4°" diye açılıyordu ve
+    // bilmeyen için hiçbir şey söylemiyordu (sahip, cihazda, 2026-10-18).
+    // Şimdi önce iki gezegenin rolüyle kurulan cümle, altında çift ve tür;
+    // derece yerine güç SÖZÜ — derecenin kendisi alt sayfadaki dayanakta.
+    final cumle = aciCumlesi(l10n, aspect, turkce: _turkce(context));
+    final guc = aciGucu(orb);
+    final tur = aspectKindLabel(context, aspect);
 
     return Pressable(
       onTap: () => showAspectSheet(context, aspect),
@@ -990,23 +1044,23 @@ class _AspectRow extends StatelessWidget {
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (cumle != null) Text(cumle, style: RythoType.body),
+                  // Çift adı AYRI metin kalıyor: liste sırası bekçisi
+                  // (`atlas_detail_test` "en dar orb önce") onu birebir
+                  // arıyor ve cümlesiz (minör) satırda öznenin kendisi o.
                   Text(aspectPairLabel(context, aspect),
-                      style: RythoType.body),
-                  if (hareket != null)
-                    Text(hareket,
-                        style: RythoText.body(10.5,
-                            color: RythoColors.parchmentDim)),
+                      style: cumle == null
+                          ? RythoType.body
+                          : RythoType.caption),
+                  Text(
+                      [tur, ?hareket]
+                          .where((s) => s.isNotEmpty)
+                          .join(' · '),
+                      style: RythoType.caption),
                 ]),
           ),
-          // Açı türü adı ("Karşıtlık", "Üçgen") dile bağlı ve esnemiyordu;
-          // soldaki `Expanded` sıfıra inse bile bu metin + orb + chevron
-          // dar ekranda taşıyordu. `Flexible` metnin sarmasına izin verir.
-          Flexible(
-            child: Text(aspectKindLabel(context, aspect),
-                style: RythoType.bodyDim),
-          ),
           const SizedBox(width: RythoSpace.md),
-          Text(orb == null ? '—' : '${orb.toStringAsFixed(1)}°',
+          Text(guc == null ? '—' : aciGucuMetni(l10n, guc),
               style: RythoType.dataSmall),
           const SizedBox(width: 4),
           const Icon(Icons.chevron_right,
@@ -1066,6 +1120,21 @@ class _AspectSheet extends StatelessWidget {
           children: [
             Text(cift, style: RythoType.sheetTitle),
             const SizedBox(height: RythoSpace.md),
+            if (aciCumlesi(l10n, aspect, turkce: _turkce(context))
+                case final cumle?) ...[
+              Text(cumle, style: RythoType.cardTitle),
+              const SizedBox(height: RythoSpace.sm),
+            ],
+            // İki gezegen KİM: rol satırları bugüne kadar yalnız Gezegenler
+            // ekranındaydı; açı sayfası "Ay ne, Plüton ne" sorusunu
+            // cevapsız bırakıyordu. Tablo aynı (`planetRoleText`), LLM yok.
+            for (final ad in [aspect['p1'], aspect['p2']])
+              if (planetRoleText(l10n, ad as String?) case final rol?)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: RythoSpace.xs),
+                  child: Text(rol, style: RythoType.bodyDim),
+                ),
+            const SizedBox(height: RythoSpace.sm),
             // ANLAM KATMANI — eskiden bu blok orb satırlarının ALTINDAYDI.
             if (aciklama != null)
               Text(aciklama, style: RythoText.body(14, height: 1.5)),
@@ -1216,6 +1285,14 @@ String? houseAreaText(AppLocalizations l10n, int house) => switch (house) {
       12 => l10n.house12,
       _ => null,
     };
+
+/// Evin etiketi ("7. ev") ve alanı ("birebir ilişkiler, …") ayrı ayrı —
+/// Yıl Haritası'nın "evren" kartları da AYNI tablodan okur (ikinci kopya
+/// ayrışırdı).
+({String etiket, String govde})? evAlani(AppLocalizations l10n, int ev) {
+  final metin = houseAreaText(l10n, ev);
+  return metin == null ? null : _ikiyeBol(metin);
+}
 
 /// `<Etiket>: <gövde>.` kalıbını ikiye böler.
 ///

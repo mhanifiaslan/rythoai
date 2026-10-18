@@ -38,3 +38,15 @@ bool onayKelimesiEslesiyor(String girdi, String beklenen) {
   String kanonik(String s) => trBuyuk(s.trim()).replaceAll('İ', 'I');
   return kanonik(girdi) == kanonik(beklenen);
 }
+
+/// Cümlenin YALNIZ ilk harfini büyütür; dile göre.
+///
+/// NEDEN dil parametresi: Türkçe'de `i → İ` (`trBuyuk`), İngilizce'de
+/// `i → I`. Tek bir kural ikisinden birini bozar — "ilişki" cümlesi
+/// Türkçe'de "Ilişki", İngilizce'de "İnner" olurdu. Gövdeleri küçük harfle
+/// başlayan şablonlar (açı cümlesi) buradan geçer.
+String basHarfBuyuk(String s, {required bool turkce}) {
+  if (s.isEmpty) return s;
+  final ilk = s.substring(0, 1);
+  return (turkce ? trBuyuk(ilk) : ilk.toUpperCase()) + s.substring(1);
+}

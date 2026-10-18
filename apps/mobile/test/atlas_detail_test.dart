@@ -3,6 +3,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/features/atlas/atlas_detail_screens.dart';
 import 'package:rytho/l10n/app_localizations.dart';
+import 'package:rytho/l10n/app_localizations_tr.dart';
+
+String _trCaption(String sayi, String toplam) =>
+    AppLocalizationsTr().traitsCountCaption(sayi, toplam);
 
 /// Asama A3'un degismezleri.
 ///
@@ -255,7 +259,9 @@ void main() {
       expect(find.text('Ateş'), findsNWidgets(2));
       expect(find.text('Su'), findsOneWidget);
       // Toplam 8 (geleneksel yedili + Yukselen) — kesir, yuzde DEGIL.
-      expect(find.text('3/8'), findsNWidgets(2));
+      // 2026-10-18: "3/8" çıplak kesri cümleye döndü ("8 ana noktadan 3
+      // tanesi") — sayı ve payda aynı, yalnız okunur hâlde.
+      expect(find.text(_trCaption('3', '8')), findsNWidgets(2));
       expect(find.textContaining('%'), findsNothing);
     });
 

@@ -17,6 +17,10 @@ import '../chat/chat_screen.dart';
 import '../paywall/bedel_onayi.dart';
 import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
+import '../../core/tr_metin.dart' show basHarfBuyuk;
+import '../../widgets/yolculuk.dart';
+import 'anlam_cevirici.dart';
+import 'atlas_detail_screens.dart' show evAlani;
 
 /// Yıl Haritası (T5): aktif güneş dönüşü — Güneş'in natal boylamına tam
 /// döndüğü ana kurulan harita, bir sonraki doğum gününe kadar geçerli
@@ -100,27 +104,61 @@ class SolarReturnScreen extends ConsumerWidget {
             (l10n.solarReturnMoon, ayMetni),
           ];
 
+          final noktalar = [
+            for (final p in (sr['points'] as List? ?? const []))
+              if (p is Map) Map<String, dynamic>.from(p),
+          ];
+          final bas = DateTime.tryParse('${sr['return_at_local'] ?? ''}');
+          final son =
+              DateTime.tryParse('${sr['next_return_at_local'] ?? ''}');
+          final ayIklimi =
+              burcIklimi(l10n, sr['sr_moon_sign'] as String?);
+
           return ListView(
             padding: const EdgeInsets.only(
                 top: RythoSpace.sm, bottom: RythoSpace.dockClearance),
             children: [
-              // ⚠️ OKUMA ÖNDE, ÖLÇÜM ARKADA (sahip kararı, lifestyle turu).
-              //
-              // Ekran bir TARİH-SAAT ile açılıyordu ve yılın okuması dört
-              // bloğun arkasında, sayfanın en sonundaydı. Dönüş anı doğru
-              // ve hak edilmiş bir ölçüm — kaldırılmadı, yalnız okumanın
-              // ARKASINA alındı: "bu yıl bana ne getiriyor" önce,
-              // "hangi dakikada başlıyor" sonra.
-              //
+              // ⚠️ YOLCULUK ÖNDE, OKUMA KATLANMIŞ, ÖLÇÜM ARKADA (sahip,
+              // cihazda, 2026-10-18). Lifestyle turunda okuma öne alınmıştı
+              // ("ekran bir TARİH-SAAT ile açılıyordu"); cihazda okuma da
+              // "makale gibi, bakmak bile istemiyorum" çıktı. Anlam artık
+              // ölçülmüş verinin GÖRSEL çevirisi: yılın neresindesin, en
+              // çok hangi evlerde (evrenlerde) gezeceksin, yılın duygusal
+              // iklimi. Uzun okuma silinmedi — katlanmış, isteyene açılır.
+              // Dönüş anı ve rozetler yine en altta (ölçüm arkada).
+              if (bas != null && son != null)
+                RythoReveal(
+                  index: 0,
+                  child: _YilCubugu(bas: bas, son: son),
+                ),
+              RythoReveal(index: 1, child: _YilEvrenleri(noktalar: noktalar)),
+              if (ayIklimi != null)
+                RythoReveal(
+                  index: 2,
+                  child: GlassPanel(
+                    label: l10n.solarReturnMoonClimate,
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(ayMetni, style: RythoType.cardTitle),
+                          const SizedBox(height: RythoSpace.xs),
+                          Text(ayIklimi, style: RythoType.bodyDim),
+                        ]),
+                  ),
+                ),
               // Kap `OkumaKabi`: paylaşım yalnız hazır okumada kurulur.
               // Eski hâl `fallback` bayrağını okumuyor ve sunucunun şablon
               // paragrafını paylaşım KARTINA bile basıyordu (ölçüldü).
               RythoReveal(
-                index: 0,
+                index: 3,
                 child: Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
-                  child: OkumaKabi(
+                  child: Katlanir(
+                    baslik: l10n.readingFullToggle,
+                    // Hazır değilse AÇIK: "Tekrar dene" katta saklanmasın.
+                    baslangicAcik: okumaDurumuFromYanit(data) is! OkumaHazir,
+                    child: OkumaKabi(
                     durum: okumaDurumuFromYanit(data),
                     ekranKodu: 'atlas',
                     baslik: l10n.solarReturnNote,
@@ -137,13 +175,14 @@ class SolarReturnScreen extends ConsumerWidget {
                       glyph: PlusOzellik.solarReturn.emoji,
                     ),
                   ),
+                  ),
                 ),
               ),
-              const RythoReveal(index: 1, child: SectionDivider()),
-              // Dönüş anı — yılın açılış anı, ekranın en büyük tipografisi.
-              // Dakika hassasiyetli bir hesap; büyük yazılması hak edilmiş.
+              const RythoReveal(index: 4, child: SectionDivider()),
+              // Dönüş anı — yılın açılış anı. Dakika hassasiyetli bir hesap;
+              // ölçüm olarak en altta, yolculuk ve okumadan sonra.
               RythoReveal(
-                index: 2,
+                index: 5,
                 child: _DonusKarti(
                   label: l10n.solarReturnMoment,
                   tarih: _tarih(sr['return_at_local']),
@@ -155,7 +194,7 @@ class SolarReturnScreen extends ConsumerWidget {
               // Yılın kimliği: üç rozet yan yana. Eskiden etiket–değer
               // satırlarıydı; yılın işaretleri bir bakışta okunmalı.
               RythoReveal(
-                index: 3,
+                index: 6,
                 child: GlassPanel(
                   label: l10n.solarReturnIdentity,
                   child: Row(
@@ -172,7 +211,7 @@ class SolarReturnScreen extends ConsumerWidget {
               // hesaplandığı görüldükten sonra anlam taşıyor.
               if (beyanlar.isNotEmpty)
                 RythoReveal(
-                  index: 4,
+                  index: 7,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(RythoSpace.lg,
                         RythoSpace.sm, RythoSpace.lg, RythoSpace.xs),
@@ -292,6 +331,83 @@ class _Rozet extends StatelessWidget {
             style: RythoText.body(14,
                 w: FontWeight.w700, color: RythoColors.goldBright)),
       ],
+    );
+  }
+}
+
+/// Yılın neresindesin: dönüşten bir sonraki dönüşe çubuk + "şu an" işareti.
+/// İki uç da ölçülmüş an (`return_at_local`, `next_return_at_local`).
+class _YilCubugu extends StatelessWidget {
+  const _YilCubugu({required this.bas, required this.son});
+
+  final DateTime bas;
+  final DateTime son;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final (:oran, :ay) = yilIlerlemesi(bas, son, DateTime.now());
+    return GlassPanel(
+      label: l10n.solarReturnJourneyTitle,
+      glow: true,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(l10n.solarReturnJourneyMonth('$ay'), style: RythoType.heroSmall),
+        const SizedBox(height: RythoSpace.md),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(RythoRadius.pill),
+          child: LinearProgressIndicator(
+            value: oran,
+            minHeight: RythoSpace.sm,
+            backgroundColor: RythoColors.inkLighter,
+            valueColor: const AlwaysStoppedAnimation(RythoColors.goldBright),
+          ),
+        ),
+        const SizedBox(height: RythoSpace.xs),
+        Row(children: [
+          Expanded(
+              child: Text(SolarReturnScreen._tarih(bas.toIso8601String()),
+                  style: RythoType.caption)),
+          Text(SolarReturnScreen._tarih(son.toIso8601String()),
+              style: RythoType.caption),
+        ]),
+      ]),
+    );
+  }
+}
+
+/// "Bu yıl en çok gezeceğin evrenler": yıl haritasının en kalabalık üç
+/// evi, ev alanı cümlesi + oradaki gezegenler. Saatsiz doğumda sunucu evi
+/// göndermez — kart ev UYDURMAZ, dürüst bir cümle basar.
+class _YilEvrenleri extends StatelessWidget {
+  const _YilEvrenleri({required this.noktalar});
+
+  final List<Map<String, dynamic>> noktalar;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final turkce = Localizations.localeOf(context).languageCode != 'en';
+    final evrenler = yilEvrenleri(noktalar);
+    if (evrenler.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: RythoSpace.lg, vertical: RythoSpace.xs),
+        child: Text(l10n.solarReturnRealmsNoTime, style: RythoType.caption),
+      );
+    }
+    return GlassPanel(
+      label: l10n.solarReturnRealmsTitle,
+      child: YolculukSeridi(duraklar: [
+        for (final e in evrenler)
+          if (evAlani(l10n, e.ev) case final alan?)
+            YolculukDuragi(
+              ust: alan.etiket,
+              baslik: basHarfBuyuk(alan.govde, turkce: turkce),
+              govde: l10n.solarReturnRealmPlanets(e.noktalar
+                  .map((p) => '${turkce ? p['name_tr'] ?? p['name'] : p['name']}')
+                  .join(', ')),
+            ),
+      ]),
     );
   }
 }

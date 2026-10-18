@@ -17,6 +17,8 @@ import '../chat/chat_screen.dart';
 import '../paywall/bedel_onayi.dart';
 import '../paywall/ozellik_katalogu.dart';
 import '../paywall/plus_locked_card.dart';
+import '../../widgets/yolculuk.dart';
+import 'anlam_cevirici.dart';
 
 /// **İç mevsim** (T5, R5-6'da yeniden adlandırıldı): ikincil progresyon.
 ///
@@ -111,12 +113,35 @@ class InnerCalendarScreen extends ConsumerWidget {
               // cümle + tekrar dene gelir, paylaşım kurulmaz. Eski hâl
               // bayrağı HİÇ okumuyordu ve gerekçesi "bu uç bayrak
               // döndürmüyor" diye çivilenmişti; D0'dan beri döndürüyor.
+              //
+              // ⚠️ 2026-10-18 (sahip, cihazda): okuma da "makale gibi,
+              // bakmak bile istemiyorum" çıktı. Anlam artık ölçülmüş
+              // tarihlerin GÖRSEL çevirisi — iç yolculuk şeridi (şu anki iç
+              // iklim → sonraki iklim → dönüm noktaları). Okuma silinmedi,
+              // katlanmış; ölçüm blokları yine en altta.
               RythoReveal(
                 index: 0,
+                child: GlassPanel(
+                  label: l10n.innerJourneyTitle,
+                  glow: true,
+                  child: YolculukSeridi(
+                      duraklar: icYolculukDuraklari(
+                          l10n, ay, vurgular, DateTime.now(),
+                          turkce: Localizations.localeOf(context)
+                                  .languageCode !=
+                              'en')),
+                ),
+              ),
+              RythoReveal(
+                index: 1,
                 child: Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
-                  child: OkumaKabi(
+                  child: Katlanir(
+                    baslik: l10n.readingFullToggle,
+                    // Hazır değilse AÇIK: "Tekrar dene" katta saklanmasın.
+                    baslangicAcik: okumaDurumuFromYanit(prog) is! OkumaHazir,
+                    child: OkumaKabi(
                     durum: okumaDurumuFromYanit(prog),
                     ekranKodu: 'atlas',
                     baslik: l10n.innerCalendarNote,
@@ -132,12 +157,13 @@ class InnerCalendarScreen extends ConsumerWidget {
                       glyph: PlusOzellik.progressions.emoji,
                     ),
                   ),
+                  ),
                 ),
               ),
-              const RythoReveal(index: 1, child: SectionDivider()),
-              // Progres Ay — iç mevsimin omurgası.
+              const RythoReveal(index: 2, child: SectionDivider()),
+              // Progres Ay — iç mevsimin omurgası (ölçüm).
               RythoReveal(
-                index: 2,
+                index: 3,
                 child: GlassPanel(
                   label: l10n.innerCalendarProgMoon,
                   child: Column(
@@ -159,7 +185,7 @@ class InnerCalendarScreen extends ConsumerWidget {
               ),
               if (beyanlar.isNotEmpty)
                 RythoReveal(
-                  index: 3,
+                  index: 4,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
                         RythoSpace.lg, 0, RythoSpace.lg, RythoSpace.xs),
@@ -171,7 +197,7 @@ class InnerCalendarScreen extends ConsumerWidget {
               // Şu an etkin açılar: yaklaşan lila, ayrılan soluk.
               if (aktif.isNotEmpty)
                 RythoReveal(
-                  index: 4,
+                  index: 5,
                   child: GlassPanel(
                     label: l10n.innerCalendarActive,
                     child: Column(
@@ -197,7 +223,7 @@ class InnerCalendarScreen extends ConsumerWidget {
               // Yaşam yayı: solar arc kesinleşmeleri (yıl/ay hassasiyeti).
               if (vurgular.isNotEmpty)
                 RythoReveal(
-                  index: 5,
+                  index: 6,
                   child: GlassPanel(
                     label: l10n.innerCalendarArc,
                     child: Column(

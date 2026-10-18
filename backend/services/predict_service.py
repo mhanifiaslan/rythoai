@@ -28,6 +28,10 @@ from services.geo_service import resolve_city
 PREDICT_CALC_VERSION = "3"
 
 
+#: Doğum saatine bağlı köşe noktaları — saatsiz haritada ölçülmüş değil.
+_KOSELER = frozenset({"Ascendant", "Medium_Coeli", "Descendant", "Imum_Coeli"})
+
+
 def _model_points(model) -> list[dict[str, Any]]:
     """PlanetReturnModel noktalarını natal şemasıyla aynı biçime döker."""
     noktalar = []
@@ -136,6 +140,18 @@ def solar_return(
         ev = getattr(aktif.sun, "house", None)
         sonuc["sr_sun_house"] = (ev if isinstance(ev, int)
                                  else astro_service._HOUSE_NO.get(ev))
+    else:
+        # Saat bilinmiyorsa gezegen başına ev de YOK (2026-10-18): yalnız
+        # `sr_ascendant`/`sr_sun_house` düşürülüyordu, `points[].house_no`
+        # öğlene göre hesaplanıp gidiyordu — istemci "bu yılın evrenleri"ni
+        # o evlerden kursaydı ölçülmemiş evi ölçülmüş gibi gösterirdi.
+        # Köşe noktalarına (ASC/MC/DSC/IC) açılar da aynı gerekçeyle çıkar.
+        for p in sonuc["points"]:
+            p.pop("house", None)
+            p.pop("house_no", None)
+        sonuc["aspects"] = [
+            a for a in sonuc["aspects"]
+            if a.get("p1") not in _KOSELER and a.get("p2") not in _KOSELER]
     # Saat bilinmiyorsa ASC/ev alanları HİÇ yok — "üretmediysen söyleme".
     return sonuc
 

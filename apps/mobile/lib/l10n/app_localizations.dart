@@ -5293,6 +5293,438 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Dış halka yükleniyor…'**
   String get chartOuterLoading;
+
+  /// No description provided for @aspectSubjectSun.
+  ///
+  /// In tr, this message translates to:
+  /// **'kimliğin'**
+  String get aspectSubjectSun;
+
+  /// No description provided for @aspectSubjectMoon.
+  ///
+  /// In tr, this message translates to:
+  /// **'duyguların'**
+  String get aspectSubjectMoon;
+
+  /// No description provided for @aspectSubjectMercury.
+  ///
+  /// In tr, this message translates to:
+  /// **'zihnin'**
+  String get aspectSubjectMercury;
+
+  /// No description provided for @aspectSubjectVenus.
+  ///
+  /// In tr, this message translates to:
+  /// **'sevme biçimin'**
+  String get aspectSubjectVenus;
+
+  /// No description provided for @aspectSubjectMars.
+  ///
+  /// In tr, this message translates to:
+  /// **'enerjin'**
+  String get aspectSubjectMars;
+
+  /// No description provided for @aspectSubjectJupiter.
+  ///
+  /// In tr, this message translates to:
+  /// **'büyüme isteğin'**
+  String get aspectSubjectJupiter;
+
+  /// No description provided for @aspectSubjectSaturn.
+  ///
+  /// In tr, this message translates to:
+  /// **'sorumluluk duygun'**
+  String get aspectSubjectSaturn;
+
+  /// No description provided for @aspectSubjectUranus.
+  ///
+  /// In tr, this message translates to:
+  /// **'özgürlük ihtiyacın'**
+  String get aspectSubjectUranus;
+
+  /// No description provided for @aspectSubjectNeptune.
+  ///
+  /// In tr, this message translates to:
+  /// **'hayal gücün'**
+  String get aspectSubjectNeptune;
+
+  /// No description provided for @aspectSubjectPluto.
+  ///
+  /// In tr, this message translates to:
+  /// **'dönüşüm gücün'**
+  String get aspectSubjectPluto;
+
+  /// No description provided for @aspectSubjectChiron.
+  ///
+  /// In tr, this message translates to:
+  /// **'eski yaran'**
+  String get aspectSubjectChiron;
+
+  /// No description provided for @aspectSubjectLilith.
+  ///
+  /// In tr, this message translates to:
+  /// **'evcilleşmeyen yanın'**
+  String get aspectSubjectLilith;
+
+  /// No description provided for @aspectSubjectNorthNode.
+  ///
+  /// In tr, this message translates to:
+  /// **'büyüme yönün'**
+  String get aspectSubjectNorthNode;
+
+  /// No description provided for @aspectSubjectSouthNode.
+  ///
+  /// In tr, this message translates to:
+  /// **'alıştığın yanın'**
+  String get aspectSubjectSouthNode;
+
+  /// No description provided for @aspectSubjectAscendant.
+  ///
+  /// In tr, this message translates to:
+  /// **'dışa görünen yüzün'**
+  String get aspectSubjectAscendant;
+
+  /// No description provided for @aspectSubjectMidheaven.
+  ///
+  /// In tr, this message translates to:
+  /// **'hedeflerin'**
+  String get aspectSubjectMidheaven;
+
+  /// No description provided for @aspectSubjectDescendant.
+  ///
+  /// In tr, this message translates to:
+  /// **'ilişki arayışın'**
+  String get aspectSubjectDescendant;
+
+  /// No description provided for @aspectSubjectImumCoeli.
+  ///
+  /// In tr, this message translates to:
+  /// **'köklerin'**
+  String get aspectSubjectImumCoeli;
+
+  /// No description provided for @aspectSentenceConjunction.
+  ///
+  /// In tr, this message translates to:
+  /// **'{a} ile {b} iç içe; birlikte çalışıyorlar.'**
+  String aspectSentenceConjunction(String a, String b);
+
+  /// No description provided for @aspectSentenceOpposition.
+  ///
+  /// In tr, this message translates to:
+  /// **'{a} ile {b} karşı karşıya; ikisine de yer açınca denge kuruluyor.'**
+  String aspectSentenceOpposition(String a, String b);
+
+  /// No description provided for @aspectSentenceSquare.
+  ///
+  /// In tr, this message translates to:
+  /// **'{a} ile {b} sürtüşüyor; zorluyor ama ilerletiyor.'**
+  String aspectSentenceSquare(String a, String b);
+
+  /// No description provided for @aspectSentenceTrine.
+  ///
+  /// In tr, this message translates to:
+  /// **'{a} ile {b} kolayca akıyor; doğal bir yetenek.'**
+  String aspectSentenceTrine(String a, String b);
+
+  /// No description provided for @aspectSentenceSextile.
+  ///
+  /// In tr, this message translates to:
+  /// **'{a} ile {b} birbirine kapı açıyor; adım atınca çalışıyor.'**
+  String aspectSentenceSextile(String a, String b);
+
+  /// No description provided for @aspectStrengthVeryStrong.
+  ///
+  /// In tr, this message translates to:
+  /// **'Çok güçlü'**
+  String get aspectStrengthVeryStrong;
+
+  /// No description provided for @aspectStrengthStrong.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güçlü'**
+  String get aspectStrengthStrong;
+
+  /// No description provided for @aspectStrengthMild.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hafif'**
+  String get aspectStrengthMild;
+
+  /// No description provided for @traitsLevelNone.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yok'**
+  String get traitsLevelNone;
+
+  /// No description provided for @traitsLevelLow.
+  ///
+  /// In tr, this message translates to:
+  /// **'Az'**
+  String get traitsLevelLow;
+
+  /// No description provided for @traitsLevelBalanced.
+  ///
+  /// In tr, this message translates to:
+  /// **'Dengeli'**
+  String get traitsLevelBalanced;
+
+  /// No description provided for @traitsLevelStrong.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güçlü'**
+  String get traitsLevelStrong;
+
+  /// No description provided for @traitsCountCaption.
+  ///
+  /// In tr, this message translates to:
+  /// **'{toplam} ana noktadan {sayi} tanesi'**
+  String traitsCountCaption(String sayi, String toplam);
+
+  /// No description provided for @traitsLevelNote.
+  ///
+  /// In tr, this message translates to:
+  /// **'İyi ya da kötü yok: güçlü olan sana kolay gelen, az olan bilinçli çaba isteyen yanındır.'**
+  String get traitsLevelNote;
+
+  /// No description provided for @elementFireWord.
+  ///
+  /// In tr, this message translates to:
+  /// **'tutku'**
+  String get elementFireWord;
+
+  /// No description provided for @elementEarthWord.
+  ///
+  /// In tr, this message translates to:
+  /// **'somutluk'**
+  String get elementEarthWord;
+
+  /// No description provided for @elementAirWord.
+  ///
+  /// In tr, this message translates to:
+  /// **'fikir'**
+  String get elementAirWord;
+
+  /// No description provided for @elementWaterWord.
+  ///
+  /// In tr, this message translates to:
+  /// **'duygu'**
+  String get elementWaterWord;
+
+  /// No description provided for @modalityCardinalWord.
+  ///
+  /// In tr, this message translates to:
+  /// **'başlatma'**
+  String get modalityCardinalWord;
+
+  /// No description provided for @modalityFixedWord.
+  ///
+  /// In tr, this message translates to:
+  /// **'sebat'**
+  String get modalityFixedWord;
+
+  /// No description provided for @modalityMutableWord.
+  ///
+  /// In tr, this message translates to:
+  /// **'uyum'**
+  String get modalityMutableWord;
+
+  /// No description provided for @signClimateAri.
+  ///
+  /// In tr, this message translates to:
+  /// **'başlangıç iklimi: cesaret, ilk adım, kendin için harekete geçmek.'**
+  String get signClimateAri;
+
+  /// No description provided for @signClimateTau.
+  ///
+  /// In tr, this message translates to:
+  /// **'yerleşme iklimi: sakinlik, beden, kalıcı olanı kurmak.'**
+  String get signClimateTau;
+
+  /// No description provided for @signClimateGem.
+  ///
+  /// In tr, this message translates to:
+  /// **'merak iklimi: öğrenmek, konuşmak, yeni bağlantılar.'**
+  String get signClimateGem;
+
+  /// No description provided for @signClimateCan.
+  ///
+  /// In tr, this message translates to:
+  /// **'yuva iklimi: aile, korunmak, köklerine dönmek.'**
+  String get signClimateCan;
+
+  /// No description provided for @signClimateLeo.
+  ///
+  /// In tr, this message translates to:
+  /// **'ışık iklimi: yaratmak, görünmek, kalpten yaşamak.'**
+  String get signClimateLeo;
+
+  /// No description provided for @signClimateVir.
+  ///
+  /// In tr, this message translates to:
+  /// **'düzen iklimi: toparlanmak, ince ayar, gündelik ritim.'**
+  String get signClimateVir;
+
+  /// No description provided for @signClimateLib.
+  ///
+  /// In tr, this message translates to:
+  /// **'ilişki iklimi: denge, ortaklık, güzellik.'**
+  String get signClimateLib;
+
+  /// No description provided for @signClimateSco.
+  ///
+  /// In tr, this message translates to:
+  /// **'derinlik iklimi: dönüşüm, yakınlık, gizli olanla yüzleşmek.'**
+  String get signClimateSco;
+
+  /// No description provided for @signClimateSag.
+  ///
+  /// In tr, this message translates to:
+  /// **'ufuk iklimi: yolculuk, anlam arayışı, genişlemek.'**
+  String get signClimateSag;
+
+  /// No description provided for @signClimateCap.
+  ///
+  /// In tr, this message translates to:
+  /// **'inşa iklimi: sorumluluk, hedef, emeğin karşılığı.'**
+  String get signClimateCap;
+
+  /// No description provided for @signClimateAqu.
+  ///
+  /// In tr, this message translates to:
+  /// **'özgürlük iklimi: yenilik, topluluk, kendi yolun.'**
+  String get signClimateAqu;
+
+  /// No description provided for @signClimatePis.
+  ///
+  /// In tr, this message translates to:
+  /// **'çözülme iklimi: sezgi, hayal, bırakmak.'**
+  String get signClimatePis;
+
+  /// No description provided for @progPhaseMeaningNewMoon.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni Ay evresi: bir döngü başlıyor; tohum ekme zamanı.'**
+  String get progPhaseMeaningNewMoon;
+
+  /// No description provided for @progPhaseMeaningWaxingCrescent.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hilal evresi: başladığını büyütme, ilk dirençleri aşma.'**
+  String get progPhaseMeaningWaxingCrescent;
+
+  /// No description provided for @progPhaseMeaningFirstQuarter.
+  ///
+  /// In tr, this message translates to:
+  /// **'İlk dördün: karar ve eylem; yol ayrımları.'**
+  String get progPhaseMeaningFirstQuarter;
+
+  /// No description provided for @progPhaseMeaningWaxingGibbous.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şişkin Ay evresi: ince ayar, emeği olgunlaştırma.'**
+  String get progPhaseMeaningWaxingGibbous;
+
+  /// No description provided for @progPhaseMeaningFullMoon.
+  ///
+  /// In tr, this message translates to:
+  /// **'Dolunay evresi: görünür olma, meyve ve fark ediş.'**
+  String get progPhaseMeaningFullMoon;
+
+  /// No description provided for @progPhaseMeaningWaningGibbous.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yayan Ay evresi: öğrendiğini paylaşma.'**
+  String get progPhaseMeaningWaningGibbous;
+
+  /// No description provided for @progPhaseMeaningLastQuarter.
+  ///
+  /// In tr, this message translates to:
+  /// **'Son dördün: elden geçirme, gereksizi bırakma.'**
+  String get progPhaseMeaningLastQuarter;
+
+  /// No description provided for @progPhaseMeaningWaningCrescent.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kapanış evresi: dinlenme, sindirme, yeni döngüye hazırlık.'**
+  String get progPhaseMeaningWaningCrescent;
+
+  /// No description provided for @innerJourneyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'İç yolculuğun'**
+  String get innerJourneyTitle;
+
+  /// No description provided for @innerJourneyNow.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şu an'**
+  String get innerJourneyNow;
+
+  /// No description provided for @innerJourneyNowTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'İç iklimin: {burc}'**
+  String innerJourneyNowTitle(String burc);
+
+  /// No description provided for @innerJourneyNextWhen.
+  ///
+  /// In tr, this message translates to:
+  /// **'{tarih} itibarıyla'**
+  String innerJourneyNextWhen(String tarih);
+
+  /// No description provided for @innerJourneyNextTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sonraki iç iklim: {burc}'**
+  String innerJourneyNextTitle(String burc);
+
+  /// No description provided for @innerJourneyMilestone.
+  ///
+  /// In tr, this message translates to:
+  /// **'Dönüm noktası · {tarih}'**
+  String innerJourneyMilestone(String tarih);
+
+  /// No description provided for @solarReturnJourneyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu yılki yolculuğun'**
+  String get solarReturnJourneyTitle;
+
+  /// No description provided for @solarReturnJourneyMonth.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yolculuğun {ay}. ayındasın'**
+  String solarReturnJourneyMonth(String ay);
+
+  /// No description provided for @solarReturnRealmsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu yıl en çok gezeceğin evrenler'**
+  String get solarReturnRealmsTitle;
+
+  /// No description provided for @solarReturnRealmPlanets.
+  ///
+  /// In tr, this message translates to:
+  /// **'Burada: {gezegenler}'**
+  String solarReturnRealmPlanets(String gezegenler);
+
+  /// No description provided for @solarReturnRealmsNoTime.
+  ///
+  /// In tr, this message translates to:
+  /// **'Doğum saatin olmadan yılın evrenleri hesaplanamıyor; yılın duygusal iklimi yine de aşağıda.'**
+  String get solarReturnRealmsNoTime;
+
+  /// No description provided for @solarReturnMoonClimate.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yılın duygusal iklimi'**
+  String get solarReturnMoonClimate;
+
+  /// No description provided for @readingFullToggle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Okumanın tamamı'**
+  String get readingFullToggle;
 }
 
 class _AppLocalizationsDelegate
