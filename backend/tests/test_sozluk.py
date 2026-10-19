@@ -317,7 +317,7 @@ def test_js_literal_ayristiricisinin_DISI_var():
 def _admin_dosyalari() -> list[Path]:
     # Ortak panosunun JS sözlüğü de kullanıcı yüzeyi: "jeton paketi" tam bu
     # tarama dışında kaldığı için D0'da görülmedi (ölçüldü 2026-10-10).
-    return sorted((_KOK / _ADMIN).rglob("*.js")) + [_KOK / "web" / "ortak" / "ortak.js"]
+    return sorted((_KOK / _ADMIN).rglob("*.js")) + [_KOK / "web" / "affiliate" / "ortak.js"]
 
 
 def test_admin_paneli_dizelerinde_eski_sozluk_yok():

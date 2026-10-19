@@ -152,7 +152,7 @@ class TestPazarlamaDili:
                  "web/legal/hesap-silme.html",
                  "web/en/legal/delete-account.html",
                  "web/ortaklik.html", "web/en/partners.html",
-                 "web/ortak/index.html",
+                 "web/affiliate/index.html",
                  "web/i/index.html", "web/r/index.html",
                  "web/404.html", "web/auth/action/index.html")
 

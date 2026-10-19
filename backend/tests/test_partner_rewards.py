@@ -904,7 +904,7 @@ def test_uidsiz_ortagin_kodu_kapinin_calismadigini_LOGLAR(depo, monkeypatch,
 #
 # Korunan şey panonun ULAŞILABİLİRLİĞİ: ortaklık claim'i yalnız
 # `tools/set_admin.py --partner` ile basılabildiği sürece, panelden ortak
-# açan yönetici için `web/ortak/` panosu pratikte YOKTU (ölçüldü — sahip
+# açan yönetici için `web/affiliate/` panosu pratikte YOKTU (ölçüldü — sahip
 # test ortağını ekledi ve ortağın nereden gireceği hiçbir yerde yazmıyordu).
 
 
@@ -1949,7 +1949,7 @@ def test_partners_me_de_surum_kapisindan_MUAF(monkeypatch):
     Önceki hâli 426 bekliyordu ve gerekçesi "uygulamanın kendi ucu"ydu.
     ÖLÇÜLDÜ, yanlıştı: `grep -rn "partners/" apps/mobile/lib
     --include=*.dart` SIFIR sonuç veriyor; ucun tek çağıranı tarayıcı
-    (`web/ortak/ortak.js`) ve tarayıcı `x-app-build` göndermiyor.
+    (`web/affiliate/ortak.js`) ve tarayıcı `x-app-build` göndermiyor.
 
     Yani o test bir sessiz ölümü ÇİVİLİYORDU: eşik > 0 yazıldığı an
     ortak panosu 426 alır, `ortak.js` bunu ne 403 ne 5xx gördüğü için

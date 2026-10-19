@@ -1,7 +1,7 @@
 /* Firebase Auth kurulumu — WEB panellerinin ORTAĞI (OP9).
  *
  * NEDEN VAR: aynı iki incelik hem yönetim panelinde (/rytho-admin/) hem
- * ortağın kendi panosunda (/ortak/) geçerli. OP9'da `rytho-admin/app.js`
+ * ortağın kendi panosunda (/affiliate/) geçerli. OP9'da `rytho-admin/app.js`
  * içinden buraya ÇIKARILDI, kopyalanmadı: kopya olsaydı biri onarılırken
  * diğeri sessizce eski kalırdı ve arıza "giriş çalışmıyor" diye
  * görünürdü — kök nedeni bu dosyada olmak zorunda.

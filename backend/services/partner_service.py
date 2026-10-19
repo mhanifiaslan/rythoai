@@ -1201,7 +1201,7 @@ def add_payout(partner_id: str, amount: float, currency: str,
 # Ortak ERİŞİMİ: panonun kapısını açan claim (api/admin.py çağırır)
 # ---------------------------------------------------------------------------
 #
-# Ortağın `web/ortak/` panosunu görebilmesi Firebase custom claim'ine bağlı
+# Ortağın `web/affiliate/` panosunu görebilmesi Firebase custom claim'ine bağlı
 # (`{partner: true, partnerId: ...}` → `core/auth.require_partner`). O claim
 # bu tura kadar YALNIZ `tools/set_admin.py --partner` ile, yerel makinede,
 # servis hesabı kimliğiyle basılabiliyordu; panel bunu söylemiyordu bile.

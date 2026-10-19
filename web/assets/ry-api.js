@@ -3,7 +3,7 @@
    Kimlik: Firebase ID token.
 
    NEDEN /assets/ ALTINDA: iki panel bunu kullanıyor — yönetim paneli
-   (/rytho-admin/) ve ortağın kendi panosu (/ortak/). Dosya OP9'da
+   (/rytho-admin/) ve ortağın kendi panosu (/affiliate/). Dosya OP9'da
    `rytho-admin/api.js`'ten buraya TAŞINDI, kopyalanmadı: iki kopya
    zamanla ayrışır ve aşağıdaki acı derslerden biri yalnız bir kopyada
    onarılırsa diğer panel sessizce bozuk kalır.

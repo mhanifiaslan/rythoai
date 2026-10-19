@@ -105,7 +105,44 @@ body { font-size: 14.5px; min-height: 100vh; overflow-x: clip; }
 .buton.kucuk { min-height: var(--ort-hedef); padding: 0 14px; font-size: 13px; }
 .buton:disabled { opacity: .45; cursor: not-allowed; filter: none; }
 
-/* ================= Pano kabuğu ================= */
+/* ================= Pano kabuğu =================
+   Yönetim panelinin küçük hâli: solda sabit menü (marka, bölümler, dil,
+   çıkış), sağda başlık + içerik. 900px altında menü üste yatay şerit olur. */
+.pano-kabuk:not([hidden]) { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+.yan-menu {
+  position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 18px 14px;
+  background: color-mix(in srgb, var(--ink) 96%, transparent);
+  border-right: 1px solid var(--ort-cizgi);
+}
+.yan-menu .marka { display: flex; align-items: center; gap: 10px; padding: 0 6px; }
+.yan-menu .marka img { width: 30px; height: 30px; }
+.yan-menu .marka b { font-family: 'Sora', system-ui, sans-serif; font-size: 15px; display: block; }
+.yan-menu .marka span { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--lilac); }
+.yan-menu .menu { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; }
+.yan-menu .menu a {
+  display: flex; align-items: center; min-height: var(--ort-hedef);
+  padding: 0 12px; border-radius: 10px;
+  color: var(--ort-metin-orta); text-decoration: none; font-size: 13.5px; font-weight: 600;
+}
+.yan-menu .menu a:hover, .yan-menu .menu a:focus-visible { background: color-mix(in srgb, var(--lilac) 12%, transparent); color: var(--parchment); }
+.yan-menu .menu-alt { display: flex; flex-direction: column; gap: 10px; }
+.dil-sec { display: inline-flex; border: 1px solid var(--ort-cizgi); border-radius: 999px; padding: 3px; align-self: flex-start; }
+.dil-sec button {
+  min-height: 32px; min-width: 44px; border: 0; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--ort-metin-orta); font: inherit; font-size: 12.5px; font-weight: 700;
+}
+.dil-sec button[aria-pressed="true"] { background: color-mix(in srgb, var(--lilac) 22%, transparent); color: var(--parchment); }
+.pano-sag { min-width: 0; }
+.govde section { scroll-margin-top: 72px; }
+@media (max-width: 900px) {
+  .pano-kabuk:not([hidden]) { grid-template-columns: 1fr; }
+  .yan-menu { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; border-right: 0; border-bottom: 1px solid var(--ort-cizgi); }
+  .yan-menu .menu { flex-direction: row; overflow-x: auto; flex: 1 1 100%; order: 3; }
+  .yan-menu .menu a { white-space: nowrap; }
+  .yan-menu .menu-alt { flex-direction: row; align-items: center; margin-left: auto; }
+}
 .pano-ust {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;

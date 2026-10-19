@@ -72,7 +72,7 @@
    önüne eklemesi gerekiyordu. Bağlantı artık her kod satırında TAM hâliyle
    duruyor; kod ikincil kalıyor çünkü mekanizma o (atıf kodla yazılıyor).
 
-   Aynı turda ölçülen ikinci boşluk: ortağın panosu (`web/ortak/`) hiçbir
+   Aynı turda ölçülen ikinci boşluk: ortağın panosu (`web/affiliate/`) hiçbir
    yerden linklenmiyor ve Firebase claim'i olmadan açılmıyordu; claim
    yalnız komut satırından basılıyordu (`tools/set_admin.py --partner`).
    Yani pano pratikte ULAŞILAMAZDI. Giriş adresi ve erişim düğmesi artık
@@ -107,7 +107,7 @@
      olsun. Bu sayfaya üründe hiçbir yerden bağlantı verilmiyor (bilinçli:
      kullanıcı yüzeyinde ortak panosu diye bir kapı yok), dolayısıyla
      adresi ortağa ELDEN vermek tek yol. */
-  var ORTAK_PANO_ADRESI = 'https://rytho.app/ortak/';
+  var ORTAK_PANO_ADRESI = 'https://rytho.app/affiliate/';
 
   /* Panoya kopyalama, üç katman. NEDEN yedek katman var: `navigator.clipboard`
      yalnız güvenli bağlamda VE izin verilmişse çalışır; reddedilirse promise
@@ -280,7 +280,7 @@
 
   /* Para birimi kodu → simge. Bilinmeyen kod OLDUĞU GİBİ yazılır: ₺ ya da $
      VARSAYMAK, ödemesi başka birimde yapılan ortağın rakamını yanlış birimle
-     göstermek olurdu. (`web/ortak/ortak.js` BİLİNEN kodlar için aynı eşlemeyi
+     göstermek olurdu. (`web/affiliate/ortak.js` BİLİNEN kodlar için aynı eşlemeyi
      taşıyor; ikisi ayrışırsa aynı kayıt iki ekranda iki birimle görünür.)
 
      TEK BİLİNÇLİ FARK boş koddur: orada varsayılan 'TRY' (ortak kendi tek
@@ -315,7 +315,7 @@
     // `hamEsik === ''` kapıya EKLİ ve `== null` tek başına YETMİYOR:
     // `Number('')` 0 üretir, yani elle boşaltılmış bir alan "alt sınır yok"
     // diye BEYAN edilirdi. Ortağın panosu aynı değeri ölçülmemiş sayıyor
-    // (`web/ortak/ortak.js` → `olculdu`, boş dizeyi dışlıyor); iki ekran
+    // (`web/affiliate/ortak.js` → `olculdu`, boş dizeyi dışlıyor); iki ekran
     // aynı kayıtta ayrışırsa biri olmayan bir anlaşma maddesini duyurur.
     var esik = (hamEsik == null || hamEsik === ''
                 || !isFinite(Number(hamEsik)))
@@ -664,7 +664,7 @@
       '"giremiyorum" demesi normaldir — çıkıp yeniden girmesini söyle.</p>';
 
     // ⚠️ Ortağın O ANDA NE GÖRDÜĞÜ de yazılmak zorunda, yoksa propagasyon
-    // cümlesi tek başına yetmez. ÖLÇÜLDÜ (`web/ortak/ortak.js`): claim'i
+    // cümlesi tek başına yetmez. ÖLÇÜLDÜ (`web/affiliate/ortak.js`): claim'i
     // olmayan hesap `/partners/me`den 403 alıyor, panonun `RY.yetkisiz()`
     // dalı `signOut()` çağırıp jenerik "böyle bir sayfa yok" görünümünü
     // (`#bulunamadi`) çiziyor — hesap sayımını engellemek için BİLİNÇLİ.
@@ -977,7 +977,8 @@
         // kaydırmaya düşerdi.
         { ad: 'code', baslik: 'Bağlantı', siralanir: true,
           bicim: function (k) {
-            var bag = BAGLANTI_KOKU + k.code;
+            // Küçük harf: `/r/` kodu büyük harfe çevirip doğruluyor (ortak panosuyla aynı).
+            var bag = BAGLANTI_KOKU + String(k.code || '').toLowerCase();
             return '<div class="ortak-kod-hucre"><b class="mono">' + b.e(k.code) + '</b>' +
               '<button type="button" class="buton ikincil kucuk" data-kopya="' + b.e(bag) +
               '" aria-label="Bağlantıyı kopyala: ' + b.e(k.code) + '">' +
@@ -1020,7 +1021,7 @@
         // testte herkeste uygulama kurulu olduğu için oradaki her sayı o
         // yoldan gelir. Tek kelimeye de KISALTILAMAZ: Türkçede o kelime
         // tek başına bambaşka bir şey okunur ve ortağın kendi panosu da tam
-        // bu gerekçeyle uzun hâli yazıyor (`web/ortak/ortak.js`,
+        // bu gerekçeyle uzun hâli yazıyor (`web/affiliate/ortak.js`,
         // `kodlarTablosu`). Limit gösterimi (`3 / 100`) bozulmuyor —
         // `maxRedemptions` tam bu sayacı sınırlıyor.
         { ad: 'redemptionCount', baslik: 'Bağlantıyı kullanan', hizala: 'sag',

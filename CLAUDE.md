@@ -792,7 +792,8 @@ kısım yazıldı:
 - Model: kullanıcıya ödül **YOK**; ortak, getirdiği kişinin **ilk**
   aboneliğinde sabit ₺ kazanır (`partners/{id}.rewardTry`, ortak başına,
   tavan 500). 15 gün sonra kesinleşir.
-- Ortağın panosu `rytho.app/ortak/` — **hiçbir yerden linklenmez**, adres
+- Ortağın panosu `rytho.app/affiliate/` (2026-10-19'a kadar `/ortak/`; eski
+  adres 301 ile yönlenir; varsayılan dil EN, menüden TR) — **hiçbir yerden linklenmez**, adres
   ortağa elden verilir; pano **tr/en** (2026-10-10: `?lang=` → tarayıcı dili
   → tr, elle QA `?lang=en`). Girebilmesi için custom claim şart ve o claim artık
   **panelden** basılıyor (Ortak erişimi → Erişimi aç). `tools/set_admin.py

@@ -2,6 +2,10 @@
   "hosting": {
     "public": "web",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "redirects": [
+      { "source": "/ortak", "destination": "/affiliate/", "type": 301 },
+      { "source": "/ortak/**", "destination": "/affiliate/", "type": 301 }
+    ],
     "rewrites": [
       {
         "source": "/i/**",
@@ -41,7 +45,7 @@
         ]
       },
       {
-        "source": "/ortak/**",
+        "source": "/affiliate/**",
         "headers": [
           { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
           { "key": "Cache-Control", "value": "no-store" }

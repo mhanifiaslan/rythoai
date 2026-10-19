@@ -21,12 +21,12 @@ _TABAN = "https://rytho.app"
 # X-Robots-Tag ile, /i/ kendi noindex'i ile (aşağıda ayrı test).
 # `r` = ortak bağlantısı (OP): /i/ ile aynı gerekçe — tek sayfa sınırsız
 # URL'ye hizmet ediyor, indekslenirse kopya içerik olur.
-# `ortak` = ortağın KENDİ panosu (OP9): rytho-admin gibi özel bir pano,
-# hiçbir yerden linklenmez ve firebase.json'daki /ortak/** girdisiyle
+# `affiliate` (eski `ortak`, 2026-10-19) = ortağın KENDİ panosu (OP9): rytho-admin gibi özel bir pano,
+# hiçbir yerden linklenmez ve firebase.json'daki /affiliate/** girdisiyle
 # X-Robots-Tag: noindex taşır. Burada olmasa sitemap tamlık testi
 # patlardı — test her indekslenebilir .html'in sitemap'te olmasını
 # zorluyor ve giriş kapısı sitemap'e girmemeli.
-_HARIC_KLASOR = {"rytho-admin", "auth", "i", "r", "ortak", "assets",
+_HARIC_KLASOR = {"rytho-admin", "auth", "i", "r", "affiliate", "assets",
                  ".well-known"}
 # 404 sayfası bir hata yüzeyi; doğrulama dosyası Google'ın kendi artefaktı.
 _HARIC_DOSYA = {"404.html", "googleb6af2cb19834337d.html"}

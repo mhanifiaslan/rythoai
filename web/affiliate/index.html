@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- noindex ikinci kemer; birincisi firebase.json /ortak/** — docs/web-notlari.md §Ortak panosu -->
+  <!-- noindex ikinci kemer; birincisi firebase.json /affiliate/** — docs/web-notlari.md §Ortak panosu -->
   <meta name="robots" content="noindex, nofollow">
   <meta name="color-scheme" content="dark">
   <!-- Metinler data-i18n ile SOZLUK'tan dolar (tr/en) — docs/web-notlari.md §Ortak panosu -->
@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet"></noscript>
   <link rel="stylesheet" href="/assets/rytho.css?v=4">
-  <link rel="stylesheet" href="/ortak/ortak.css?v=1">
+  <link rel="stylesheet" href="/affiliate/ortak.css?v=2">
 </head>
 <body>
   <!-- Canlı gökyüzü; reduced-motion'da tek kare — docs/web-notlari.md §Ortak panosu -->
@@ -55,18 +55,30 @@
   </div>
 
   <!-- Pano -->
-  <div id="pano" hidden>
-    <header class="pano-ust">
+  <!-- Kabuk yönetim panelinin küçük hâli: solda menü, sağda içerik — docs/web-notlari.md §Ortak panosu -->
+  <div id="pano" class="pano-kabuk" hidden>
+    <aside class="yan-menu">
       <div class="marka">
         <img src="/assets/rytho_logo.svg" alt="">
         <div><b>Rytho</b><span data-i18n="panoAdi">Ortak panosu</span></div>
       </div>
-      <div class="bosluk"></div>
-      <span class="kim" id="kim-eposta"></span>
-      <button id="yenile" class="buton ikincil kucuk" type="button" data-i18n="yenile">Yenile</button>
-      <button id="cikis" class="buton ikincil kucuk" type="button" data-i18n="cikis">Çıkış</button>
-    </header>
-    <main id="pano-govde" class="govde" tabindex="-1" aria-busy="true"></main>
+      <nav id="pano-menu" class="menu"></nav>
+      <div class="menu-alt">
+        <div class="dil-sec" role="group" aria-label="Language / Dil">
+          <button type="button" data-dil="en" lang="en">EN</button>
+          <button type="button" data-dil="tr" lang="tr">TR</button>
+        </div>
+        <button id="cikis" class="buton ikincil kucuk" type="button" data-i18n="cikis">Çıkış</button>
+      </div>
+    </aside>
+    <div class="pano-sag">
+      <header class="pano-ust">
+        <span class="kim" id="kim-eposta"></span>
+        <div class="bosluk"></div>
+        <button id="yenile" class="buton ikincil kucuk" type="button" data-i18n="yenile">Yenile</button>
+      </header>
+      <main id="pano-govde" class="govde" tabindex="-1" aria-busy="true"></main>
+    </div>
   </div>
 
   <!-- Firebase — Hosting'in rezerve SDK yolları (dış CDN yok) -->
@@ -82,6 +94,6 @@
   <script src="/assets/ry-api.js?v=2"></script>
 
   <script src="/assets/starfield.js"></script>
-  <script src="/ortak/ortak.js?v=1"></script>
+  <script src="/affiliate/ortak.js?v=2"></script>
 </body>
 </html>

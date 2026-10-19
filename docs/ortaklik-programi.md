@@ -464,6 +464,6 @@ eklenmesi ayrı bir iş.
 
 ## Pano dili (2026-10-10)
 
-Ortak panosu (`rytho.app/ortak/`) tr/en: sıra `?lang=` → tarayıcı dili → tr.
+Ortak panosu (`rytho.app/affiliate/`, eski `/ortak/` 301 ile yönlenir) en/tr: sıra `?lang=` → ortağın menüden seçtiği dil (tarayıcıda saklı) → en (2026-10-19, sahip kararı).
 Ortak kaydında dil alanı yok; elle QA `?lang=en` ile. Sunucunun `detail`
 metni olduğu gibi geçer (dili sunucu seçer). Bekçi `backend/tests/test_web_ortak.py`.

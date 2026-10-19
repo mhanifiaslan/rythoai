@@ -1,4 +1,4 @@
-r"""Ortak panosunun DİL katmanı — `web/ortak/` (OP9) bekçisi.
+r"""Ortak panosunun DİL katmanı — `web/affiliate/` (OP9) bekçisi.
 
 NEDEN (ölçüldü 2026-10-10): `web/en/partners.html` İngilizce bir ortaklık
 programı sunuyor ve girişin arkasında bir "partner panel" vaat ediyor;
@@ -46,8 +46,8 @@ from pathlib import Path
 import pytest
 
 _KOK = Path(__file__).resolve().parents[2]
-_JS = _KOK / "web" / "ortak" / "ortak.js"
-_HTML = _KOK / "web" / "ortak" / "index.html"
+_JS = _KOK / "web" / "affiliate" / "ortak.js"
+_HTML = _KOK / "web" / "affiliate" / "index.html"
 _DILLER = ("tr", "en")
 
 #: Sözlük boyutu tabanı: ayrıştırıcı GERÇEKTEN okuyor mu? Yazıldığı gün
@@ -263,11 +263,11 @@ def test_dil_secimi_sorgu_tarayici_tr_sirasiyla():
     olmasa desteklenmeyen dilde `T` undefined olur ve pano hiç çizilmez."""
     kod = _kod()
     secim = re.search(
-        r"var lang = \(params\.get\('lang'\) \|\| navigator\.language \|\| 'tr'\)",
+        r"var lang = \(params\.get\('lang'\) \|\| kayitliDil\(\) \|\| 'en'\)",
         kod)
-    assert secim, "dil seçimi `params.get('lang') || navigator.language || 'tr'` değil"
-    assert "if (lang !== 'en') lang = 'tr';" in kod, (
-        "desteklenmeyen dil tr'ye düşmüyor — `SOZLUK[lang]` undefined olur")
+    assert secim, "dil seçimi `params.get('lang') || kayitliDil() || 'en'` değil (2026-10-19: varsayılan en)"
+    assert "if (lang !== 'tr') lang = 'en';" in kod, (
+        "desteklenmeyen dil en'e düşmüyor — `SOZLUK[lang]` undefined olur")
     assert "document.documentElement.lang = lang;" in kod, (
         "<html lang> seçilen dile çekilmiyor; ekran okuyucu yanlış dille okur")
     assert "var T = SOZLUK[lang];" in kod

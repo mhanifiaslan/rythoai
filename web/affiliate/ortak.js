@@ -73,15 +73,22 @@
 
   /* ------------------------------------------------ dil */
 
+  function kayitliDil() {
+    try { return window.localStorage.getItem('ry.affiliate.dil'); } catch (h) { return null; }
+  }
+
   /* `web/i/index.html` ile AYNI desen: `?lang=` → `navigator.language` →
      tr. Ortağın kaydında dil alanı YOK (`partner_self_view` taşımıyor), o
      yüzden tek sinyal tarayıcı; `?lang=` elle QA için. Pano hiçbir yerden
      linklenmez, adres ortağa elden verilir — `?lang=` taşıyan bir bağlantı
      EKLENMEZ, parametre yalnız okunur. */
+  /* 2026-10-19 (sahip): varsayılan dil İNGİLİZCE — program uluslararası
+     ortaklara da açılıyor. Sıra: `?lang=` (QA) → ortağın menüden SEÇTİĞİ
+     dil (bu tarayıcıda saklı) → en. Tarayıcı dili artık okunmuyor. */
   var params = new URLSearchParams(window.location.search);
-  var lang = (params.get('lang') || navigator.language || 'tr')
+  var lang = (params.get('lang') || kayitliDil() || 'en')
     .toLowerCase().slice(0, 2);
-  if (lang !== 'en') lang = 'tr';
+  if (lang !== 'tr') lang = 'en';
   document.documentElement.lang = lang;
 
   /* Sayı/tarih/yüzde biçimi DİLDEN türer; sabit 'tr-TR' kalmaz (eskiden
@@ -252,11 +259,11 @@
       veriAlinamadi: 'Veri alınamadı ({sebep}).'
     },
     en: {
-      sayfaBasligi: 'Rytho Partner Panel',
+      sayfaBasligi: 'Rytho Affiliate Panel',
       atla: 'Skip to content',
       yokBaslik: 'There is no such page in this sky',
       kokSayfa: 'Home',
-      panoAdi: 'Partner panel',
+      panoAdi: 'Affiliate panel',
       eposta: 'Email',
       sifre: 'Password',
       girisYap: 'Sign in',
@@ -721,6 +728,37 @@
     return t('esigeKaldi', { kalan: para(esik - bakiye, '₺') });
   }
 
+  /* Yan menü pano İÇERİĞİNDEN kurulur: her `section` başlığı (h2) bir
+     bağlantı. NEDEN elle liste değil: bölümler veriye göre çizilip
+     çizilmiyor (ör. tıklama serisi yoksa modül hiç yok) — elle yazılmış bir
+     menü olmayan bölüme götürürdü. Sahip: "belge açmışım gibi, ne menü var
+     ne profesyonel görünüm" (2026-10-19). */
+  function menuKur() {
+    var menu = $('pano-menu');
+    if (!menu) return;
+    menu.setAttribute('aria-label', T.panoAdi);
+    var basliklar = $('pano-govde').querySelectorAll('section h2');
+    var html = '';
+    Array.prototype.forEach.call(basliklar, function (h, i) {
+      var bolum = h.closest('section');
+      if (!bolum) return;
+      bolum.id = 'bolum-' + (i + 1);
+      html += '<a href="#' + bolum.id + '">' + e(h.textContent) + '</a>';
+    });
+    menu.innerHTML = html;
+  }
+
+  /* Dil düğmeleri: seçim bu tarayıcıda saklanır ve sayfa yeniden açılır
+     (bütün metinler açılışta SOZLUK'tan dolduruluyor). Adrese `lang=`
+     YAZILMAZ — pano linklenmez, parametre yalnız okunur. */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-dil]'), function (b) {
+    b.setAttribute('aria-pressed', b.getAttribute('data-dil') === lang ? 'true' : 'false');
+    b.addEventListener('click', function () {
+      try { window.localStorage.setItem('ry.affiliate.dil', b.getAttribute('data-dil')); } catch (h) { /* gizli pencere */ }
+      window.location.replace(window.location.pathname);
+    });
+  });
+
   function modul(baslik, ic, alt) {
     return '<section class="modul">' +
       '<div class="bas"><h2>' + e(baslik) + '</h2>' +
@@ -952,7 +990,10 @@
       '<th scope="col">' + e(T.paylasilabilir) + '</th>' +
       '</tr></thead><tbody>' +
       kodlar.map(function (k, i) {
-        var bag = PAYLASIM_TABANI + encodeURIComponent(k.code || '');
+        // Bağlantı KÜÇÜK harfle (sahip, 2026-10-19): kod büyük harfle
+        // saklanıyor ama paylaşılan adreste bağırıyordu. `/r/` sayfası gelen
+        // kodu büyük harfe çevirip doğruluyor — iki biçim de çalışır.
+        var bag = PAYLASIM_TABANI + encodeURIComponent(String(k.code || '').toLowerCase());
         var alanKimlik = 'bag-' + i;
         return '<tr>' +
           '<th scope="row" class="mono">' + e(k.code || '—') + '</th>' +
@@ -1179,6 +1220,7 @@
         '<p class="dipnot">' + e(T.odulP3) + '</p>');
 
     $('pano-govde').innerHTML = html;
+    menuKur();
     duyur(T.panoYuklendi);
   }
 
