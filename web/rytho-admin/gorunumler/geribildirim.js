@@ -318,10 +318,10 @@
 
     icerik.innerHTML =
       b.sayfaBaslik({ baslik: 'Geri bildirimler',
-        alt: 'Uygulama içi Profil → Geri bildirim · yanıt kullanıcıya bildirim olarak gider · sayfa başına ' + SAYFA }) +
+        alt: 'Uygulamada Profil → Geri bildirim\'den gelenler. Yanıtın kullanıcıya bildirim olarak gider.' }) +
       '<div id="gb-filtre"></div>' +
       b.modul('Kayıtlar', '<div id="gb-tablo"></div>', '<span class="dipnot" id="gb-sayac"></span>',
-        { alt: 'satıra tıkla → ayrıntı · yeniden eskiye' }) +
+        { alt: 'En yeni üstte · ayrıntı için satıra dokun' }) +
       '<p class="dipnot">Yanıt kullanıcının telefonuna bildirim olarak gider ve durumu "İnceleniyor" yapar; ' +
       'iç notlar yalnız panelde görünür. Durum ve not değişiklikleri denetim izine yazılır.</p>';
 

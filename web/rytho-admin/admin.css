@@ -295,7 +295,10 @@ html { scroll-behavior: auto; }
 .vt .vt-kimlik > div { min-width: 0; }
 .vt .vt-kimlik a, .vt a.vt-baglanti { color: var(--parchment); font-weight: 600; text-decoration: none; }
 .vt .vt-kimlik a:hover, .vt a.vt-baglanti:hover { color: var(--lilac); }
-.vt .vt-kimlik span { display: block; color: var(--parchment-mid); font-size: 12px; font-family: 'JetBrains Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Yalnız ALT SATIR: eski `.vt .vt-kimlik span` baş harf avatarını da
+   (o da bir span) bloğa, 12px mono'ya çevirip kırpıyordu — harfler sol
+   üstte yarım görünüyordu (sahip ekranı, 2026-10-19). */
+.vt .vt-kimlik .kimlik-alt { display: block; color: var(--parchment-mid); font-size: 12px; font-family: 'JetBrains Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vt tr.durum-hata td:first-child { box-shadow: inset 3px 0 0 var(--madder); }
 .vt tr.durum-uyari td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .vt tr.durum-pasif td { color: var(--parchment-mid); }
@@ -324,6 +327,14 @@ html { scroll-behavior: auto; }
 
 /* ================= Süzgeç satırı ================= */
 .suzgec { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Açılır süzgeç seridi (bilesenler.suzgecSecicileri). */
+.suzgec-seridi { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; }
+.suzgec-secici { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 4px 0 12px; border: 1px solid var(--cizgi); border-radius: 999px; background: var(--yuzey); font-size: 13px; }
+.suzgec-secici.secili { border-color: color-mix(in srgb, var(--lilac) 55%, transparent); background: var(--lilac-zemin); }
+.suzgec-secici .suzgec-ad { color: var(--parchment-mid); font-weight: 600; }
+.suzgec-secici select { appearance: auto; background: transparent; border: 0; color: var(--parchment); font: inherit; min-height: 34px; padding: 0 6px; cursor: pointer; }
+.suzgec-secici select:focus-visible { outline: 2px solid var(--lilac); outline-offset: 2px; border-radius: 6px; }
+.suzgec-secici select option { background: var(--ink-light); color: var(--parchment); }
 /* Süzgeç şeridi: her görünümde sayfa başlığının hemen altında, aynı yerde.
    Grupların arası, grup içinden geniş — hangi çipin hangi gruba ait
    olduğu boşluktan okunur. Not (ör. "Günler UTC'ye göre") sağa yaslanır. */

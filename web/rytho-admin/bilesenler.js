@@ -937,6 +937,74 @@
     return kok;
   }
 
+  /* ---------------- Süzgeç seçicileri (açılır, kompakt) ----------------
+
+     filtreCipleri ile AYNI sözleşme ({filtreler, deger, onDegis} → el;
+     el.deger(), el.ayarla()) ama her süzgeç TEK bir açılır seçim:
+     "Plan: Tümü ▾". NEDEN: Kullanıcılar ekranında altı süzgecin bütün
+     seçenekleri yan yana çip olarak diziliyordu (yedi dil, iki platform,
+     üç plan…) ve şerit iki satıra taşıyordu; hangi süzgecin açık olduğu
+     kalabalıkta kayboluyordu (sahip, 2026-10-19). Yerel <select> klavye
+     ve ekran okuyucuyla bedava erişilebilir; seçili olanlar ayrıca
+     kaldırılabilir etiket olarak görünür. Tek değerli süzgeçler içindir
+     (`coklu` desteklenmez — o ekranda yok). */
+  function suzgecSecicileri(o) {
+    o = o || {};
+    var filtreler = o.filtreler || [];
+    var deger = Object.assign({}, o.deger || {});
+    var kok = el('<div class="suzgec-seridi" role="group" aria-label="' +
+      e(o.etiket || 'Süzgeçler') + '"></div>');
+
+    function secenekAdi(f, v) {
+      var s = (f.secenekler || []).filter(function (x) { return String(x.deger) === String(v); })[0];
+      return s ? s.etiket : String(v);
+    }
+
+    function ciz() {
+      var secililer = filtreler.filter(function (f) { return deger[f.ad] != null; });
+      kok.innerHTML = filtreler.map(function (f) {
+        var v = deger[f.ad];
+        return '<label class="suzgec-secici' + (v != null ? ' secili' : '') + '">' +
+          '<span class="suzgec-ad">' + e(f.etiket || f.ad) + '</span>' +
+          '<select data-filtre="' + e(f.ad) + '" aria-label="' + e(f.etiket || f.ad) + '">' +
+          '<option value="">Tümü</option>' +
+          (f.secenekler || []).map(function (s) {
+            return '<option value="' + e(s.deger) + '"' +
+              (v != null && String(v) === String(s.deger) ? ' selected' : '') + '>' +
+              e(s.etiket) + '</option>';
+          }).join('') + '</select></label>';
+      }).join('') +
+      // Seçili süzgeç kendi kutusunda vurgulu ("Dil: İngilizce"); ayrıca
+      // etiket basmak aynı bilgiyi ikinci kez yazıyordu (ölçüldü, test
+      // düzeneği). Tek eylem: hepsini temizle, kaçının açık olduğu yazılı.
+      (secililer.length
+        ? '<button type="button" class="buton ikincil kucuk" data-temizle="1" aria-label="' +
+          e(secililer.map(function (f) { return (f.etiket || f.ad) + ': ' + secenekAdi(f, deger[f.ad]); }).join(', ') +
+          ' — süzgeçleri temizle') + '">' + ik('kapat', 12) + ' Temizle (' + secililer.length + ')</button>'
+        : '');
+    }
+
+    function bildir() { if (o.onDegis) o.onDegis(kok.deger()); }
+
+    kok.addEventListener('change', function (ev) {
+      var s = ev.target.closest('select[data-filtre]');
+      if (!s) return;
+      deger[s.getAttribute('data-filtre')] = s.value || undefined;
+      ciz();
+      var yeni = kok.querySelector('select[data-filtre="' + s.getAttribute('data-filtre') + '"]');
+      if (yeni) yeni.focus();
+      bildir();
+    });
+    kok.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-temizle]')) { deger = {}; ciz(); bildir(); }
+    });
+
+    kok.deger = function () { return Object.assign({}, deger); };
+    kok.ayarla = function (yeni) { deger = Object.assign({}, yeni || {}); ciz(); };
+    ciz();
+    return kok;
+  }
+
   /* ---------------- Tek seçimli çipler / dönem seçici ---------------- */
 
   /* secimCipleri({etiket, grupAdi, secenekler:[{deger, etiket, ipucu}],
@@ -1387,6 +1455,7 @@
     // v3 etkileşimli
     veriTablosu: veriTablosu, modal: modal, yanPanel: yanPanel,
     onayla: onayla, toast: toast, filtreCipleri: filtreCipleri,
+    suzgecSecicileri: suzgecSecicileri,
     secimCipleri: secimCipleri, donemSecici: donemSecici, tazeleyici: tazeleyici,
     sekmeler: sekmeler, form: form, segmentler: segmentler
   };

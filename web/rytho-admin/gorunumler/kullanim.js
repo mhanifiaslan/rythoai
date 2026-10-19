@@ -52,9 +52,9 @@
   function kisiHucresi(b, u) {
     var ad = u.displayName || u.email || u.uid;
     var alt = u.displayName && u.email ? u.email : (u.uid !== ad ? u.uid : '');
-    return '<span class="vt-kimlik"><span class="avatar">' +
+    return '<span class="vt-kimlik"><span class="avatar" aria-hidden="true">' +
       b.e(b.basHarfler(u.displayName, u.email)) + '</span><div>' + b.e(ad) +
-      (alt ? '<span>' + b.e(alt) + '</span>' : '') + '</div></span>';
+      (alt ? '<span class="kimlik-alt">' + b.e(alt) + '</span>' : '') + '</div></span>';
   }
 
   RY.gorunumler.kullanim = async function (icerik, args, params, baglam) {
@@ -167,7 +167,7 @@
 
     var tablolar = '<div class="izgara-2">' +
       b.modul('En çok maliyet üreten kullanıcılar', '<div id="kul-top"></div>', '',
-        { alt: 'son özet günü · ilk 20 · satır → ayrıntı' }) +
+        { alt: 'Son özet günü · ilk 20 · ayrıntı için satıra dokun' }) +
       b.modul('Kredi bedelleri', '<div id="kul-bedel"></div>', '',
         { alt: 'sunucudaki değer · özellik başına düşülen kredi' }) +
       '</div>' +

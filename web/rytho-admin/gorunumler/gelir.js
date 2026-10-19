@@ -192,7 +192,7 @@
     var ad = u.displayName || u.email || u.uid;
     var alt = u.displayName && u.email ? u.email : (ad !== u.uid ? u.uid : '');
     return '<span class="vt-kimlik"><span class="avatar" aria-hidden="true">' + b.e(b.basHarfler(u.displayName, u.email)) +
-      '</span><div>' + b.e(ad) + (alt ? '<span>' + b.e(alt) + '</span>' : '') + '</div></span>';
+      '</span><div>' + b.e(ad) + (alt ? '<span class="kimlik-alt">' + b.e(alt) + '</span>' : '') + '</div></span>';
   }
 
   /* Bir ortamın dönemdeki olay sayısı — stats günlerinden. Gelir ucu yalnız
@@ -660,9 +660,9 @@
       b.modul('Ekonomi toplamları', ekoHtml, '', { alt: ekoGun + ' gün' + ekoNot + ' · ' + ortamAdi(sec.env) }) +
       '</div>' +
       b.modul('Kullanıcı ekonomisi', '<div id="gelir-eko-tablo"></div>', '',
-        { alt: ekoGun + ' gün' + ekoNot + ' · marja göre ilk 200 · satır → ayrıntı' }) +
+        { alt: ekoGun + ' gün' + ekoNot + ' · marja göre ilk 200 · ayrıntı için satıra dokun' }) +
       b.modul('Olay akışı', '<div id="gelir-olaylar"></div>', '',
-        { alt: ortamAdi(sec.env) + ' · tüm zamanlar, en yeniden eskiye (dönem süzgeci uygulanmaz) · parasız olaylar dahil' }) +
+        { alt: ortamAdi(sec.env) + ' · tüm zamanlar, en yeni üstte · ücretsiz olaylar da dahil' }) +
       '<p class="dipnot">Gelir saatlik özetten (son gün ' + b.e(rev && rev.asOf ? b.tarih(rev.asOf) : '—') + '); ' +
       'kayıp oranı dönem içi kaba orandır. Mağaza payı sabit ~%15 varsayımı.</p>';
 

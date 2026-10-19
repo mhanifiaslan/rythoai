@@ -591,7 +591,7 @@
           ? 'Geçerli duyuru sayfanın üstünde. Yalnız sahip değiştirir.' : 'Duyuru yok. Yalnız sahip yazar.') + '</p>',
         '', { alt: 'yalnız bu panelin üstünde görünür · mobil uygulama okumaz' }) +
       b.modul('Denetim izi', '<div id="denetim-kap"></div>', '',
-        { alt: 'yazan her yönetici işlemi · en yeniden eskiye' });
+        { alt: 'Yöneticilerin yaptığı her değişiklik · en yeni üstte' });
 
     esikCiz(icerik.querySelector('#sistem-esik'), mb, builds);
     duyuruModulu(icerik, config.notice);

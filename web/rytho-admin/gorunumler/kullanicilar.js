@@ -99,7 +99,7 @@
     return '<span class="vt-kimlik"><span class="avatar" aria-hidden="true">' +
       b.e(b.basHarfler(u.displayName, u.email)) + '</span><div>' + b.e(ad) +
       (u.sunSign ? ' <span title="' + b.e(burcAdi(u.sunSign)) + '">' + burc(u.sunSign) + '</span>' : '') +
-      (alt ? '<span>' + b.e(alt) + '</span>' : '') + '</div></span>';
+      (alt ? '<span class="kimlik-alt">' + b.e(alt) + '</span>' : '') + '</div></span>';
   }
 
   /* =====================================================================
@@ -180,30 +180,21 @@
     var eylemler = '<button type="button" class="buton ikincil" id="kul-segment-kaydet">' + b.ik('yildiz', 16) + 'Segmenti kaydet</button>' +
       (sahip ? '<button type="button" class="buton ikincil" id="kul-csv">' + b.ik('indir', 16) + 'CSV indir</button>' : '');
 
-    var alanCipleri = ALANLAR.map(function (a) {
-      return '<button type="button" class="adm-cip" data-alan="' + a[0] + '" aria-pressed="' +
-        (a[0] === durum.alan ? 'true' : 'false') + '">' + a[1] + '</button>';
-    }).join('');
-
     icerik.innerHTML =
-      b.sayfaBaslik({ baslik: 'Kullanıcılar', alt: 'Arama adın, e-postanın ya da kullanıcı adının başından eşleşir · ' +
-        'süzgeçler tam eşleşir · sayfa başına ' + SAYFA, eylemlerHtml: eylemler }) +
+      b.sayfaBaslik({ baslik: 'Kullanıcılar', alt: 'Ada, e-postaya ya da @kullanıcı adına göre ara; süzgeçlerle daralt.',
+        eylemlerHtml: eylemler }) +
       '<div class="suzgec" id="kul-arama">' +
       '<label class="ara">' + b.ik('arama', 16) + '<input id="kul-ara" type="search" autocomplete="off" spellcheck="false" ' +
-      'placeholder="Ara: e-posta, @kullanıcıadı ya da ad (önek)" aria-label="Kullanıcı ara" value="' +
+      'placeholder="Ad, e-posta ya da @kullanıcıadı" aria-label="Kullanıcı ara" value="' +
       b.e(durum.q ? (durum.alan === 'kullanici' ? '@' + durum.q : durum.q) : '') + '"></label>' +
-      '<span class="cip-grup" role="group" aria-label="Arama alanı" id="kul-alan"><span class="grup-ad" aria-hidden="true">Alan</span>' +
-      alanCipleri + '</span>' +
       '<span class="dipnot" id="kul-mod" aria-live="polite"></span>' +
       '</div>' +
       '<div id="kul-filtre"></div>' +
       '<div id="kul-segment"></div>' +
       b.modul('Kullanıcılar', '<div id="kul-tablo"></div>', '<span class="dipnot" id="kul-sayac"></span>',
-        { alt: 'satıra tıkla → ayrıntı · sıralama sunucuda (yeniden eskiye)' }) +
-      '<p class="dipnot">Arama yapılırken süzgeçler sayfa içinde uygulanır: sayfa boş görünse de ' +
-      '"Daha fazla" devam eder (ilk ' + OTO_ATLAMA + ' boş sayfa otomatik atlanır). Aktiflik ve eşik süzgeçleri ' +
-      'birlikte kullanılamaz (veritabanı tek aralık süzgecine izin veriyor). CSV yalnız sahibe; arama ve ' +
-      'eşik süzgeci CSV\'ye girmez.</p>';
+        { alt: 'Ayrıntı için satıra dokun' }) +
+      '<p class="dipnot">Arama ile süzgeç birlikteyken sonuçlar sayfa sayfa gelir; boş sayfada "Daha fazla" ' +
+      'aramayı sürdürür. Sürüm süzgeci tek başına çalışır. CSV aramayı ve sürüm süzgecini içermez.</p>';
 
     var modEl = icerik.querySelector('#kul-mod');
     var sayacEl = icerik.querySelector('#kul-sayac');
@@ -292,8 +283,7 @@
         var n = vt.satirlar().length;
         sayacEl.textContent = n ? b.sayi(n) + ' satır' + (imlec ? ' · devamı var' : '') : '';
         var alanAdi = ((ALANLAR.filter(function (a) { return a[0] === durum.alan; })[0] || [])[1] || '').toLocaleLowerCase('tr-TR');
-        modEl.textContent = mod === 'search' ? 'arama: ' + alanAdi + ' başından'
-          : (mod === 'filter' ? 'süzgeç uygulanıyor' : '');
+        modEl.textContent = mod === 'search' ? alanAdi + ' içinde aranıyor' : '';
         // Arama yapılırken süzgeç sayfa içinde uygulanır: boş sayfa + imleç → kendiliğinden devam.
         if (!satirlar.length && imlec && (atlama || 0) < OTO_ATLAMA) return yukle(true, (atlama || 0) + 1);
       }).catch(function (h) {
@@ -304,17 +294,15 @@
 
     /* ---- Arama ---- */
     var ara = icerik.querySelector('#kul-ara');
-    var alanGrup = icerik.querySelector('#kul-alan');
-    function alanCiz() {
-      alanGrup.querySelectorAll('.adm-cip').forEach(function (c) {
-        c.setAttribute('aria-pressed', c.getAttribute('data-alan') === durum.alan ? 'true' : 'false');
-      });
-    }
+    /* Arama alanı BİÇİMDEN anlaşılır: "@ad" kullanıcı adı, "a@b" e-posta,
+       gerisi görünen ad. Eskiden ayrıca "Alan: E-posta / Kullanıcı adı /
+       Ad" çipleri vardı; çip ile biçim çeliştiğinde (çip "Ad"da, yazılan
+       e-posta) hangisinin geçerli olduğu ekrandan okunmuyordu (sahip,
+       2026-10-19). Tek kural, tek kaynak. */
     function aramaUygula() {
       var ham = ara.value.trim();
-      var oto = alanSec(ham);
-      if (oto) { durum.alan = oto.alan; durum.q = oto.q; alanCiz(); }
-      else durum.q = ham;
+      var oto = alanSec(ham) || { alan: 'ad', q: ham };
+      durum.alan = oto.alan; durum.q = oto.q;
       urlYaz(); yukle(false);
     }
     ara.addEventListener('input', function () {
@@ -323,14 +311,6 @@
     });
     ara.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); clearTimeout(bekleyici); aramaUygula(); }
-    });
-    alanGrup.addEventListener('click', function (ev) {
-      var d = ev.target.closest('.adm-cip');
-      if (!d) return;
-      durum.alan = d.getAttribute('data-alan');
-      if (durum.alan === 'kullanici' && ara.value.charAt(0) === '@') ara.value = ara.value.slice(1);
-      alanCiz();
-      if (durum.q) { urlYaz(); yukle(false); }
     });
 
     /* ---- Süzgeç çipleri ----
@@ -347,19 +327,29 @@
       var esikEtiket = durum.belowBuild && durum.belowBuild !== minBuild
         ? 'Sürüm < ' + durum.belowBuild
         : (minBuild ? 'Eşik altı (< ' + minBuild + ')' : 'Eşik altı (eşik yok)');
-      return [
+      // Dil: uygulamanın arayüz dili yalnız tr/en (`backend/core/i18n.py`
+      // SUPPORTED). Yedi dillik sözlük listesi süzgeçte sıfır sonuç veren
+      // beş seçenek basıyordu. Adresten başka bir değer gelirse görünür
+      // kalsın diye listeye eklenir (izsiz süzgeç olmasın).
+      var diller = ['tr', 'en'];
+      if (durum.language && diller.indexOf(durum.language) < 0) diller.push(durum.language);
+      var liste = [
         { ad: 'plan', etiket: 'Plan', secenekler: ['plus', 'trial', 'free'].map(function (k) { return { deger: k, etiket: S().planAdi(k) }; }) },
-        { ad: 'language', etiket: 'Dil', secenekler: Object.keys(S().DIL).map(function (k) { return { deger: k, etiket: S().DIL[k] }; }) },
+        { ad: 'language', etiket: 'Dil', secenekler: diller.map(function (k) { return { deger: k, etiket: S().dilAdi(k) }; }) },
         { ad: 'platform', etiket: 'Platform', secenekler: ['android', 'ios'].map(function (k) { return { deger: k, etiket: platformAdi(k) }; }) },
-        { ad: 'disabled', etiket: 'Durum', secenekler: [{ deger: 'true', etiket: 'Devre dışı', ikon: 'kilit' }] },
+        { ad: 'disabled', etiket: 'Durum', secenekler: [{ deger: 'true', etiket: 'Devre dışı' }] },
         { ad: 'aktif', etiket: 'Aktiflik', altin: true, secenekler: aktifSec.map(function (n) { return { deger: String(n), etiket: 'Son ' + n + ' gün' }; }) },
         { ad: 'esik', etiket: 'Sürüm', secenekler: [{ deger: String(durum.belowBuild || minBuild || 1), etiket: esikEtiket }] }
       ];
+      // Zorunlu güncelleme eşiği yokken "Eşik altı (eşik yok)" seçilince
+      // yalnız bir uyarı veriyordu — hiçbir şey süzmeyen seçenek gösterilmez.
+      return (minBuild || durum.belowBuild) ? liste
+        : liste.filter(function (f) { return f.ad !== 'esik'; });
     }
     function cipleriKur() {
       var odak = cipler && cipler.contains(document.activeElement)
         ? { f: document.activeElement.getAttribute('data-filtre'), d: document.activeElement.getAttribute('data-deger') } : null;
-      var yeni = b.filtreCipleri({ etiket: 'Süzgeçler', filtreler: cipSecenekleri(), deger: cipDegeri(durum), onDegis: cipDegisti });
+      var yeni = b.suzgecSecicileri({ etiket: 'Süzgeçler', filtreler: cipSecenekleri(), deger: cipDegeri(durum), onDegis: cipDegisti });
       if (cipler) cipler.replaceWith(yeni); else filtreKap.appendChild(yeni);
       cipler = yeni;
       if (odak) {
@@ -425,7 +415,6 @@
       if (!s) return;
       durum = durumOku(s.filtre || {});
       ara.value = durum.q ? (durum.alan === 'kullanici' ? '@' + durum.q : durum.q) : '';
-      alanCiz();
       cipleriKur();
       urlYaz(); yukle(false);
     });
@@ -1034,7 +1023,7 @@
               '<p class="dipnot">Liste hep boşsa ilgili veritabanı dizini eksik olabilir (Sistem → Veritabanı dizinleri); sayfanın geri kalanı etkilenmez.</p>',
               '', { alt: 'son 30 çağrı' }) +
             '</div>' +
-            b.modul('Son çağrılar', '<div id="k360-kullanim-tablo"></div>', '', { alt: 'son 30 · yeniden eskiye' });
+            b.modul('Son çağrılar', '<div id="k360-kullanim-tablo"></div>', '', { alt: 'Son 30 · en yeni üstte' });
           var vt = b.veriTablosu({
             kimlik: 'k360-kullanim-vt', etiket: 'Son kullanım olayları', yogunluk: 'sik',
             sutunlar: [
@@ -1118,7 +1107,7 @@
         { ad: 'denetim', etiket: 'Denetim', icerik: function () {
           var el = b.el('<div class="sutun"></div>');
           el.innerHTML = b.modul('Bu kullanıcıya yapılan yönetici işlemleri', '<div id="k360-denetim"></div>', '',
-            { alt: 'en yeniden eskiye' });
+            { alt: 'En yeni üstte' });
           var imlec = null, istek = null;
           // Sekme 360'ın ömrüne bağlı: 360'tan çıkılınca uçuştaki istek
           // kesilir; tekrar dene / daha fazla bir öncekini iptal eder.
