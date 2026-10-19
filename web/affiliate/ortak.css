@@ -135,6 +135,31 @@ body { font-size: 14.5px; min-height: 100vh; overflow-x: clip; }
 }
 .dil-sec button[aria-pressed="true"] { background: color-mix(in srgb, var(--lilac) 22%, transparent); color: var(--parchment); }
 .pano-sag { min-width: 0; }
+.yan-menu .menu a[aria-current="page"] { background: color-mix(in srgb, var(--lilac) 20%, transparent); color: var(--parchment); }
+.gorunum[hidden] { display: none !important; }
+.gorunum { display: flex; flex-direction: column; gap: 20px; }
+/* Hesap menüsü: sağ üst, açılır. */
+.hesap-menu { position: relative; }
+.hesap-menu > summary {
+  list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  min-height: var(--ort-hedef); padding: 0 12px 0 4px; border-radius: 999px;
+  border: 1px solid var(--ort-cizgi);
+}
+.hesap-menu > summary::-webkit-details-marker { display: none; }
+.hesap-menu .avatar {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--primary-gradient); color: var(--parchment); font-size: 14px;
+}
+.hesap-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; min-width: 240px;
+  display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  background: var(--ink-light); border: 1px solid var(--ort-cizgi); border-radius: 14px;
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--ink) 70%, transparent);
+}
+.hesap-etiket { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--ort-metin-orta); }
+.hesap-panel .dil-sec { align-self: stretch; }
+.hesap-panel .dil-sec button { flex: 1; }
+details.aciklama > summary { cursor: pointer; color: var(--lilac); font-size: 13px; font-weight: 600; min-height: var(--ort-hedef); display: flex; align-items: center; }
 .govde section { scroll-margin-top: 72px; }
 @media (max-width: 900px) {
   .pano-kabuk:not([hidden]) { grid-template-columns: 1fr; }

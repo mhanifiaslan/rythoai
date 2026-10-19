@@ -113,6 +113,10 @@
       yokBaslik: 'Bu gökyüzünde böyle bir sayfa yok',
       kokSayfa: 'Ana sayfa',
       panoAdi: 'Ortak panosu',
+      menuOzet: 'Genel bakış',
+      huniNasilOkunur: 'Bu sayılar nasıl okunur?',
+      hesap: 'Hesap',
+      dil: 'Dil',
       eposta: 'E-posta',
       sifre: 'Şifre',
       girisYap: 'Giriş yap',
@@ -264,6 +268,10 @@
       yokBaslik: 'There is no such page in this sky',
       kokSayfa: 'Home',
       panoAdi: 'Affiliate panel',
+      menuOzet: 'Overview',
+      huniNasilOkunur: 'How to read these numbers',
+      hesap: 'Account',
+      dil: 'Language',
       eposta: 'Email',
       sifre: 'Password',
       girisYap: 'Sign in',
@@ -733,20 +741,44 @@
      çizilmiyor (ör. tıklama serisi yoksa modül hiç yok) — elle yazılmış bir
      menü olmayan bölüme götürürdü. Sahip: "belge açmışım gibi, ne menü var
      ne profesyonel görünüm" (2026-10-19). */
+  /* Etiketler AÇIKÇA okunur (sözlük bekçisi okuyucusuz anahtarı yakalar). */
+  function gorunumler() {
+    return [['ozet', T.menuOzet], ['kodlar', T.kodlar],
+            ['odemeler', T.odemeGecmisi], ['nasil', T.odulNasil]];
+  }
+
+  function gorunumSec(ad) {
+    var var_ = $('pano-govde').querySelector('[data-gorunum="' + ad + '"]');
+    if (!var_) ad = 'ozet';
+    Array.prototype.forEach.call($('pano-govde').querySelectorAll('[data-gorunum]'), function (g) {
+      g.hidden = g.getAttribute('data-gorunum') !== ad;
+    });
+    Array.prototype.forEach.call($('pano-menu').querySelectorAll('a'), function (a) {
+      if (a.getAttribute('data-gorunum') === ad) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+  }
+
+  /* Menü görünümleri açar; seçim adresin `#` kısmında durur ki yenileme
+     ve geri tuşu aynı görünümü korusun (`lang=` YAZILMAZ). */
   function menuKur() {
     var menu = $('pano-menu');
     if (!menu) return;
     menu.setAttribute('aria-label', T.panoAdi);
-    var basliklar = $('pano-govde').querySelectorAll('section h2');
-    var html = '';
-    Array.prototype.forEach.call(basliklar, function (h, i) {
-      var bolum = h.closest('section');
-      if (!bolum) return;
-      bolum.id = 'bolum-' + (i + 1);
-      html += '<a href="#' + bolum.id + '">' + e(h.textContent) + '</a>';
-    });
-    menu.innerHTML = html;
+    menu.innerHTML = gorunumler().filter(function (g) {
+      return $('pano-govde').querySelector('[data-gorunum="' + g[0] + '"]');
+    }).map(function (g) {
+      return '<a href="#' + g[0] + '" data-gorunum="' + g[0] + '">' + e(g[1]) + '</a>';
+    }).join('');
+    var hesap = document.querySelector('.hesap-menu > summary');
+    if (hesap) hesap.setAttribute('aria-label', T.hesap);
+    gorunumSec((window.location.hash || '').slice(1) || 'ozet');
   }
+  window.addEventListener('hashchange', function () {
+    if ($('pano-menu') && $('pano-menu').children.length) {
+      gorunumSec((window.location.hash || '').slice(1) || 'ozet');
+    }
+  });
 
   /* Dil düğmeleri: seçim bu tarayıcıda saklanır ve sayfa yeniden açılır
      (bütün metinler açılışta SOZLUK'tan dolduruluyor). Adrese `lang=`
@@ -870,7 +902,8 @@
       '</section>' +
       /* Dipnot `.huni`nin DIŞINDA: içine konsaydı esnek bir öğe olur ve
          basamakların yanına bir sütun gibi otururdu. */
-      '<p class="dipnot huni-dipnot">' + e(dipnot) + '</p>';
+      '<details class="aciklama"><summary>' + e(T.huniNasilOkunur) + '</summary>' +
+      '<p class="dipnot huni-dipnot">' + e(dipnot) + '</p></details>';
   }
 
   /* Tıklama serisi — saf flex/div, kütüphane YOK (dosya başındaki gerekçe:
@@ -1059,7 +1092,12 @@
       ? tiklamaSerisi(d.clickSeries) : null;
     var bekleyenCumle = t('bekleyenCumle', { gun: OLGUNLASMA_GUN });
 
+    /* GÖRÜNÜMLER (2026-10-19, sahip: "menüler çalışmıyor, hepsi aynı
+       içeriği gösteriyor"): pano tek uzun sayfaydı, menü yalnız kaydırıyordu.
+       Artık her menü kalemi KENDİ görünümünü açar; açılışta Genel bakış —
+       önce sayılar (KPI, grafik, huni), açıklamalar katlı. */
     var html =
+      '<div class="gorunum" data-gorunum="ozet">' +
       '<div class="sayfa-bas">' +
       '<h1 tabindex="-1">' + e(d.name || T.panoAdi) + '</h1>' +
       '<p>' + (odulVar
@@ -1092,8 +1130,6 @@
          yanlıştı. Sayılar kaybolmuyor: ikisi 3. basamağın kırılımına
          indi, `voidCount` de oraya eklendi — self_view onu bilerek
          döndürüyor ama pano hiç göstermiyordu. */
-      huniBolumu(d) +
-
       '<section class="izgara-kpi" aria-label="' + e(T.hakedis) + '">' +
       kpi(T.kesinlesenHakedis, para(d.earnedTry, '₺'), T.toplamKazanc, true) +
       kpi(T.beklemede, para(d.pendingTry, '₺'),
@@ -1103,7 +1139,7 @@
         Number(d.balanceTry) > 0 && uyumsuz === 0) +
       '</section>' +
 
-      '<div class="bant bilgi">' + e(bekleyenCumle) + '</div>' +
+      '<p class="dipnot">' + e(bekleyenCumle) + '</p>' +
 
       /* Başlıktaki gün sayısı SERİNİN KENDİ uzunluğundan geliyor, sabit
          30'dan değil: sunucu daha kısa bir pencere gönderirse başlık da
@@ -1115,6 +1151,11 @@
         seriKutu.html,
         cogul(seriKutu.toplam, 'tiklamaToplamTek', 'tiklamaToplam')) : '') +
 
+      /* Huni grafiğin ALTINDA: önce para ve tıklama, sonra dönüşüm. */
+      huniBolumu(d) +
+      '</div>' +
+
+      '<div class="gorunum" data-gorunum="kodlar" hidden>' +
       modul(T.kodlar,
         (kodlar.length
           /* Kod başına tıklama, ortağın KANALLARINI kıyaslamasının tek
@@ -1126,6 +1167,8 @@
         kodlarTablosu(kodlar),
         kodlar.length ? cogul(kodlar.length, 'kodSayisiTek', 'kodSayisi')
                       : '') +
+      '</div>' +
+      '<div class="gorunum" data-gorunum="odemeler" hidden>' +
 
       /* ⚠️ ÖDEME EŞİĞİ artık GELİYOR — önceki tur burada "hiç gelmiyor"
          yazıyordu ve gerekçesi bu turda geçersizleşti. Ölçülen yeni hâl:
@@ -1179,6 +1222,8 @@
               : t('esikVar', { esik: e(para(Number(d.minPayoutTry), '₺')) }))) +
         e(T.odemeDipnotSon) + '</p>',
         t('odemeBirimi', { birim: odemeBirimi.trim() })) +
+      '</div>' +
+      '<div class="gorunum" data-gorunum="nasil" hidden>' +
 
       /* Ödül kuralı, ölçülen davranışın birebir aynası
          (api/billing.py _ortaklik_hakedisi + partner_service):
@@ -1219,7 +1264,7 @@
         '<p class="dipnot">' + T.odulP2 + '</p>' +
         '<p class="dipnot">' + e(T.odulP3) + '</p>');
 
-    $('pano-govde').innerHTML = html;
+    $('pano-govde').innerHTML = html + '</div>';
     menuKur();
     duyur(T.panoYuklendi);
   }

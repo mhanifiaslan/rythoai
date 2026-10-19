@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet"></noscript>
   <link rel="stylesheet" href="/assets/rytho.css?v=4">
-  <link rel="stylesheet" href="/affiliate/ortak.css?v=2">
+  <link rel="stylesheet" href="/affiliate/ortak.css?v=3">
 </head>
 <body>
   <!-- Canlı gökyüzü; reduced-motion'da tek kare — docs/web-notlari.md §Ortak panosu -->
@@ -63,19 +63,23 @@
         <div><b>Rytho</b><span data-i18n="panoAdi">Ortak panosu</span></div>
       </div>
       <nav id="pano-menu" class="menu"></nav>
-      <div class="menu-alt">
-        <div class="dil-sec" role="group" aria-label="Language / Dil">
-          <button type="button" data-dil="en" lang="en">EN</button>
-          <button type="button" data-dil="tr" lang="tr">TR</button>
-        </div>
-        <button id="cikis" class="buton ikincil kucuk" type="button" data-i18n="cikis">Çıkış</button>
-      </div>
     </aside>
     <div class="pano-sag">
       <header class="pano-ust">
-        <span class="kim" id="kim-eposta"></span>
         <div class="bosluk"></div>
         <button id="yenile" class="buton ikincil kucuk" type="button" data-i18n="yenile">Yenile</button>
+        <!-- Dil ve çıkış HESAP menüsünde (alışılmış yer) — docs/web-notlari.md §Ortak panosu -->
+        <details class="hesap-menu">
+          <summary><span class="avatar" aria-hidden="true">✦</span><span class="kim" id="kim-eposta"></span></summary>
+          <div class="hesap-panel">
+            <span class="hesap-etiket" data-i18n="dil">Dil</span>
+            <div class="dil-sec" role="group">
+              <button type="button" data-dil="en" lang="en">English</button>
+              <button type="button" data-dil="tr" lang="tr">Türkçe</button>
+            </div>
+            <button id="cikis" class="buton ikincil kucuk" type="button" data-i18n="cikis">Çıkış</button>
+          </div>
+        </details>
       </header>
       <main id="pano-govde" class="govde" tabindex="-1" aria-busy="true"></main>
     </div>
@@ -94,6 +98,6 @@
   <script src="/assets/ry-api.js?v=2"></script>
 
   <script src="/assets/starfield.js"></script>
-  <script src="/affiliate/ortak.js?v=2"></script>
+  <script src="/affiliate/ortak.js?v=3"></script>
 </body>
 </html>
