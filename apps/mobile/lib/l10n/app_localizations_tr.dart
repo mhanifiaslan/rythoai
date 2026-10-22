@@ -1106,6 +1106,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get someRythoUser => 'Bir Rytho kullanıcısı';
 
   @override
+  String get inboxLoadFailed => 'Tepkiler yüklenemedi.';
+
+  @override
   String get iChingIntro =>
       '3000 yıllık 64 heksagram matrisi. Sorunu yaz; paralar gerçek olasılık dağılımıyla atılır, hareketli çizgiler geleceğe köprü kurar.';
 

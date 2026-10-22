@@ -90,14 +90,20 @@ class RotaGozcusu extends NavigatorObserver {
 /// Uygulama kabuğu: TR yerelleştirme, tema, hareket kapalı (sürekli
 /// animatörler — yıldız alanı, usturlap — testte hiç durmaz; ölçülen şey
 /// yerleşim ve metin, hareket değil).
+///
+/// [retry]: sağlayıcı yeniden deneme politikası; verilmezse Riverpod'un
+/// varsayılanı. Hata dalını ölçen test üretimdekini (`rythoRetry`) verir —
+/// varsayılan 10 deneme sürerken "hata hâli" ölçülemez.
 Widget sar(
   Widget home, {
   List<Override> overrides = const [],
   NavigatorObserver? gozcu,
   double olcek = 1.0,
+  Duration? Function(int retryCount, Object error)? retry,
 }) =>
     ProviderScope(
       overrides: overrides,
+      retry: retry,
       child: MaterialApp(
         locale: const Locale('tr'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,

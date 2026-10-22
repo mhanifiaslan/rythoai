@@ -236,12 +236,14 @@ def reaction(req: ReactionPush,
     # U17: alıcı göndereni engellediyse push YOK. Engelleme iki kenarı da
     # sildiği için `are_friends` bunu çoğu zaman zaten keser; kalan hâl
     # engel kaydıyla `accepted` kenarların BİRLİKTE durması — kural
-    # dağıtılmadan önce (eski pakette engelleyen davet kapısı yoktu)
-    # engellediğini yeniden davet edip arkadaş olan kullanıcı. O kayıtlar
-    # dağıtımdan sonra da yerinde kalır. İstemci gelen kutusunu da süzüyor.
+    # dağıtımından önce kurulmuş arkadaşlık (eski pakette engelleyenin
+    # davetinde ve kabulde kapı yoktu); o kayıtlar dağıtımdan sonra da
+    # yerinde kalır. Dağıtılmış kural aynı hâlde tepki YAZIMINI da
+    # reddediyor; bu kapı push yarısı. Yanıt engeli ELE VERMEZ
+    # (`_ENGEL_YANITI`).
     if profile_service.has_blocked(req.friend_uid, user.uid):
         logger.info("Tepki bildirimi atlandi (%s): engelli", req.friend_uid)
-        return {"status": "skipped", "reason": "engelli"}
+        return dict(_ENGEL_YANITI)
 
     alici = profile_service.get_profile(req.friend_uid) or {}
     alici["uid"] = req.friend_uid
@@ -283,6 +285,15 @@ def reaction(req: ReactionPush,
     if sonuc.sent:
         notification_service.mark_sent(req.friend_uid, tekrar_turu, gun)
     return {"status": "ok", "sent": sonuc.sent}
+
+
+#: Engelli dalının yanıtı (U17) — FCM'in mesajı teslim edemediği sıradan
+#: hâlle (`push_service.send` → `sent=0`) BİREBİR aynı gövde. Yanıtı alan
+#: ENGELLENEN göndericinin kendisi: `{"reason": "engelli"}` dönseydi
+#: "engellendiği ona bildirilmez" sözü protokol düzeyinde bozulurdu. Gövde
+#: yalan da söylemiyor — gerçekten hiçbir push gitmedi. Ayrım yalnız sunucu
+#: günlüğünde kalır.
+_ENGEL_YANITI: dict[str, Any] = {"status": "ok", "sent": 0}
 
 
 class InvitePush(BaseModel):
@@ -357,11 +368,12 @@ def invite(req: InvitePush,
     # U17 (App Store 1.2): alıcı göndereni engellediyse push YOK. Dağıtılmış
     # kural bu kenarın kurulmasını zaten reddediyor; ama kenar kuralın
     # dağıtımından önce (ya da geri alınmış bir kuralla) kurulmuş olabilir
-    # ve bu uç o hâlde engellenenin push'unu engelleyene düşürürdü. 200 +
-    # skipped: davet ucunun sözleşmesi (doğrulamadan sonra raise yok).
+    # ve bu uç o hâlde engellenenin push'unu engelleyene düşürürdü. 200:
+    # davet ucunun sözleşmesi (doğrulamadan sonra raise yok); gövde engeli
+    # ELE VERMEZ (`_ENGEL_YANITI`).
     if profile_service.has_blocked(req.friend_uid, user.uid):
         logger.info("Davet bildirimi atlandi (%s): engelli", req.friend_uid)
-        return {"status": "skipped", "reason": "engelli"}
+        return dict(_ENGEL_YANITI)
 
     return _event_push(req.friend_uid, user.uid, f"invite-{user.uid}",
                        "PUSH_INVITE_TITLE", "PUSH_INVITE_BODY",

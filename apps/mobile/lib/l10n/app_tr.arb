@@ -448,6 +448,7 @@
   "reportSubmitted": "Şikayetin alındı; en kısa sürede incelenecek. Teşekkürler.",
   "reportFailed": "Şikayet gönderilemedi.",
   "someRythoUser": "Bir Rytho kullanıcısı",
+  "inboxLoadFailed": "Tepkiler yüklenemedi.",
   "iChingIntro": "3000 yıllık 64 heksagram matrisi. Sorunu yaz; paralar gerçek olasılık dağılımıyla atılır, hareketli çizgiler geleceğe köprü kurar.",
   "iChingQuestionHint": "Sorun nedir?",
   "iChingMethodCoins": "Üç Para 🪙",

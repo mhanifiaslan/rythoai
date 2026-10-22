@@ -16,7 +16,7 @@
 // `engellenenlerProvider` geçersiz kılınarak, dönüşümler saf işlevlerden.
 // Batch'lerin İÇERİĞİ sahte Firestore olmadığı için kaynak bekçisiyle
 // sabitlenir; kuralın kendisi backend/tests/test_engelleme.py'de.
-import 'dart:async' show TimeoutException;
+import 'dart:async' show StreamController, TimeoutException;
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseException;
@@ -33,6 +33,7 @@ import 'package:rytho/features/friends/friends_screen.dart';
 import 'package:rytho/features/profile/blocked_users_screen.dart';
 import 'package:rytho/features/profile/profile_sections.dart';
 import 'package:rytho/l10n/app_localizations_tr.dart';
+import 'package:rytho/main.dart' show rythoRetry;
 import 'package:rytho/widgets/atlas_widgets.dart' show GoldButton;
 import 'package:rytho/widgets/common.dart' show ErrorCard;
 
@@ -362,9 +363,15 @@ void main() {
       expect(govde, contains(
           "..delete(kullanicilar.doc(hedefUid).collection('friends').doc(uid))"));
       expect(govde, contains('..set(_blockedRef(hedefUid)'));
-      expect('await'.allMatches(govde).length, 1,
+      // `\b`: `unawaited` içindeki "await" sayılmasın.
+      expect(RegExp(r'\bawait\b').allMatches(govde).length, 1,
           reason: 'tek yazım: batch.commit()');
       expect(govde, contains('await batch.commit();'));
+      // Engellenenin bıraktığı tepkiler batch'e giremez (okuma ister);
+      // commit'ten SONRA en iyi çabayla silinir, engeli bekletmez.
+      expect(
+          govde.indexOf('unawaited(_engellenenTepkileriniSil(uid, hedefUid));'),
+          greaterThan(govde.indexOf('await batch.commit();')));
     });
 
     test('engelleme dalı tek yoldan: önce removeFriend YOK, dikiş var', () {
@@ -414,16 +421,15 @@ void main() {
       });
     }
 
-    test('gelen kutusu engel listesine göre süzülüyor', () {
-      final panel = _dilim(
-          _yorumsuz('lib/features/friends/friends_screen.dart'),
-          'class _InboxPanel',
-          'return GlassPanel(');
+    test('Çevrem: gelen kutusu GelenKutusu, istekler engel listesine göre',
+        () {
+      final ekran = _yorumsuz('lib/features/friends/friends_screen.dart')
+          .replaceAll(RegExp(r'\s+'), '');
+      expect(ekran, contains('GelenKutusu(friends:'));
       expect(
-          panel.replaceAll(RegExp(r'\s+'), ''),
-          contains('gorunurTepkiler(ref.watch(myNudgesProvider).value??const[],'
-              'ref.watch(engellenenKimliklerProvider).value)'));
-      expect(panel, contains('return l10n.someRythoUser;'));
+          ekran,
+          contains('_FriendsList(friends:gelenIstekleriSuz(friends,'
+              'ref.watch(engellenenKimliklerProvider).value),'));
     });
   });
 
@@ -453,23 +459,32 @@ void main() {
       expect(liste.map((k) => k.uid), ['simdi', 'yeni', 'orta', 'eski']);
     });
 
-    test('gorunurTepkiler: engellenenin tepkisi düşer, sıra korunur', () {
+    test('tepkileriAyir: engellenenin tepkisi gizlenir VE silinecek', () {
       final tepkiler = [
         {'id': '1', 'fromUid': 'a', 'reaction': 'hug'},
         {'id': '2', 'fromUid': 'engelli', 'reaction': 'miss'},
         {'id': '3', 'fromUid': 'b', 'reaction': 'shine'},
       ];
-      expect(gorunurTepkiler(tepkiler, {'engelli'}).map((t) => t['id']),
-          ['1', '3']);
-      expect(gorunurTepkiler(tepkiler, const {}).length, 3);
+      final ayrim = tepkileriAyir(tepkiler, {'engelli'});
+      expect(ayrim.gorunur.map((t) => t['id']), ['1', '3']);
+      // Yalnız gizlemek 20'lik okuma penceresini kalıcı doldururdu.
+      expect(ayrim.engellenenden, ['2']);
+      final bos = tepkileriAyir(tepkiler, const {});
+      expect(bos.gorunur.length, 3);
+      expect(bos.engellenenden, isEmpty);
     });
 
-    test('gorunurTepkiler: engel listesi yokken hiçbiri gösterilmez', () {
-      expect(
-          gorunurTepkiler([
-            {'id': '1', 'fromUid': 'a', 'reaction': 'hug'},
-          ], null),
-          isEmpty);
+    test('gelenIstekleriSuz: yalnız engellenenin GELEN isteği düşer', () {
+      const liste = [
+        Friend(uid: 'engelli', status: FriendStatus.incoming),
+        Friend(uid: 'baska', status: FriendStatus.incoming),
+        Friend(uid: 'giden', status: FriendStatus.outgoing),
+      ];
+      expect(gelenIstekleriSuz(liste, {'engelli', 'giden'}).map((f) => f.uid),
+          ['baska', 'giden']);
+      // Liste bilinmiyorsa olduğu gibi: tümünü gizlemek meşru istekleri
+      // sessizce kaybettirirdi; kabul zaten kuralda kapalı.
+      expect(gelenIstekleriSuz(liste, null), same(liste));
     });
 
     test('davetHataMetni: kurala çarpan davet nötr, tekrar dene demiyor', () {
@@ -537,6 +552,135 @@ void main() {
       final sonuc = await kur(tester, (_) async => throw Exception('çevrimdışı'));
       expect(find.byType(AlertDialog), findsNothing);
       expect(sonuc(), DavetKarari.gonder);
+    });
+  });
+
+  group('gelen kutusu', () {
+    const arkadas = Friend(
+        uid: 'u-a', status: FriendStatus.accepted, displayName: 'Deniz');
+    final tepkiler = [
+      {'id': 'n1', 'fromUid': 'u-a', 'reaction': 'hug'},
+      {'id': 'n2', 'fromUid': 'u-engelli', 'reaction': 'miss'},
+      {'id': 'n3', 'fromUid': 'u-eski', 'reaction': 'shine'},
+    ];
+
+    Future<_Kayit> kur(WidgetTester tester,
+        {required Stream<Set<String>> Function() engel,
+        double olcek = 1.0}) async {
+      final silinen = _Kayit();
+      await tester.pumpWidget(sar(
+        const Scaffold(
+            body: SingleChildScrollView(
+                child: GelenKutusu(friends: [arkadas]))),
+        olcek: olcek,
+        retry: rythoRetry,
+        overrides: [
+          myNudgesProvider.overrideWith((ref) => Stream.value(tepkiler)),
+          engellenenKimliklerProvider.overrideWith((ref) => engel()),
+          tepkiSiliciProvider.overrideWithValue(silinen.call),
+        ],
+      ));
+      await _bekle(tester);
+      return silinen;
+    }
+
+    String satir(String ad, String tepki) => '$ad · $tepki';
+
+    testWidgets('engellenenin tepkisi görünmez ve sessizce siliniyor',
+        (tester) async {
+      final silinen =
+          await kur(tester, engel: () => Stream.value({'u-engelli'}));
+      expect(find.text(satir('Deniz', _tr.reactionHug)), findsOneWidget);
+      expect(find.textContaining(_tr.reactionMiss), findsNothing);
+      // Listede olmayan gönderici nötr adla ("Bir arkadaşın" değil).
+      expect(find.text(satir(_tr.someRythoUser, _tr.reactionShine)),
+          findsOneWidget);
+      expect(silinen.cagrilar, ['n2'],
+          reason: 'gizli tepki 20\'lik pencerede kalıcı yer tutardı');
+    });
+
+    testWidgets('kutu, liste ZATEN yüklüyken açılınca da siliyor',
+        (tester) async {
+      // Sağlayıcılar oturum boyu yaşar; Çevrem'e ikinci girişte veri hazır
+      // olur ve "değişim" hiç gelmez — silim yine olmalı (fireImmediately).
+      final silinen = _Kayit();
+      var goster = false;
+      await tester.pumpWidget(sar(
+        Scaffold(
+          body: Consumer(builder: (context, ref, _) {
+            ref.watch(engellenenTepkileriProvider);
+            return StatefulBuilder(
+              builder: (context, yenile) => Column(children: [
+                TextButton(
+                    onPressed: () => yenile(() => goster = true),
+                    child: const Text('aç')),
+                if (goster) const GelenKutusu(friends: [arkadas]),
+              ]),
+            );
+          }),
+        ),
+        overrides: [
+          myNudgesProvider.overrideWith((ref) => Stream.value(tepkiler)),
+          engellenenKimliklerProvider
+              .overrideWith((ref) => Stream.value({'u-engelli'})),
+          tepkiSiliciProvider.overrideWithValue(silinen.call),
+        ],
+      ));
+      await _bekle(tester);
+      expect(silinen.cagrilar, isEmpty, reason: 'kutu henüz yok');
+      await tester.tap(find.text('aç'));
+      await _bekle(tester);
+      expect(silinen.cagrilar, ['n2']);
+    });
+
+    testWidgets('dokunulan tepki dikişten siliniyor', (tester) async {
+      final silinen = await kur(tester, engel: () => Stream.value({}));
+      await tester.tap(find.text(satir('Deniz', _tr.reactionHug)));
+      await _bekle(tester);
+      expect(silinen.cagrilar, ['n1']);
+    });
+
+    testWidgets('engel listesi yüklenirken kutu kapalı, hiçbir şey silinmez',
+        (tester) async {
+      final asla = StreamController<Set<String>>();
+      addTearDown(asla.close);
+      final silinen = await kur(tester, engel: () => asla.stream);
+      expect(find.text(_tr.inboxLabel), findsNothing);
+      expect(find.textContaining(_tr.reactionHug), findsNothing);
+      expect(silinen.cagrilar, isEmpty);
+    });
+
+    testWidgets('engel listesi okunamazsa kapalı ama SESSİZ değil; tekrar dene',
+        (tester) async {
+      var hata = true;
+      final silinen = await kur(tester,
+          engel: () => hata
+              ? Stream<Set<String>>.error(Exception('okunamadı'))
+              : Stream.value({'u-engelli'}));
+      // Üretimdeki politika iki kez dener (400 + 800 ms), sonra hatada durur.
+      await tester.pump(const Duration(milliseconds: 1500));
+      await _bekle(tester);
+      expect(find.text(_tr.inboxLoadFailed), findsOneWidget);
+      expect(find.textContaining(_tr.reactionHug), findsNothing);
+      expect(silinen.cagrilar, isEmpty);
+
+      hata = false;
+      await tester.tap(find.text(_tr.retry));
+      await _bekle(tester);
+      expect(find.text(_tr.inboxLoadFailed), findsNothing);
+      expect(find.text(satir('Deniz', _tr.reactionHug)), findsOneWidget);
+      expect(silinen.cagrilar, ['n2']);
+    });
+
+    testWidgets('hata satırı 320 dp × 1,3\'te taşmıyor', (tester) async {
+      darYuzey(tester);
+      await kur(tester,
+          olcek: darOlcek,
+          engel: () => Stream<Set<String>>.error(Exception('okunamadı')));
+      await tester.pump(const Duration(milliseconds: 1500));
+      await _bekle(tester);
+      tasmaYok(tester, neden: 'Tepkiler yüklenemedi + Tekrar dene taşıyor');
+      expect(find.text(_tr.retry), findsOneWidget);
     });
   });
 }

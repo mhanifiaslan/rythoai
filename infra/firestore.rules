@@ -195,11 +195,12 @@ service cloud.firestore {
       // Engellenen kullanıcılar: yalnızca liste sahibi yazar/siler/okur.
       //
       // Kayıt YALNIZ SAKLANMIYOR, UYGULANIYOR (U17, App Store 1.2): aşağıda
-      // friends counterpart create dalı bu dokümana bakıp engellenenin
-      // yeni davet kenarını reddediyor, sahip dalı da engelleyenin
-      // engellediğine davetini (engel aynı batch'te silinmedikçe);
-      // sunucu /notify/invite ve /notify/reaction push'unu ve rehber
-      // eşleşmesini de aynı kayda göre kesiyor.
+      // friends create'in counterpart dalı bu dokümana bakıp engellenenin
+      // yeni davet kenarını reddediyor, sahip dalı engelleyenin
+      // engellediğine davetini (engel aynı batch'te silinmedikçe); kabulün
+      // iki dalı ve nudges create de aynı kayda bakıyor. Sunucu
+      // /notify/invite ve /notify/reaction push'unu ve rehber eşleşmesini
+      // de aynı kayda göre kesiyor.
       //
       // `update` neden açık: istemci engellemeyi arkadaşlık kenarlarının
       // silinmesiyle TEK batch'te yazıyor (core/safety.dart
@@ -274,8 +275,6 @@ service cloud.firestore {
         // gönderenin kendi 'outgoing' kenarı da düşer — eski paketlerde
         // de temiz bir permission-denied. Tek başına yazılmış bir
         // 'outgoing' kenarı alıcının ağacına hiçbir şey koymaz.
-        // Dürtme için ayrı kapı gerekmiyor: nudges create kabul edilmiş
-        // arkadaşlık istiyor ve engelleme iki kenarı da siliyor.
         //
         // İkinci yön (U17 incelemesi): ENGELLEYEN de engellediğine davet
         // atamaz — engel kaydı durdukça. Kapı olmasaydı A, B'yi engelleyip
@@ -292,13 +291,23 @@ service cloud.firestore {
           (counterpart() && request.resource.data.status == 'incoming'
             && !exists(/databases/$(database)/documents/users/$(uid)/blocked/$(request.auth.uid)))
         );
+        // Kabul de engele bakar (U17 incelemesi): kural dağıtımından ÖNCE
+        // kurulmuş bekleyen bir davet, dağıtımdan sonra engel dururken
+        // kabul edilebilir ve "engel + accepted" hâli doğardı. Kabul batch'i
+        // iki kenarı birlikte yazdığı için iki dal iki yönü kapsar:
+        //   * sahip kabulü: yazan sahip (`uid`, davetin alıcısı) —
+        //     kendi listesinde göndereni (`otherUid`) engellememiş olmalı;
+        //   * karşı taraf kabulü: yazılan ağacın sahibi (`uid`, daveti
+        //     gönderen) yazanı (`request.auth.uid`) engellememiş olmalı.
         allow update: if sadeceIzinliAlan() && (
           // Sahip kendi gelen davetini kabul eder.
           (isOwner(uid) && request.resource.data.status == 'accepted'
-            && resource.data.status == 'incoming') ||
+            && resource.data.status == 'incoming'
+            && !exists(/databases/$(database)/documents/users/$(uid)/blocked/$(otherUid))) ||
           // Karşı taraf, sahibin gönderdiği daveti kabul eder.
           (counterpart() && request.resource.data.status == 'accepted'
-            && resource.data.status == 'outgoing')
+            && resource.data.status == 'outgoing'
+            && !exists(/databases/$(database)/documents/users/$(uid)/blocked/$(request.auth.uid)))
         );
         allow delete: if isOwner(uid) || counterpart();
       }
@@ -307,6 +316,14 @@ service cloud.firestore {
       // Duolingo modeli: gönderilebilecek şey KAPALI bir kümeden seçilir,
       // serbest metin yoktur. Moderasyon yükü bu sayede sıfıra yakındır.
       // Yalnızca kabul edilmiş bir arkadaş tepki gönderebilir.
+      //
+      // Engel kapısı (U17 incelemesi): alıcı (`uid`) göndereni
+      // engellediyse tepki yazılamaz. Engelleme iki kenarı da sildiği için
+      // `accepted` şartı çoğu zaman bunu zaten keser; kapı kalan hâl için:
+      // kural dağıtımından önce kurulmuş "engel + accepted" (eski pakette
+      // engelleyenin davetinde ve kabulde kapı yoktu) dağıtımdan sonra da
+      // yerinde kalır. Sunucunun /notify/reaction kapısı aynı hâlin push
+      // yarısı.
       match /nudges/{nudgeId} {
         allow read, delete: if isOwner(uid);
         allow create: if signedIn()
@@ -319,7 +336,8 @@ service cloud.firestore {
                // REACTION_EMOJIS ile birebir aynı olmak zorunda.
                'hug', 'luck', 'coffee', 'miss'
              ]
-          && get(/databases/$(database)/documents/users/$(uid)/friends/$(request.auth.uid)).data.status == 'accepted';
+          && get(/databases/$(database)/documents/users/$(uid)/friends/$(request.auth.uid)).data.status == 'accepted'
+          && !exists(/databases/$(database)/documents/users/$(uid)/blocked/$(request.auth.uid));
         allow update: if false;
       }
     }

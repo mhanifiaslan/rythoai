@@ -2054,6 +2054,12 @@ abstract class AppLocalizations {
   /// **'Bir Rytho kullanıcısı'**
   String get someRythoUser;
 
+  /// No description provided for @inboxLoadFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Tepkiler yüklenemedi.'**
+  String get inboxLoadFailed;
+
   /// No description provided for @iChingIntro.
   ///
   /// In tr, this message translates to:

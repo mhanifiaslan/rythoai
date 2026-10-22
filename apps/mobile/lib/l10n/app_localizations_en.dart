@@ -1143,6 +1143,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get someRythoUser => 'A Rytho user';
 
   @override
+  String get inboxLoadFailed => 'Couldn\'t load reactions.';
+
+  @override
   String get iChingIntro =>
       'The 64-hexagram matrix, three thousand years old. Write your question; the coins fall on real probability, and the moving lines bridge to what comes next.';
 

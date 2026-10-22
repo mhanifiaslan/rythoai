@@ -138,7 +138,7 @@ class FriendsScreen extends ConsumerWidget {
             username: username,
             streakCount: (profile?['streakCount'] as num?)?.toInt() ?? 0,
           ),
-        _InboxPanel(friends: friendsAsync.value ?? const []),
+        GelenKutusu(friends: friendsAsync.value ?? const []),
         // Rehber önerileri (Revize R3 → F1): panel artık HER ZAMAN mount —
         // ayar kapalıysa/telefon doğrusuzsa/izin yoksa sessiz boşluk yerine
         // yol gösteren kart çizer. Sonuçlar bellekte yaşar; ne istemci ne
@@ -154,8 +154,11 @@ class FriendsScreen extends ConsumerWidget {
           // Boş durum yalnız İKİ liste de boşken çizilir; kişileri olan
           // ama arkadaşı olmayan kullanıcıya "hiç kimsen yok" demek
           // yanlış olurdu.
+          // U17: engellediklerimin (kural öncesinden kalmış) istekleri
+          // gelen istekler bölümünde görünmez (`gelenIstekleriSuz`).
           data: (friends) => _FriendsList(
-              friends: friends,
+              friends: gelenIstekleriSuz(
+                  friends, ref.watch(engellenenKimliklerProvider).value),
               boslugoster: (ref.watch(peopleProvider).value ?? []).isEmpty),
         ),
         // Eklenen kişiler AYRI bölüm (P-turu): satır anatomisi de farklı —
@@ -393,17 +396,81 @@ class _MyCardPanel extends StatelessWidget {
 }
 
 /// Bana gelen hazır tepkiler. Dokununca okundu sayılır ve silinir.
-class _InboxPanel extends ConsumerWidget {
-  const _InboxPanel({required this.friends});
+///
+/// U17: engellediklerimin tepkileri gösterilmez ve sessizce silinir —
+/// yalnız gizlenselerdi 20'lik okuma penceresinde kalıcı yer tutarlardı
+/// ([tepkileriAyir] gerekçesi). Engel listesi henüz YÜKLENİYORKEN kutu
+/// kapalıdır: engellenenin tepkisinin bir an görünmesi, meşru tepkinin bir
+/// an gecikmesinden ağırdır. Liste OKUNAMAZSA kutu yine kapalı kalır ama
+/// sessiz kalmaz: yeniden deneme politikası (`rythoRetry`, iki deneme)
+/// bitince sağlayıcı hatada durur ve kendiliğinden toparlanmaz; satır bunu
+/// söyler ve "Tekrar dene" sağlayıcıyı yeniden kurar.
+class GelenKutusu extends ConsumerStatefulWidget {
+  const GelenKutusu({super.key, required this.friends});
 
   final List<Friend> friends;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GelenKutusu> createState() => _GelenKutusuState();
+}
+
+class _GelenKutusuState extends ConsumerState<GelenKutusu> {
+  /// Silimi istenmiş kimlikler: anlık görüntü güncellenene kadar aynı tepki
+  /// için ikinci istek atılmasın.
+  final _silinenler = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    // `listenManual` + `fireImmediately`: kutu açıldığında liste ZATEN
+    // yüklüyse de silim yapılır — düz `ref.listen` yalnız DEĞİŞİMDE ateşler.
+    ref.listenManual<List<String>>(
+        engellenenTepkileriProvider, (_, kimlikler) => _sessizSil(kimlikler),
+        fireImmediately: true);
+  }
+
+  void _sessizSil(List<String> kimlikler) {
+    final sil = ref.read(tepkiSiliciProvider);
+    for (final id in kimlikler) {
+      // En iyi çaba: düşerse süzgeç gizlemeye devam eder.
+      if (_silinenler.add(id)) unawaited(sil(id).catchError((Object _) {}));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // U17: engellediklerimin tepkileri süzülür (eski tepkiler dahil).
-    final nudges = gorunurTepkiler(ref.watch(myNudgesProvider).value ?? const [],
-        ref.watch(engellenenKimliklerProvider).value);
+    final tepkiler = ref.watch(myNudgesProvider).value ?? const [];
+    if (tepkiler.isEmpty) return const SizedBox.shrink();
+
+    final engel = ref.watch(engellenenKimliklerProvider);
+    final engellenenler = engel.value;
+    if (engellenenler == null) {
+      if (!engel.hasError) return const SizedBox.shrink();
+      return GlassPanel(
+        label: l10n.inboxLabel,
+        // Dar ekranda düğme alt satıra iner (`Wrap`); `SizedBox`: Wrap
+        // gevşek kısıtta büzülür.
+        child: SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: RythoSpace.sm,
+            children: [
+              Text(l10n.inboxLoadFailed, style: RythoType.bodyDim),
+              TextButton(
+                onPressed: () => ref.invalidate(engellenenKimliklerProvider),
+                child: Text(l10n.retry,
+                    style: RythoType.button.copyWith(color: RythoColors.lilac)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final nudges = tepkileriAyir(tepkiler, engellenenler).gorunur;
     if (nudges.isEmpty) return const SizedBox.shrink();
 
     // Gönderen listede yoksa NÖTR ad: tepkiyi yalnız kabul edilmiş arkadaş
@@ -411,7 +478,7 @@ class _InboxPanel extends ConsumerWidget {
     // liste henüz gelmemiştir. "Bir arkadaşın" ikisinde de yanlış bir beyan
     // olurdu.
     String nameOf(String? uid) {
-      for (final friend in friends) {
+      for (final friend in widget.friends) {
         if (friend.uid == uid) return friend.ad(l10n);
       }
       return l10n.someRythoUser;
@@ -424,7 +491,8 @@ class _InboxPanel extends ConsumerWidget {
           if (kReactions[nudge['reaction']] case final emoji?)
             InkWell(
               borderRadius: BorderRadius.circular(RythoRadius.sm),
-              onTap: () => dismissNudge(nudge['id'] as String),
+              onTap: () =>
+                  ref.read(tepkiSiliciProvider)(nudge['id'] as String),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: RythoSpace.sm),
                 child: Row(children: [

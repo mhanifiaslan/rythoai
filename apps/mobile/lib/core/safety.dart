@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +9,8 @@ import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
 import '../widgets/onay.dart' show onayla;
 import 'api.dart' show friendlyError;
-import 'friends.dart' show engelledimMi;
+import 'friends.dart'
+    show Friend, FriendStatus, dismissNudge, engelledimMi, myNudgesProvider;
 import 'providers.dart' show authStateProvider;
 
 /// Kullanıcı güvenliği yardımcıları: şikayet (report) ve engelleme (block).
@@ -118,11 +121,17 @@ DocumentReference<Map<String, dynamic>> _blockedRef(String targetUid) {
 /// Kullanıcıyı engeller (U17, App Store 1.2): arkadaşlık kenarlarını İKİ
 /// taraftan siler ve engel kaydını yazar — TEK batch'te.
 ///
-/// Kayıt yalnız saklanmıyor, üç yerde okunuyor: firestore.rules (engellenen
-/// yeni davet kenarı kuramaz), sunucunun davet push'u (atlanır) ve rehber
-/// eşleşmesi (engelleyenin kartı engellenene dönmez). Dürtmenin ayrı kapısı
-/// yok: kuralı alıcının ağacında `accepted` kenar istiyor ve buradaki silim
-/// o kenarı kaldırıyor.
+/// Kayıt yalnız saklanmıyor, OKUNUYOR — liste sayıyla yazılmaz, büyüyor:
+/// firestore.rules (davet kenarının iki dalı, kabulün iki dalı, tepki
+/// yazımı), sunucu (`/notify/invite`, `/notify/reaction`,
+/// `/contacts/match`) ve istemci (davet öncesi soru, gelen kutusu, gelen
+/// istekler). Buradaki kenar silimi ayrıca kabul edilmiş arkadaşlığı
+/// bitirir; tepki kuralı zaten `accepted` kenar istiyor.
+///
+/// Engellenenin bana BIRAKTIĞI tepkiler batch'e girmiyor (göndericiye göre
+/// silmek önce okumayı ister, batch okumaz): commit'ten sonra en iyi
+/// çabayla ayrıca siliniyor ([_engellenenTepkileriniSil]); kalan olursa
+/// gelen kutusu onları süzer ve siler ([engellenenTepkileriProvider]).
 ///
 /// Neden tek batch: eskiden `removeFriend` ve ardından `blockUser` iki ayrı
 /// yazımdı. İkincisi düşseydi arkadaşlık gitmiş ama engel yazılmamış olurdu
@@ -141,6 +150,31 @@ Future<void> kullaniciyiEngelle(String hedefUid) async {
     ..delete(kullanicilar.doc(hedefUid).collection('friends').doc(uid))
     ..set(_blockedRef(hedefUid), {'at': FieldValue.serverTimestamp()});
   await batch.commit();
+  unawaited(_engellenenTepkileriniSil(uid, hedefUid));
+}
+
+/// Engellenenin bana bıraktığı tepkileri siler — EN İYİ ÇABA: engel zaten
+/// yazıldı; bu silim düşerse gelen kutusu süzgeci tepkileri gizler ve bir
+/// sonraki görüşte yeniden siler. Kural sahibin `nudges` okuma ve silmesine
+/// izin veriyor.
+Future<void> _engellenenTepkileriniSil(String uid, String hedefUid) async {
+  try {
+    final db = FirebaseFirestore.instance;
+    final tepkiler = await db
+        .collection('users')
+        .doc(uid)
+        .collection('nudges')
+        .where('fromUid', isEqualTo: hedefUid)
+        .get();
+    if (tepkiler.docs.isEmpty) return;
+    final batch = db.batch();
+    for (final d in tepkiler.docs) {
+      batch.delete(d.reference);
+    }
+    await batch.commit();
+  } catch (_) {
+    // Yukarıdaki gerekçe: süzgeç ikinci hat.
+  }
 }
 
 /// Engeli kaldırır. Eski arkadaşlığı GERİ GETİRMEZ: engelleme kenarları
@@ -249,8 +283,8 @@ CollectionReference<Map<String, dynamic>> _engelKoleksiyonu(String uid) =>
         .doc(uid)
         .collection('blocked');
 
-/// Engellediğim kişilerin kimlikleri — gelen kutusu süzgeci için
-/// ([gorunurTepkiler]); kart okumaz.
+/// Engellediğim kişilerin kimlikleri — gelen kutusu ([tepkileriAyir]) ve
+/// gelen istekler ([gelenIstekleriSuz]) için; kart okumaz.
 final engellenenKimliklerProvider = StreamProvider<Set<String>>((ref) {
   final user = ref.watch(authStateProvider).value;
   if (user == null) return Stream.value(const <String>{});
@@ -259,23 +293,59 @@ final engellenenKimliklerProvider = StreamProvider<Set<String>>((ref) {
       .map((s) => s.docs.map((d) => d.id).toSet());
 });
 
-/// Gelen kutusunda gösterilecek tepkiler: engellediklerimin tepkileri düşer.
+/// Gelen kutusunu ikiye ayırır — SAF: gösterilecekler ve engellediklerimden
+/// kalanların doküman kimlikleri.
 ///
-/// NEDEN süzgeç, silim değil: engelleme engellenenin ESKİ tepkilerine
-/// dokunmuyor (göndericiye göre silmek önce okumayı ister, batch okumaz) ve
-/// kutuda "Bir arkadaşın · Seni düşündüm" gibi kalıyorlardı. Süzgeç eski veriyi
-/// de, kural dağıtılmadan önce kurulmuş arkadaşlıkları da kapsar.
-///
-/// Engel listesi henüz YOKSA (yükleniyor, okunamadı) hiçbir tepki
-/// gösterilmez: engellenenin tepkisinin bir an görünmesi, meşru tepkinin
-/// bir an gecikmesinden ağırdır — tepkiler Firestore'da durur, liste
-/// gelince görünür.
-List<Map<String, dynamic>> gorunurTepkiler(
-    List<Map<String, dynamic>> tepkiler, Set<String>? engellenenler) {
+/// NEDEN yalnız süzmek yetmiyor: `myNudgesProvider` son 20 tepkiyi okuyor
+/// (`orderBy(createdAt).limit(20)`). Engellenenin tepkileri yalnız
+/// gizlenseydi o pencerede KALICI yer tutar, görünmedikleri için dokunarak
+/// da silinemez ve daha eski meşru tepkilere bir daha ulaşılamazdı.
+/// [engellenenden] bu yüzden sessizce silinir ([engellenenTepkileriProvider]).
+/// Süzgeç ikinci hat olarak kalır: silim düşse ya da sürse de ekranda yok.
+({List<Map<String, dynamic>> gorunur, List<String> engellenenden})
+    tepkileriAyir(
+        List<Map<String, dynamic>> tepkiler, Set<String> engellenenler) {
+  final gorunur = <Map<String, dynamic>>[];
+  final engellenenden = <String>[];
+  for (final t in tepkiler) {
+    if (engellenenler.contains(t['fromUid'])) {
+      if (t['id'] case final String id) engellenenden.add(id);
+    } else {
+      gorunur.add(t);
+    }
+  }
+  return (gorunur: gorunur, engellenenden: engellenenden);
+}
+
+/// Engellediklerimden kalan tepkilerin kimlikleri — gelen kutusu bunları
+/// sessizce siler. Engel listesi henüz yoksa boş: bilinmeyen engele göre
+/// hiçbir şey silinmez.
+final engellenenTepkileriProvider = Provider<List<String>>((ref) {
+  final engellenenler = ref.watch(engellenenKimliklerProvider).value;
   if (engellenenler == null) return const [];
+  final tepkiler = ref.watch(myNudgesProvider).value ?? const [];
+  return tepkileriAyir(tepkiler, engellenenler).engellenenden;
+});
+
+/// Tepki silme işlevi — TEST DİKİŞİ ([engelleyiciProvider] gerekçesi).
+final tepkiSiliciProvider =
+    Provider<Future<void> Function(String id)>((_) => dismissNudge);
+
+/// Gelen istekler bölümünden engellediklerimin isteklerini düşürür — SAF.
+///
+/// Böyle bir istek yeni kuralla KURULAMAZ (counterpart create engel kaydına
+/// bakıyor); yalnız kural dağıtımından önce kurulmuş istekler kalabilir ve
+/// kabulleri de kuralda kapalı. Engel listesi YOKSA (yükleniyor,
+/// okunamadı) liste OLDUĞU GİBİ döner — gelen kutusunun tersine: orada
+/// görünen şey engellenenin kendi tepkisi; burada tümünü gizlemek her
+/// meşru isteği sessizce kaybettirirdi, gösterilen eski bir istek ise
+/// kurala çarptığı için kabul edilemez ve Yoksay/Engelle ile kaldırılabilir.
+List<Friend> gelenIstekleriSuz(List<Friend> liste, Set<String>? engellenenler) {
+  if (engellenenler == null || engellenenler.isEmpty) return liste;
   return [
-    for (final t in tepkiler)
-      if (!engellenenler.contains(t['fromUid'])) t,
+    for (final f in liste)
+      if (f.status != FriendStatus.incoming || !engellenenler.contains(f.uid))
+        f,
   ];
 }
 
