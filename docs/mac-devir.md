@@ -120,12 +120,14 @@ python3.11 -m venv .venv
 
 **Mac'te ölçülen (2026-10-22, Apple Silicon):** saf `33bb9f4`'te
 `flutter test` **1528/1528**; `pytest` **2755 geçti, 2 atlandı, 1 kaldı** —
-`test_rag_coverage[tr-family-Babamla…]`. Kod kusuru DEĞİL: kelime modunda en
-yüksek skorda 10 parça EŞİT ve üç sonuç NumPy'nin işlemci mimarisine bağlı
-eşitlik bozmasıyla seçiliyor (x86_64'te geçer; üretim de x86_64). Birleşme
-(`8d6f67b`) sonrası: `flutter test` **1668/1668**, `pytest` **2795 + 2
-atlandı + aynı 1**. `flutter analyze` Mac'te `build/**` dışlanmazsa 864 sahte
-hata sayar (§7; dışlama birleşmeyle geldi).
+`test_rag_coverage[tr-family-Babamla…]`: kelime modunda en yüksek skorda 10
+parça EŞİTTİ ve üç sonuç NumPy'nin işlemci mimarisine bağlı eşitlik bozmasıyla
+seçiliyordu (x86_64'te geçiyordu). Birleşme (`8d6f67b`) sonrası: `flutter
+test` **1668/1668**, `pytest` **2795 + 2 atlandı + aynı 1**. Eşitlik artık
+platformdan bağımsız bozuluyor (`4c64335`, rag-esitlik) ve U17 de girdi
+(`b061ec0`): **`flutter test` 1707/1707, `pytest` 2831 geçti + 2 atlandı, 0
+kaldı** (2026-10-22, Mac). `flutter analyze` Mac'te `build/**` dışlanmazsa
+864 sahte hata sayar (§7; dışlama birleşmeyle geldi).
 
 Betikler macOS'a hazır (ölçüldü): `infra/deploy-backend.ps1` venv düzenini
 iki platformda da buluyor (`Scripts/python.exe` → `bin/python`),
