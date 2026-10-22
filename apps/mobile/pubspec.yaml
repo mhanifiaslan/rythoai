@@ -91,8 +91,9 @@ dependencies:
   tflite_flutter: ^0.12.0
   # Ortaklık atfı (OP): ortak bağlantısıyla gelen kurulumda Play, koda
   # sahip `referrer` dizesini uygulamaya verir — kullanıcı hiçbir şey
-  # yazmaz. ANDROID'E ÖZEL ve bilinçli: iOS'ta dengi yok, orada çözüm
-  # App Store Custom Product Page + derin bağlantı olacak.
+  # yazmaz. ANDROID'E ÖZEL ve bilinçli: iOS'ta dengi yok; orada kurulu
+  # uygulamada Universal Link sayar, kurulum öncesi için "bağlantıya bir
+  # kez daha dokun" (docs/mac-devir.md 4.10).
   # Üçüncü parti atıf SDK'sı (Branch vb.) alınmadı; gerekçe
   # lib/core/partner_referrer.dart başlığında.
   play_install_referrer: ^0.5.0

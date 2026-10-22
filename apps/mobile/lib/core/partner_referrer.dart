@@ -14,8 +14,17 @@
 /// alan yoktur; `ct=`/`pt=` yalnız App Store Connect analitiğinde görünür,
 /// uygulama okuyamaz; Universal Link uygulama kurulu değilken hiçbir şey
 /// saklamaz; SKAdNetwork/AdAttributionKit toplu reklam ölçümüdür, kod
-/// taşıyamaz. iOS tarafı App Store **Custom Product Page + derin bağlantı**
-/// ile çözülecek (iOS 18+), bu dosyayla değil.
+/// taşıyamaz.
+///
+/// iOS'ta kod YALNIZ kurulu uygulamada sayılır: Universal Link
+/// (`apple-app-site-association` `/r/*`) uygulamayı açar ve
+/// [applyPartnerCode] aynı uca çıkar. Kurulum öncesi atıf için seçilen yol
+/// (sahip kararı, 2026-10-22): `/r/` sayfası iPhone'da "kur, hesabını aç,
+/// bağlantıya bir kez daha dokun" der — ikinci dokunuşu yapmayan sayılmaz.
+/// Custom Product Page (ortak başına bir mağaza sayfası, en çok 70, her biri
+/// Apple incelemesinden geçer) ve pano okuma BİLEREK seçilmedi; parmak izi
+/// eşleştirme hiç düşünülmedi (ölçüm değil olasılık). Gerekçe ve yayın günü
+/// listesi `docs/mac-devir.md` 4.10'da.
 ///
 /// Üçüncü parti bir atıf SDK'sı (Branch vb.) BİLEREK alınmadı: kendi
 /// Android kurulum belgesi `AD_ID` izni istiyor ve `infra/build-aab.ps1`

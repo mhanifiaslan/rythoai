@@ -45,6 +45,7 @@
 
     <!-- Kod kullanıcıya gösterilmez, bilinçli — docs/web-notlari.md §Ortak bağlantısı -->
     <a class="buton" id="magaza" href="https://play.google.com/store/apps/details?id=ai.rytho">Uygulamayı indir</a>
+    <a class="buton" id="uygulamada" hidden>Uygulamada aç</a>
     <p class="not" id="not"></p>
   </main>
 
@@ -58,6 +59,21 @@
     var DESEN = /^[A-Z0-9_-]{4,24}$/;
     var PAKET = 'ai.rytho';
 
+    // App Store'un sayısal uygulama kimliği — App Store Connect kaydıyla
+    // doğar (mac-devir 4.9). BOŞKEN iPhone dalı hiç açılmaz ve sayfa
+    // bugünkü gibi davranır: mağazada olmayan bir uygulamaya yönlendirmek
+    // var olmayan bir sayfa ve tutulamayacak bir söz olurdu. Yayın günü
+    // doldurulur (mac-devir 4.10 yayın günü listesi).
+    var APPSTORE_ID = '';
+
+    // "Uygulamada aç" düğmesinin hedefi. Universal Link AYNI alan adı
+    // içinde tetiklenmez: rytho.app'teki bu sayfadan yine rytho.app'e
+    // verilen bağlantı Safari'de kalır. Diğer host AASA'yı da sunuyor ve
+    // Runner.entitlements'ta da var; iOS onu "başka siteye gidiş" sayar ve
+    // kurulu uygulamayı açar. (Bekçi: test_web_seo, hedef host'lar
+    // entitlements'ta mı.)
+    var DIGER_HOST = { 'rytho.app': 'rhytoai.web.app' };
+
     var METIN = {
       tr: {
         yonlendir: 'Mağazaya yönlendiriliyorsun…',
@@ -67,7 +83,11 @@
         diger: 'Rytho Android için Google Play’de, şimdilik Türkiye’de. iOS sürümü hazırlanıyor.',
         digerNot: 'Ortak bağlantısı şimdilik yalnız Android kurulumlarında sayılıyor.',
         gecersiz: 'Bu bağlantı geçerli değil.',
-        gecersizGovde: 'Ortak kodu okunamadı. Uygulamayı yine de indirebilirsin.'
+        gecersizGovde: 'Ortak kodu okunamadı. Uygulamayı yine de indirebilirsin.',
+        iosIndir: 'App Store’dan indir',
+        ios: 'Rytho’yu indir ve hesabını aç; sonra bu bağlantıya bir kez daha dokun. Ortak kodu ancak o zaman hesabına geçer.',
+        iosAc: 'Uygulamada aç',
+        iosNot: 'Rytho zaten kurulu ve hesabın açıksa “Uygulamada aç”a dokun.'
       },
       en: {
         yonlendir: 'Taking you to the store…',
@@ -77,7 +97,11 @@
         diger: 'Rytho is on Google Play for Android, in Turkey for now. The iOS version is on the way.',
         digerNot: 'Partner links currently count for Android installs only.',
         gecersiz: 'This link is not valid.',
-        gecersizGovde: "We couldn't read the partner code. You can still download the app."
+        gecersizGovde: "We couldn't read the partner code. You can still download the app.",
+        iosIndir: 'Get it on the App Store',
+        ios: 'Download Rytho and create your account, then tap this link once more. That is when the partner code reaches your account.',
+        iosAc: 'Open in the app',
+        iosNot: 'Already have Rytho and an account? Tap “Open in the app”.'
       }
     };
 
@@ -176,6 +200,13 @@
     var gecerli = DESEN.test(kod);
 
     var android = /Android/.test(navigator.userAgent);
+    // Yalnız iPhone: uygulama iPhone'a özel (sahip kararı 1). iPadOS
+    // Safari kendini masaüstü diye tanıtıyor; o ziyaretçi masaüstü dalında
+    // kalır.
+    var ios = /iPhone|iPod/.test(navigator.userAgent);
+    // "Uygulamada aç" uygulama kurulu DEĞİLKEN sayfayı diğer host'ta yeniden
+    // açar; o ikinci yükleme yeni bir tıklama değildir.
+    var tekrar = /(?:^|[?&])tekrar=1(?:&|$)/.test(location.search);
 
     // Play'e utm_* biçiminde gönderiliyor. Serbest bir dize de işe yarardı
     // ama utm ile Play Console'un kendi edinme raporları ortak başına
@@ -207,7 +238,7 @@
     // ortağın bunu görmesi işine yarıyor: 500 tıklama / 0 kurulum,
     // kitlesinin iPhone'da olduğunu söyler. Bu yüzden panolarda dönüşüm
     // oranının bölenine iOS tıklamalarının da girdiği YAZILI.
-    tiklamaBildir(kod);
+    if (!tekrar) tiklamaBildir(kod);
 
     if (android) {
       // Kod mağaza bağlantısında taşınıyor: kullanıcı hiçbir şey yapmıyor.
@@ -217,11 +248,31 @@
       return;
     }
 
-    // iOS ve masaüstü: Play Install Referrer'ın dengi YOK ve uygulamada
-    // kod girme alanı da yok — yani bu kod BURADAN hiçbir yere taşınamaz.
-    // Sayfa bunu saklamıyor: mağaza bağlantısı duruyor, atfın sayılmadığı
-    // açıkça yazılıyor. (iOS tarafı App Store Custom Product Page + derin
-    // bağlantıyla çözülecek; o kurulduğunda bu dal oraya yönlenir.)
+    if (ios && APPSTORE_ID) {
+      // iPhone (sahip kararı, 2026-10-22: "bir kez daha dokun"). App
+      // Store'da Install Referrer'ın dengi YOK: kurulum bağlantıyı
+      // taşımaz. Kod, ikinci dokunuşta Universal Link'in açtığı uygulamada
+      // `deep_links.dart` yolundan sayılır — o yol OTURUM ister (401
+      // terminal sayılmaz), metin bu yüzden "hesabını aç" diyor. Parmak
+      // izi eşleştirme ve pano BİLEREK yok (mac-devir 4.10). İkinci
+      // dokunuşu yapmayan sayılmaz; panolardaki dipnot bunu söyler.
+      el('magaza').setAttribute('href', 'https://apps.apple.com/app/id' + APPSTORE_ID);
+      el('magaza').textContent = t.iosIndir;
+      var ac = el('uygulamada');
+      ac.setAttribute('href', 'https://' + (DIGER_HOST[location.hostname] || 'rytho.app')
+        + '/r/' + encodeURIComponent(kod) + '?tekrar=1');
+      ac.textContent = t.iosAc;
+      ac.hidden = false;
+      el('baslik').textContent = t.digerBaslik;
+      el('govde').textContent = t.ios;
+      el('not').textContent = t.iosNot;
+      return;
+    }
+
+    // Masaüstü (ve App Store kimliği yokken iPhone): Install Referrer'ın
+    // dengi YOK ve uygulamada kod girme alanı da yok — yani bu kod BURADAN
+    // hiçbir yere taşınamaz. Sayfa bunu saklamıyor: mağaza bağlantısı
+    // duruyor, atfın sayılmadığı açıkça yazılıyor.
     el('baslik').textContent = t.digerBaslik;
     el('govde').textContent = t.diger;
     el('not').textContent = t.digerNot;

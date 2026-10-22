@@ -270,11 +270,24 @@ Apple'ın bilinçli kararı: `AdServices` yalnız Apple Search Ads içindir ve
 yükünde serbest alan yok; `ct=`/`pt=` yalnız App Store Connect
 analitiğinde görünür, uygulama okuyamaz; Universal Link uygulama kurulu
 değilken hiçbir şey saklamaz; SKAdNetwork/AdAttributionKit toplu reklam
-ölçümüdür, kod taşıyamaz (`partner_referrer.dart:10-18`). Çözüm **App
-Store Custom Product Page + derin bağlantı** olacak (iOS 18+) ve
-`redeem-code` ucu değişmeden çalışacak. Sayfa bunu kullanıcıya da
-söylüyor: "Ortak bağlantısı şimdilik yalnız Android kurulumlarında
-sayılıyor" (`web/r/index.html:90`).
+ölçümüdür, kod taşıyamaz (`partner_referrer.dart` başlığı).
+
+Seçilen yol (sahip kararı, 2026-10-22; `docs/mac-devir.md` 4.10):
+**kurulu uygulamada Universal Link** — `apple-app-site-association`
+`/r/*` taşıyor, bağlantı uygulamayı açar ve mevcut `deep_links.dart` yolu
+kodu aynı `redeem-code` ucuna yazar (oturum şart). **Kurulum öncesi** için
+`/r/` sayfası iPhone'da "kur, hesabını aç, bağlantıya bir kez daha dokun"
+der ve karşı host'a giden bir "Uygulamada aç" düğmesi gösterir; ikinci
+dokunuşu yapmayan sayılmaz. Custom Product Page (ortak başına mağaza
+sayfası, en çok 70, her biri incelemeden geçer) ve pano okuma bilerek
+seçilmedi; parmak izi eşleştirme hiç düşünülmedi.
+
+⚠️ **Durum (2026-10-22): kod hazır, cihazda ÖLÇÜLMEDİ, canlıda değil.**
+iPhone dalı `APPSTORE_ID` boşken kapalı — uygulama App Store'da yokken
+sayfa bugünkü cümleyi söylemeye devam ediyor: "Ortak bağlantısı şimdilik
+yalnız Android kurulumlarında sayılıyor". Panolardaki iPhone dipnotları da
+yayın gününe kadar doğru; o gün GÜNCELLENİR, kaldırılmaz (ikinci dokunuşu
+yapmayan hâlâ sayılmaz).
 
 **`/r/` yalnız `rytho.app` ana makinesinde yakalanıyor.** `/i/` iki ana
 makineye birden bağlı (`rytho.app` **ve** `rhytoai.web.app`,
@@ -282,7 +295,11 @@ makineye birden bağlı (`rytho.app` **ve** `rhytoai.web.app`,
 (`AndroidManifest.xml:174`). Yani `rhytoai.web.app/r/KOD` bağlantısı kurulu
 uygulamada **tarayıcıda açılır**, uygulamaya düşmez — ve o yol kurulum
 akışına girer, atıf yine oluşur ama "kurulu uygulama" kısayolu çalışmaz.
-Ortaklara **her zaman `rytho.app/r/`** verilmeli.
+Ortaklara **her zaman `rytho.app/r/`** verilmeli. (Bu ayrım ANDROID'e
+özel: iOS'ta AASA iki ana makineden de sunuluyor ve `Runner.entitlements`
+ikisini de taşıyor; `/r/` sayfasının "Uygulamada aç" düğmesi tam da
+karşı ana makineye gittiği için çalışır — Universal Link aynı alan adı
+içinde tetiklenmez.)
 
 **TRANSFER boşluğu.** Anonim satın alma → sonradan giriş senaryosunda
 `INITIAL_PURCHASE` **anonim kimlik altına** yazılır; gerçek uid yalnızca

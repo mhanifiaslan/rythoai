@@ -164,3 +164,36 @@ def test_aasa_takim_kimligi_imza_takimiyla_ayni():
     assert kimlikler == {f"{takim}.{KIMLIK}"}, (
         f"AASA appID {kimlikler}, imza takımı {takim} — evrensel bağlantı "
         "uygulamayı açmaz")
+
+
+def test_aasa_android_app_links_yollarini_kapsiyor():
+    """İki platform aynı bağlantıyı uygulamaya devretmeli (mac-devir 4.10).
+
+    Ölçüldü (2026-10-22): AndroidManifest App Links'te `/i/` VE `/r/`
+    dinliyordu, AASA yalnız `/i/*` taşıyordu. Ortak bağlantısı Android'de
+    uygulamayı açıp kodu sayarken iPhone'da tarayıcıya düşüyordu ve hiçbir
+    test kırmızı değildi — iki dosya ayrı ekiplerin elinde ayrı zamanlarda
+    değişiyor. Yön: Android'in dinlediği her yol öneki AASA'da `önek*`
+    olarak bulunmalı. AASA tek dosya ve iki host'tan birden sunuluyor;
+    Android'de host başına filtre var, bu yüzden kıyas YOL kümesinde.
+
+    Manifest yorumları eşleşmeden ÖNCE atılır: bekçi bir yolu ANLATAN
+    yorumu görüp geçmemeli (CLAUDE.md §5).
+    """
+    import json
+
+    manifest = (_KOK / "apps" / "mobile" / "android" / "app" / "src"
+                / "main" / "AndroidManifest.xml").read_text(encoding="utf-8")
+    manifest = re.sub(r"<!--.*?-->", "", manifest, flags=re.S)
+    onekler = set(re.findall(r'android:pathPrefix="([^"]+)"', manifest))
+    assert onekler, "AndroidManifest'te App Links yol öneki bulunamadı"
+
+    aasa = json.loads((_KOK / "web" / ".well-known"
+                       / "apple-app-site-association").read_text(
+                           encoding="utf-8"))
+    yollar = {y for d in aasa["applinks"]["details"]
+              for y in d.get("paths", [])}
+    eksik = sorted(o for o in onekler if f"{o.rstrip('/')}/*" not in yollar)
+    assert not eksik, (
+        f"Android bu yolları uygulamaya devrediyor ama AASA devretmiyor: "
+        f"{eksik} — iPhone'da bu bağlantılar tarayıcıya düşer")

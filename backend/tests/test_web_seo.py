@@ -214,7 +214,10 @@ def test_ortak_sayfasi_tiklamayi_YONLENDIRMEDEN_SAG_CIKACAK_bicimde_bildiriyor()
         "sendBeacon yedeği `keepalive: true` taşımıyor; bayrak olmadan "
         "yönlendirme yedek isteği de keser")
 
-    cagri = re.search(r"(?m)^[ \t]*tiklamaBildir\(", kod)
+    # `if (!tekrar)` öneki 4.10'dan: "Uygulamada aç"ın ikinci yüklemesi
+    # tıklama sayılmaz (bkz. test_ortak_sayfasi_ikinci_yuklemede_...).
+    cagri = re.search(
+        r"(?m)^[ \t]*(?:if \(!tekrar\) )?tiklamaBildir\(", kod)
     assert cagri, "ping hiçbir yerden ÇAĞRILMIYOR (yalnız tanımlı)"
     yonlendirme = kod.index("location.replace(")
     assert cagri.start() < yonlendirme, (
@@ -307,6 +310,60 @@ def _yorumsuz_html(metin: str) -> str:
     """Bir şeyin YOKLUĞUNU arayan bekçi, onu ANLATAN yorumu görmemeli —
     davet sayfasının eski yorumu kelimesi kelimesine `href="#"` içeriyordu."""
     return re.sub(r"<!--.*?-->", " ", metin, flags=re.S)
+
+
+def test_ortak_sayfasi_iphone_dali_APP_STORE_KIMLIGINE_kapili():
+    """iPhone dalı ("bir kez daha dokun", mac-devir 4.10) App Store kimliği
+    olmadan AÇILMAZ.
+
+    Hosting her deploy'da `web/`i tümden değiştiriyor: kapısız yazılsaydı
+    herhangi bir makineden yapılan ilk deploy, App Store'da olmayan bir
+    uygulama için "App Store'dan indir" diyen sayfayı canlıya çıkarırdı —
+    var olmayan bir mağaza sayfası ve tutulamayacak bir söz. Kimlik
+    doluysa yalnız rakam olabilir (`apps.apple.com/app/id<sayı>`).
+    """
+    kod = _r_sayfasi_kodu()
+    kimlik = re.search(r"var APPSTORE_ID = '([^']*)';", kod)
+    assert kimlik, "APPSTORE_ID sabiti yok"
+    assert re.fullmatch(r"\d*", kimlik.group(1)), kimlik.group(1)
+    kapi = "if (ios && APPSTORE_ID) {"
+    assert kapi in kod, "iPhone dalı App Store kimliğine kapılı değil"
+    # App Store adresi YALNIZ kapının içinde kurulur.
+    assert kod.index("apps.apple.com") > kod.index(kapi)
+
+
+def test_ortak_sayfasi_ikinci_yuklemede_tiklamayi_IKI_KEZ_saymaz():
+    """"Uygulamada aç", uygulama kurulu DEĞİLKEN sayfayı diğer host'ta
+    `?tekrar=1` ile yeniden açar; o yükleme yeni bir tıklama değildir.
+    Sayılsaydı iPhone tıklamaları iki kez girer ve panolardaki dönüşüm
+    oranının BÖLENİ şişerdi (ölçülmeyen bir düşüş)."""
+    kod = _r_sayfasi_kodu()
+    assert "?tekrar=1" in kod
+    assert "if (!tekrar) tiklamaBildir(kod);" in kod
+    # Tanım (`function tiklamaBildir(kod)`) sayılmaz; yalnız çağrılar.
+    assert len(re.findall(r"(?<!function )tiklamaBildir\(kod\)", kod)) == 1, (
+        "ping'in kapısız ikinci bir çağrısı var")
+
+
+def test_ortak_sayfasinin_uygulamada_ac_hedefi_evrensel_baglanti_hostu():
+    """"Uygulamada aç"ın gittiği her host uygulamanın `applinks:` listesinde
+    olmalı — değilse iOS bağlantıyı uygulamaya DEVRETMEZ ve düğme yalnız
+    sayfayı yeniden açar. Hedef, sayfanın KENDİ host'u da olamaz:
+    Universal Link aynı alan adı içinde tetiklenmez."""
+    kod = _r_sayfasi_kodu()
+    harita = re.search(r"var DIGER_HOST = \{([^}]*)\};", kod)
+    assert harita, "DIGER_HOST haritası yok"
+    ciftler = re.findall(r"'([^']+)':\s*'([^']+)'", harita.group(1))
+    yedek = re.search(
+        r"DIGER_HOST\[location\.hostname\] \|\| '([^']+)'\)", kod)
+    assert ciftler and yedek, "Uygulamada aç hedefi okunamadı"
+    ent = (_KOK / "apps" / "mobile" / "ios" / "Runner"
+           / "RunnerRelease.entitlements").read_text(encoding="utf-8")
+    alanlar = set(re.findall(r"<string>applinks:([^<]+)</string>", ent))
+    for kaynak, hedef in ciftler:
+        assert hedef in alanlar, f"{hedef} applinks listesinde yok"
+        assert hedef != kaynak, "aynı host: Universal Link tetiklenmez"
+    assert yedek.group(1) in alanlar, f"{yedek.group(1)} applinks'te yok"
 
 
 def test_hicbir_sayfada_olu_baglanti_yok():
