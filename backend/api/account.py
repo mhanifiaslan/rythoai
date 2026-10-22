@@ -110,58 +110,34 @@ class AiConsentRequest(BaseModel):
                          ge=1, le=1000)
 
 
-@router.get("/ai-consent")
-def ai_consent_status(user: AuthUser = Depends(get_current_user),
-                      lang: str = Depends(get_language)):
-    """AI aktarım onayının durumu (U06).
-
-    Kayıt istemciye kapalı `private/` altında durduğu için istemci onu
-    Firestore'dan okuyamaz; tek kaynak bu uç. `decided`, "hiç sorulmadı"
-    ile "soruldu, hayır dedi"yi ayırır — istemci ikisinde de onay
-    ekranını gösterir ama bu ayrım destek ve test için görünür kalmalı.
-
-    Okuma hatası 500'e sarılır, "onay yok"a ÇEVRİLMEZ: istemci hata
-    görünce son bildiği değere düşer; "yok" görseydi onaylı kullanıcıya
-    ekranı yeniden gösterir ve AI'yı sebepsiz kapatırdı.
-    """
-    try:
-        kayit = consent_service.ai_consent(user.uid)
-    except Exception as exc:
-        logger.warning("AI onayı okunamadı (%s): %s", user.uid, exc)
-        raise HTTPException(status_code=500, detail=text("internal", lang))
-    return {
-        "granted": consent_service.ai_kaydi_gecerli(kayit),
-        "decided": isinstance(kayit, dict) and "granted" in kayit,
-        "version": consent_service.AI_CONSENT_VERSION,
-    }
-
-
 @router.post("/ai-consent")
 def grant_ai_consent(req: AiConsentRequest,
                      user: AuthUser = Depends(get_current_user),
                      lang: str = Depends(get_language)):
-    """AI aktarım onayını kaydeder (zaman damgası + gösterilen sürüm)."""
+    """Kurulumdaki yapay zeka (Google Gemini) onayının KANITI.
+
+    Sahip kararı 2026-10-22: onay kurulumun ilk adımında, şartlar
+    kutusunun altındaki ikinci, ayrı ve zorunlu kutuyla BİR KEZ alınır;
+    istemci kutuyu işaretleyip kurulumu bitiren kullanıcı için bu ucu
+    çağırır. Kayıt bir kilit DEĞİL, ispattır — hiçbir AI ucu ve bildirim
+    yolu ona bakmaz. 53'ten güncelleyen kullanıcı kutuyu hiç görmedi,
+    kaydı yok ve özellikleri bu yüzden kapanmamalı; kayda bakan bir kapı
+    tam da onları cezalandırırdı.
+
+    Durumu okuyan GET ve geri alan DELETE KALKTI: onları çağıran ekran
+    yok (Profil > Gizlilik'teki geri alma anahtarı aynı kararla kalktı)
+    ve "hayır" yazan bir yol, hiçbir kodun okumadığı bir durum üretirdi.
+    Geri alma yolu hesabı silmek (aynı karar; gizlilik metni bu yolu
+    anlatmalı); `private/` alt koleksiyonu hesapla birlikte gider
+    (`account_service._SUB_COLLECTIONS`).
+
+    Tekrarı zararsız: aynı durum (onay + gösterilen sürüm) yeniden yazılır,
+    ağ hatasında yeniden deneyen istemci ikinci bir anlam üretmez.
+    Abonelik İSTEMEZ — kurulumdaki herkes çağırır.
+    """
     if not consent_service.grant_ai_consent(user.uid, req.version, lang):
         raise HTTPException(status_code=500, detail=text("internal", lang))
-    return {"status": "success",
-            "granted": req.version >= consent_service.AI_CONSENT_VERSION,
-            "version": consent_service.AI_CONSENT_VERSION}
-
-
-@router.delete("/ai-consent")
-def withdraw_ai_consent(user: AuthUser = Depends(get_current_user),
-                        lang: str = Depends(get_language)):
-    """Onayı geri alır ya da "Şimdi değil"i kaydeder (``granted: False``).
-
-    Abonelik İSTEMEZ — yüz rızası uçlarıyla aynı gerekçe: geri alma hakkı
-    ödeme durumuna bağlanamaz. Üretilmiş okumalar SİLİNMEZ: onlar zaten
-    üretilmiş metinler, geri alma bundan sonraki aktarımı durdurur; silme
-    istenirse hesap silme ve konu silme yolları duruyor.
-    """
-    if not consent_service.withdraw_ai_consent(user.uid, lang):
-        raise HTTPException(status_code=500, detail=text("internal", lang))
-    return {"status": "success", "granted": False,
-            "version": consent_service.AI_CONSENT_VERSION}
+    return {"status": "success", "granted": True, "version": req.version}
 
 
 @router.post("/phone/sync")

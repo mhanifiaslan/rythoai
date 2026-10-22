@@ -510,14 +510,8 @@ def test_turkce_avoid_ingilizce_prompta_girmez(monkeypatch, temiz_onbellek):
     tasir): iki dilde bayt-ayni govde gercekte cikmaz; eski kod yolu bu
     girdide avoid'i kesin enjekte ederdi — test kapinin hash'e degil DILE
     baktigini sabitler."""
-    from core import ai_consent
     from services import notification_service as ns
     from services import signal_service
-
-    # AI satirinin kendisi sinaniyor: kullanici onay vermis sayilir (U06 —
-    # arka plan yolu kayitsiz yeni kullaniciya paket hic uretmez).
-    monkeypatch.setattr(ai_consent, "arka_plan_izni_var",
-                        lambda uid, build: True)
 
     ham = {"generated_for": "2026-06-15", "signals": [
         {"transit": "Saturn", "natal": "Moon", "aspect": "Square",

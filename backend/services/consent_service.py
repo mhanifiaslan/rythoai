@@ -290,13 +290,22 @@ def delete_face_readings(uid: str) -> int:
 
 
 # --------------------------------------------------------------------------
-# Üçüncü taraf AI (Google Gemini) aktarım onayı — U06, Apple 5.1.2(i)
+# Üçüncü taraf AI (Google Gemini) aktarım onayı — kurulumdaki ikinci kutu
 # --------------------------------------------------------------------------
 #
-# Yüz rızasından AYRI bir kayıt, çünkü konusu ayrı: o biyometrik işleme,
-# bu kişisel verinin (harita, sohbet, günlük, kişi etiketleri...) ÜÇÜNCÜ
-# bir tarafa — Google'ın Gemini API'sine — gönderilmesi. Birini diğerinin
-# içine gömmek GDPR Md.7(2)'nin geçersiz saydığı "paket rıza" olurdu.
+# Sahip kararı 2026-10-22: onay kurulumun ilk adımında, şartlar kutusunun
+# altındaki İKİNCİ, AYRI ve ZORUNLU bir kutuyla bir kez alınır. Bu kayıt o
+# kutunun İSPATIDIR, kapısı DEĞİL: hiçbir AI ucu ve bildirim yolu onu
+# okumaz, hiçbir özellik onay yüzünden kapanmaz ya da kötüleşmez. 53'ten
+# güncelleyen kullanıcı kutuyu hiç görmez ve onun adına kayıt YAZILMAZ —
+# işaretlemediği kutunun kaydı olmaz. Bu yüzden burada okuma, geçerlilik
+# kararı ve "hayır" yazan bir yol yok; geri alma yolu hesabı silmek.
+#
+# Şartlar kutusundan AYRI kutu ve yüz rızasından AYRI kayıt, çünkü konuları
+# ayrı: bu, kişisel verinin (harita, sohbet, günlük, kişi etiketleri...)
+# ÜÇÜNCÜ bir tarafa — Google'ın Gemini API'sine — gönderilmesi. Birini
+# diğerinin içine gömmek GDPR Md.7(2)'nin geçersiz saydığı "paket rıza"
+# olurdu.
 #
 # Neden `users/{uid}` alanı DEĞİL de `private/aiConsent` dokümanı: kullanıcı
 # dokümanına sunucunun yazdığı her yeni alan `infra/firestore.rules`
@@ -307,24 +316,25 @@ def delete_face_readings(uid: str) -> int:
 # adım ve sırası unutulursa aynı tuzak dördüncü kez kurulurdu. `private/`
 # istemciye tamamen kapalı (okuma da yazma da): kayıt uydurulamaz, kural
 # değişikliği gerekmez, hesap silmede alt koleksiyonla birlikte gider.
-# Bedeli: istemci durumu doğrudan okuyamaz, `GET /account/ai-consent` ile
-# sorar ve yerelde önbellekler.
 
-#: AI aktarım onayı metninin güncel sürümü.
+#: AI aktarım onayı metninin güncel sürümü — istemci sürüm göndermezse
+#: kayda yazılan varsayılan.
 #:
-#: Gönderilen veri KATEGORİSİ ya da sağlayıcı değiştiğinde artırılır (ör.
-#: yeni bir veri türünün prompta girmesi, Gemini'den başka bir sağlayıcıya
-#: geçiş). Yazım düzeltmesi artırmaz — FACE_CONSENT_VERSION ile aynı rıza
-#: yorgunluğu kuralı. İstemcideki `kAiConsentVersion` ile elle senkron.
+#: Kayıt, kullanıcının GÖRDÜĞÜ metnin sürümünü taşır (istemci gönderir;
+#: şartlar kabulüyle aynı ilke). Gönderilen veri KATEGORİSİ ya da sağlayıcı
+#: değiştiğinde istemcideki karşılığıyla birlikte artırılır ki yeni kayıtlar
+#: yeni metne bağlansın; yazım düzeltmesi artırmaz (FACE_CONSENT_VERSION ile
+#: aynı rıza yorgunluğu kuralı). Sunucu eski sürümlü kaydı reddetmez ve
+#: kimseye yeniden sormaz — kayıt kapı değil ispat.
 AI_CONSENT_VERSION = 1
 
 
 def _ai_local_store():
     """Firestore yokken AI onayının yerel dosyası.
 
-    Yüz rızası dosyasından AYRI: testler bu yolu geçici dizine pinliyor
-    (conftest) — paylaşılsaydı bir testin yazdığı "reddetti" kaydı sonraki
-    testlerin AI uçlarını 403'e düşürürdü.
+    Yüz rızası dosyasından AYRI: o dosya kayıtları çıplak uid anahtarıyla
+    tutuyor; aynı dosyaya yazılsaydı AI onayı aynı kullanıcının yüz
+    rızasının ÜZERİNE yazılırdı.
     """
     return config.CACHE_DIR / "ai_consent.json"
 
@@ -357,94 +367,32 @@ def _ai_doc(uid: str):
             .collection("private").document("aiConsent"))
 
 
-def ai_consent(uid: str) -> dict[str, Any] | None:
-    """Kayıtlı AI onayı kaydı; hiç kayıt yoksa ``None``.
+def grant_ai_consent(uid: str, version: int, locale: str) -> bool:
+    """Kurulumdaki AI onayını kaydeder — zaman damgası + GÖSTERİLEN sürüm.
 
-    Okuma hatasında FIRLATIR — ``None`` DÖNMEZ. Ayrım önemli: ``None``
-    "kullanıcıya hiç sorulmadı" demek ve eski istemcilere izin veren dal
-    ona bağlı (bkz. core/ai_consent.izin_karari). Okuma hatasını "kayıt
-    yok"a çevirmek, onayı AÇIKÇA geri almış kullanıcının verisini bir
-    Firestore hıçkırığında Gemini'ye göndermek olurdu. Kararı çağıran
-    verir ve hata yolunda kapalı tarafa düşer.
+    Sürüm istemciden gelir (şartlar kabulüyle aynı ilke): ispat,
+    kullanıcının GÖRDÜĞÜ metne bağlanmalı. Eski bir istemci eski metni
+    göstermişse kayıt bunu söyler.
+
+    Tam yazım, merge DEĞİL: kaydın tek yazanı bu fonksiyon ve tekrarı
+    (ağ hatasında yeniden deneyen istemci) aynı durumu yeniden yazar —
+    zararsız. Alan alan birleşseydi ileride değişen bir kayıt biçiminin
+    eski alanları yeni kaydın içinde kalırdı.
     """
-    doc_ref = _ai_doc(uid)
-    if doc_ref is None:
-        return _ai_local_read().get(uid)
-    snapshot = doc_ref.get()
-    if not snapshot.exists:
-        return None
-    return snapshot.to_dict() or None
-
-
-def has_ai_consent(uid: str) -> bool:
-    """Güncel sürüm için verilmiş bir onay var mı? Hata → False."""
-    try:
-        kayit = ai_consent(uid)
-    except Exception as exc:
-        logger.warning("AI onayı okunamadı (%s): %s", uid, exc)
-        return False
-    return ai_kaydi_gecerli(kayit)
-
-
-def ai_kaydi_gecerli(kayit: Any) -> bool:
-    """Kayıt GÜNCEL sürüm için verilmiş bir onay mı?
-
-    `is True` ve int kontrolü `has_face_consent` ile aynı gerekçeyle:
-    bozuk bir değer ("true" metni, bool sürüm) onay SAYILMAZ.
-    """
-    if not isinstance(kayit, dict) or kayit.get("granted") is not True:
-        return False
-    surum = kayit.get("version")
-    if not isinstance(surum, int) or isinstance(surum, bool):
-        return False
-    return surum >= AI_CONSENT_VERSION
-
-
-def _ai_yaz(uid: str, kayit: dict[str, Any]) -> bool:
+    kayit = {
+        "granted": True,
+        "version": int(version),
+        "grantedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "locale": locale,
+    }
     doc_ref = _ai_doc(uid)
     if doc_ref is None:
         kayitlar = _ai_local_read()
         kayitlar[uid] = kayit
         return _ai_local_write(kayitlar)
     try:
-        # merge DEĞİL, tam yazım: onay/geri alma kaydı bir DURUMDUR, alan
-        # alan birleşirse eski `grantedAt` geri alınmış kaydın içinde
-        # kalır ve "şu an onaylı mı" okuması yanıltıcı görünür.
         doc_ref.set(kayit)
         return True
     except Exception as exc:
         logger.warning("AI onayı yazılamadı (%s): %s", uid, exc)
         return False
-
-
-def grant_ai_consent(uid: str, version: int, locale: str) -> bool:
-    """AI aktarım onayını kaydeder — zaman damgası + GÖSTERİLEN sürüm.
-
-    Sürüm istemciden gelir (şartlar kabulüyle aynı ilke): ispat,
-    kullanıcının GÖRDÜĞÜ metne bağlanmalı. Eski bir istemci eski metni
-    göstermişse kayıt bunu söyler ve `ai_kaydi_gecerli` onu güncel
-    saymaz — kullanıcıya yeni metin yeniden sorulur.
-    """
-    return _ai_yaz(uid, {
-        "granted": True,
-        "version": int(version),
-        "grantedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "locale": locale,
-    })
-
-
-def withdraw_ai_consent(uid: str, locale: str) -> bool:
-    """Onayı geri alır ya da "Şimdi değil" kararını kaydeder.
-
-    Kayıt SİLİNMEZ, ``granted: False`` yazılır: "hiç sorulmadı" (kayıt
-    yok) ile "soruldu ve hayır dedi" FARKLI durumlar. İlki eski
-    istemcilere zorlama eşiği gelene kadar izin verir; ikincisi her
-    sürümde ve arka plandaki sabah bildiriminde de AI'yı kapatır. Silmek,
-    kullanıcının açık "hayır"ını "hiç sorulmadı"ya çevirirdi.
-    """
-    return _ai_yaz(uid, {
-        "granted": False,
-        "version": AI_CONSENT_VERSION,
-        "withdrawnAt": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "locale": locale,
-    })
