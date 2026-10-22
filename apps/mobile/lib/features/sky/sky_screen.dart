@@ -5,6 +5,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/ai_consent.dart'
+    show AiOnayKapaliKarti, aiAcilisSorusuBekle, aiOnayHatasiMi;
 import '../../core/discovery.dart';
 import '../../core/motivation.dart';
 import '../../core/providers.dart';
@@ -204,6 +206,10 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
     _introPaywallHandled = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      // U06: açılıştaki AI onay sayfası önce kapanır — kullanıcı üst üste
+      // iki modalla (onay + paywall ya da bildirim izni) karşılaşmasın.
+      await aiAcilisSorusuBekle();
       if (!mounted) return;
 
       // Karar ancak GERCEK bir cevapla verilir; iki eksik hal de bekler:
@@ -423,14 +429,24 @@ class _SkyScreenState extends ConsumerState<SkyScreen> {
                     padding: EdgeInsets.all(RythoSpace.xl),
                     child: Center(child: AstrolabeSpinner()),
                   ),
-                  error: (e, _) => Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: RythoSpace.lg),
-                    child: ErrorCard(
-                      message: friendlyError(e, l10n),
-                      onRetry: () => ref.invalidate(dailyReadingProvider),
-                    ),
-                  ),
+                  error: (e, _) {
+                    if (aiOnayHatasiMi(e)) {
+                      // U06: hata değil, kullanıcının kararı — "tekrar dene"
+                      // yerine onay kartı. Abone ilk değerini göremediği
+                      // için tanıtım akışı (bildirim izni) buradan da
+                      // tetiklenir; yoksa AI'yı kapatan abone hiç sorulmazdı.
+                      _maybeShowIntroPaywall();
+                      return const AiOnayKapaliKarti();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RythoSpace.lg),
+                      child: ErrorCard(
+                        message: friendlyError(e, l10n),
+                        onRetry: () => ref.invalidate(dailyReadingProvider),
+                      ),
+                    );
+                  },
                   data: (data) {
                     // Kullanıcı ilk değerini gördü (kilitli kart da değer
                     // anlatır): tanıtım paywall'ı buradan tetiklenir —

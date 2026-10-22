@@ -246,7 +246,9 @@ const _kNodeCurve = Curves.easeOutBack;
 /// 2. **Aynalama.** Ön kamera önizlemesi ayna gibi gösteriliyor (CameraX
 ///    bunu varsayılan yapıyor) ama ML Kit koordinatları aynalanMAMIŞ sensör
 ///    uzayında geliyor. Cihaz testinde noktalar "yüzün solunda" çıktı;
-///    sebebi buydu.
+///    sebebi buydu. Bu Android'e özgü: iOS'ta ML Kit zaten aynalı tamponu
+///    görüyor ve bayrak orada `false` gelmeli (bkz. face_detection.dart,
+///    `taramaNoktalariAynalanir`).
 ///
 /// Aynalamanın kadrajlama kontrolünü etkilemediğini not etmek gerekiyor:
 /// merkeze uzaklık aynalamada değişmiyor, yalnızca işareti dönüyor. Bu yüzden

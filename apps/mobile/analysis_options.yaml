@@ -9,6 +9,16 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+# build/ dışlanıyor çünkü macOS'ta Flutter, Swift Package Manager için
+# eklentilerin TAM kaynağını (kendi testleriyle birlikte)
+# build/ios/SourcePackages altına indiriyor. Dışlanmazsa `flutter analyze`
+# o üçüncü taraf testlerinden 864 "hata" sayıyor ve kendi kodumuz temizken
+# kapı kırmızı görünüyor (ölçüldü 2026-09-26). Windows'ta klasör oluşmadığı
+# için orada hiç görülmemişti.
+analyzer:
+  exclude:
+    - build/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

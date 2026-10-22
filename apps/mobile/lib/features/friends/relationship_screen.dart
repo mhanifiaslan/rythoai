@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ai_consent.dart' show AiOnayiGerekli, aiOnayProvider;
 import '../../core/api.dart';
 import '../../core/discovery.dart';
 import '../../core/friends.dart';
@@ -39,10 +40,19 @@ String dayanakOneki({required bool destekleyici}) =>
 /// verip yalnız yorumu kilitliyor — yük hiç null değil. Kilit önce, gerisi
 /// tek fonksiyondan (`fallback` bayrağını okuyan TEK nokta). `refunded`
 /// bu uçta hep false (jetonsuz uç) → iade cümlesi doğru olarak çıkmaz.
-OkumaDurumu iliskiOkumaDurumu(Map<String, dynamic> data) =>
-    data['reading_locked'] == true
-        ? const OkumaKilitli()
-        : okumaDurumuFromYanit(data, alan: 'reading');
+///
+/// `reading_ai_off` (U06): abone ama AI aktarım onayı yok; sunucu eksenleri
+/// verir, yorumu üretmez. Kilit DEĞİL — abonelik onu açmaz, yalnız onay
+/// açar; kilit kartı yanlış çare gösterirdi. İstemci kapısının fırlattığı
+/// aynı [AiOnayiGerekli] ile temsil edilir: onay kartını `OkumaKabi` tek
+/// yerden çiziyor, ekranın ayrıca bir bayrak taşıması gerekmiyor.
+OkumaDurumu iliskiOkumaDurumu(Map<String, dynamic> data) {
+  if (data['reading_locked'] == true) return const OkumaKilitli();
+  if (data['reading_ai_off'] == true) {
+    return const OkumaHata(AiOnayiGerekli());
+  }
+  return okumaDurumuFromYanit(data, alan: 'reading');
+}
 
 /// İLİŞKİ — iki haritanın dört eksende nitel okuması (R2-L1).
 ///
@@ -105,7 +115,13 @@ class _RelationshipScreenState extends ConsumerState<RelationshipScreen> {
     });
     try {
       final dio = ref.read(apiProvider);
+      // U06: onay yoksa `ai=0` — sunucu yorumu hiç üretmez (adlar ve
+      // eksenler Gemini'ye gitmez), ölçümü yine döndürür.
+      final onay = await ref
+          .read(aiOnayProvider.future)
+          .catchError((Object _) => false);
       final response = await dio.post('/api/v1/reports/relationship',
+          queryParameters: onay ? null : const {'ai': '0'},
           data: widget.friend != null
               ? {'friend_uid': widget.friend!.uid}
               : {'person_id': widget.person!.id});

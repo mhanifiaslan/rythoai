@@ -27,9 +27,10 @@ import os
 
 import pytest
 
-from core import app_gate, config
+from core import ai_consent, app_gate, config
 from core import firestore as firestore_client
-from services import account_service, gemini_service, partner_service
+from services import (account_service, consent_service, gemini_service,
+                      partner_service)
 
 #: Toplama anında yakalanır: henüz hiçbir fixture koşmadı, bu gerçek
 #: istemci kurucusudur. Kıyas kimlikle (`is`) — sahte istemci kuran her
@@ -307,3 +308,27 @@ def pytest_collection_modifyitems(items):
                 pytrace=False)
         for item in eslesen:
             item.add_marker(pytest.mark.skip(reason=sebep))
+
+
+@pytest.fixture(autouse=True)
+def ai_onayi_hermetik(monkeypatch, tmp_path):
+    """AI onay kaydı ve zorlama eşiği her testte TEMİZ başlar (U06).
+
+    İki sızıntı kapatılıyor:
+
+    1. Yerel kayıt dosyası: Firestore pinliyken onay `config.CACHE_DIR`
+       altındaki `ai_consent.json`'a yazılır — depodaki GERÇEK önbellek
+       dizini. Bir testin yazdığı "Şimdi değil" (``granted: False``)
+       kaydı kalıcı olur ve sonraki koşularda aynı uid'nin sohbet/rapor
+       uçlarını 403'e düşürürdü; hata o testle hiç ilgisi olmayan bir
+       yerde, üstelik yalnız İKİNCİ koşuda görünürdü.
+    2. Eşik: memo süreç içi; env tabanı kabuktan gelebilir
+       (`RYTHO_AI_CONSENT_MIN_BUILD`). İkisi de sıfırlanır — zorlamayı
+       sınayan test eşiği kendisi kurar.
+    """
+    monkeypatch.setattr(consent_service, "_ai_local_store",
+                        lambda: tmp_path / "ai_consent.json")
+    monkeypatch.setattr(config, "AI_CONSENT_MIN_BUILD", 0)
+    ai_consent.reset_memo()
+    yield
+    ai_consent.reset_memo()

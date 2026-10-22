@@ -62,6 +62,9 @@ Future<RotaGozcusu> _kur(WidgetTester tester, Map<String, dynamic> yuk,
       apiProvider.overrideWithValue(
           sahteDio(SahteAdapter({'/reports/dyad': jsonEncode(yuk)}))),
       walletProvider.overrideWith((ref) async => WalletStatus.unknown),
+      // İkili okuma onaysız istenmez (U06); okumayı ölçen test onayı beyan
+      // eder.
+      ...aiOnayliHesap(),
     ],
     gozcu: gozcu,
     olcek: olcek,

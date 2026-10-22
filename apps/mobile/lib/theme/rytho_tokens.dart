@@ -90,6 +90,11 @@ abstract final class RythoRadius {
 
   /// Hap biçimi (tam yuvarlak uçlar).
   static const pill = 999.0;
+
+  /// Giriş/eylem düğmesi — `GoldButton` ve Apple ile Giriş düğmesi. Giriş
+  /// ekranında ikisi alt alta duruyor; ayrı literal taşısalar ilk dokunuşta
+  /// biri değişir ve yan yana iki farklı köşe görünürdü.
+  static const button = 18.0;
 }
 
 /// Animasyon süreleri.

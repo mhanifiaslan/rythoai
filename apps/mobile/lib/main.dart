@@ -16,10 +16,13 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/abonelik_kurtarma.dart';
+import 'core/ai_consent.dart' show AiOnayiGerekli;
 import 'core/api.dart';
+import 'core/app_check_izi.dart';
 import 'core/app_config.dart';
 import 'core/auth_service.dart' show signOutEverywhere;
 import 'core/deep_links.dart';
+import 'core/device_id.dart' show iosYenidenKurulumOturumunuKapat;
 import 'core/device_session.dart' show deviceConflictProvider;
 import 'core/gate_guard.dart';
 import 'core/gun_donumu.dart';
@@ -63,6 +66,9 @@ Duration? rythoRetry(int retryCount, Object error) {
   // besleyen dongunun aynisini kurar (ustelik her deneme bir jeton dus/iade
   // turu); karari kullanici verir — ekranlarda "tekrar dene" var.
   if (error is RaporUretilemedi) return null;
+  // U06: AI onayı yok — durum ağla değil kullanıcının kararıyla değişir;
+  // onay verilince sağlayıcı zaten kendiliğinden yeniden kurulur.
+  if (error is AiOnayiGerekli) return null;
   if (retryCount >= 2) return null;
   return Duration(milliseconds: 400 * (retryCount + 1));
 }
@@ -139,6 +145,8 @@ Future<void> main() async {
   // Hata YUTULUR: App Check kurulamazsa uygulama açılmaya devam
   // etmeli. Zorlama kapalıyken zaten bir etkisi yok; açıkken de
   // kullanıcıyı kapıda bırakmak yerine sunucunun karar vermesi doğru.
+  // Yutulan hata yayında Crashlytics'e iz bırakır (U30,
+  // core/app_check_izi.dart).
   try {
     await FirebaseAppCheck.instance.activate(
       providerAndroid: kDebugMode
@@ -158,8 +166,13 @@ Future<void> main() async {
           ? const AppleDebugProvider()
           : const AppleAppAttestProvider(),
     );
-  } catch (e) {
-    debugPrint('App Check etkinleştirilemedi: $e');
+    // iOS'ta App Attest arızası ancak jeton alınırken görünür; açılış onu
+    // BEKLEMEZ (gerekçe: core/app_check_izi.dart).
+    if (appCheckYoklamasiYapilir()) {
+      unawaited(appCheckJetonunuYokla(FirebaseAppCheck.instance.getToken));
+    }
+  } catch (e, iz) {
+    appCheckEtkinlestirmeHatasi(e, iz);
   }
 
   // Crashlytics: yalnızca gerçek cihaz/release akışında etkin;
@@ -187,6 +200,14 @@ Future<void> main() async {
   // Abonelik SDK'sı: anahtar tanımlı değilse sessizce atlanır, uygulama
   // ücretsiz katmanla normal çalışır.
   await initBilling();
+
+  // U45: iOS anahtar zinciri oturumu yeniden kurulumdan sağ çıkarıyor;
+  // `_Gate` onu görmeden kapatılmalı (gerekçe fonksiyonda). Android'de
+  // hiçbir şeye dokunmaz.
+  await iosYenidenKurulumOturumunuKapat(
+    oturumVar: () => FirebaseAuth.instance.currentUser != null,
+    cikis: () => FirebaseAuth.instance.signOut(),
+  );
 
   runApp(ProviderScope(retry: rythoRetry, child: const RythoApp()));
 }

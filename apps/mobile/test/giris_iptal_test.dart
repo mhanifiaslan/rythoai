@@ -50,8 +50,14 @@ Future<void> _ekran(WidgetTester tester, Widget home) async {
 }
 
 /// Düğmeye dokun, async hata yolunun ve SnackBar girişinin bitmesini bekle.
+///
+/// Apple düğmesi `GoldButton` DEĞİL (U04): Apple'ın kendi
+/// `SignInWithAppleButton`ı (Guideline 4.8 / HIG — logolu, siyah/beyaz).
+/// Metinle bulunur; o metin ekranda yalnız o düğmede geçiyor.
 Future<void> _dokun(WidgetTester tester, String metin) async {
-  await tester.tap(find.widgetWithText(GoldButton, metin));
+  await tester.tap(metin == _tr.signInWithApple
+      ? find.text(metin)
+      : find.widgetWithText(GoldButton, metin));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
 }

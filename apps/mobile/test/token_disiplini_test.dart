@@ -33,7 +33,7 @@ const _koseTavani = <String, int>{
   'lib/features/oracle/bazi_tab.dart': 1,
   'lib/features/profile/profile_screen.dart': 1,
   'lib/theme/rytho_theme.dart': 4, // tema tanımı
-  'lib/widgets/atlas_widgets.dart': 2,
+  'lib/widgets/atlas_widgets.dart': 1, // GoldButton → RythoRadius.button
   'lib/widgets/nebula_widgets.dart': 1,
   'lib/widgets/phone_number_field.dart': 2,
 };

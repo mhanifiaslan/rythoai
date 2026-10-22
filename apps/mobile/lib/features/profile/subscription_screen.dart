@@ -22,6 +22,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:purchases_flutter/purchases_flutter.dart' show Store;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/purchase_errors.dart' show purchaseErrorText;
@@ -46,8 +47,15 @@ import '../paywall/token_store_screen.dart';
 /// kuralı ihlali sayılır (kullanıcı aboneliğini yönetebilmeli).
 Uri storeSubscriptionUri(String? productId) {
   if (defaultTargetPlatform == TargetPlatform.iOS) {
-    return Uri.parse('https://apps.apple.com/account/subscriptions');
+    return Uri.parse(_kAppleAbonelikleri);
   }
+  return _playAbonelikAdresi(productId);
+}
+
+const String _kAppleAbonelikleri =
+    'https://apps.apple.com/account/subscriptions';
+
+Uri _playAbonelikAdresi(String? productId) {
   const paket = 'ai.rytho';
   // Play webhook'u ürün kimliğini "urun:base_plan" biçiminde gönderebilir
   // (rytho_plus_monthly:monthly). Play'in sku parametresi base-plan eki
@@ -57,6 +65,33 @@ Uri storeSubscriptionUri(String? productId) {
       ? 'https://play.google.com/store/account/subscriptions'
       : 'https://play.google.com/store/account/subscriptions'
           '?sku=$sku&package=$paket');
+}
+
+/// "Aboneliği yönet"in açacağı sayfa: aboneliğin ALINDIĞI mağaza (U47).
+///
+/// Hesap iki platformda ortak; Android'de abone olup iPhone'da giren
+/// kullanıcı orada da Rytho+. Yalnız çalışan platforma bakan eski yol ona
+/// aboneliğin OLMADIĞI mağazanın sayfasını açıyordu ve iptal yolu
+/// bulunamıyordu (tersi Android'de). [kaynak] RevenueCat yetkisinin
+/// `store` alanı (bkz. `abonelikKaynakMagazasi`); bilinmiyorsa, ya da
+/// yetki bir mağaza aboneliği değilse (promosyon, test mağazası…), çalışan
+/// platformun mağazası açılır — eski davranış.
+///
+/// Karşı platformun sayfası tarayıcıda açılır ve ikisinin de web yüzü var
+/// (2026-09-27, HTTP düzeyinde ölçüldü): Play adresi Google girişine, ardından
+/// aynı abonelik sayfasına yönleniyor; Apple adresi Android tarayıcı
+/// kimliğiyle `account.apple.com/account/manage/section/subscriptions`a
+/// yönleniyor. Girişten sonraki sayfa cihazda denenmedi.
+Uri aboneligiYonetAdresi(Store? kaynak, String? productId) {
+  switch (kaynak) {
+    case Store.appStore:
+    case Store.macAppStore:
+      return Uri.parse(_kAppleAbonelikleri);
+    case Store.playStore:
+      return _playAbonelikAdresi(productId);
+    default:
+      return storeSubscriptionUri(productId);
+  }
 }
 
 /// Bilinen ürün kimliğini insan diline çevirir; bilinmeyene ham kimlik.
@@ -71,8 +106,23 @@ String planDisplayName(AppLocalizations l10n, String? productId) {
   return productId;
 }
 
+/// Abonelik yönetim sayfasını açan fonksiyon — `url_launcher.launchUrl`
+/// imzası (`ForceUpdateScreen.launcher` ile aynı desen).
+typedef AbonelikSayfasiAcici = Future<bool> Function(Uri adres,
+    {LaunchMode mode});
+
+Future<bool> _varsayilanAcici(Uri adres,
+        {LaunchMode mode = LaunchMode.platformDefault}) =>
+    launchUrl(adres, mode: mode);
+
 class SubscriptionScreen extends ConsumerStatefulWidget {
-  const SubscriptionScreen({super.key});
+  const SubscriptionScreen({super.key, this.adresAcici});
+
+  /// Test dikişi; üretimde `url_launcher.launchUrl`. U47'nin asıl iddiası —
+  /// "Aboneliği yönet" aboneliğin ALINDIĞI mağazayı açar — ancak açılan
+  /// adres görülebilirse ölçülür; dikişsiz hâlde `_manage` eski
+  /// `storeSubscriptionUri`'ye geri dönse hiçbir test fark etmezdi.
+  final AbonelikSayfasiAcici? adresAcici;
 
   @override
   ConsumerState<SubscriptionScreen> createState() =>
@@ -87,7 +137,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final mesajci = ScaffoldMessenger.of(context);
     setState(() => _restoreBusy = true);
     try {
-      final ok = await restorePurchases(ref);
+      final ok = await ref.read(geriYukleyiciProvider)(ref);
       if (!mounted) return;
       mesajci.showSnackBar(SnackBar(
           content: Text(
@@ -104,22 +154,33 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     }
   }
 
+  /// Kaynak mağaza sorulurken ikinci dokunuş ikinci bir sekme açmasın.
+  bool _yonetimAciliyor = false;
+
   Future<void> _manage(String? productId) async {
-    // Dış tarayıcıya çıkar: Play aboneliği uygulama içinden yönetilemez,
-    // mağaza kuralı gereği iptal/duraklatma oranın işi.
+    if (_yonetimAciliyor) return;
+    _yonetimAciliyor = true;
+    // Dış uygulamaya/tarayıcıya çıkar: mağaza aboneliği uygulama içinden
+    // yönetilemez, iptal/duraklatma mağazanın işi. Açılan adres aboneliğin
+    // ALINDIĞI mağazanın sayfası (U47) — iPhone'da Play'i açmak çıkmazdı.
     //
-    // Sonuç OKUNUR (D7): `launchUrl` açamayınca `false` döner ya da
-    // fırlatır; eski hâl ikisini de yutuyordu ve düğme "basınca hiçbir
-    // şey olmuyor" hissi veriyordu. Kullanıcıya yol söylenir: mağaza
-    // uygulamasının kendi abonelikler sayfası.
+    // Sonuç OKUNUR (D7): açıcı açamayınca `false` döner ya da fırlatır;
+    // eski hâl ikisini de yutuyordu ve düğme "basınca hiçbir şey olmuyor"
+    // hissi veriyordu. Kullanıcıya yol söylenir: mağaza uygulamasının kendi
+    // abonelikler sayfası.
     final l10n = AppLocalizations.of(context);
     final mesajci = ScaffoldMessenger.of(context);
     var acildi = false;
     try {
-      acildi = await launchUrl(storeSubscriptionUri(productId),
+      final kaynak =
+          await abonelikKaynakMagazasi(ref.read(musteriBilgisiGetiriciProvider));
+      acildi = await (widget.adresAcici ?? _varsayilanAcici)(
+          aboneligiYonetAdresi(kaynak, productId),
           mode: LaunchMode.externalApplication);
     } catch (_) {
       acildi = false;
+    } finally {
+      _yonetimAciliyor = false;
     }
     if (!acildi && mounted) {
       mesajci.showSnackBar(SnackBar(content: Text(l10n.subManageOpenFailed)));

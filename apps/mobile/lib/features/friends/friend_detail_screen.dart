@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ai_consent.dart' show AiOnayiGerekli, aiOnayProvider;
 import '../../core/analytics.dart';
 import '../../core/api.dart';
 import '../../core/discovery.dart';
@@ -69,6 +70,20 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
   Future<void> _loadDyad() async {
     setState(() => _durum = const OkumaYukleniyor());
     try {
+      // İkili okuma iki tarafın adını ve haritasını Gemini'ye gönderir;
+      // onay yoksa istek ATILMAZ. Sayfa burada kendiliğinden açılmaz —
+      // kullanıcı arkadaşına bakmaya geldi, karar kartın düğmesinde.
+      final onay = await ref
+          .read(aiOnayProvider.future)
+          .catchError((Object _) => false);
+      if (!onay) {
+        // Onay kartını `OkumaKabi` çizer (U06 dalı); kartın onayı
+        // `onTekrarDene` ile bu yüklemeyi yeniden başlatır.
+        if (mounted) {
+          setState(() => _durum = const OkumaHata(AiOnayiGerekli()));
+        }
+        return;
+      }
       final dio = ref.read(apiProvider);
       final response = await dio.post('/api/v1/reports/dyad',
           data: {'friend_uid': widget.friend.uid});

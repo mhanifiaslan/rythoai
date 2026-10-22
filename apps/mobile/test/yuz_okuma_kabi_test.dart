@@ -205,7 +205,10 @@ void main() {
       // (face_ariza_kanit_test'in iddiası); burada ikinci bir işaret.
       final k = _yorumsuz('lib/features/face/face_capture_screen.dart');
       expect(k, contains('} on CameraException catch (e, iz) {'));
-      expect(k, contains("if (!e.code.contains('Permission'))"));
+      // Sınıflandırma U23'te tek yükleme taşındı (`kameraIzniReddi`: iOS'un
+      // `CameraAccess*` kodları da ret); bildirim kapısı aynı yüklemi okur.
+      expect(k, contains('final izinReddi = kameraIzniReddi(e.code);'));
+      expect(k, contains('if (!izinReddi) {'));
     });
   });
 }

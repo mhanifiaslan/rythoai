@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/analytics.dart';
-import '../../core/auth_service.dart' show signOutEverywhere;
+import '../../core/auth_service.dart'
+    show AppleIptalSonucu, appleYetkisiniIptalEt, signOutEverywhere;
 import '../../core/api.dart';
 import '../../core/tr_metin.dart' show onayKelimesiEslesiyor;
 import '../../l10n/app_localizations.dart';
@@ -26,8 +27,14 @@ import '../../widgets/onay.dart' show onayliCikis;
 /// - **Abonelik uyarısı ayrı.** Hesabı silmek mağazadaki aboneliği durdurmaz;
 ///   bunu söylememek kullanıcıya para kaybettirir.
 /// - **Yazarak onay.** Tek dokunuşla geri alınamaz bir işlem yaptırmak yanlış.
+/// - **Apple yetkisi de iptal edilir** (U15, yalnız iOS + Apple bağlı
+///   hesap): bkz. [appleYetkisiniIptalEt].
 class DeleteAccountSheet extends ConsumerStatefulWidget {
-  const DeleteAccountSheet({super.key, this.cikis = signOutEverywhere});
+  const DeleteAccountSheet(
+      {super.key, this.appleIptali, this.cikis = signOutEverywhere});
+
+  /// Apple yetkisi iptali — TEST DİKİŞİ; varsayılan [appleYetkisiniIptalEt].
+  final Future<AppleIptalSonucu> Function()? appleIptali;
 
   /// Oturum kapatma yolu — TEST DİKİŞİ (`onayliCikis` ile aynı gerekçe).
   /// Üretimde `signOutEverywhere`: cihaz kilidi, push jetonu ve çakışma
@@ -44,11 +51,18 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
   bool _busy = false;
   String? _error;
 
-  /// 401: Firebase, kimliği silmek için yakın zamanda giriş ister. Bu hâlde
-  /// metin tek başına yetmiyordu (ölçüldü 2026-10-10): "çıkış yapıp yeniden
-  /// gir" diyordu ama çıkışın kapısı bu sayfada yoktu — kullanıcı sayfayı
-  /// kapatıp profilde o satırı aramak zorundaydı. Eylem metnin yanında.
+  /// 401: sunucu oturum jetonunu kabul etmedi (core/auth.py). Silme ucu
+  /// yakın zamanda giriş ŞARTI koymuyor — kullanıcıyı Admin SDK siliyor —
+  /// ama geçersiz jetonun tek çaresi yeniden giriş. Metin tek başına
+  /// yetmiyordu (ölçüldü 2026-10-10): "çıkış yapıp yeniden gir" diyordu ama
+  /// çıkışın kapısı bu sayfada yoktu — kullanıcı sayfayı kapatıp profilde o
+  /// satırı aramak zorundaydı. Eylem metnin yanında.
   bool _yenidenGiris = false;
+
+  /// Kullanıcı Apple onayını kapattı ve silme durdu (U15, yalnız iOS).
+  /// `errorText` yerine ayrı paragraf: alanın hata satırı tek satıra
+  /// kısaltılıyor, bu metin ise nedenini de anlatmak zorunda.
+  bool _appleVazgecildi = false;
 
   @override
   void dispose() {
@@ -60,10 +74,21 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
     setState(() {
       _busy = true;
       _error = null;
+      _appleVazgecildi = false;
     });
 
     final dio = ref.read(apiProvider);
     try {
+      // U15: Apple yetkisi Firebase kullanıcısı HÂLÂ varken iptal edilir —
+      // backend sildikten sonra yeniden doğrulayacak kullanıcı kalmaz.
+      // Yalnız kullanıcının Apple sayfasını kapatması silmeyi durdurur;
+      // iptalin kendisi başarısız olursa silme sürer (gerekçe orada).
+      final apple = await (widget.appleIptali ?? appleYetkisiniIptalEt)();
+      if (apple == AppleIptalSonucu.vazgecildi) {
+        if (mounted) setState(() => _appleVazgecildi = true);
+        return;
+      }
+
       await dio.delete('/api/v1/account/me');
       // Kayip analizinde en anlamli sinyal; oturum kapanmadan once gonderilir.
       Analytics.accountDeleted();
@@ -145,6 +170,10 @@ class _DeleteAccountSheetState extends ConsumerState<DeleteAccountSheet> {
                 RythoText.body(14, color: RythoColors.parchmentDim),
           ),
         ),
+        if (_appleVazgecildi) ...[
+          const SizedBox(height: 10),
+          _Paragraph(l10n.deleteAccountAppleCanceled, vurgu: true),
+        ],
         const SizedBox(height: 16),
         if (_yenidenGiris)
           // Silme düğmesi bu hâlde anlamsız (ikinci deneme yine 401 alır);

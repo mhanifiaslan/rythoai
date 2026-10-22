@@ -108,6 +108,18 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # iOS: Swift Package Manager KAPALI, eklentiler yalniz CocoaPods'tan gelir.
+  # Yalniz iOS/macOS'u etkiler; Android derlemesi bu ayari okumaz.
+  # NEDEN: ML Kit yalniz CocoaPods'ta var ve GoogleDataTransport,
+  # GoogleUtilities, GTMSessionFetcher, FBLPromises, nanopb'yi pod olarak
+  # getiriyordu; Firebase eklentileri ayni kutuphaneleri SPM'den STATIK
+  # getiriyordu — calisma aninda ayni siniflarin IKI kopyasi vardi
+  # ("implemented in both", olculdu 2026-09-26). Tek yol ayrica reklam
+  # kimligi kapatmayi Podfile'da KALICI yapiyor ($FirebaseAnalyticsWithoutAdIdSupport);
+  # SPM'de bu yalniz bir ortam degiskeniydi ve Xcode'dan arsivlenince
+  # sessizce devre disi kalirdi.
+  config:
+    enable-swift-package-manager: false
   # ARB dosyalarÄ±ndan AppLocalizations Ã¼retimi (bkz. l10n.yaml)
   generate: true
 

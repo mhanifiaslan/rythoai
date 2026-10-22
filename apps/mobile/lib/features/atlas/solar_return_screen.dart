@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ai_consent.dart' show AiOnayKapaliKarti, aiOnayHatasiMi;
 import '../../core/api.dart' show friendlyError;
 import '../../core/okuma_durumu.dart';
 import '../../core/providers.dart';
@@ -60,11 +61,15 @@ class SolarReturnScreen extends ConsumerWidget {
         // Çıplak metin ÇIKMAZ SOKAKTI: bu sayfada aşağı çekme yok, hatayı
         // gören kullanıcı geri dönüp yeniden girmek zorundaydı.
         error: (e, _) => Center(
-          child: ErrorCard(
-            message: friendlyError(e, l10n),
-            screen: 'atlas',
-            onRetry: () => ref.invalidate(solarReturnProvider),
-          ),
+          // U06: AI kapalıyken hata kartı değil, tek dokunuşla onay
+          // sayfasını açan kart — reddetmek bir arıza değil, kararın kendisi.
+          child: aiOnayHatasiMi(e)
+              ? const AiOnayKapaliKarti()
+              : ErrorCard(
+                  message: friendlyError(e, l10n),
+                  screen: 'atlas',
+                  onRetry: () => ref.invalidate(solarReturnProvider),
+                ),
         ),
         data: (data) {
           if (data == null) {

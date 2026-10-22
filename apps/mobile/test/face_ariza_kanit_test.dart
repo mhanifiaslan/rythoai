@@ -64,7 +64,18 @@ void main() {
 
   test('izin reddi ARIZA SAYILMIYOR: kullanıcının kararı bildirilmez', () {
     expect(kaynak, contains('} on CameraException catch (e, iz) {'));
-    expect(kaynak, contains("if (!e.code.contains('Permission'))"));
+    // Rapor koşulu ve durum koşulu TEK yüklemden (U23). İki ayrı ham
+    // `contains('Permission')` vardı ve iOS kodları (`CameraAccess…`) ikisini
+    // de ıskalıyordu; ayrışırlarsa ret ya izin ekranında Crashlytics'e
+    // yazılır ya da arıza ekranında sessiz kalır.
+    expect(kaynak, contains('final izinReddi = kameraIzniReddi(e.code);'));
+    expect(
+        kaynak,
+        contains("if (!izinReddi) {\n"
+            "        _arizaBildir(e, iz, 'kamera-kurulum');"));
+    expect(kaynak, contains('izinReddi ? _Asama.izinYok : _Asama.hata'));
+    expect(kaynak, isNot(contains("e.code.contains('Permission')")),
+        reason: 'yüklem ekranın içinde yeniden yazılırsa iki koşul ayrışır');
   });
 
   test('model YÜKLENEMEZSE de bildiriliyor', () {

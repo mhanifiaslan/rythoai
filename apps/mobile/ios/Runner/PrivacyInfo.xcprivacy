@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- Uygulamanin kendi gizlilik manifesti (Runner).
+
+     NEDEN VAR: TFLite ve ML Kit Runner'a STATIK baglaniyor; onlarin
+     gerekce-isteyen API kullanimi Runner'in sayiliyor. Mayis 2024'ten beri
+     beyansiz yukleme ITMS-91053 ile uyari/red aliyor. Beyan edilen her
+     gerekce Apple'in onayli kodu:
+       DiskSpace      E174.1  cihazda dosya yazmadan once yer kontrolu
+                              (MLKitCommon'un kendi manifestiyle ayni)
+       FileTimestamp  C617.1  uygulama kabindeki dosyalarin zaman damgasi
+       SystemBootTime 35F9.1  gecen sure olcumu
+       UserDefaults   CA92.1  uygulamanin kendi ayarlari (shared_preferences)
+
+     NSPrivacyCollectedDataTypes BILEREK YOK: toplanan veri envanterinin tek
+     kaynagi App Store Connect'teki App Privacy etiketi
+     (docs/store-privacy-labels.md). Burada eksik bir liste, arsivden
+     uretilen gizlilik raporunda "toplanmiyor" izlenimi verirdi.
+
+     Izleme YOK: reklam kimligi kullanilmiyor, ATT istenmiyor. -->
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>E174.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>35F9.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

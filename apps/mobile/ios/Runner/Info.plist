@@ -2,14 +2,35 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Yuz okuma. Apple bu metni izin diyalogunda AYNEN gosteriyor ve
-	     belirsiz gerekce tek basina red sebebi (Guideline 5.1.1). Metin ne
-	     yapildigini VE ne yapilmadigini soyluyor: kare cihazda islenir,
-	     yuklenmez, saklanmaz. -->
-		<key>NSContactsUsageDescription</key>
-	<string>Rehber eşleşmesini açarsan numaralar cihazında özetlenir; rehberin sunucuya gönderilmez.</string>
-<key>NSCameraUsageDescription</key>
+	<!-- Izin metinleri. Apple bu metinleri izin diyalogunda AYNEN gosteriyor;
+	     belirsiz ya da GERCEGE UYMAYAN gerekce tek basina red sebebi
+	     (Guideline 5.1.1). Her metin ne yapildigini VE ne yapilmadigini
+	     soyluyor. Ingilizce karsiliklari en.lproj/InfoPlist.strings'te;
+	     buradaki Turkce metin ile tr.lproj ayni kalmali. -->
+
+	<!-- Rehber: numaralar cihazda E.164 + SHA-256 ile ozetlenir ve eslesme
+	     icin YALNIZ ozet listesi gonderilir; sunucu listeyi saklamaz
+	     (lib/core/contact_match.dart, backend/api/contacts.py). Eski metin
+	     "rehberin sunucuya gonderilmez" diyordu — ozet gittigi icin
+	     yaniltici bulundu (iOS denetimi 2026-09-26). -->
+	<key>NSContactsUsageDescription</key>
+	<string>Rehber eşleşmesini açarsan telefon numaraları cihazında tek yönlü özetlenir; eşleşme için yalnızca bu özetler gönderilir ve saklanmaz. İsimler ve rehberin diğer bilgileri okunmaz.</string>
+	<!-- Yuz okuma: kare cihazda islenir, yuklenmez, saklanmaz. -->
+	<key>NSCameraUsageDescription</key>
 	<string>Yüz okuma için kameraya erişim gerekiyor. Görüntü yalnızca cihazında işlenir; hiçbir yere gönderilmez ve saklanmaz.</string>
+	<!-- Mikrofon: uygulama SES KAYDETMEZ. Anahtar yine de ZORUNLU: App Store
+	     Connect ikiliyi statik tarar ve camera_avfoundation ile audioplayers
+	     mikrofon API'lerine referans verdigi icin anahtar yokken yukleme
+	     ITMS-90683 ile gecersiz sayilir. Android'de RECORD_AUDIO manifestten
+	     sokulebildi; iOS'ta eklentinin kod referansini sokmenin yolu yok.
+	     Kamera sesi hic acmadigi icin (enableAudio: false) bu diyalog
+	     kullaniciya HIC gosterilmez. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Rytho ses kaydı yapmaz ve mikrofonu kullanmaz. Bu izin yalnızca kamera altyapısının sistem gereği olarak tanımlıdır.</string>
+	<!-- Fotograflar'a KAYDETME (okuma degil): paylasim kartinin paylasim
+	     sayfasindaki "Resmi Kaydet" secenegi bu anahtar olmadan gorunmuyor. -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Paylaşım kartını Fotoğraflar'a kaydedebilmen için gerekir. Rytho fotoğraflarını okumaz.</string>
 	<!-- iOS 14+ sistem seçicisi (PHPicker) bu izni sormaz; anahtar eski
 	     surumler ve olasi geri donusler icin duruyor. Metin ayni sozu
 	     veriyor: fotograf cihazda islenir, yuklenmez. -->
@@ -49,6 +70,14 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Rytho</string>
+	<!-- Uygulamanin destekledigi diller. Flutter'in iOS i18n belgesi bunu
+	     ister: yoksa iOS uygulamayi yalniz gelistirme dilinde (en) sayar ve
+	     sistem diyaloglari/InfoPlist.strings Turkce cihazda dogru secilmez. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>tr</string>
+		<string>en</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -65,6 +94,14 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Davet linkleri YALNIZ app_links ile islenir (lib/core/deep_links.dart).
+	     Flutter'in kendi derin baglanti isleyicisi aciksa ayni universal link'i
+	     Navigator'a '/i/<kullanici>' diye iter: adlandirilmis rota olmadigi icin
+	     release'te null-check hatasi Crashlytics'e FATAL yazilir ve motor linki
+	     "islenmedi" sayip sisteme geri verir — kullanici Safari'deki Play-only
+	     sayfaya sekerdi (iOS denetimi 2026-09-26; app_links iOS kurulum sarti). -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<!-- Ihracat uyumlulugu. Uygulama YALNIZ isletim sisteminin sagladigi
 	     HTTPS/TLS kullaniyor; rehber eslesmesindeki SHA-256 ise OZETLEME,
 	     sifreleme degil — ikisi de muaf. Bu anahtar olmazsa App Store
@@ -108,18 +145,14 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- Yalniz dikey. Arayuz dikey tasarlandi ve yuz cekimi dikey kareye
+	     gore olculuyor; yatay izin, test edilmemis bir duzeni App Review'a
+	     acmak olurdu. Uygulama yalniz iPhone'u hedefliyor
+	     (TARGETED_DEVICE_FAMILY = 1, sahibin karari 2026-09-26), bu yuzden
+	     ~ipad yon listesi de kaldirildi: iPad'de uyumluluk modunda calisir. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 </dict>
 </plist>

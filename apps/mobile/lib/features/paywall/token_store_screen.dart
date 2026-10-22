@@ -161,6 +161,16 @@ class _TokenStoreScreenState extends ConsumerState<TokenStoreScreen> {
       // Kullanıcının vazgeçmesi hata değil; sessiz geçilir.
       final code = PurchasesErrorHelper.getErrorCode(e);
       if (code == PurchasesErrorCode.purchaseCancelledError) return;
+      // Onay bekleyen ödeme (U33) hata değil: ayrı metin, macenta hata
+      // cümlesi değil. Abonelik önbelleği düşürülmez — kredi alımı onu
+      // değiştirmez (bkz. odemeOnayiBekleniyor).
+      if (odemeOnayBekliyor(e)) {
+        if (mounted) {
+          odemeOnayiBekleniyor(ref, abonelik: false);
+          mesajci.showSnackBar(SnackBar(content: Text(l10n.purchasePending)));
+        }
+        return;
+      }
       // Tüketilebilir pakette "zaten satın alınmış" = ilk alım hâlâ yolda
       // (Play tüketilmeden ikinci kez satmaz): bakiye yeniden sorulur,
       // kullanıcıya "işleniyor" denir — abonelik cümlesi değil.

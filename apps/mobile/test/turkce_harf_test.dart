@@ -72,11 +72,10 @@ void main() {
       // (`trBuyuk`) temizlendi; bu satır kalan tek gerekçeli çağrı.
       'lib/features/friends/friends_screen.dart',
       'lib/core/wallet.dart', // HTTP metodu
-      'lib/core/auth_service.dart', // e-posta normalizasyonu
+      'lib/core/auth_service.dart', // e-posta normalizasyonu; GMS reauth iletisi (ASCII)
       'lib/widgets/chart/chart_data.dart', // açı anahtarı (ASCII)
       'lib/core/people.dart', // kendi normalizeTr'si (tr_metin'e taşınacak)
       'lib/core/city_directory.dart', // kendi tablosu (tr_metin'e taşınacak)
-      'lib/features/auth/login_screen.dart', // e-posta
       'lib/features/profile/account_screen.dart', // kullanıcı adı/e-posta
       'lib/features/profile/subscription_screen.dart', // ürün kimliği
       'lib/widgets/phone_number_field.dart', // ülke kodu

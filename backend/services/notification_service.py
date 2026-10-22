@@ -707,6 +707,22 @@ def _bundle_body(paket: dict[str, Any] | None, idx: int,
     return govde
 
 
+def ai_izinli(profile: dict[str, Any]) -> bool:
+    """Bu kullanıcının sinyal satırları Gemini'ye gidebilir mi? (U06)
+
+    Uçlardan SIKI (`core.ai_consent.arka_plan_karari`): eşik yok, kayıtsız
+    kullanıcı yalnız onay ekranı olmayan eski bir paketteyse izinli.
+    Sürüm başlıktan değil sunucunun yazdığı sürüm aynasından (`appBuild`)
+    gelir — zamanlanmış koşunun isteği kullanıcının cihazından gelmiyor.
+    İzinsiz kullanıcının sabah bildirimi AI'sız teknik satıra düşer;
+    bildirim yine gider.
+    """
+    from core import ai_consent, app_gate
+    return ai_consent.arka_plan_izni_var(
+        str(profile.get("uid") or ""),
+        app_gate.parse_build(profile.get("appBuild")))
+
+
 def signal_push(profile: dict[str, Any], lang: str,
                 today: dt.date | None = None,
                 onceki: dict[str, Any] | None = None
@@ -755,7 +771,14 @@ def signal_push(profile: dict[str, Any], lang: str,
             prev_fp=(dun or {}).get("focusFp") or None)
 
         uid = profile.get("uid") or ""
-        paket = signal_service.cached_insight_bundle(ham, lang)
+        # U06: onay yoksa paket ne ÜRETİLİR ne OKUNUR. Yalnız üretimi
+        # kesmek yetmezdi: aynı haritaya sahip başka bir kullanıcının
+        # ürettiği paket önbellekte durabilir ve "hayır" diyen kullanıcı
+        # yine AI cümlesi alırdı — veri gitmese de ekranın söylediğiyle
+        # çelişen bir deneyim.
+        izinli = ai_izinli(profile)
+        paket = (signal_service.cached_insight_bundle(ham, lang)
+                 if izinli else None)
         yerel = prompts.localize_signals(lang, ham)["signals"]
         # DM-turu: dil muhafızı `_bundle_body` içinde — aşağıdaki her
         # gövde adayı (ilk seçim, farklı sinyal, yeniden üretim) oradan
@@ -776,9 +799,10 @@ def signal_push(profile: dict[str, Any], lang: str,
                     break
             else:
                 # Dünkü cümle negatif örnek olarak YALNIZ aynı dilde girer.
-                yeni = signal_service.insight_bundle(
+                yeni = (signal_service.insight_bundle(
                     ham, lang,
                     avoid=(dun.get("body") or "") if ayni_dil else "")
+                    if izinli else None)
                 if yeni:
                     cache.set(
                         signal_service.bundle_key(
@@ -881,6 +905,11 @@ def checkin_push(profile: dict[str, Any], lang: str,
         ham = signal_service.cached_signals(profile, today=today)
         if not ham or not ham.get("signals"):
             return None
+        # U06: akşam sorusu hem AI çıktısı hem de sohbete (AI) açılan bir
+        # davet; onaysız kullanıcıya hiç gitmez. Dil değişen gün yolu
+        # aşağıda paketi ÜRETEBİLDİĞİ için kapı ondan önce.
+        if not ai_izinli(profile):
+            return None
         paket = signal_service.cached_insight_bundle(
             ham, lang, generate_if_missing=False)
         if paket is None and _bundle_in_other_language(
@@ -960,8 +989,10 @@ def midday_push(profile: dict[str, Any], lang: str,
         if ham and bugunku:
             p = prompts.get(lang)
             yereller = prompts.localize_signals(lang, ham)["signals"]
-            paket = signal_service.cached_insight_bundle(
+            # U06: sabahla aynı kural — onaysız kullanıcıya paket okunmaz.
+            paket = (signal_service.cached_insight_bundle(
                 ham, lang, generate_if_missing=False)
+                if ai_izinli(profile) else None)
             # Bugün kesinleşenler önce; hepsi sabahın kopyasıysa diğer
             # sinyaller de denenir (paket zaten elimizde, sıfır maliyet).
             for idx in bugunku + [i for i in range(len(sinyaller))

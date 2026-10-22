@@ -317,6 +317,8 @@ class _PhoneVerifyScreenState extends ConsumerState<PhoneVerifyScreen> {
       appBar: AppBar(title: Text(l10n.phoneVerifyTitle)),
       body: SafeArea(
         child: ListView(
+          // U48: iOS sayı tuş takımında kapatma tuşu yok (bkz. alan).
+          keyboardDismissBehavior: sayiKlavyesiKaydirmaDavranisi,
           padding: const EdgeInsets.fromLTRB(RythoSpace.xl, RythoSpace.md,
               RythoSpace.xl, RythoSpace.xxl),
           children: [
@@ -346,6 +348,7 @@ class _PhoneVerifyScreenState extends ConsumerState<PhoneVerifyScreen> {
                 style: RythoType.body,
                 keyboardType: TextInputType.number,
                 autofillHints: const [AutofillHints.oneTimeCode],
+                onTapOutside: sayiKlavyesiDisDokunus,
                 decoration: InputDecoration(labelText: l10n.phoneCodeLabel),
                 onChanged: (_) => setState(() => _hata = null),
               ),

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
+import 'ai_consent.dart' show aiOnayiGerektir, aiSorguParametresi;
 import 'analytics.dart';
 import 'api.dart';
 import 'gun_donumu.dart';
@@ -268,7 +269,11 @@ final signalsDataProvider =
   // başlık "bugün" diyorken içerik dünden kalmış olabilir.
   _gunuIzle(ref);
   final dio = ref.watch(apiProvider);
-  final response = await dio.get('/api/v1/reports/signals');
+  // U06: onay yoksa `ai=0` — sinyaller (LLM'siz hesap) yine gelir, yorum
+  // katmanı sunucuda hiç üretilmez. Kullanıcı açılıştaki onay sayfasına
+  // henüz cevap vermemişken de ilk istek haritasını Gemini'ye göndermesin.
+  final response = await dio.get('/api/v1/reports/signals',
+      queryParameters: await aiSorguParametresi(ref));
   return Map<String, dynamic>.from(response.data['data']);
 });
 
@@ -323,8 +328,10 @@ final dailyReadingProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
 
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
-
+  // U06: abonelik kapısından SONRA — abone olmayan kilitli kartı görür,
+  // onay sorusunu değil; onay kilidi açmaz, yalnız aktarımı açar.
   final dio = ref.watch(apiProvider);
+  await aiOnayiGerektir(ref);
   final response =
       await dio.post('/api/v1/reports/daily', data: birthPayload(profile));
   final veri = Map<String, dynamic>.from(response.data['data']);
@@ -476,6 +483,9 @@ final natalReportProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
   final dio = ref.watch(apiProvider);
+  // U06: onay yoksa istek ATILMAZ (sağlayıcı AiOnayiGerekli ile düşer,
+  // ekran "yapay zeka kapalı" kartını gösterir). `watch`lar await'ten önce.
+  await aiOnayiGerektir(ref);
   final response =
       await dio.post('/api/v1/reports/natal', data: birthPayload(profile));
   final veri = Map<String, dynamic>.from(response.data['data']);
@@ -500,6 +510,9 @@ final baziReportProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
   final dio = ref.watch(apiProvider);
+  // U06: onay yoksa istek ATILMAZ (sağlayıcı AiOnayiGerekli ile düşer,
+  // ekran "yapay zeka kapalı" kartını gösterir). `watch`lar await'ten önce.
+  await aiOnayiGerektir(ref);
   final response =
       await dio.post('/api/v1/reports/bazi', data: birthPayload(profile));
   final veri = Map<String, dynamic>.from(response.data['data']);
@@ -529,6 +542,9 @@ final birthHexagramProvider =
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
   final dio = ref.watch(apiProvider);
+  // U06: onay yoksa istek ATILMAZ (sağlayıcı AiOnayiGerekli ile düşer,
+  // ekran "yapay zeka kapalı" kartını gösterir). `watch`lar await'ten önce.
+  await aiOnayiGerektir(ref);
   final response = await dio.post('/api/v1/reports/birth-hexagram',
       data: birthPayload(profile));
   final veri = Map<String, dynamic>.from(response.data['data']);
@@ -547,6 +563,9 @@ final solarReturnProvider =
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
   final dio = ref.watch(apiProvider);
+  // U06: onay yoksa istek ATILMAZ (sağlayıcı AiOnayiGerekli ile düşer,
+  // ekran "yapay zeka kapalı" kartını gösterir). `watch`lar await'ten önce.
+  await aiOnayiGerektir(ref);
   final response = await dio.post('/api/v1/reports/solar-return',
       data: birthPayload(profile));
   final veri = Map<String, dynamic>.from(response.data['data']);
@@ -565,6 +584,9 @@ final innerCalendarProvider =
   final profile = ref.watch(profileProvider).value;
   if (profile == null || profile['onboardingCompleted'] != true) return null;
   final dio = ref.watch(apiProvider);
+  // U06: onay yoksa istek ATILMAZ (sağlayıcı AiOnayiGerekli ile düşer,
+  // ekran "yapay zeka kapalı" kartını gösterir). `watch`lar await'ten önce.
+  await aiOnayiGerektir(ref);
   final sonuclar = await Future.wait([
     dio.post('/api/v1/reports/progressions', data: birthPayload(profile)),
     dio.get('/api/v1/astrology/transit-calendar'),
@@ -644,6 +666,8 @@ final transitCalendarProvider =
   // veriyor — şerit (gerekirse kilitli) GÖRÜNÜR, ki yokluğundan iyidir.
   if (ref.watch(subscriptionProvider).isLoading) return null;
   final dio = ref.watch(apiProvider);
-  final response = await dio.get('/api/v1/astrology/transit-calendar');
+  // U06: onay yoksa `ai=0` — olaylar yorumsuz döner (bkz. sinyaller).
+  final response = await dio.get('/api/v1/astrology/transit-calendar',
+      queryParameters: await aiSorguParametresi(ref));
   return Map<String, dynamic>.from(response.data['data']);
 });

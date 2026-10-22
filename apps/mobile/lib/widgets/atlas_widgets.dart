@@ -118,7 +118,7 @@ class _GoldButtonState extends State<GoldButton> {
             height: 52,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(RythoRadius.button),
               gradient: degrade,
               color: dolgu,
               border: Border.all(

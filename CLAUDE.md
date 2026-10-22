@@ -932,8 +932,15 @@ güncelleme ve abonelik yönetiminde iOS dalı · mağaza-nötr metinler.
 `GoogleService-Info.plist` depoda (`ios/Runner/`), Google girişi
 `Info.plist`'e bağlandı (`CFBundleURLTypes` + `GIDClientID`, ikisi de
 plist'ten okunarak), iOS API anahtarı `ai.rytho` ile kısıtlandı (27 API
-hedefi korunarak). **Ama plist Xcode hedefine hâlâ eklenmedi** — diskte
-durduğu hâlde pakete girmiyor, bkz. aşağıdaki tuzak.
+hedefi korunarak). Plist Runner hedefine **eklendi** (Mac, 2026-09-26) ve
+derlenen `Runner.app` içinde olduğu ölçüldü.
+
+**Mac ortamı (2026-09-26):** Xcode 27 bu depoyu derleyemiyor (RevenueCat
+Swift 6.4'te kırık + `lipo` değişikliği); **Xcode 26.6 yan yana kurulu**
+(`/Applications/Xcode-26.app`) ve `xcode-select` ona bakmalı —
+`DEVELOPER_DIR` tek başına yetmiyor. Uygulama iOS 26+ simülatörde hiç
+açılmaz (ML Kit arm64 simülatör dilimi yok); test gerçek cihazda. Ayrıntı:
+`docs/mac-devir.md` §7. iOS işleri `ios-hazirlik` dalında yürüyor.
 
 ⚠️ **Kayıt bir kez `app.rytho` diye açıldı** (`ai` yerine `app`). İnen
 plist o kimliği taşıyordu ve `FirebaseApp.configure()` uyuşmazlığı **hata
@@ -945,8 +952,9 @@ dosyada birden bağlıyor (pbxproj ×3, gradle, AASA, plist).
 
 **Kalan engelleyiciler hesap işidir, kod değil:** Apple Developer üyeliği →
 Team ID · imzalama · APNs anahtarı · gerçek `appl_` RevenueCat anahtarı
-(şu anki `test_` önekli) · AASA'daki `TEAMID` yer tutucusu · App Store
-Connect kaydı ve IAP ürünleri.
+(şu anki `test_` önekli) · App Store Connect kaydı ve IAP ürünleri.
+Team ID `292WJ9TP74` (2026-09-27): AASA'ya ve pbxproj'e yazıldı, hosting
+yayını bekliyor.
 
 ### iOS tuzakları (ölçüldü)
 
@@ -969,8 +977,8 @@ ikincisine bakıyor. İkisi **yalnız o değerde** farklı kalmalı.
 **Dosyayı `Runner/` altına kopyalamak pakete SOKMAZ.** `project.pbxproj`
 klasör-senkronlu grup kullanmıyor (`objectVersion = 54`,
 `PBXFileSystemSynchronizedRootGroup` yok) ve Copy Bundle Resources'ta
-yalnız dört girdi var. `GoogleService-Info.plist` ve
-`en.lproj/InfoPlist.strings` **Xcode'da hedefe eklenmeli**.
+yalnız dört girdi vardı. `GoogleService-Info.plist` eklendi (beşinci
+girdi); `en.lproj/InfoPlist.strings` hâlâ **Xcode'da hedefe eklenmeli**.
 
 **`developmentRegion = en` ama izin metinleri Türkçe** — yani İngilizce
 cihaz Türkçe izin diyaloğu görüyor. Türkiye-öncelikli lansmanda kabul;

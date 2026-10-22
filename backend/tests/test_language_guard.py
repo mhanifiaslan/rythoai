@@ -48,6 +48,17 @@ def temiz_onbellek(tmp_path, monkeypatch):
     cache._memory.clear()
 
 
+@pytest.fixture(autouse=True)
+def ai_onayi_verilmis(monkeypatch):
+    """Bu dosya AI bildirim satırının KENDİSİNİ sınıyor; kullanıcı onay
+    vermiş sayılır. Arka plan yolu kayıtsız yeni kullanıcıya AI satırı
+    göndermediği için (U06, `arka_plan_karari`) pinsiz profiller teknik
+    satıra düşerdi. Onay kapısının kendisi test_ai_consent.py'de."""
+    from core import ai_consent
+    monkeypatch.setattr(ai_consent, "arka_plan_izni_var",
+                        lambda uid, build: True)
+
+
 def profil(**alanlar):
     """Bildirim almaya uygun asgari profil (test_notifications ile aynı)."""
     temel = {

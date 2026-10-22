@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dio/dio.dart';
 
+import '../../core/ai_consent.dart' show aiOnayiIste;
 import '../../core/analytics.dart';
 import '../../core/api.dart';
 import '../../core/okuma_durumu.dart';
@@ -91,6 +92,8 @@ class _IChingTabState extends ConsumerState<IChingTab> {
           SnackBar(content: Text(l10n.iChingQuestionInvalid)));
       return;
     }
+    // U06: soru ve hüküm Gemini'de yazılır — onay yoksa çekim YAPILMAZ.
+    if (!await aiOnayiIste(context, ref) || !mounted) return;
     setState(() {
       _busy = true;
       _result = null;

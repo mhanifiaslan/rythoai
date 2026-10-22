@@ -160,7 +160,10 @@ void main() {
   group('Kaynak bekçisi', () {
     test('"Yönet" launchUrl sonucunu okur ve düşerse kullanıcıya söyler', () {
       final k = _yorumsuz('lib/features/profile/subscription_screen.dart');
-      expect(k, contains('acildi = await launchUrl('));
+      // Açıcı U47'den beri bir test dikişinden geçiyor (aboneliğin alındığı
+      // mağazanın adresi ölçülebilsin diye); üretimde `_varsayilanAcici` =
+      // `launchUrl`. Bekçinin sabitlediği şey değişmedi: sonuç OKUNUR.
+      expect(k, contains('acildi = await (widget.adresAcici ?? _varsayilanAcici)('));
       expect(k, contains('l10n.subManageOpenFailed'));
     });
 

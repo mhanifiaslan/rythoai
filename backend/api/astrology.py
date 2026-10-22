@@ -1,11 +1,12 @@
 import logging
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from core import cache
+from core.ai_consent import ai_katmani_acik
 from core.auth import AuthUser, get_current_user
 from core.entitlements import is_subscriber, user_local_date
 from core.i18n import default_name, get_language
@@ -117,7 +118,9 @@ TRANSIT_CALENDAR_DAYS = 30
 
 @router.get("/transit-calendar")
 def transit_calendar(user: AuthUser = Depends(get_current_user),
-                     lang: str = Depends(get_language)):
+                     lang: str = Depends(get_language),
+                     ai: bool = True,
+                     x_app_build: str | None = Header(default=None)):
     """Kişisel transit takvimi (T3/R2-Z1/R5-6): 30 günün kesinleşmeleri ve
     istasyonları, tema + ton etiketiyle.
 
@@ -195,7 +198,10 @@ def transit_calendar(user: AuthUser = Depends(get_current_user),
         # (boş sözlük) önbelleklenir ki her istekte LLM yeniden yorulmasın.
         #
         # Ücretsiz kullanıcıda bu blok HİÇ ÇALIŞMAZ — boşuna harcama yok.
-        if is_subscriber(user.uid):
+        # U06: olay satırları (transit ↔ natal açıları) Gemini'ye gider;
+        # AI onayı yoksa yorum atlanır, olaylar yorumsuz ama kilitsiz döner.
+        if is_subscriber(user.uid) and ai_katmani_acik(user.uid, x_app_build,
+                                                       ai):
             fp = signal_service.calendar_fingerprint(cal.get("events") or [])
             yorum_anahtari = f"calendar-insight-{fp}-{lang}"
             yorumlar = cache.get(yorum_anahtari)

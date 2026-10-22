@@ -112,6 +112,13 @@ def _int_env(ad: str, varsayilan: int) -> int:
 # gcloud ile elle verilen değer bir sonraki deploy'da silinir.
 MIN_APP_BUILD: int = _int_env("RYTHO_MIN_BUILD", 0)
 
+# AI aktarım onayı zorlaması (U06): X-App-Build bu değere EŞİT ya da
+# BÜYÜKSE, onayı olmayan kullanıcının AI uçları 403 döner. 0 = zorlama
+# KAPALI (onay ekranı olmayan eski Android paketleri kırılmasın). Asıl
+# anahtar Firestore `config/app.aiConsentMinBuild` (deploy'da silinmez);
+# env yalnız isteğe bağlı taban — etkin eşik ikisinin büyüğü.
+AI_CONSENT_MIN_BUILD: int = _int_env("RYTHO_AI_CONSENT_MIN_BUILD", 0)
+
 
 def _fiyat_env(ad: str, varsayilan: dict) -> dict:
     """Fiyat haritasını okur. JSON olmayan biçimi de kabul eder.

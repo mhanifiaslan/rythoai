@@ -33,13 +33,24 @@
 	     taniyor (AndroidManifest'te iki autoVerify intent-filter).
 	     Yalniz eskisi birakilsaydi yeni davetler iOS'ta uygulamayi HIC
 	     acmaz, tarayiciya duserdi.
-	     ⚠️ apple-app-site-association icindeki TEAMID hala YER TUTUCU;
-	     gercek Team ID yazilmadan Universal Links calismaz
+	     AASA'daki appID gercek Team ID ile yazili (292WJ9TP74.ai.rytho,
+	     2026-09-27) ve pbxproj DEVELOPMENT_TEAM ile ayni olmasi
+	     backend/tests/test_ios_config.py'de bekcili; ama iOS ancak
+	     hosting YAYINLANDIKTAN sonra goruyor
 	     (web/.well-known/apple-app-site-association). -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:rytho.app</string>
 		<string>applinks:rhytoai.web.app</string>
 	</array>
+	<!-- App Check / App Attest ortami. Firebase App Attest kurulumu bu
+	     yetenegi ister; yoksa release derlemesinde App Attest anahtari
+	     uretilemez, App Check jetonu alinamaz ve Firestore + Auth
+	     (ikisinde de zorlama ACIK) iOS'u reddeder. Deger IKI dosyada da
+	     production: Debug zaten AppleDebugProvider kullaniyor, App Attest'e
+	     hic gitmiyor. Apple Developer'da App ID uzerinde "App Attest"
+	     yetenegi de ACIK olmali, yoksa imzalama duser. -->
+	<key>com.apple.developer.devicecheck.appattest-environment</key>
+	<string>production</string>
 </dict>
 </plist>

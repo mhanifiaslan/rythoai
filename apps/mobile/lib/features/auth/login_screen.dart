@@ -1,7 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart'
+    show SignInWithAppleButton, SignInWithAppleButtonStyle;
 
 import '../../core/auth_service.dart';
 import '../../l10n/app_localizations.dart';
@@ -35,13 +38,15 @@ enum AuthHataSonucu {
 /// düşüp "Bir şeyler ters gitti" basıyor ve Crashlytics'e yazılıyordu.
 /// Reauth dalı aynen korunur (iç test bulgusu B1): cihazdaki Google oturumu
 /// bayatladığında düşer ve nötr mesaj kullanıcıyı çıkmaza sokar.
+///
+/// Sıra ÖNEMLİ — reauth iptalden ÖNCE: Android'in Credential Manager'ı bu
+/// hatayı iptal sınıfıyla bildirebiliyor ve eklenti onu
+/// `GoogleSignInExceptionCode.canceled`'a çeviriyor (google_sign_in_android
+/// 7.2.15, bkz. [googleYenidenDogrulamaGerekli]). Önce iptale bakılsaydı B1
+/// "kullanıcı vazgeçti" sayılıp sessizce yutulurdu.
 AuthHataSonucu socialHataSonucu(Object e) {
+  if (googleYenidenDogrulamaGerekli(e)) return AuthHataSonucu.reauth;
   if (isAuthCancelled(e)) return AuthHataSonucu.iptal;
-  // GMS mesajı ASCII; `toLowerCase` Türkçe harf görmez.
-  final metin = e.toString();
-  if (metin.toLowerCase().contains('reauth') || metin.contains('[16]')) {
-    return AuthHataSonucu.reauth;
-  }
   return AuthHataSonucu.genel;
 }
 
@@ -482,33 +487,32 @@ class _LoginScreenState extends State<LoginScreen> {
                 ]),
               ),
 
-              // ---------- SOSYAL GİRİŞ: İKİSİ DE İKİNCİL ----------
+              // ---------- SOSYAL GİRİŞ ----------
               //
               // Üçü de (e-posta, Apple, Google) birebir aynı degradede alt
               // alta duruyordu. Bir ekranda birden fazla "birincil" varsa
               // hiçbiri birincil değildir; kullanıcı hangisinin asıl yol
-              // olduğunu okuyamıyordu.
+              // olduğunu okuyamıyordu. Tek degrade buton formun içindeki
+              // gönder butonu.
               //
-              // Tek degrade buton formun içindeki gönder butonu. Apple ve
-              // Google eşit ağırlıkta ikincil — Apple'ın kuralı kendi
-              // düğmesinin DİĞER ÜÇÜNCÜ TARAF seçeneklerinden daha az
-              // görünür olmamasını istiyor; eşitlik bunu karşılıyor. iOS'ta
-              // yine de üstte duruyor.
+              // Apple (yalnız iOS) kendi HIG düğmesiyle çizilir (U04):
+              // App Review Apple ile Giriş düğmesini logo, başlık ve
+              // siyah/beyaz stil üzerinden denetler; eski altın çerçeveli,
+              // logosuz metin düğmesi 4.0/4.8 reddi riskiydi. Apple'ın kuralı
+              // bu düğmenin diğer üçüncü taraf seçeneklerden daha az görünür
+              // olmamasını istiyor; beyaz dolgu ve üstteki yeri bunu karşılar.
               //
-              // Marka işareti YOK: hem Apple hem Google kendi logolarının
-              // yalnızca resmi varlıkla kullanılmasını şart koşuyor.
-              // Yaklaştırılmış bir logo çizmek marka kuralını çiğner; metin
-              // tek başına ikisinde de kurala uygun.
+              // Google'da marka işareti YOK: Google logosunun yalnız resmi
+              // varlıkla kullanılmasını şart koşuyor ve depoda o varlık yok;
+              // yaklaştırılmış bir logo çizmek marka kuralını çiğner.
               if (appleSignInAvailable) ...[
-                GoldButton(
-                  text: l10n.signInWithApple,
-                  busy: _appleBusy,
-                  filled: false,
-                  onPressed: _busy
-                      ? null
-                      : () => _runSocial(
-                          widget.appleSignIn ?? signInWithApple,
-                          (v) => _appleBusy = v),
+                _AppleGirisDugmesi(
+                  baslik: l10n.signInWithApple,
+                  mesgul: _appleBusy,
+                  kilitli: _busy,
+                  onPressed: () => _runSocial(
+                      widget.appleSignIn ?? signInWithApple,
+                      (v) => _appleBusy = v),
                 ),
                 const SizedBox(height: RythoSpace.sm),
               ],
@@ -531,5 +535,71 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Apple ile Giriş — `sign_in_with_apple`'ın HIG düğmesi (U04).
+///
+/// Stil BEYAZ, çerçevesiz: zemin koyu mürekkep ve HIG beyaz-çerçeveli
+/// varyantı koyu/doygun zeminde açıkça yasaklıyor (denetimde ilk öneri
+/// `whiteOutlined`'dı, doğrulayıcı düzeltti). Logo paketin
+/// `AppleLogoPainter`'ıyla çizilir — elle yaklaştırılmış logo değil.
+///
+/// Yükseklik ve köşe yarıçapı [GoldButton]'la eş (52 / 18): Google
+/// düğmesinin hemen üstünde duruyor ve farklı boyda bir ikili dağınık
+/// görünüyordu. 52, HIG'in önerdiği 44 pt'nin üstünde.
+///
+/// Paket düğmesinin meşgul durumu yok. `onPressed: null` vermek de çözüm
+/// değil: `CupertinoButton` o zaman dolguyu gri "devre dışı" rengine
+/// boyuyor ve düğme HIG stilinden çıkıyor. Bu yüzden kilit
+/// `IgnorePointer` + soluklaştırmayla, meşguliyet sağ kenarda bir
+/// göstergeyle verilir — ortadaki logo ve başlığın üstüne binmesin.
+class _AppleGirisDugmesi extends StatelessWidget {
+  const _AppleGirisDugmesi({
+    required this.baslik,
+    required this.mesgul,
+    required this.kilitli,
+    required this.onPressed,
+  });
+
+  final String baslik;
+
+  /// Apple girişi sürüyor: gösterge görünür.
+  final bool mesgul;
+
+  /// Herhangi bir giriş sürüyor: dokunuş geçmez (ikinci bir OAuth akışı
+  /// başlamasın).
+  final bool kilitli;
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(alignment: Alignment.center, children: [
+      IgnorePointer(
+        ignoring: kilitli,
+        child: Opacity(
+          opacity: kilitli ? 0.6 : 1,
+          // Apple'ın ölçüsünde başlık puntosu düğme yüksekliğinin %43'ü
+          // (paket bunu uyguluyor). Sistem yazı ölçeği bunun üstüne binerse
+          // o oran bozulur ve başlık sabit yükseklikli düğmeye sığmayabilir;
+          // büyüklüğü yükseklik belirler.
+          child: MediaQuery.withNoTextScaling(
+            child: SignInWithAppleButton(
+              text: baslik,
+              style: SignInWithAppleButtonStyle.white,
+              height: 52,
+              borderRadius: BorderRadius.circular(RythoRadius.button),
+              onPressed: onPressed,
+            ),
+          ),
+        ),
+      ),
+      if (mesgul)
+        const Positioned(
+          right: 18,
+          child: CupertinoActivityIndicator(color: Colors.black54),
+        ),
+    ]);
   }
 }

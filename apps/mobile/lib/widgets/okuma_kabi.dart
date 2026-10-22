@@ -17,6 +17,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../core/ai_consent.dart' show AiOnayKapaliKarti, aiOnayHatasiMi;
 import '../core/api.dart' show RaporUretilemedi, friendlyError;
 import '../core/okuma_durumu.dart';
 import '../features/share/share_card.dart' show shareReportCard;
@@ -115,6 +116,13 @@ class OkumaKabi extends StatelessWidget {
       OkumaHazir(:final metin) => _hazir(context, l10n, metin),
       OkumaUretilemedi(:final iadeli) => _hataKarti(
           l10n, RaporUretilemedi(jetonIadeEdildi: iadeli)),
+      // U06: AI aktarım onayı yokluğu bir arıza değil, kullanıcının kararı —
+      // "tekrar dene" yerine onay kartı. Kap tek olduğu için bu dal bütün
+      // okuma yüzeylerini kapsıyor; sonradan eklenen bir yüzey onayı ayrıca
+      // hatırlamak zorunda kalmıyor. Onay gelince [onTekrarDene] yeniden
+      // yükler (sağlayıcıya bağlı ekranlar zaten kendiliğinden kurulur).
+      OkumaHata(:final hata) when aiOnayHatasiMi(hata) =>
+        AiOnayKapaliKarti(onGranted: onTekrarDene),
       OkumaHata(:final hata) => _hataKarti(l10n, hata),
       OkumaKilitli() => kilit ?? const SizedBox.shrink(),
     };

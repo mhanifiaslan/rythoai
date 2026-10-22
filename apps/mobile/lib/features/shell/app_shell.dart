@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
+import '../../core/ai_consent.dart' show aiAcilisSorusu;
 import '../../core/api.dart' show apiProvider;
 import '../../core/consent.dart' show ensureConsentRecorded;
 import '../../core/partner_referrer.dart' show ensurePartnerReferrer;
@@ -113,7 +114,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     // `_Gate` kapısında gösterilir (bkz. core/device_session.dart).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _buyukUcluPerdesi();
+      // U06: AI onayı yoksa onay sayfası HER açılışta gelir ("bir kez
+      // gösterildi" bayrağı yok — Apple'ın reddettiği kısayol tam olarak
+      // oydu). Büyük Üçlü perdesi önce oynar; sayfa perdenin üstüne
+      // binmez. Tanıtım paywall'ı ve bildirim izni bu sorunun bitmesini
+      // bekler (SkyScreen → `aiAcilisSorusuBekle`).
+      aiAcilisSorusu(context, ref, once: _buyukUcluPerdesi);
       // KT2: kabul kaydı onboarding'de düşmüşse burada telafi edilir
       // (bayraklı — başarı sonrası bir daha ağa çıkmaz).
       ensureConsentRecorded(ref.read(apiProvider));
@@ -132,7 +138,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// Onboarding'in finali (R12-B1): kullanıcı doğum verisini az önce verdiyse
   /// Büyük Üçlü perdesi burada açılır — onboarding ekranında açılamaz, çünkü
   /// `onboardingCompleted` yazımı iner inmez `_Gate` o ekranı söker.
-  void _buyukUcluPerdesi() {
+  Future<void> _buyukUcluPerdesi() async {
     final sonuc = ref.read(justOnboardedProvider);
     if (sonuc == null) return;
     ref.read(justOnboardedProvider.notifier).state = null;
@@ -155,7 +161,8 @@ class _AppShellState extends ConsumerState<AppShell> {
               Text(AppLocalizations.of(context).onboardingSavedNoChart)));
       return;
     }
-    showBigThreeReveal(context, sun: gunes, moon: ay, ascendant: yukselen);
+    await showBigThreeReveal(context,
+        sun: gunes, moon: ay, ascendant: yukselen);
   }
 
   /// Bildirim niyetinin MERKEZİ tüketicisi (BY-turu).

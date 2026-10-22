@@ -20,9 +20,11 @@ typedef LegalSections = List<(String?, String)>;
 /// tek cihaz" ile "Bildirimler" bölümleri hiç yoktu. Kullanıcı hangi kopyayı
 /// okuduğuna göre farklı bir beyan görüyordu; iki tarih bunu görünür kılmak
 /// yerine gizliyordu. Metin bu turda değiştiği için tarih de ileri alındı:
-/// değişmiş bir politikayı eski tarihle sunmak yanlış beyandır.
-const String kLegalLastUpdatedTr = '17 Ekim 2026';
-const String kLegalLastUpdatedEn = '17 October 2026';
+/// değişmiş bir politikayı eski tarihle sunmak yanlış beyandır. (22 Ekim:
+/// Mac'in yapay zeka onayı metniyle Windows'un bildirim metni birleşti —
+/// iki yayımlanmış sürümden de farklı bir politika.)
+const String kLegalLastUpdatedTr = '22 Ekim 2026';
+const String kLegalLastUpdatedEn = '22 October 2026';
 
 /// Kullanım şartlarının tarihi gizlilik politikasından AYRI tutulur: ortaklık
 /// programı maddesi yalnız şartlara eklendi, politika metni değişmedi. Tek
@@ -226,7 +228,11 @@ const LegalSections kPrivacyPolicyTr = [
         'saat dilimi adı (örneğin "Europe/Istanbul") kaydedilir. Bildirim '
         'metinleri sunucumuzda üretilir ve KİŞİYE ÖZELDİR: sabah okuması, '
         'öğle bildirimi ve akşam check-in sorusunun gövdesi senin doğum '
-        'haritandan çıkan o güne özgü sinyalden üretilir. O gün haritandan '
+        'haritandan çıkan o güne özgü sinyalden üretilir. Sabah ve öğle '
+        'bildirimindeki kişisel cümleyi ve akşam sorusunu yapay zeka yazar; '
+        'bu yalnız yapay zeka iznin varsa olur (bkz. "Yapay zeka ile '
+        'işleme"). İznin yoksa sabah ve öğle bildiriminde aynı sinyalin '
+        'teknik satırı gider, akşam sorusu hiç gönderilmez. O gün haritandan '
         'gönderilecek bir sinyal çıkmazsa yerine burcuna göre hazırlanan '
         'ortak metin gider; seri hatırlatıcısı ve arkadaş tepkisi bildirimi '
         'ise sabit şablondur (serinin kaç gün olduğu, tepkiyi gönderenin '
@@ -250,11 +256,37 @@ const LegalSections kPrivacyPolicyTr = [
   ),
   (
     'Yapay zeka ile işleme',
-    'Okumalar ve sohbet yanıtları Google Gemini ile üretilir. Modele '
-        'gönderilenler: hesaplanmış gök verisi, doğum haritandan türetilen '
-        'konumlar (doğum tarihin/saatin değil), varsa kullanıcı hafızandan '
-        'kısa bağlam ve mesajın. Yorumlar içgörü amaçlıdır; tıbbi, hukuki '
-        'veya finansal tavsiye değildir.'
+    'Kişisel okumalar (günlük okuma, natal rapor, BaZi, Yıl Haritası, İç '
+        'Takvim, Doğum Heksagramı, I Ching, ilişki okumaları), sohbet '
+        'yanıtları, yüz okuması yorumu, sinyal kartlarındaki ve takvim '
+        'olaylarındaki yorum satırları, sabah ve öğle bildirimindeki kişisel '
+        'cümleler ve akşam check-in sorusu üçüncü taraf bir yapay zeka '
+        'hizmetiyle — Google LLC\'nin Gemini API\'siyle — üretilir. Bu '
+        'özellikler için uygulama içinde AYRI ve açık iznini isteriz. İzin '
+        'vermezsen bu özellikler kapalı kalır ve aşağıdaki veriler '
+        'Gemini\'ye gönderilmez; doğum haritan, gökyüzü, takvim ve arkadaş '
+        'özellikleri çalışmaya devam eder.\n\n'
+        'İzin verdiğinde, kullandığın özelliğe göre şunlar Google\'a '
+        'gönderilir: doğum haritandan hesaplanan bilgiler (gezegen '
+        'konumları, evler, açılar, transitler, BaZi sütunları; Yıl Haritası '
+        'okumasında güneş dönüşü tarihi ve şehir adları); sohbet mesajların '
+        've konuşmanın son kısmı; I Ching\'e sorduğun soru; sohbetlerden '
+        'çıkarılan kısa notlar, ruh hâli seyrin ve son günlük notların; '
+        'adın (ilişki okumalarında); arkadaşlarının görünen adı ve burcu '
+        '(ilişki okumalarında ve sohbette); eklediğin kişilerin yakınlık türü ve haritası (onlara '
+        'verdiğin isim telefonunda kalır); yüz okumasında yüz hatlarından '
+        'türetilen oranlar (fotoğraf gönderilmez). Sohbette bir mesaja '
+        'yazdığın her şey — bir ad dahil — mesajın parçası olarak gider.'
+        '\n\n'
+        'Bu veriler yalnız istediğin yorumu ya da cevabı üretmek için '
+        'gönderilir. Genel burç yorumları ve burca göre hazırlanan bildirim '
+        'satırları da yapay zekayla yazılır ama bunlara kişisel verin '
+        'katılmaz.\n\n'
+        'İznini istediğin an Profil > Gizlilik bölümünden geri alabilir, '
+        'yeniden verebilirsin. Geri aldığın andan itibaren gönderim durur; '
+        'daha önce üretilmiş okumalar ve sohbet geçmişin bu işlemle '
+        'silinmez. Yorumlar içgörü amaçlıdır; tıbbi, hukuki veya finansal '
+        'tavsiye değildir.'
   ),
   (
     'Alt işleyiciler',
@@ -589,7 +621,12 @@ const LegalSections kPrivacyPolicyEn = [
         'text is generated on our servers and IS individual: the body of the '
         'morning reading, the midday notification and the evening check-in '
         'question is produced from the day\'s signal in your own birth '
-        'chart. On a day when your chart yields no signal to send, the '
+        'chart. The personal line in the morning and midday notifications '
+        'and the evening question are written by AI, and only if you have '
+        'allowed AI processing (see "AI processing"). If you have not, the '
+        'morning and midday notifications carry the technical line for the '
+        'same signal and the evening question is not sent at all. On a day '
+        'when your chart yields no signal to send, the '
         'shared per-sign text goes out instead; the streak reminder and the '
         'friend-reaction notification are fixed templates (how many days '
         'your streak is, who sent the reaction). The evening circle note '
@@ -613,11 +650,40 @@ const LegalSections kPrivacyPolicyEn = [
   ),
   (
     'AI processing',
-    'Readings and chat replies are generated with Google Gemini. What is sent '
-        'to the model: calculated sky data, positions derived from your chart '
-        '(not your birth date or time), a short amount of context from your '
-        'user memory if any, and your message. Readings are for insight; they '
-        'are not medical, legal or financial advice.'
+    'Personal readings (daily reading, natal report, BaZi, Year Chart, Inner '
+        'Calendar, Birth Hexagram, I Ching, relationship readings), chat '
+        'replies, the face reading interpretation, the comment lines on '
+        'signal cards and calendar events, the personal lines in the morning '
+        'and midday notifications, and the evening check-in question are '
+        'generated by a '
+        'third-party AI service: the Gemini API of Google LLC. We ask for '
+        'your SEPARATE, explicit permission for these features inside the '
+        'app. If you do not give it, these features stay off and the data '
+        'below is not sent to Gemini; your birth chart, the sky, the '
+        'calendar and friend features keep working.\n\n'
+        'Once you allow it, depending on the feature you use, the following '
+        'is sent to Google: information calculated from your birth chart '
+        '(planet positions, houses, aspects, transits, BaZi pillars; for the '
+        'Year Chart, the solar return date and city names); your chat '
+        'messages and the recent part of the conversation; the question you '
+        'ask the I Ching; short notes drawn from your chats, your mood trend '
+        'and your latest journal notes; your name (in relationship '
+        'readings); your friends\' display names and signs (in relationship '
+        'readings and chat); the relationship type and chart of people you '
+        'added (the name you gave '
+        'them stays on your phone); for face reading, ratios derived from '
+        'your facial features (your photo is not sent). Anything you type '
+        'into a chat message, a name included, goes as part of that message.'
+        '\n\n'
+        'This data is sent only to generate the reading or reply you asked '
+        'for. General sign horoscopes and notification lines written per '
+        'sun sign are also produced with AI, but none of your personal data '
+        'goes into them.\n\n'
+        'You can withdraw and give this permission again at any time under '
+        'Profile > Privacy. Sending stops from the moment you withdraw; '
+        'readings already generated and your chat history are not deleted '
+        'by this. Readings are for insight; they are not medical, legal or '
+        'financial advice.'
   ),
   (
     'Sub-processors',

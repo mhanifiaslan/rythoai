@@ -33,7 +33,7 @@ bir garanti değil ve `git push` her seferinde uyarı basıyor.)
 
 | Araç | Sürüm | Not |
 |---|---|---|
-| Xcode | güncel | **Yalnız macOS**. `xcode-select --install` yetmez, tam Xcode gerekir |
+| Xcode | **26.6** (17F113) | **Yalnız macOS**. Tam Xcode gerekir. **Xcode 27 derleyemiyor** (§7) — 26.6 yan yana kurulur ve `xcode-select` ona çevrilir |
 | CocoaPods | güncel | `sudo gem install cocoapods` ya da `brew install cocoapods` |
 | Flutter | **3.44.7 stable** (Dart 3.12.2) | `pubspec` `sdk: ^3.12.0`. Farklı minör sürüm kilit dosyasını oynatır |
 | Python | **3.11 ŞART** | 3.12'de `pyswisseph` kurulmuyor. venv: `backend/.venv` |
@@ -123,11 +123,11 @@ imzalama, `apple-app-site-association`, ve entitlements profili.
 `google-services.json`'ı da git'te — aynı düzen. Mac'te taşınacak bir şey
 yok, `git pull` yeter.
 
-⚠️ **Ama Xcode hedefine hâlâ EKLENMEDİ.** `project.pbxproj` klasör-senkronlu
-grup kullanmıyor (`objectVersion = 54`) ve Copy Bundle Resources'ta yalnız
-dört girdi var. Dosya diskte durduğu hâlde **pakete girmez**. Xcode'da
-Runner hedefine sürükle ("Copy items if needed" kapalı — dosya zaten yerinde,
-"Add to targets: Runner" işaretli).
+✅ **Xcode hedefine EKLENDİ** (Mac, 2026-09-26). `project.pbxproj`
+klasör-senkronlu grup kullanmadığı için (`objectVersion = 54`) diskte durmak
+yetmiyordu; Runner'ın Copy Bundle Resources'ına CocoaPods'un `xcodeproj`
+kütüphanesiyle eklendi. **Ölçüldü:** derlenen `Runner.app` içinde
+`GoogleService-Info.plist` var ve `BUNDLE_ID = ai.rytho`.
 
 Bunsuz uygulama **ilk karede çöker**: `main.dart:78` `Firebase.initializeApp()`
 seçeneksiz çağrılıyor ve depoda `firebase_options.dart` yok, yani
@@ -200,11 +200,14 @@ kodda sabit, **değiştirme**:
 RevenueCat'te abonelik `RhytoAI Pro` entitlement'ına bağlanır (paketler
 bağlanmaz) — panel adıyla **birebir** aynı olmalı.
 
-### 4.8 — `apple-app-site-association` · **SEN (Team ID gelince)**
+### 4.8 — `apple-app-site-association` · ✅ **depoda** (2026-09-27) · **yayın bekliyor**
 `web/.well-known/apple-app-site-association` içinde
-`"appID": "TEAMID.ai.rytho"` — **`TEAMID` yer tutucu**. Gerçek Team ID
-yazılıp `firebase deploy --only hosting --project rhytoai` ile yayınlanır.
-Bunsuz davet bağlantıları iOS'ta uygulamayı açmaz, tarayıcıya düşer.
+`"appID": "292WJ9TP74.ai.rytho"` — gerçek Team ID (Membership details'ten
+sahip doğruladı; kayıt e-postasındaki Enrollment ID aynı biçimde ama
+FARKLI bir şey). Aynı değer pbxproj'de `DEVELOPMENT_TEAM`; ikisinin
+ayrışması `backend/tests/test_ios_config.py`'de bekçili. **Kalan:**
+`firebase deploy --only hosting --project rhytoai` (Windows tarafı). Yayın
+olmadan davet bağlantıları iOS'ta uygulamayı açmaz, tarayıcıya düşer.
 
 Entitlements tarafı hazır: `applinks:rytho.app` **ve**
 `applinks:rhytoai.web.app` ikisi de yazılı (sahadaki eski davet bağlantıları
@@ -273,7 +276,9 @@ ortak panosu ve yönetim panelindeki iOS dipnotları da.
 Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
 
 - **`GoogleService-Info.plist`** depoda (`ios/Runner/`), bundle
-  `ai.rytho` doğrulanmış. **Xcode hedefine eklenmesi hâlâ gerekli** (4.2).
+  `ai.rytho` doğrulanmış ve Runner hedefinde — pakete giriyor (4.2).
+- **CocoaPods entegrasyonu** (`pod install`, `Podfile.lock` depoda) ve
+  **imzasız cihaz derlemesi** Mac'te geçti (2026-09-26, Xcode 26.6).
 - **Google girişi** `Info.plist`'e bağlandı; iOS API anahtarı `ai.rytho`
   ile kısıtlandı (4.3).
 - **`ios/Podfile`** yazıldı, `platform :ios, '15.5'` **açık**. Flutter'ın
@@ -292,19 +297,22 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
 - **`STRIP_STYLE = non-global`** — `tflite_flutter` README'sinin uyardığı
   arşiv kusuru: Xcode sembolleri soyunca `flutter build ipa` sonrası
   çalışma anında "symbol not found" ile patlıyor.
-- **Zorunlu güncelleme ve abonelik yönetimi** artık platforma göre dallanıyor.
-- **Mağaza metinleri nötr** — dört kullanıcı dizesi "Google Play" yazmıyor
+- **Zorunlu güncelleme** artık platforma göre dallanıyor. **Abonelik
+  yönetimi** ise aboneliğin ALINDIĞI mağazayı açıyor: RevenueCat yetkisinin
+  `store` alanı, bilinmiyorsa çalışan platform (U47).
+- **Mağaza metinleri** — dört kullanıcı dizesi "Google Play" yazmıyor
   artık. Türkçe ek uyumu yüzünden yer tutucu kullanılamadı ("Play'**de**"
   ama "App Store'**da**"), bu yüzden mağaza adı metinden çıkarıldı.
+  ⚠️ Burada eskiden "mağaza metinleri nötr" yazıyordu ve iki satın alma
+  hata metni için YANLIŞTI: `purchaseAlreadyOwned` "Google hesabı",
+  `purchaseItemUnavailable` "test kanalı" diyor (U46). Artık
+  `storeErrorText` iOS'ta ayrı anahtarlara gidiyor; Android metinleri bayt
+  bayt duruyor.
 
 ---
 
 ## 6. Bitmemiş, Mac'te yapılacak kod işleri
 
-- **`GoogleService-Info.plist` Xcode hedefine eklenmeli.** Dosya diskte
-  ve git'te ama Copy Bundle Resources'ta değil — pakete girmiyor. Aynı
-  yapısal sebep (`objectVersion = 54`, klasör-senkronlu grup yok)
-  Windows'tan çözülemezdi.
 - **`en.lproj/InfoPlist.strings` bağlanmalı.** Dosya
   `apps/mobile/ios/Runner/en.lproj/` altında **hazır** ama Xcode projesine
   bağlı değil: Copy Bundle Resources'ta yok ve `knownRegions` yalnız
@@ -314,13 +322,21 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
   Şu an `developmentRegion = en` ama Info.plist metinleri **Türkçe**, yani
   İngilizce cihaz Türkçe izin diyaloğu görüyor. Türkiye-öncelikli
   lansmanda kabul edilebilir; **dünyaya açılmadan önce** düzeltilmeli.
-- **`AppDelegate.swift`'te bildirim delegesi.** `flutter_local_notifications`
-  22.2.0 README'si (iOS setup) `UNUserNotificationCenter.current().delegate`
-  atamasını istiyor; şu an yok. **Körlemesine eklenmedi**, çünkü
-  `firebase_messaging` de aynı delegeyi sahipleniyor ve hangisinin
-  kazandığı ancak **cihazda** ölçülebilir. Mac'te gerçek cihazla
-  doğrulanarak eklenmeli — "ölçülmeyen söylenmez".
-- **`main.dart:133` `GoogleSignIn` `clientId`** — 4.3'e bağlı.
+- **Bildirim delegesi — ÇÖZÜLDÜ, `AppDelegate.swift`'e satır EKLENMEZ**
+  (`docs/ios-uyum-denetimi.md` U14). Soru kaynak okumasıyla yanıtlandı:
+  AppDelegate delege atamadığı için delegeyi `firebase_messaging` alıyor;
+  `flutter_local_notifications` `willPresent` hiç almıyor. README'nin
+  istediği `UNUserNotificationCenter.current().delegate` satırı eklenirse
+  `FlutterAppDelegate` `willPresent`'i iki eklentiye de iletir ve ikisi
+  de aynı, **bir kez** çağrılması gereken tamamlayıcıyı çağırır (denetimin
+  beklediği sonuç çift banner; cihazda ölçülmedi).
+  Ön plan push'unu iOS'ta artık FCM kendisi gösteriyor
+  (`setForegroundNotificationPresentationOptions`,
+  `lib/core/notifications.dart` `iosOnPlanSunumunuAc`); yerel bildirimle
+  gösterim yalnız Android'de. Bekçi: `test/bildirim_ios_test.dart`
+  AppDelegate'te `UNUserNotificationCenter` geçmediğini sabitliyor. Kalan
+  yalnız cihaz doğrulaması (APNs anahtarı gerekli, U08): uygulama açıkken
+  test push'u → banner → dokunuş rotası.
 
 ---
 
@@ -336,11 +352,44 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
 - **`gcloud`'un varsayılan projesi kayabiliyor.** Her komutta
   `--project rhytoai` yaz; yoksa komutlar **sessizce yanlış projeye**
   gider. Bu bir kez yanlış bir "panelde hiç admin yok" blocker'ı ürettirdi.
-- **Satır sonları.** Depoda `core.autocrlf` Windows tarafında etkin ve
-  dosyaların bir kısmı CRLF (ör. `ios/Runner/Info.plist`,
-  `AppDelegate.swift`), çoğu LF. Düzenlerken **dosyanın kendi satır
-  sonunu koru**, yoksa tek satırlık bir düzeltme 1000 satırlık hayalet
-  diff'e döner.
+- **Satır sonları.** Depo (index) her şeyi **LF** saklıyor; CRLF yalnız
+  Windows çalışma kopyasında `core.autocrlf` yüzünden görünür. Mac'te
+  `autocrlf` ayarsız bırakılır ve dosyalar LF gelir (ölçüldü:
+  `git ls-files --eol apps/mobile/ios` hepsi `i/lf w/lf`). Mac'te
+  `autocrlf=true` yapma — o zaman hayalet diff burada başlar.
+- **Xcode 27 bu depoyu DERLEYEMİYOR** (ölçüldü 2026-09-26, Xcode 27.0
+  27A266a). İki bağımsız kırılma: (1) Swift 6.4, `purchases-ios` 5.67.1'i
+  (`purchases_flutter` 9.16.1 üzerinden) reddediyor —
+  `PaywallColor.swift:56` "Invalid redeclaration of synthesized memberwise
+  init"; (2) Xcode 27'nin `lipo`'su `-verify_arch`'a birden çok mimari
+  verilince argümanı dosya sanıyor ve Flutter 3.44.7'nin simülatör
+  derlemesi "does not contain architectures" ile düşüyor. Çözüm olarak
+  **Xcode 26.6 (17F113) yan yana kuruldu**: `/Applications/Xcode-26.app`.
+  Alternatif `purchases_flutter` 10.x'e majör atlamaktı; Android'i de
+  etkileyeceği için seçilmedi.
+- **`DEVELOPER_DIR` YETMEZ, `xcode-select` şart.** `objective_c` paketinin
+  native-assets kancası SDK'yı `xcrun --show-sdk-path` ile soruyor
+  (`hook/build.dart:183`) ve Flutter kancaya `DEVELOPER_DIR`'ı geçirmiyor.
+  Sonuç: derleyici Xcode 26'dan, SDK Xcode 27'den gelir ve bağlama
+  "unknown architecture … libSystem.B.tbd" ile düşer. Doğrusu:
+  `sudo xcode-select -s /Applications/Xcode-26.app/Contents/Developer`.
+  Xcode'u değiştirdikten sonra `.dart_tool/hooks_runner` ve `build/ios`
+  silinir.
+- **Xcode'un yolunda boşluk ya da Türkçe harf olmasın.** Finder'da
+  kopyalanınca "Xcode kopyası.app" oluyor; adını `Xcode-26.app` yap.
+- **Uygulama iOS 26+ simülatörde HİÇ çalışmaz.** ML Kit (yüz okuma) arm64
+  simülatör dilimi taşımıyor; Flutter `EXCLUDED_ARCHS[sdk=iphonesimulator*]
+  = arm64` yazıyor ama iOS 26+ Apple Silicon simülatörleri arm64 zorunlu
+  tutuyor. Test yolu **gerçek cihaz**. (TFLite ve App Attest de zaten
+  cihaz istiyordu.)
+- **`flutter analyze` Mac'te `build/`'i taramasın.** Flutter burada SPM
+  için eklenti kaynaklarını `build/ios/SourcePackages`'a indiriyor;
+  dışlanmazsa üçüncü taraf testlerinden 864 sahte hata sayılıyordu.
+  `analysis_options.yaml`'da `analyzer: exclude: [build/**]`.
+- **CocoaPods ve Homebrew:** `brew install cocoapods` (sistem ruby 2.6
+  yeni CocoaPods'u kaldırmaz). `powershell` cask'ı kaldırılmış; yalnız
+  `powershell@preview` var ya da GitHub'dan `.pkg`. Model indirmek için
+  pwsh şart değil — `fetch_models.ps1`'deki URL'yi `curl` ile çekmek aynı.
 
 ---
 

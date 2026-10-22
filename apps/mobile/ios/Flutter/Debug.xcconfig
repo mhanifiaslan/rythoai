@@ -1,1 +1,17 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+
+// Flutter, ML Kit'in arm64 simülatör dilimi olmadığını görüp
+// Generated.xcconfig'e `EXCLUDED_ARCHS[sdk=iphonesimulator*] = i386 arm64`
+// yazıyor; iOS 26+ simülatörleri yalnız arm64 çalıştırdığı için uygulama
+// hiçbir simülatörde açılmıyordu. ML Kit simülatör derlemesinden Podfile'da
+// çıkarıldığı için arm64 artık güvenli. SONRA gelen satır öncekini ezer.
+// Yalnız simülatör; cihaz derlemesi etkilenmez.
+EXCLUDED_ARCHS[sdk=iphonesimulator*] = i386
+
+// Aynı sebeple: GeneratedPluginRegistrant ML Kit başlığını @import ediyor ve
+// Clang modül otomatik bağlaması çıkarılan çerçeveyi bağlamaya GERİ
+// sokuyordu ("building for iOS-simulator, but linking in object file built
+// for iOS"). CocoaPods tüm çerçeveleri OTHER_LDFLAGS'ta zaten açıkça
+// listelediği için simülatörde otomatik bağlamaya gerek yok.
+CLANG_MODULES_AUTOLINK[sdk=iphonesimulator*] = NO

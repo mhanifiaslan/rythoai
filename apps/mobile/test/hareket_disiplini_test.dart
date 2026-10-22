@@ -33,12 +33,13 @@ final _ciplakSure =
 
 /// Dosya başına tavan — ölçülen değer. Gerekçe sütunu: sürenin sınıfı.
 const _sureTavani = <String, int>{
+  'lib/core/ai_consent.dart': 2, // onay durumu/kaydı zaman aşımı (U06)
   'lib/core/api.dart': 2, // ağ zaman aşımı
   'lib/core/app_config.dart': 2, // uzak yapılandırma tazeleme
   'lib/core/device_session.dart': 1, // kilit yenileme
   'lib/core/notifications.dart': 1, // jeton eşitleme
   'lib/core/providers.dart': 1, // profil akışı zaman aşımı
-  'lib/core/subscription.dart': 12, // sunucu yoklama merdiveni
+  'lib/core/subscription.dart': 13, // yoklama merdiveni + kaynak mağaza sınırı (U47)
   'lib/features/auth/forgot_password_screen.dart': 1, // geri sayım
   'lib/features/face/face_capture_screen.dart': 4, // kamera sahnesi
   'lib/features/face/face_reading_flow.dart': 1, // okuma zaman aşımı
@@ -97,7 +98,10 @@ void main() {
       for (final f in _dartDosyalari()) {
         toplam += _ciplakSure.allMatches(_yorumsuz(_yol(f))).length;
       }
-      expect(toplam, lessThanOrEqualTo(71));
+      // 71 → 74 (2026-10-22): Mac'in iOS birleşmesi üç AĞ zaman aşımı
+      // getirdi (U06 onay ×2, U47 kaynak mağaza) — hareket değil, dosya
+      // tavanlarında gerekçeleriyle.
+      expect(toplam, lessThanOrEqualTo(74));
     });
   });
 

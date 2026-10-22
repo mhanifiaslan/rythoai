@@ -144,6 +144,13 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   bool _busy = false;
   String? _error;
 
+  /// Hata OLMAYAN mağaza cevabı — bugün yalnız onay bekleyen ödeme (U33).
+  ///
+  /// [_error]dan ayrı tutulur çünkü o macenta boyanıyor ve kullanıcıya
+  /// "olmadı, yeniden dene" diyor; bekleyen ödemede yeniden denemek aynı
+  /// ürün için ikinci bir onay isteği açar.
+  String? _bilgi;
+
   /// Bekleyiş uzarsa EKRANDAN çıkış yolu açılır — meşguliyetten değil.
   ///
   /// Mağaza çağrısı hiç dönmezse `finally` de çalışmıyor ve kullanıcı sonsuz
@@ -267,7 +274,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     // onuncu saniyedeki eski çıkış o bayrağı indiriyordu. Kapı burada,
     // arayüzden bağımsız duruyor.
     if (_busy) return;
-    setState(() => _error = null);
+    setState(() {
+      _error = null;
+      _bilgi = null;
+    });
     _mesguliyet(true);
     // Huninin orta adimi: bu olay olmadan "paywall calismiyor" ile "magaza
     // akisi dusuyor" ayirt edilemez.
@@ -305,8 +315,15 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       final code = PurchasesErrorHelper.getErrorCode(e);
       if (code == PurchasesErrorCode.purchaseCancelledError) {
         // Vazgeçmek hata değil.
+      } else if (odemeOnayBekliyor(e)) {
+        // Ask to Buy / ek onay: hata değil, bilgi (bkz. [_bilgi]).
+        if (mounted) {
+          odemeOnayiBekleniyor(ref);
+          setState(
+              () => _bilgi = AppLocalizations.of(context).purchasePending);
+        }
       } else if (code == PurchasesErrorCode.productAlreadyPurchasedError) {
-        // Play hesabında abonelik zaten var (tipik: sunucu kaydı henüz
+        // Mağaza hesabında abonelik zaten var (tipik: sunucu kaydı henüz
         // eşitlenmemiş ya da abonelik başka app-kimliğinde). Kullanıcıyı
         // çıkmaza sokma: kendiliğinden geri yükle — abonelik hangi
         // kimlikteyse bu hesaba çekilir (G-turu, iç test bulgusu).
@@ -360,9 +377,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   /// düğmesi için doğru, kendi hata dalımız için yanlıştı.
   Future<void> _restore({bool zincirli = false}) async {
     if (_busy && !zincirli) return;
+    setState(() => _bilgi = null);
     _mesguliyet(true);
     try {
-      final ok = await restorePurchases(ref);
+      final ok = await ref.read(geriYukleyiciProvider)(ref);
       Analytics.purchasesRestored(found: ok);
       if (!mounted) return;
       if (ok) {
@@ -552,6 +570,12 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             // hata, davet rengiyle söylenmez).
             child: Text(_error!,
                 style: RythoText.body(12.5, color: RythoColors.madder)),
+          ),
+        if (_bilgi != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Text(_bilgi!,
+                style: RythoType.caption.copyWith(color: RythoColors.parchment)),
           ),
         Padding(
           padding: const EdgeInsets.fromLTRB(

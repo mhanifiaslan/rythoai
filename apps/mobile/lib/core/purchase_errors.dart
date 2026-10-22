@@ -1,4 +1,5 @@
-/// Mağaza (RevenueCat/Play) hatalarının kullanıcı diline çevirisi (G-turu).
+/// Mağaza (RevenueCat: Play ve App Store) hatalarının kullanıcı diline
+/// çevirisi (G-turu).
 ///
 /// İç test bulgusu: paywall bilinmeyen mağaza hatasında `e.message`'ı ham
 /// basıyordu — kullanıcı Türkçe arayüzde "This product is already active
@@ -90,10 +91,35 @@ String purchaseErrorText(Object e, AppLocalizations l10n,
   return storeErrorText(e, l10n);
 }
 
+/// Ödeme mağazada ONAY BEKLİYOR mu?
+///
+/// iOS'ta iki kaynağı var (RevenueCat 5.67.1 kaynağında okundu): StoreKit 1
+/// `.deferred` işlemi (`PurchasesOrchestrator`, Ask to Buy) ve StoreKit 2
+/// `Product.PurchaseResult.pending` (`StoreKit2TransactionListener`; Apple'a
+/// göre Ask to Buy ya da SCA gibi ek bir onay adımı). Android'de hangi
+/// durumda geldiği bu depoda ölçülmedi.
+///
+/// Ekranlar bu durumu hata dalından AYIRMAK zorunda: satın alma reddedilmedi,
+/// ertelendi — onay gelirse webhook aboneliği/krediyi sunucuya kendisi yazar.
+/// Macenta hata metni kullanıcıya "olmadı, yeniden dene" der; yeniden denemek
+/// ise aynı ürün için ikinci bir onay isteği açar.
+bool odemeOnayBekliyor(PlatformException e) =>
+    PurchasesErrorHelper.getErrorCode(e) ==
+    PurchasesErrorCode.paymentPendingError;
+
 /// [kaydet] yalnız çizim yolunda `false` olabilir (bkz. [magazaVeyaAgHatasi]);
 /// satın alma akışı HER denemeyi kaydeder.
+///
+/// Platform dalı yalnız gerçekten farklı çareler için var (U46). "Zaten
+/// satın alınmış" ve "ürün yok" metinleri eskiden Google hesabını ve Play
+/// test kanalını anıyordu; iOS'ta ikisinin de karşılığı yok ve kullanıcıyı
+/// (ya da inceleyiciyi) var olmayan bir ayarı aramaya gönderirdi. D7 o iki
+/// metni platformdan bağımsız yazdı, bu yüzden iOS'a ayrı kopya gerekmedi.
+/// Kalan dal [PurchasesErrorCode.purchaseNotAllowedError]: iOS'ta çaresi
+/// Ekran Süresi ayarı, Android'de geçici bir mağaza sorunu.
 String storeErrorText(PlatformException e, AppLocalizations l10n,
     {bool kaydet = true}) {
+  final ios = defaultTargetPlatform == TargetPlatform.iOS;
   switch (PurchasesErrorHelper.getErrorCode(e)) {
     case PurchasesErrorCode.productAlreadyPurchasedError:
       // Ürün sınıfını bilmeyen çağıran için abonelik cümlesi: bu kod bugün
@@ -109,8 +135,34 @@ String storeErrorText(PlatformException e, AppLocalizations l10n,
     case PurchasesErrorCode.offlineConnectionError:
       return l10n.authNetwork;
     case PurchasesErrorCode.storeProblemError:
-    case PurchasesErrorCode.purchaseNotAllowedError:
       return l10n.purchaseStoreProblem;
+    case PurchasesErrorCode.purchaseNotAllowedError:
+      // iOS'ta RevenueCat bu kodu StoreKit'in "bu cihaz/kullanıcı ödeme
+      // yapamaz" hatalarından üretiyor (`paymentNotAllowed`, `clientInvalid`,
+      // `cloudServicePermissionDenied`, StoreKit 2 `purchaseNotAllowed`) —
+      // tipik kaynağı Ekran Süresi'ndeki uygulama içi satın alma kısıtı.
+      // Kısıt kalkmadıkça KALICI, yani eski "birkaç dakika sonra tekrar
+      // dene" metni hiçbir zaman işe yaramazdı.
+      return ios ? l10n.purchaseNotAllowedIos : l10n.purchaseStoreProblem;
+    case PurchasesErrorCode.paymentPendingError:
+      // Hata DEĞİL, kaydedilmez: Ask to Buy'da ebeveyn onayı saatler
+      // sürebilir ve her bekleyen alım Crashlytics'te gerçek hataları
+      // gömen sahte bir kayıt olurdu. Ekranlar bu metni hata rengiyle
+      // DEĞİL bilgi olarak gösterir (bkz. [odemeOnayBekliyor]).
+      return l10n.purchasePending;
+    case PurchasesErrorCode.configurationError:
+      // iOS'ta bu kodun en olası anı paywall'ın teklif okumasıdır:
+      // RevenueCat `getOfferings`, teklifte ürün yoksa ya da StoreKit
+      // ürünlerin hiçbirini döndürmezse (App Store Connect'te hazır/onaylı
+      // değil) bu kodu veriyor (`OfferingsManager`). Eskiden varsayılana
+      // düşüp HENÜZ SATIN ALMA YOKKEN "Satın alma tamamlanamadı" diyordu.
+      // Kullanıcının düzeltebileceği bir şey yok (kurulum bizim işimiz), bu
+      // yüzden kayıt KALIR — yanlış kurulmuş bir yayın sahada sessizce satış
+      // kaybederdi. Çizim yolundaki tekilleştirme [magazaVeyaAgHatasi]'nda.
+      if (kaydet) {
+        magazaHatasiKaydedici('store-purchase: ${e.code}: ${e.message}');
+      }
+      return l10n.billingNoPackages;
     default:
       if (kaydet) {
         magazaHatasiKaydedici('store-purchase: ${e.code}: ${e.message}');

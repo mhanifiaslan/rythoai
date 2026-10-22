@@ -1000,6 +1000,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get authFailed => 'Bir şeyler ters gitti. Tekrar dene.';
 
   @override
+  String get authAccountExistsOtherMethod =>
+      'Bu e-posta adresiyle açılmış bir hesap zaten var, ama başka bir giriş yöntemiyle. Hesabı ilk açtığın yöntemle (Google, Apple ya da e-posta ve şifre) giriş yap.';
+
+  @override
   String get authReauthNeeded =>
       'Google hesabının bu cihazda yeniden doğrulanması gerekiyor. Telefonunun Ayarlar → Google bölümüne girip hesabını doğrula (gerekirse hesabı kaldırıp yeniden ekle), sonra tekrar dene.';
 
@@ -1394,6 +1398,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get deleteAccountFailed => 'Hesap silinemedi. Lütfen tekrar dene.';
 
   @override
+  String get deleteAccountAppleCanceled =>
+      'Hesabın silinmedi: Apple onayı kapatıldı. Bu onay, Rytho\'nun Apple ile Giriş yetkisini kaldırmak için isteniyor. Silmek için tekrar dene ve onayı tamamla.';
+
+  @override
   String get deleteAccountReauth =>
       'Güvenlik için tekrar giriş yapman gerekiyor. Çıkış yapıp yeniden giriş yaptıktan sonra bu işlemi tekrarla.';
 
@@ -1424,7 +1432,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get shareFailed => 'Paylaşım kartı oluşturulamadı.';
 
   @override
-  String get signInWithApple => 'Apple ile giriş';
+  String get signInWithApple => 'Apple ile Giriş Yap';
 
   @override
   String get consentPrefix => 'Devam ederek ';
@@ -1605,6 +1613,9 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get readingCardReadMore => 'Okumaya devam et';
+
+  @override
+  String get openSystemSettings => 'Ayarlar\'ı aç';
 
   @override
   String get save => 'Kaydet';
@@ -1873,6 +1884,14 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get purchaseStoreProblem =>
       'Mağaza şu an satın almayı tamamlayamadı. Birkaç dakika sonra tekrar dene.';
+
+  @override
+  String get purchaseNotAllowedIos =>
+      'Bu cihazda uygulama içi satın almaya izin verilmiyor. Ekran Süresi kısıtlamalarını kontrol et (Ayarlar › Ekran Süresi).';
+
+  @override
+  String get purchasePending =>
+      'Ödemen onay bekliyor; onaylanınca Rytho+ / krediler otomatik açılır.';
 
   @override
   String get tokenStoreTitle => 'Kredi Mağazası';
@@ -3288,4 +3307,87 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get readingFullToggle => 'Okumanın tamamı';
+
+  @override
+  String get aiConsentTitle => 'Verilerin Google Gemini\'ye gönderilsin mi?';
+
+  @override
+  String get aiConsentIntro =>
+      'Kişisel okumaların, sohbet yanıtların ve yüz okuman üçüncü taraf bir yapay zeka hizmetiyle — Google\'ın Gemini API\'siyle — üretilir. Bu özellikleri kullandığında şu veriler Google\'a gönderilir:';
+
+  @override
+  String get aiConsentDataChart =>
+      'Doğum haritandan hesaplanan bilgiler: gezegen konumları, evler, açılar, transitler ve BaZi sütunları. Bazı okumalarda (ör. Yıl Haritası) güneş dönüşü tarihi ve şehir adları da geçer.';
+
+  @override
+  String get aiConsentDataChat =>
+      'Sohbet mesajların ve konuşmanın son kısmı; I Ching\'e sorduğun soru.';
+
+  @override
+  String get aiConsentDataMemory =>
+      'Seni tanımak için sohbetlerden çıkarılan kısa notlar, ruh hâli seyrin ve son günlük notların.';
+
+  @override
+  String get aiConsentDataPeople =>
+      'Adın (ilişki okumalarında); arkadaşlarının görünen adı ve burcu (ilişki okumalarında ve sohbette). Eklediğin kişilerin yalnız yakınlık türü (ör. \"eşin\") ve haritası gider; onlara verdiğin isim telefonunda kalır.';
+
+  @override
+  String get aiConsentDataFace =>
+      'Yüz okumasında yüz hatlarından türetilen oranlar — fotoğrafın gönderilmez.';
+
+  @override
+  String get aiConsentPurpose =>
+      'Bu veriler yalnız senin istediğin yorumu, cevabı, sabah ve öğle bildirimindeki kişisel cümleyi ve akşam sorusunu üretmek için gönderilir. Genel burç yorumları da yapay zekayla yazılır ama onlara senin verin katılmaz.';
+
+  @override
+  String get aiConsentDeclineInfo =>
+      'İzin vermezsen kişisel okumalar, sohbet ve yüz okuması kapalı kalır ve bu veriler Gemini\'ye gönderilmez. Doğum haritan, gökyüzü, takvim ve arkadaş özellikleri çalışmaya devam eder. Kararını istediğin an Profil > Gizlilik\'ten değiştirebilirsin.';
+
+  @override
+  String get aiConsentPrivacyLink => 'Ayrıntılar gizlilik politikasında';
+
+  @override
+  String get aiConsentAgree => 'Kabul ediyorum';
+
+  @override
+  String get aiConsentNotNow => 'Şimdi değil';
+
+  @override
+  String get aiConsentDeclinedSnack =>
+      'Yapay zeka özellikleri kapalı; verilerin Gemini\'ye gönderilmiyor. İstediğinde Profil > Gizlilik\'ten açabilirsin.';
+
+  @override
+  String get aiConsentSaveFailed =>
+      'İznin kaydedilemedi; bu yüzden henüz hiçbir şey gönderilmedi. Bağlantını kontrol edip tekrar dene.';
+
+  @override
+  String get aiConsentOffBody =>
+      'Bu bölüm Google Gemini ile üretiliyor ve verilerinin gönderilmesine henüz izin vermedin. İzin verene kadar hiçbir şey gönderilmez.';
+
+  @override
+  String get aiConsentTurnOn => 'Yapay zekayı aç';
+
+  @override
+  String get aiConsentSetting => 'Yapay zeka (Google Gemini)';
+
+  @override
+  String get aiConsentSettingOn =>
+      'Açık. Okuma ve sohbet için verilerin Gemini\'ye gönderilir.';
+
+  @override
+  String get aiConsentSettingOff =>
+      'Kapalı. Verilerin Gemini\'ye gönderilmez; kişisel okumalar ve sohbet çalışmaz.';
+
+  @override
+  String get aiConsentWithdrawTitle => 'Yapay zeka iznini geri al';
+
+  @override
+  String get aiConsentWithdrawBody =>
+      'Bundan sonra verilerin Gemini\'ye gönderilmez; kişisel okumalar, sohbet ve yüz okuması kapanır. Daha önce üretilmiş okumaların ve sohbet geçmişin bu işlemle silinmez.';
+
+  @override
+  String get aiConsentWithdrawConfirm => 'Geri al';
+
+  @override
+  String get aiConsentWithdrawn => 'Yapay zeka izni geri alındı.';
 }

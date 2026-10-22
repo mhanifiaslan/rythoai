@@ -20,6 +20,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/analytics.dart';
 import '../../core/api.dart' show apiProvider, friendlyError;
+import '../../core/ayarlar_kisayolu.dart';
 import '../../core/city_directory.dart' show foldTurkish;
 import '../../core/contact_match.dart';
 import '../../core/deep_links.dart' show inviteLinkFor;
@@ -35,7 +36,10 @@ import '../../l10n/app_localizations.dart';
 import '../profile/phone_verify_screen.dart' show PhoneVerifyScreen;
 
 class ContactsScreen extends ConsumerStatefulWidget {
-  const ContactsScreen({super.key});
+  const ContactsScreen({super.key, this.ayarlarAcici});
+
+  /// Test dikişi; üretimde `url_launcher`.
+  final AyarlarAcici? ayarlarAcici;
 
   @override
   ConsumerState<ContactsScreen> createState() => _ContactsScreenState();
@@ -111,6 +115,19 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       );
     }
     if (sonuc.blocker == ContactMatchBlocker.izinYok) {
+      // iOS rehber iznini bir kez sorar; ret sonrası `requestPermission`
+      // diyalogsuz `false` döner ve "Tekrar dene" bir daha hiçbir şey
+      // sormaz. Orada asıl eylem Ayarlar, yeniden deneme ikincil (U23).
+      if (ayarlarKisayoluVar) {
+        return _EngelKarti(
+          baslik: l10n.contactMatchPermTitle,
+          metin: l10n.contactMatchPermBody,
+          eylem: l10n.openSystemSettings,
+          onTap: () => uygulamaAyarlariniAc(acici: widget.ayarlarAcici),
+          ikincilEylem: l10n.contactMatchRetry,
+          ikincilOnTap: () => ref.invalidate(contactMatchesProvider),
+        );
+      }
       return _EngelKarti(
         baslik: l10n.contactMatchPermTitle,
         metin: l10n.contactMatchPermBody,
@@ -216,12 +233,19 @@ class _EngelKarti extends StatelessWidget {
     required this.metin,
     required this.eylem,
     required this.onTap,
+    this.ikincilEylem,
+    this.ikincilOnTap,
   });
 
   final String baslik;
   final String metin;
   final String eylem;
   final VoidCallback onTap;
+
+  /// Asıl eylemin altındaki hafif metin düğmesi; yalnız ikisi birlikte
+  /// verildiğinde çizilir.
+  final String? ikincilEylem;
+  final VoidCallback? ikincilOnTap;
 
   @override
   Widget build(BuildContext context) {
@@ -240,6 +264,10 @@ class _EngelKarti extends StatelessWidget {
                 style: RythoText.body(13, color: RythoColors.parchmentDim)),
             const SizedBox(height: RythoSpace.lg + RythoSpace.xxs),
             GoldButton(text: eylem, filled: false, onPressed: onTap),
+            if (ikincilEylem != null && ikincilOnTap != null) ...[
+              const SizedBox(height: 4),
+              TextButton(onPressed: ikincilOnTap, child: Text(ikincilEylem!)),
+            ],
           ],
         ),
       ),
