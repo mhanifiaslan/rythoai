@@ -36,6 +36,13 @@ madde ya ölçülerek bulundu ya da bir kez zarar verdi. Windows makinesinde
 >   sertifikası **0**, bağlı iPhone **yok** (sahip: haftaya). `firebase`,
 >   `gcloud`, `pwsh`, Java ve tam Android SDK **kurulu değil**.
 > - 4.10 kodu hazır (`31ee208`): **deploy edilmedi, cihazda ölçülmedi.**
+> - ⚠️ **Hosting deploy'u BEKLET** (hangi makineden olursa olsun). Birleşmiş
+>   `web/legal/` gizlilik metni U06'nın onay ekranını anlatıyor ("uygulama
+>   içinde ayrı ve açık izninizi isteriz"). Canlıdaki Android 1.20.0+53'te o
+>   ekran YOK — onay ekranlı ilk paket (Android 54+ ya da iOS) yayınlanmadan
+>   deploy edilirse politika canlı uygulama için yanlış beyan olur. Canlıda
+>   ölçülen (2026-10-22): AASA hâlâ `TEAMID` + yalnız `/i/*`, gizlilik
+>   sayfası 17 Ekim.
 Uzak depo: `https://github.com/mhanifiaslan/rythoai.git`
 (GitHub deposu `rhytoai` → `rythoai` olarak yeniden adlandırılmış; eski
 adres hâlâ yönlendiriyor ama **yeni adresi kullan** — yönlendirme kalıcı

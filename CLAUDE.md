@@ -950,6 +950,12 @@ dört hafta push edilmeden Mac'te kaldı ve Windows habersiz ilerledi —
 belgeler "TEAMID yer tutucu", "imza yok" diyordu, 29 dosyada çakışma
 çıktı. **İki makinede çalışırken iş push edilmeden "bitti" sayılmaz.**
 
+⚠️ **Hosting deploy'u BEKLET** (2026-10-22): birleşmiş `web/legal/`
+gizlilik metni U06'nın onay ekranını anlatıyor; canlıdaki Android
+1.20.0+53'te o ekran yok. Onay ekranlı ilk paket (Android 54+ ya da iOS)
+yayınlanmadan `firebase deploy --only hosting` canlı uygulama için yanlış
+beyan yayınlar. Ayrıntı `docs/mac-devir.md` üst kutu.
+
 ⚠️ **Kayıt bir kez `app.rytho` diye açıldı** (`ai` yerine `app`). İnen
 plist o kimliği taşıyordu ve `FirebaseApp.configure()` uyuşmazlığı **hata
 değil UYARI** ile geçiyor: uygulama "çalışıyor" görünürken App Check (App
