@@ -2048,11 +2048,11 @@ abstract class AppLocalizations {
   /// **'Şikayet gönderilemedi.'**
   String get reportFailed;
 
-  /// No description provided for @aFriend.
+  /// No description provided for @someRythoUser.
   ///
   /// In tr, this message translates to:
-  /// **'Bir arkadaşın'**
-  String get aFriend;
+  /// **'Bir Rytho kullanıcısı'**
+  String get someRythoUser;
 
   /// No description provided for @iChingIntro.
   ///
@@ -4147,6 +4147,30 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Engel kaldırılamadı. Tekrar dene.'**
   String get unblockFailed;
+
+  /// No description provided for @inviteBlockedTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu kişiyi engellemişsin'**
+  String get inviteBlockedTitle;
+
+  /// No description provided for @inviteBlockedBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} için engel kaldırılıp davet gönderilsin mi? Engel kalkınca sana yeniden arkadaşlık isteği gönderebilir.'**
+  String inviteBlockedBody(String name);
+
+  /// No description provided for @inviteBlockedConfirm.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engeli kaldır ve davet et'**
+  String get inviteBlockedConfirm;
+
+  /// No description provided for @inviteNotSent.
+  ///
+  /// In tr, this message translates to:
+  /// **'Davet gönderilemedi.'**
+  String get inviteNotSent;
 
   /// No description provided for @peopleSlotsOver.
   ///

@@ -5,11 +5,15 @@ kaydı OKUYAN hiçbir şey yoktu. Engellenen kişi yeni arkadaşlık isteği
 atabiliyor, alıcıya davet push'u düşüyordu; inceleyici bunu engellemenin
 işlemediği diye okur. Üç kapı sabitleniyor:
 
-1. firestore.rules — friends counterpart create dalı engel kaydına bakar.
+1. firestore.rules — friends create'in İKİ dalı da engel kaydına bakar:
+   counterpart (`incoming`) alıcının listesine — engellenen davet atamaz;
+   sahip (`outgoing`) gönderenin listesine `existsAfter` ile — engelleyen
+   de engellediğine davet atamaz, meğer engeli aynı batch'te silsin.
    Emülatör koşum düzeneği yok; test_face_consent'teki gibi statik bekçi:
    yorumlar atılır (bekçi kuralı ANLATAN yorumu görüp geçmesin), koruma
-   `incoming` dalının İÇİNDE aranır.
-2. /notify/invite — alıcı göndereni engellediyse push atlanır.
+   ilgili dalın İÇİNDE aranır.
+2. /notify/invite ve /notify/reaction — alıcı göndereni engellediyse push
+   atlanır.
 3. /contacts/match — engelleyenin kartı engellenene dönmez.
 
 Çalıştırma:
@@ -90,6 +94,32 @@ def test_kural_engellenen_gelen_davet_kenari_kuramaz():
     # 'incoming' yazabilen TEK dal korumalı dal olmalı; korumasız ikinci
     # bir `|| (counterpart() && ... 'incoming')` kapıyı delerdi.
     assert create.count("'incoming'") == 1, create
+
+
+_ENGELLEYEN_KORUMASI = re.compile(
+    r"\(\s*isOwner\(uid\)\s*&&\s*request\.resource\.data\.status\s*==\s*"
+    r"'outgoing'\s*&&\s*!existsAfter\(/databases/\$\(database\)/documents/"
+    r"users/\$\(uid\)/blocked/\$\(otherUid\)\)\s*\)")
+
+
+def test_kural_engelleyen_engelledigine_davet_atamaz():
+    """İkinci yön (U17 incelemesi): A, B'yi engelledikten sonra B'ye davet
+    atabiliyordu; B kabul edince ikisi `accepted` arkadaş olurdu ve engel
+    kaydı dururken B dürtme atabilirdi.
+
+    Burada `uid` davetin GÖNDERENİ (sahip dalı), yani gönderenin kendi
+    listesine bakılır. `exists` DEĞİL `existsAfter` olmalı: istemci "engeli
+    kaldır + davet et"i tek batch'te yazıyor ve batch kuralları `exists`
+    ile yazım ÖNCESİ durumu görür — `exists` yazılsa kural derlenir ama
+    meşru engel kaldırma daveti de düşerdi.
+    """
+    create = _ifade(_kurallar_yorumsuz(), "match /friends/{otherUid}",
+                    "create")
+    assert _ENGELLEYEN_KORUMASI.search(create), (
+        "friends create'in 'outgoing' dalında engelleyen kapısı yok, yönü "
+        "ters ya da existsAfter değil (U17).\n" + create)
+    # 'outgoing' yazabilen TEK dal korumalı dal olmalı.
+    assert create.count("'outgoing'") == 1, create
 
 
 def test_kural_durtme_kabul_edilmis_arkadaslik_istiyor():
@@ -176,7 +206,9 @@ def _davet_deposu(engel_yolu: str | None) -> SahteFirestore:
     return SahteFirestore(docs)
 
 
-def _davet_gonder(monkeypatch, depo: SahteFirestore) -> tuple[dict, list]:
+def _davet_gonder(monkeypatch, depo: SahteFirestore,
+                  yol: str = "/api/v1/notify/invite",
+                  govde: dict | None = None) -> tuple[dict, list]:
     _depoya_bagla(monkeypatch, depo)
     monkeypatch.setattr(config, "DEV_MODE", True)
     monkeypatch.setattr(ns, "already_sent", lambda uid, tur, gun: False)
@@ -191,8 +223,8 @@ def _davet_gonder(monkeypatch, depo: SahteFirestore) -> tuple[dict, list]:
 
     monkeypatch.setattr(push_service, "send", sahte_send)
     with TestClient(app) as client:
-        yanit = client.post("/api/v1/notify/invite",
-                            json={"friend_uid": "alici"},
+        yanit = client.post(yol,
+                            json=govde or {"friend_uid": "alici"},
                             headers={"Authorization": "Bearer test"})
     assert yanit.status_code == 200, yanit.text
     return yanit.json(), giden + isaretlenen
@@ -226,7 +258,55 @@ def test_davet_pushu_gonderenin_kendi_engeline_bakmaz(monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# 4. /contacts/match
+# 4. /notify/reaction
+# --------------------------------------------------------------------------
+
+def _arkadas_deposu(engel_yolu: str | None) -> SahteFirestore:
+    """KABUL EDİLMİŞ arkadaşlık + (isteğe bağlı) engel kaydı BİRLİKTE.
+
+    Kural dağıtılmadan önce gerçekten oluşabilen hâl: eski pakette
+    engelleyen davet kapısı yoktu; engellediğini yeniden davet edip
+    arkadaş olan kullanıcının engel kaydı yerinde kalır.
+    """
+    depo = _davet_deposu(engel_yolu)
+    depo.collection("users").document("alici").collection(
+        "friends").document("dev-user").set({"status": "accepted"})
+    depo.collection("users").document("dev-user").collection(
+        "friends").document("alici").set({"status": "accepted"})
+    return depo
+
+
+_TEPKI = {"friend_uid": "alici", "reaction": "hug"}
+
+
+@uygulama_gerekir
+def test_tepki_pushu_engelleyene_gitmez(monkeypatch):
+    govde, iz = _davet_gonder(
+        monkeypatch, _arkadas_deposu("users/alici/blocked/dev-user"),
+        yol="/api/v1/notify/reaction", govde=_TEPKI)
+    assert govde == {"status": "skipped", "reason": "engelli"}
+    assert iz == [], "push gönderildi ya da tekrar koruması işaretlendi"
+
+
+@uygulama_gerekir
+def test_tepki_pushu_engel_yoksa_gider(monkeypatch):
+    """Eş test: aynı arkadaşlık, engel kaydı yok → push gider."""
+    govde, iz = _davet_gonder(monkeypatch, _arkadas_deposu(None),
+                              yol="/api/v1/notify/reaction", govde=_TEPKI)
+    assert govde == {"status": "ok", "sent": 1}
+    assert len(iz) == 2
+
+
+@uygulama_gerekir
+def test_tepki_pushu_gonderenin_kendi_engeline_bakmaz(monkeypatch):
+    govde, _ = _davet_gonder(
+        monkeypatch, _arkadas_deposu("users/dev-user/blocked/alici"),
+        yol="/api/v1/notify/reaction", govde=_TEPKI)
+    assert govde["status"] == "ok"
+
+
+# --------------------------------------------------------------------------
+# 5. /contacts/match
 # --------------------------------------------------------------------------
 
 def _rehber_deposu(monkeypatch, ek: dict) -> None:

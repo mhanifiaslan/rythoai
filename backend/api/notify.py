@@ -233,6 +233,16 @@ def reaction(req: ReactionPush,
         raise HTTPException(status_code=403,
                             detail=text("dyad.not_friends", lang))
 
+    # U17: alıcı göndereni engellediyse push YOK. Engelleme iki kenarı da
+    # sildiği için `are_friends` bunu çoğu zaman zaten keser; kalan hâl
+    # engel kaydıyla `accepted` kenarların BİRLİKTE durması — kural
+    # dağıtılmadan önce (eski pakette engelleyen davet kapısı yoktu)
+    # engellediğini yeniden davet edip arkadaş olan kullanıcı. O kayıtlar
+    # dağıtımdan sonra da yerinde kalır. İstemci gelen kutusunu da süzüyor.
+    if profile_service.has_blocked(req.friend_uid, user.uid):
+        logger.info("Tepki bildirimi atlandi (%s): engelli", req.friend_uid)
+        return {"status": "skipped", "reason": "engelli"}
+
     alici = profile_service.get_profile(req.friend_uid) or {}
     alici["uid"] = req.friend_uid
     gonder, gerekce = notification_service.can_send_event(alici, "friend")

@@ -238,18 +238,38 @@ Future<String?> uidForUsername(String rawUsername) async {
 }
 
 /// Davet gönderir: kendi listeme `outgoing`, karşı tarafa `incoming` yazılır.
-Future<void> sendFriendRequest(String otherUid) async {
+///
+/// [engeliKaldir]: davet edilen kişi BENİM engel listemde ve kullanıcı
+/// engeli kaldırmayı onayladı (`davetEngelKapisi`, core/safety.dart). Engel
+/// kaydının silimi iki kenarla AYNI batch'te gider: kural sahip dalında
+/// `existsAfter` ile bakıyor, yani silim ayrı bir yazım olsaydı ya önce
+/// engel kalkıp davet düşebilir (engel boşuna gitmiş olur) ya da davet
+/// engel dururken reddedilirdi.
+Future<void> sendFriendRequest(String otherUid,
+    {bool engeliKaldir = false}) async {
   final uid = _myUid;
   if (uid == null) throw StateError('Oturum yok');
   if (otherUid == uid) throw ArgumentError('Kendini ekleyemezsin.');
 
   final now = FieldValue.serverTimestamp();
   final batch = _db.batch();
+  if (engeliKaldir) batch.delete(_engelKaydi(uid, otherUid));
   batch.set(_friendsOf(uid).doc(otherUid),
       {'status': 'outgoing', 'createdAt': now, 'updatedAt': now});
   batch.set(_friendsOf(otherUid).doc(uid),
       {'status': 'incoming', 'createdAt': now, 'updatedAt': now});
   await batch.commit();
+}
+
+DocumentReference<Map<String, dynamic>> _engelKaydi(
+        String sahipUid, String hedefUid) =>
+    _db.collection('users').doc(sahipUid).collection('blocked').doc(hedefUid);
+
+/// [hedefUid] benim engel listemde mi? Davet öncesi soru kapısı için.
+Future<bool> engelledimMi(String hedefUid) async {
+  final uid = _myUid;
+  if (uid == null) return false;
+  return (await _engelKaydi(uid, hedefUid).get()).exists;
 }
 
 /// Gelen daveti kabul eder: iki taraf da `accepted` olur.

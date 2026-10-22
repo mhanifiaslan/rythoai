@@ -1103,7 +1103,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get reportFailed => 'Şikayet gönderilemedi.';
 
   @override
-  String get aFriend => 'Bir arkadaşın';
+  String get someRythoUser => 'Bir Rytho kullanıcısı';
 
   @override
   String get iChingIntro =>
@@ -2350,6 +2350,20 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get unblockFailed => 'Engel kaldırılamadı. Tekrar dene.';
+
+  @override
+  String get inviteBlockedTitle => 'Bu kişiyi engellemişsin';
+
+  @override
+  String inviteBlockedBody(String name) {
+    return '$name için engel kaldırılıp davet gönderilsin mi? Engel kalkınca sana yeniden arkadaşlık isteği gönderebilir.';
+  }
+
+  @override
+  String get inviteBlockedConfirm => 'Engeli kaldır ve davet et';
+
+  @override
+  String get inviteNotSent => 'Davet gönderilemedi.';
 
   @override
   String peopleSlotsOver(int limit, int used) {

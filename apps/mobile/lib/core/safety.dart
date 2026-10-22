@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
+import '../widgets/onay.dart' show onayla;
+import 'api.dart' show friendlyError;
+import 'friends.dart' show engelledimMi;
 import 'providers.dart' show authStateProvider;
 
 /// Kullanıcı güvenliği yardımcıları: şikayet (report) ve engelleme (block).
@@ -177,9 +180,8 @@ class EngellenenKullanici {
 /// Engellenenler).
 ///
 /// Ad `publicProfiles/{uid}`den okunur — kural `get`'i girişli herkese
-/// açıyor, `users/{uid}` ise yalnız sahibine. Kart yoksa ya da okunamazsa
-/// satır ADSIZ çizilir ama çizilir: engeli kaldırma yolu adı bilinmeyen
-/// kişi için de açık kalmalı.
+/// açıyor, `users/{uid}` ise yalnız sahibine. Satırların kuruluşu
+/// [engellenenleriKur]da (saf, ölçülebilir).
 ///
 /// Eski `blockedUsersProvider`ın (providers.dart) yerine geçti. O sağlayıcı
 /// "akış ve mesajlar bu kümeye göre filtrelenir" diyordu ama hiçbir yer onu
@@ -190,34 +192,153 @@ final engellenenlerProvider =
   final user = ref.watch(authStateProvider).value;
   if (user == null) return Stream.value(const <EngellenenKullanici>[]);
   final db = FirebaseFirestore.instance;
-  return db
-      .collection('users')
-      .doc(user.uid)
-      .collection('blocked')
-      .snapshots()
-      .asyncMap((snapshot) async {
-    final liste = <EngellenenKullanici>[];
-    for (final doc in snapshot.docs) {
-      Map<String, dynamic>? kart;
-      try {
-        kart = (await db.collection('publicProfiles').doc(doc.id).get()).data();
-      } catch (_) {
-        // Adsız satır; yukarıdaki gerekçe.
-      }
-      final at = doc.data()['at'];
-      liste.add(EngellenenKullanici(
-        uid: doc.id,
-        displayName: kart?['displayName'] as String?,
-        username: kart?['username'] as String?,
-        at: at is Timestamp ? at.toDate() : null,
-      ));
-    }
-    // En yeni engel üstte. Zamanı henüz inmemiş kayıt az önce yazılmıştır.
-    liste.sort((a, b) {
-      if (a.at == null) return b.at == null ? 0 : -1;
-      if (b.at == null) return 1;
-      return b.at!.compareTo(a.at!);
-    });
-    return liste;
+  return _engelKoleksiyonu(user.uid).snapshots().asyncMap((snapshot) {
+    final kayitlar = [
+      for (final doc in snapshot.docs)
+        (
+          uid: doc.id,
+          at: switch (doc.data()['at']) {
+            final Timestamp t => t.toDate(),
+            _ => null,
+          },
+        ),
+    ];
+    return engellenenleriKur(kayitlar,
+        (uid) async => (await db.collection('publicProfiles').doc(uid).get())
+            .data());
   });
 });
+
+/// `blocked` kayıtlarından Engellenenler satırlarını kurar — SAF: kart
+/// okuyucu dışarıdan gelir, sahte Firestore olmadan ölçülür.
+///
+/// İki söz burada tutulur: kartı OKUNAMAYAN (silinmiş hesap, ağ hatası)
+/// kişi listeden DÜŞMEZ — satır adsız çizilir, çünkü engeli kaldırma yolu
+/// adı bilinmeyen kişi için de açık kalmalı; ve en yeni engel üstte —
+/// zamanı henüz inmemiş (`at == null`) kayıt az önce yazılmıştır, en üste.
+Future<List<EngellenenKullanici>> engellenenleriKur(
+  Iterable<({String uid, DateTime? at})> kayitlar,
+  Future<Map<String, dynamic>?> Function(String uid) kartOku,
+) async {
+  final liste = <EngellenenKullanici>[];
+  for (final kayit in kayitlar) {
+    Map<String, dynamic>? kart;
+    try {
+      kart = await kartOku(kayit.uid);
+    } catch (_) {
+      // Adsız satır; yukarıdaki gerekçe.
+    }
+    liste.add(EngellenenKullanici(
+      uid: kayit.uid,
+      displayName: kart?['displayName'] as String?,
+      username: kart?['username'] as String?,
+      at: kayit.at,
+    ));
+  }
+  liste.sort((a, b) {
+    if (a.at == null) return b.at == null ? 0 : -1;
+    if (b.at == null) return 1;
+    return b.at!.compareTo(a.at!);
+  });
+  return liste;
+}
+
+CollectionReference<Map<String, dynamic>> _engelKoleksiyonu(String uid) =>
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('blocked');
+
+/// Engellediğim kişilerin kimlikleri — gelen kutusu süzgeci için
+/// ([gorunurTepkiler]); kart okumaz.
+final engellenenKimliklerProvider = StreamProvider<Set<String>>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return Stream.value(const <String>{});
+  return _engelKoleksiyonu(user.uid)
+      .snapshots()
+      .map((s) => s.docs.map((d) => d.id).toSet());
+});
+
+/// Gelen kutusunda gösterilecek tepkiler: engellediklerimin tepkileri düşer.
+///
+/// NEDEN süzgeç, silim değil: engelleme engellenenin ESKİ tepkilerine
+/// dokunmuyor (göndericiye göre silmek önce okumayı ister, batch okumaz) ve
+/// kutuda "Bir arkadaşın · Seni düşündüm" gibi kalıyorlardı. Süzgeç eski veriyi
+/// de, kural dağıtılmadan önce kurulmuş arkadaşlıkları da kapsar.
+///
+/// Engel listesi henüz YOKSA (yükleniyor, okunamadı) hiçbir tepki
+/// gösterilmez: engellenenin tepkisinin bir an görünmesi, meşru tepkinin
+/// bir an gecikmesinden ağırdır — tepkiler Firestore'da durur, liste
+/// gelince görünür.
+List<Map<String, dynamic>> gorunurTepkiler(
+    List<Map<String, dynamic>> tepkiler, Set<String>? engellenenler) {
+  if (engellenenler == null) return const [];
+  return [
+    for (final t in tepkiler)
+      if (!engellenenler.contains(t['fromUid'])) t,
+  ];
+}
+
+/// Davetten önce engel kararı (U17 incelemesi).
+enum DavetKarari {
+  /// Engel yok: düz davet.
+  gonder,
+
+  /// Engel var, kullanıcı kaldırmayı onayladı: engel silimi davetle TEK
+  /// batch'te (`sendFriendRequest(engeliKaldir: true)`).
+  engeliKaldirVeGonder,
+
+  /// Engel var, kullanıcı vazgeçti: hiçbir şey yazılmaz.
+  vazgec,
+}
+
+/// Engel okuma işlevi — TEST DİKİŞİ ([engelleyiciProvider] gerekçesi).
+final engelKontroluProvider =
+    Provider<Future<bool> Function(String uid)>((_) => engelledimMi);
+
+/// Engellediğin kişiye davet atmadan önce sorar.
+///
+/// NEDEN: kural sahip dalında engel kaydına bakıyor (`existsAfter`) —
+/// engelleyen, engellediğine davet atamaz. Soru olmasaydı o davet
+/// `permission-denied` ile düşer ve kullanıcı nedenini bilmezdi; kendi
+/// koyduğu engeli unutmuş olabilir. Kaldırma yanlış dokunuşla olmamalı:
+/// onay ister ([onayla]; yıkıcı değil, geri dönüşü var).
+///
+/// Engel OKUNAMAZSA düz davet denenir ve engel KALDIRILMAZ: engel varsa
+/// kural reddeder, kullanıcı nötr cümleyi görür ([davetHataMetni]).
+/// Kaldırma yolu yalnız açık onayla açılır.
+Future<DavetKarari> davetEngelKapisi(
+    BuildContext context, WidgetRef ref, String hedefUid, String ad) async {
+  final l10n = AppLocalizations.of(context);
+  final kontrol = ref.read(engelKontroluProvider);
+  bool engelli;
+  try {
+    engelli = await kontrol(hedefUid);
+  } catch (_) {
+    return DavetKarari.gonder;
+  }
+  if (!engelli) return DavetKarari.gonder;
+  if (!context.mounted) return DavetKarari.vazgec;
+  final tamam = await onayla(
+    context,
+    title: l10n.inviteBlockedTitle,
+    body: l10n.inviteBlockedBody(ad),
+    confirmLabel: l10n.inviteBlockedConfirm,
+  );
+  return tamam ? DavetKarari.engeliKaldirVeGonder : DavetKarari.vazgec;
+}
+
+/// Davet yazımı düşünce gösterilecek cümle.
+///
+/// `permission-denied` → nötr "Davet gönderilemedi.": kural dağıtılınca
+/// engellenen kişinin davet batch'i bununla düşüyor ve `friendlyError` onu
+/// "beklenmeyen bir sorun… biraz sonra tekrar dene"ye çeviriyordu — o
+/// deneme hiç tutmaz. Cümle engeli ELE VERMEZ (engellenene engellendiği
+/// söylenmez) ve tekrar denemeyi önermez. Diğer hatalar (bağlantı vb.)
+/// ortak süzgeçten geçer.
+String davetHataMetni(Object hata, AppLocalizations l10n) {
+  if (hata is FirebaseException && hata.code == 'permission-denied') {
+    return l10n.inviteNotSent;
+  }
+  return friendlyError(hata, l10n);
+}

@@ -30,7 +30,8 @@ class EngellenenlerEkrani extends ConsumerWidget {
           child: Text(l10n.blockedUsersNote, style: RythoType.bodyDim),
         ),
         // `bosMu` VERİLMEDİ: boş liste bölümü gizlemez, "kimse yok" der —
-        // gizlenseydi boş liste ile yüklenemeyen liste ayırt edilemezdi.
+        // gizlenseydi engellediği kimse olmayan kullanıcıya sayfa (notun
+        // altında) hiçbir şey söylemezdi.
         AsyncBolum<List<EngellenenKullanici>>(
           durum: ref.watch(engellenenlerProvider),
           onRetry: () => ref.invalidate(engellenenlerProvider),
@@ -72,11 +73,12 @@ class _EngelliSatiri extends ConsumerWidget {
 
     // `SettingsRow` KULLANILMADI: `trailing` yuvası esnemiyor ve "Engeli
     // kaldır" 320 dp × 1,3'te satırı taşırıyordu (engelleme_test dar ekran
-    // bekçisi ölçtü). Görünüm aynı (ikon + başlık + alt yazı, SettingsRow
-    // dolguları); `Wrap` sığmayınca düğmeyi alt satıra indirir.
+    // bekçisi ölçtü). Görünüm aynı: ikon + başlık + alt yazı ve
+    // SettingsRow'un dolguları (yatay lg, dikey md); `Wrap` sığmayınca
+    // düğmeyi alt satıra indirir.
     return Padding(
       padding: const EdgeInsets.symmetric(
-          horizontal: RythoSpace.lg, vertical: RythoSpace.sm),
+          horizontal: RythoSpace.lg, vertical: RythoSpace.md),
       child: SizedBox(
         width: double.infinity,
         child: Wrap(

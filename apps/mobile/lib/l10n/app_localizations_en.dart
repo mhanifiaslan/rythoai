@@ -1140,7 +1140,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportFailed => 'The report couldn\'t be sent.';
 
   @override
-  String get aFriend => 'A friend';
+  String get someRythoUser => 'A Rytho user';
 
   @override
   String get iChingIntro =>
@@ -2425,6 +2425,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unblockFailed => 'Couldn\'t unblock. Try again.';
+
+  @override
+  String get inviteBlockedTitle => 'You\'ve blocked this person';
+
+  @override
+  String inviteBlockedBody(String name) {
+    return 'Unblock $name and send the invite? Once unblocked, they can send you friend requests again.';
+  }
+
+  @override
+  String get inviteBlockedConfirm => 'Unblock and invite';
+
+  @override
+  String get inviteNotSent => 'Couldn\'t send the invite.';
 
   @override
   String peopleSlotsOver(int limit, int used) {

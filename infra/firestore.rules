@@ -196,8 +196,10 @@ service cloud.firestore {
       //
       // Kayıt YALNIZ SAKLANMIYOR, UYGULANIYOR (U17, App Store 1.2): aşağıda
       // friends counterpart create dalı bu dokümana bakıp engellenenin
-      // yeni davet kenarını reddediyor; sunucu /notify/invite push'unu
-      // ve rehber eşleşmesini de aynı kayda göre kesiyor.
+      // yeni davet kenarını reddediyor, sahip dalı da engelleyenin
+      // engellediğine davetini (engel aynı batch'te silinmedikçe);
+      // sunucu /notify/invite ve /notify/reaction push'unu ve rehber
+      // eşleşmesini de aynı kayda göre kesiyor.
       //
       // `update` neden açık: istemci engellemeyi arkadaşlık kenarlarının
       // silinmesiyle TEK batch'te yazıyor (core/safety.dart
@@ -274,8 +276,19 @@ service cloud.firestore {
         // 'outgoing' kenarı alıcının ağacına hiçbir şey koymaz.
         // Dürtme için ayrı kapı gerekmiyor: nudges create kabul edilmiş
         // arkadaşlık istiyor ve engelleme iki kenarı da siliyor.
+        //
+        // İkinci yön (U17 incelemesi): ENGELLEYEN de engellediğine davet
+        // atamaz — engel kaydı durdukça. Kapı olmasaydı A, B'yi engelleyip
+        // sonra davet atabilir, B kabul edince ikisi `accepted` arkadaş
+        // olurdu ve `users/A/blocked/B` dururken B dürtme atabilir, A'nın
+        // Engellenenler listesinde de görünmeye devam ederdi. İstemci
+        // önce sorar, evet derse engel silimini iki kenarla AYNI batch'te
+        // gönderir. `exists` DEĞİL `existsAfter`: batch kuralları yazım
+        // ÖNCESİ durumu görür, `exists` aynı batch'te silinen kaydı hâlâ
+        // var sayar ve meşru "engeli kaldır + davet et" yazımı düşerdi.
         allow create: if sadeceIzinliAlan() && (
-          (isOwner(uid) && request.resource.data.status == 'outgoing') ||
+          (isOwner(uid) && request.resource.data.status == 'outgoing'
+            && !existsAfter(/databases/$(database)/documents/users/$(uid)/blocked/$(otherUid))) ||
           (counterpart() && request.resource.data.status == 'incoming'
             && !exists(/databases/$(database)/documents/users/$(uid)/blocked/$(request.auth.uid)))
         );

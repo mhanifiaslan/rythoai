@@ -401,14 +401,20 @@ class _InboxPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final nudges = ref.watch(myNudgesProvider).value ?? const [];
+    // U17: engellediklerimin tepkileri süzülür (eski tepkiler dahil).
+    final nudges = gorunurTepkiler(ref.watch(myNudgesProvider).value ?? const [],
+        ref.watch(engellenenKimliklerProvider).value);
     if (nudges.isEmpty) return const SizedBox.shrink();
 
+    // Gönderen listede yoksa NÖTR ad: tepkiyi yalnız kabul edilmiş arkadaş
+    // atabilir ama o arkadaşlık sonradan bitmiş olabilir (çıkarma) ya da
+    // liste henüz gelmemiştir. "Bir arkadaşın" ikisinde de yanlış bir beyan
+    // olurdu.
     String nameOf(String? uid) {
       for (final friend in friends) {
         if (friend.uid == uid) return friend.ad(l10n);
       }
-      return l10n.aFriend;
+      return l10n.someRythoUser;
     }
 
     return GlassPanel(
@@ -1005,7 +1011,12 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
         setState(() => _message = l10n.userNotFound(username));
         return;
       }
-      await sendFriendRequest(uid);
+      if (!mounted) return;
+      // U17: engellediğin kişiye davet ancak engeli kaldırarak gider.
+      final karar = await davetEngelKapisi(context, ref, uid, '@$username');
+      if (karar == DavetKarari.vazgec) return;
+      await sendFriendRequest(uid,
+          engeliKaldir: karar == DavetKarari.engeliKaldirVeGonder);
       // Davet push'u (OB2): kenarlar yazıldıktan SONRA — sunucu gerçek
       // `incoming` kenarını doğruluyor. Ateşle-unut; UI beklemez.
       unawaited(notifyInvite(dio, uid));
@@ -1015,7 +1026,7 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
       messenger.showSnackBar(
           SnackBar(content: Text(l10n.inviteSent(username))));
     } catch (e) {
-      if (mounted) setState(() => _message = friendlyError(e, l10n));
+      if (mounted) setState(() => _message = davetHataMetni(e, l10n));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
