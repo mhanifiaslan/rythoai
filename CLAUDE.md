@@ -964,8 +964,10 @@ bozulurdu. Firebase bundle kimliğini **düzenlettirmiyor** — kayıt silinip
 yeniden açıldı. Bekçi: `backend/tests/test_ios_config.py`, kimliği beş
 dosyada birden bağlıyor (pbxproj ×3, gradle, AASA, plist).
 
-**Kod engeli (U56, 2026-10-22):** birleşmiş dal iOS için DERLENMİYOR —
-aşağıdaki `app_settings` tuzağı. **Hesap işleri:** ücretli üyelik teyidi ·
+**U56 (2026-10-22):** birleşmiş dal iOS için derlenmiyordu (aşağıdaki
+`app_settings` tuzağı); 7.0.0'a sabitlendi, iOS simülatör derlemesi geçti.
+⚠️ Android derlemesi 7.0.0 ile henüz ÖLÇÜLMEDİ (Windows, `build-aab.ps1`).
+**Hesap işleri:** üyelik ücretli ve etkin (sahip teyidi) ·
 Xcode'da takım hesabı (bu Mac'te imza sertifikası 0) · APNs anahtarı ·
 gerçek `appl_` RevenueCat anahtarı (şu anki `test_` önekli) · App Store
 Connect kaydı ve IAP ürünleri. Team ID `292WJ9TP74` (2026-09-27): AASA'ya

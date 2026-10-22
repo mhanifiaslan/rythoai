@@ -97,7 +97,15 @@ dependencies:
   # Üçüncü parti atıf SDK'sı (Branch vb.) alınmadı; gerekçe
   # lib/core/partner_referrer.dart başlığında.
   play_install_referrer: ^0.5.0
-  app_settings: ^9.0.0
+  # 7.0.0'a SABİT (U56, sahip kararı 2026-10-22): 8.0.0 iOS'ta CocoaPods
+  # desteğini bıraktı, yalnız Swift Package Manager. Bu depo SPM'i bilerek
+  # kapalı tutuyor (aşağıda `enable-swift-package-manager: false`, U25:
+  # SPM + Pods Google kütüphanelerini iki kez bağlıyordu) ve Flutter o
+  # durumda iOS derlemesini DURDURUYOR — `flutter test` yeşil kalırken.
+  # `openAppSettings` API'si 7→9 değişmedi. Yükseltmeden önce: SPM'e geçiş
+  # kararı (U25 yeniden ölçülerek) ya da eklentinin yerini alacak bir yol.
+  # ⚠️ Android derlemesi (AGP 9.0.1) 7.0.0 ile Mac'te ölçülemedi.
+  app_settings: 7.0.0
 
 dev_dependencies:
   flutter_test:

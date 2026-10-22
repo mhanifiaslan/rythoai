@@ -28,10 +28,11 @@ madde ya ölçülerek bulundu ya da bir kez zarar verdi. Windows makinesinde
 >   15'i push edilmemişti) bu dala **birleşti**: `8d6f67b`. U-kimlikli
 >   kayıt `docs/ios-uyum-denetimi.md`'de (55 kayıt + birleşme notları).
 >   Bu belgenin 4.2/4.4/4.8 maddeleri o işe göre güncellendi.
-> - ⛔ **Birleşmiş dal iOS için DERLENMİYOR (U56).** Windows'un D3'te
->   eklediği `app_settings` 8.0+ iOS'ta yalnız Swift Package Manager
->   destekliyor; depo ise U25 gereği CocoaPods'ta (SPM kapalı). Karar
->   sahipte — §6.
+> - **U56:** Windows'un D3'te eklediği `app_settings` 8.0+ iOS'ta yalnız
+>   Swift Package Manager destekliyor, depo ise U25 gereği CocoaPods'ta;
+>   birleşmiş dal iOS için derlenmiyordu. Sahip kararıyla **7.0.0'a
+>   sabitlendi**: iOS simülatör derlemesi geçti ve uygulama açıldı (giriş
+>   ekranı, ölçüldü). ⚠️ **Android derlemesi 7.0.0 ile ÖLÇÜLMEDİ** — §6.
 > - Bu Mac: Xcode 26.6 seçili, Flutter 3.44.7, CocoaPods 1.17.0. İmza
 >   sertifikası **0**, bağlı iPhone **yok** (sahip: haftaya). `firebase`,
 >   `gcloud`, `pwsh`, Java ve tam Android SDK **kurulu değil**.
@@ -147,8 +148,8 @@ Yıllık ücretli. Bunsuz ne imzalama ne TestFlight ne App Store Connect var.
 imzalama, `apple-app-site-association`, ve entitlements profili.
 
 **Durum (2026-10-22):** Team ID **`292WJ9TP74`** depoda (pbxproj + AASA,
-`c3dca0e`). Üyeliğin **ücretli ve etkin** olduğu sahipten teyit bekliyor:
-Associated Domains (Universal Link) ücretsiz kişisel takımda açılamıyor.
+`c3dca0e`). Üyelik **ücretli ve etkin** (sahip teyidi, 2026-10-22) —
+Associated Domains (Universal Link) ücretsiz kişisel takımda açılamazdı.
 
 ### 4.2 — Firebase'de iOS kaydı · ✅ **BİTTİ** (2026-09-26)
 
@@ -373,8 +374,10 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
 
 ## 6. Bitmemiş, Mac'te yapılacak kod işleri
 
-- ⛔ **U56 — `app_settings` iOS derlemesini durduruyor** (ölçüldü
-  2026-10-22). `flutter build ios --simulator`: *"The following plugin(s)
+- ⏳ **U56 — `app_settings` iOS derlemesini durduruyordu** (ölçüldü
+  2026-10-22; sahip kararıyla 7.0.0'a sabitlendi, iOS simülatör derlemesi
+  geçti). **Kalan: Windows'ta `infra/build-aab.ps1` ile Android derlemesi**
+  ve cihazda kamera reddi + izin kapısı "Ayarları aç". `flutter build ios --simulator`: *"The following plugin(s)
   are only compatible with Swift Package Manager: app_settings"*. 8.0.0
   CocoaPods desteğini bıraktı; depoda `pubspec.yaml`
   `enable-swift-package-manager: false` (U25: SPM + Pods Google
@@ -383,7 +386,12 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
   `widgets/izin_kapisi.dart`. Son CocoaPods sürümü **7.0.0**; API 7→9
   değişmedi. 8.x'teki Android değişiklikleri AGP 9 derleme uyumluluğu ve
   proje AGP **9.0.1**'de (`builtInKotlin=false`, `newDsl=false`) — 7.0.0'ın
-  Android'de derlendiği bu Mac'te ÖLÇÜLEMEDİ (Java yok). Karar sahipte.
+  Android'de derlendiği bu Mac'te ÖLÇÜLEMEDİ (Java yok). Risk: 7.0.0'ın
+  `android/build.gradle`'ı `kotlinOptions` kullanıyor; Kotlin 2.2'den beri
+  bu DSL "hata" düzeyinde kullanımdan kalktı, proje 2.3.20'de. Dosya Groovy
+  — Kotlin'in düzeyini zorlamayabilir, ama ancak bir derleme söyler.
+  Düşerse yol: eklentiyi kaldırıp iOS'ta `uygulamaAyarlariniAc`, Android'de
+  küçük bir yerel çağrı.
 - ✅ **`InfoPlist.strings` bağlı** (U27, `54130b9`): `en` + `tr` varyant
   grubu Copy Bundle Resources'ta, `knownRegions` `(en, Base, tr)` — ölçüldü
   2026-10-22. İngilizce cihaz İngilizce izin metni görür.

@@ -276,6 +276,8 @@ Kalan: A5 (U21) — gerçek iPhone'da deklanşörün açıldığı, alının öl
 
 **Android güvenliği** — (a) Android paketinin bağımlılığını düşürür; yayın öncesi Windows'ta derlenip cihazda kamera reddi + bildirim izni kapısı ölçülür.
 
+**Karar ve durum (2026-10-22)** — sahip (a)'yı seçti: `app_settings: 7.0.0` (pubspec'te gerekçesiyle). Ölçülen: `flutter build ios --simulator --debug` geçti (`Podfile.lock`'a yalnız `app_settings` podu eklendi), uygulama iPhone 17 Pro / iOS 26.5 simülatöründe açıldı ve giriş ekranı çizildi; `flutter test` 1668/1668, `analyze` temiz. **Kalan:** Android derlemesi 7.0.0 ile (AGP 9.0.1 + Kotlin 2.3.20; eklentinin `kotlinOptions`'ı risk) — Windows `infra/build-aab.ps1`; cihazda "Ayarları aç" iki yüzeyde.
+
 ---
 
 ## YÜKSEK
