@@ -384,12 +384,92 @@ def test_arama_kunyeyi_de_dondurur(gecici_artefakt, monkeypatch):
 
 
 def test_top_k_korpustan_buyuk_olabilir(gecici_artefakt, monkeypatch):
-    """argpartition k > n olduğunda patlar; korpus küçükken bu gerçek bir yol."""
+    """Havuz korpustan büyük istenirse argpartition (vektör modu) patlar;
+    `search` havuzu len(chunks)'a kırpıyor. Korpus küçükken bu gerçek bir
+    yol. Bu test kelime modunu koşturuyor (vektör yok); o modun kendi
+    sınır davranışı `test_kelime_havuzu_korpustan_buyukse_hepsi_gelir`de."""
     parcalar = _sahte_korpus(2)
     monkeypatch.setattr(rag_service, "_load_chunks", lambda lang: parcalar)
     kb = _KnowledgeBase()
     monkeypatch.setattr(kb, "_embed_texts", lambda texts: None)
     assert len(kb.search("metin", top_k=10)) <= 2
+
+
+# --------------------------------------------------------------------------
+# Anahtar kelime modunda eşitlik — sıra platforma bağlı olmamalı
+# --------------------------------------------------------------------------
+
+def _esit_parcalar(dolgu_sayilari: list[int]) -> list[Chunk]:
+    """Hepsi aynı iki sorgu kelimesini taşıyan, yalnız UZUNLUĞU farklı
+    parçalar: kelime modunda skorları birebir eşit çıkar."""
+    return [Chunk(doc="d", title=f"b{i}", text=f"parça {i}",
+                  keywords={"ortak", "kelime"}
+                  | {f"dolgu{i}x{j}" for j in range(n)},
+                  chunk_id=str(i))
+            for i, n in enumerate(dolgu_sayilari)]
+
+
+def test_kelime_esitliginde_kisa_parca_sonra_korpus_sirasi():
+    """Eşit skorda az kelimeli (konusu yoğun) parça önde; kelime sayısı da
+    eşitse korpus sırası. Eski kararsız argsort bu sırayı NumPy'nin SIMD
+    yoluna bırakıyordu ve Apple Silicon'la x86_64 farklı sonuç veriyordu."""
+    parcalar = _esit_parcalar([400, 70, 95, 70])
+    skorlar = np.full(4, 0.5, dtype=np.float32)
+
+    sira = rag_service._kelime_sirasi(skorlar, parcalar, havuz=4)
+
+    assert sira.tolist() == [1, 3, 2, 0]
+
+
+def test_kelime_ikincil_anahtari_skoru_cevirmez():
+    """Uzunluk yalnız eşitliği bozar: daha yüksek skorlu uzun parça, daha
+    düşük skorlu kısa parçanın önünde kalır."""
+    parcalar = _esit_parcalar([500, 5])
+    skorlar = np.asarray([0.4, 0.2], dtype=np.float32)
+
+    assert rag_service._kelime_sirasi(skorlar, parcalar, havuz=2).tolist() \
+        == [0, 1]
+
+
+def test_kelime_havuz_siniri_esitleri_kesmez():
+    """Havuz 2 ama ikinci sıradaki skorla eşit üç parça var: üçü de havuza
+    girmeli. argpartition sınırdaki eşitlerden hangisini alacağını
+    platforma göre seçiyordu."""
+    parcalar = _esit_parcalar([10, 30, 20, 10, 10])
+    skorlar = np.asarray([0.5, 0.3, 0.3, 0.3, 0.1], dtype=np.float32)
+
+    sira = rag_service._kelime_sirasi(skorlar, parcalar, havuz=2)
+
+    assert sira.tolist() == [0, 3, 2, 1]
+
+
+def test_kelime_havuzu_korpustan_buyukse_hepsi_gelir():
+    """Havuz korpusu aşınca (n < havuz < 2n) np.partition patlamıyor: negatif
+    sınır indeksini sondan sayıp (havuz − n)'inci en büyük değeri eşik
+    alıyordu — burada (n=2, havuz=3) yalnız tepe kalırdı. Yardımcı havuzu
+    kendisi kırpmalı — `search`in kırpmasına yaslanmadan."""
+    parcalar = _esit_parcalar([10, 10])
+    skorlar = np.asarray([0.5, 0.2], dtype=np.float32)
+
+    assert rag_service._kelime_sirasi(skorlar, parcalar, havuz=3).tolist() \
+        == [0, 1]
+
+
+def test_kelime_aramasi_esitlikte_en_kisa_parcayi_getirir(gecici_artefakt,
+                                                         monkeypatch):
+    """Arama düzeyinde bekçi: 40 eşit parçanın en kısası korpusun EN
+    SONUNDA. top_k=1'de havuz 12; eski yol 40 eşitten 12'sini mimariye göre
+    seçiyordu, son parça havuza hiç girmeyebilirdi. Yardımcının kendisi
+    doğru olsa da `search` onu çağırmayı bırakırsa burası kırmızı olur."""
+    parcalar = _esit_parcalar([100 - i for i in range(40)])
+    monkeypatch.setattr(rag_service, "_load_chunks", lambda lang: parcalar)
+    kb = _KnowledgeBase()
+    monkeypatch.setattr(kb, "_embed_texts", lambda texts: None)
+
+    sonuc = kb.search("ortak kelime", top_k=1)
+
+    assert kb.semantic_ready() is False
+    assert [p["title"] for p in sonuc] == ["b39"]
 
 
 def test_bos_korpus_bos_doner(gecici_artefakt, monkeypatch):

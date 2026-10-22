@@ -94,7 +94,11 @@ _MIN_RELEVANCE = 0.62
 #: 8+ parçaya bölünüyor ve havuzun tamamını doldurabiliyor — çeşitlilik kuralı
 #: seçecek farklı bölüm bulamayınca aynı bölümden iki parça dönüyordu.
 #: Skorlar zaten tüm parçalar için hesaplı; havuzu genişletmenin maliyeti
-#: yalnızca argpartition, yani ihmal edilebilir.
+#: vektör modunda yalnızca argpartition, kelime modunda partition + eşik +
+#: havuzun lexsort'u (`_kelime_sirasi`). İkincisinde havuz eşitlerle
+#: büyüyebilir — hiçbir parça eşleşmezse bütün korpus (1.253) havuza girer —
+#: ve o en kötü hâl bile 0,13 ms; aramanın tamamı 0,39 ms (ölçüldü
+#: 2026-10-22, Apple Silicon). İki modda da ihmal edilebilir.
 _DIVERSITY_POOL = 12
 
 
@@ -495,6 +499,81 @@ def _as_contents(texts: list[str]) -> list[dict]:
     return [{"parts": [{"text": text}]} for text in texts]
 
 
+def _kelime_sirasi(skorlar: np.ndarray, chunks: list[Chunk],
+                   havuz: int) -> np.ndarray:
+    """Anahtar-kelime modunun aday sırası — eşitlik her makinede aynı bozulur.
+
+    Bu modda skorun paydası (sorgu uzunluğu + 1) bütün parçalar için aynı,
+    yani skor yalnız ORTAK KELİME ADEDİNİ taşıyor ve eşitlik istisna değil
+    kural: aile tohumu + "Babamla aram hiç düzelmeyecek mi" sorgusunda en
+    yüksek skorda 10 parça eşit (ölçüldü 2026-10-22). Eski yol onları
+    `argpartition` + kararsız `argsort` ile seçiyordu ve NumPy'nin bu ikisinde
+    eşitliği nasıl bozduğu işlemcinin SIMD yoluna bağlı: x86_64'te (top_k=3)
+    "Baba ve Anne" bölümü sonuçtaydı, Apple Silicon'da üç sonucun ikisi OCR'lı
+    kitap parçasıydı (biri korpus sırasında i=320: OCR başlığı "APHORISMS
+    RELATING TO DECUMBITURES", gövdesi George Redway yayınevinin kitap
+    kataloğu).
+
+    Eşit onun yedisi korpusta `parents_family` etiketli kitap parçası, üçü
+    aile doktrini. Etiket içeriği garanti etmiyor: i=320 etiketli ama gövdesi
+    o katalog. Yedi kitap parçasının beşi eşitliğe ancak embed metninin
+    başındaki `[Anahtar kelimeler: …]` satırı sayesinde ulaşıyor (i=320'de
+    dört ortak kelimenin ikisi gövdede; i=712 ve i=1064'te "aile", "anne",
+    "baba"nın üçü de gövdede yok). Skor bu on parçayı ayırmıyor; gereken
+    şey sabit bir sıra, ve hangi eşitin öne geçeceği bir TERCİH. Tercih:
+    `len(keywords)` az olan önde — kitap parçasında embed metninin (başlık +
+    `[Anahtar kelimeler: …]` satırı + gövde), md parçasında etiket satırı +
+    gövdenin benzersiz kelime sayısı. Yani eşitliği yaratan anahtar satırı
+    da sayıya giriyor. Gerekçesi ölçüldü:
+
+    - Pasaj prompta KESİLEREK giriyor: sohbette 1.200
+      (`prompt_composer.MAX_PASSAGE_CHARS`), raporda 2.000 karakter
+      (`_MAX_CONTEXT_PASSAGE_CHARS`). Eşit yedi kitap parçası 2.052–4.144
+      karakter, iki yolda da kesik girer; üç doktrin parçası 726–1.048
+      karakter, bütün girer.
+    - Aynı SAYIDA (dört) ortak kelime — kümeler değil, on eşit altı farklı
+      dörtlü paylaşıyor — `len(keywords)` 68–96 olan doktrinde metnin daha
+      büyük payı, 202–401 olan kitap parçasında daha küçük payı. BM25'in
+      uzunluk düzeltmesiyle aynı gerekçe — ama skora girmiyor, yalnız
+      eşitliği bozuyor; eşit olmayan iki parçanın sırası değişmez.
+
+    Bu sıra hangi metnin daha İYİ olduğunu ölçmüyor. `len(keywords)`
+    uzunluğun VEKİLİ ve prompt kesiminden FARKLI bir metni ölçüyor: kesim
+    `text`in karakter sayısına bakar, kitap parçasının `text`i ise başlık ve
+    anahtar satırını taşımaz. Bu eşitlikte ikisi aynı yönü gösteriyor:
+    kitap parçalarında `len(keywords)` 202–401 (yalnız gövde 168–373) ve
+    `text` 2.052–4.144 karakter; doktrinde `len(keywords)` 68–96 ve `text`
+    726–1.048 karakter — iki grup her iki ölçüde de ayrık. Her eşitlikte
+    öyle olacağı ölçülmedi.
+
+    `authority` BİLEREK anahtar değil: md doktrin parçalarında alan hiç
+    yazılmıyor (0 "puanlanmamış" demek, "düşük" değil). Öne konsaydı eşit
+    yedi kitap parçasının hepsi 5 olduğu için üç sonucun üçü de kitaptan
+    gelir, aile sorusuna aile doktrini hiç dönmezdi.
+
+    Son anahtar korpus sırası: kelime sayısı da eşitse sonuç yine sabit.
+
+    Havuz sınırı eşitleri kesmez: `havuz`'uncu skorla eşit olan HER parça
+    alınır. `np.partition`'ın o konuma koyduğu DEĞER benzersizdir (sıra
+    istatistiği); oraya hangi İNDEKSİN düştüğü değil — eşik o yüzden
+    değerden kuruluyor.
+    """
+    # Kırpma burada da şart: havuz korpusu aşınca `sinir` negatif olur ve
+    # np.partition onu SONDAN sayar. n < havuz < 2n'de (havuz − n)'inci en
+    # büyük değer eşik olur ve havuz sessizce o kadara daralır; havuz = 2n'de
+    # rastlantıyla doğru çıkar; havuz > 2n'de ValueError (ölçüldü, n=4).
+    havuz = min(havuz, len(skorlar))
+    if havuz <= 0:
+        return np.empty(0, dtype=np.intp)
+    sinir = len(skorlar) - havuz
+    esik = np.partition(skorlar, sinir)[sinir]
+    aday = np.flatnonzero(skorlar >= esik)
+    kelime = np.fromiter((len(chunks[i].keywords) for i in aday),
+                         dtype=np.int64, count=len(aday))
+    # lexsort SON verilen anahtarı birincil sayar.
+    return aday[np.lexsort((aday, kelime, -skorlar[aday]))]
+
+
 class _KnowledgeBase:
     """Tek bir dilin bilgi tabanı.
 
@@ -672,11 +751,18 @@ class _KnowledgeBase:
                 [len(q_tokens & c.keywords) / bolen for c in chunks],
                 dtype=np.float32)
 
-        # Tam sıralama gereksiz: argpartition O(n). Aday havuzu top_k'dan
-        # geniş tutulur çünkü aşağıda bölüm çeşitliliği uygulanıyor.
+        # Aday havuzu top_k'dan geniş tutulur çünkü aşağıda bölüm çeşitliliği
+        # uygulanıyor.
         havuz = min(max(top_k * _DIVERSITY_POOL, top_k), len(chunks))
-        aday = np.argpartition(-skorlar, havuz - 1)[:havuz]
-        aday = aday[np.argsort(-skorlar[aday])]
+        if vektor_modu:
+            # Tam sıralama gereksiz: argpartition O(n). Kelime modundaki
+            # eşitlik sorunu burada yapısal değil: skor sürekli bir kosinüs
+            # ve korpusta özdeş iki vektör yok (TR 1.253, EN 1.255 satırın
+            # hepsi benzersiz, ölçüldü 2026-10-22).
+            aday = np.argpartition(-skorlar, havuz - 1)[:havuz]
+            aday = aday[np.argsort(-skorlar[aday])]
+        else:
+            aday = _kelime_sirasi(skorlar, chunks, havuz)
         aday = [i for i in aday if float(skorlar[i]) > taban]
 
         if vektor_modu and aday:
