@@ -316,7 +316,7 @@ Future<bool> _sayfayiAc(BuildContext context,
     // `false` döndürür ve kaydı kendisi yapar — burada yalnız null yol
     // kaydedilir, çift yazım olmaz. Kaydedilmeseydi sunucu yalnız "kayıt
     // yok" görürdü; o durum eşik yükseltilene kadar uçlarda, ekransız eski
-    // pakette (sürüm aynası <= 45) arka plan bildiriminde de İZİNLİ
+    // pakette (sürüm aynası <= 53) arka plan bildiriminde de İZİNLİ
     // sayılıyor — aynı hesabın eski paketli bir cihazı haritayı Gemini'ye
     // göndermeyi sürdürür, hemen altındaki "verin gönderilmiyor" mesajını
     // yalanlardı. Açık "hayır" ise sunucuda eşikten bağımsız her yolda

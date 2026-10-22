@@ -113,8 +113,8 @@ def test_esik_varsayilan_kapali():
 
 
 def test_esik_env_tabanindan_okunur(monkeypatch):
-    _esik(monkeypatch, 50)
-    assert ai_consent.current_min_build() == 50
+    _esik(monkeypatch, 60)
+    assert ai_consent.current_min_build() == 60
 
 
 def test_esik_config_dokumanindan_okunur(monkeypatch):
@@ -122,9 +122,9 @@ def test_esik_config_dokumanindan_okunur(monkeypatch):
     deploy'da sıfırlanıyor (app_gate dosya başı)."""
     from core import app_gate
     monkeypatch.setattr(app_gate, "read_doc",
-                        lambda: {"minBuild": 40, "aiConsentMinBuild": 52})
+                        lambda: {"minBuild": 40, "aiConsentMinBuild": 60})
     ai_consent.reset_memo()
-    assert ai_consent.current_min_build() == 52
+    assert ai_consent.current_min_build() == 60
 
 
 def test_esik_dokumani_okunamazsa_kapali(monkeypatch):
@@ -139,12 +139,12 @@ def test_esik_dokumani_okunamazsa_kapali(monkeypatch):
 
 
 def test_onay_ekransiz_surumu_kapsayan_esik_yukari_cekilir(monkeypatch):
-    """46 yerine 4 yazılırsa zorlama yayındaki bütün paketleri kapsardı."""
+    """54 yerine 4 yazılırsa zorlama yayındaki bütün paketleri kapsardı."""
     _esik(monkeypatch, 4)
     assert ai_consent.current_min_build() == \
         ai_consent.ONAY_EKRANSIZ_SON_BUILD + 1
-    # 45 kapsanmaz: onay ekranı 1.16.0+45'te YOK.
-    assert ai_consent.izin_karari(None, 45,
+    # Son ekransız sürüm kapsanmaz: 1.20.0+53'te onay ekranı YOK.
+    assert ai_consent.izin_karari(None, ai_consent.ONAY_EKRANSIZ_SON_BUILD,
                                   ai_consent.current_min_build()) is True
 
 
@@ -333,21 +333,21 @@ def test_bagimlilik_varsayilan_esikte_gecer():
 
 
 def test_bagimlilik_esik_ustunde_kayitsiz_403_ve_isaret(monkeypatch):
-    _esik(monkeypatch, 50)
+    _esik(monkeypatch, 60)
     with pytest.raises(Exception) as hata:
-        ai_consent.ai_onayi_zorunlu(AuthUser(uid=UID), "en", "50")
+        ai_consent.ai_onayi_zorunlu(AuthUser(uid=UID), "en", "60")
     assert hata.value.status_code == 403
     assert hata.value.headers == {"X-Ai-Consent": "required"}
     assert "Gemini" in hata.value.detail
     # Eski paket (başlık yok ya da eşik altı) geçer.
     ai_consent.ai_onayi_zorunlu(AuthUser(uid=UID), "en", None)
-    ai_consent.ai_onayi_zorunlu(AuthUser(uid=UID), "en", "49")
+    ai_consent.ai_onayi_zorunlu(AuthUser(uid=UID), "en", "59")
 
 
 def test_bagimlilik_onay_verilince_gecer(monkeypatch):
-    _esik(monkeypatch, 50)
+    _esik(monkeypatch, 60)
     consent_service.grant_ai_consent(UID, 1, "tr")
-    ai_consent.ai_onayi_zorunlu(AuthUser(uid=UID), "tr", "50")
+    ai_consent.ai_onayi_zorunlu(AuthUser(uid=UID), "tr", "60")
 
 
 def test_bagimlilik_acik_hayirda_esik_kapaliyken_de_403():
@@ -508,18 +508,36 @@ def test_sinyaller_onayliyken_yorumlu(kullanici, sahte_sinyal):
 # Sabah / akşam bildirimi (zamanlanmış koşu — başlık yok, sürüm aynası var)
 # --------------------------------------------------------------------------
 
+def test_yayindaki_ekransiz_android_surumleri_eski_istemci_sayilir(
+        monkeypatch):
+    """Ölçülen olgu: Android 46…53 onay ekranı OLMADAN yayınlandı (ekran
+    Mac dalındaydı, 2026-10-22'de birleşti). Sabit 45'teyken backend
+    deploy'u bu sürümlerin bütün kullanıcılarının sabah cümlesini teknik
+    satıra düşürüyor, akşam sorusunu kesiyordu; 46–53 arası bir eşik de
+    sohbetlerini kilitliyordu. Sabit bu sayının ALTINA inemez — yalnız
+    birleşmeyi almamış bir paket daha çıkarsa yükselir."""
+    assert ai_consent.ONAY_EKRANSIZ_SON_BUILD >= 53
+    for build in range(46, 54):
+        assert ai_consent.arka_plan_karari(None, build) is True, build
+    _esik(monkeypatch, 46)
+    assert ai_consent.current_min_build() == 54
+    assert ai_consent.izin_karari(None, 53,
+                                  ai_consent.current_min_build()) is True
+
+
 def test_bildirim_izni_surum_aynasini_kullanir(monkeypatch):
     from services import notification_service as ns
-    assert ns.ai_izinli({"uid": UID, "appBuild": 45}) is True
-    assert ns.ai_izinli({"uid": UID, "appBuild": 46}) is False
+    son = ai_consent.ONAY_EKRANSIZ_SON_BUILD
+    assert ns.ai_izinli({"uid": UID, "appBuild": son}) is True
+    assert ns.ai_izinli({"uid": UID, "appBuild": son + 1}) is False
     consent_service.grant_ai_consent(UID, 1, "tr")
-    assert ns.ai_izinli({"uid": UID, "appBuild": 46}) is True
+    assert ns.ai_izinli({"uid": UID, "appBuild": son + 1}) is True
 
 
 def test_arka_plan_karari_esikten_bagimsiz_ve_siki():
     """Eşik KAPALIYKEN (0) bile kayıtsız yeni sürüm/iOS kullanıcısının
     haritası arka planda Gemini'ye gitmez — gizlilik metni "AI işlemeye
-    izin verdiysen" diyor. Yalnız ekransız eski paket (<= 45) kayıtsız
+    izin verdiysen" diyor. Yalnız ekransız eski paket (<= 53) kayıtsız
     izinli; aynası olmayan (0) sürümü bilinmediği için izinli değil."""
     son = ai_consent.ONAY_EKRANSIZ_SON_BUILD
     assert ai_consent.arka_plan_karari(None, son) is True
@@ -536,7 +554,7 @@ def test_arka_plan_karari_esikten_bagimsiz_ve_siki():
 
 def test_bildirim_esik_kapaliyken_karar_vermemis_yeni_surume_ai_yok(
         monkeypatch, sahte_sinyal):
-    """Onay sayfasını görüp karar vermeden uygulamayı kapatan 46+ kullanıcı:
+    """Onay sayfasını görüp karar vermeden uygulamayı kapatan 54+ kullanıcı:
     varsayılan eşik 0 iken de sabah bildirimi teknik satır, paket okunmaz."""
     from services import notification_service as ns
     from services import signal_service
@@ -546,10 +564,11 @@ def test_bildirim_esik_kapaliyken_karar_vermemis_yeni_surume_ai_yok(
     monkeypatch.setattr(ns.prompts, "localize_signals", lambda lang, h: {
         "signals": [{"technical": "Mars üçgen Venüs", "theme": "relationships",
                      "theme_local": "İlişkiler"}]})
-    sonuc = ns.signal_push({"uid": UID, "appBuild": 46}, "tr")
+    ekranli = ai_consent.ONAY_EKRANSIZ_SON_BUILD + 1
+    sonuc = ns.signal_push({"uid": UID, "appBuild": ekranli}, "tr")
     assert sonuc is not None and sonuc[1] == "Mars üçgen Venüs"
     assert sahte_sinyal["n"] == 0
-    assert ns.checkin_push({"uid": UID, "appBuild": 46}, "tr") is None
+    assert ns.checkin_push({"uid": UID, "appBuild": ekranli}, "tr") is None
     assert sahte_sinyal["n"] == 0
 
 

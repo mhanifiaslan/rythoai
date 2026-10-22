@@ -60,14 +60,23 @@ HEADER_REQUIRED = "required"
 #: ulaşır, istek başına Firestore okuması yok.
 MEMO_TTL = 60
 
-#: Onay ekranını KESİNLİKLE taşımayan son sürüm: ekran 1.16.0+45'ten sonra
-#: eklendi. Eşik bunun altına yazılırsa (ör. 46 yerine 4) zorlama
-#: yayındaki bütün eski paketleri kapsardı — `app_gate`'in K9 bekçisinin
-#: bu kapıdaki karşılığı. 0 < eşik <= bu değer ise eşik bir sonraki
-#: sürüme çekilir. Doğru eşiği seçmek yine operatörün işi: onay ekranlı
-#: kodu İÇEREN ilk paketin numarası (Windows dalı birleştirmeden 46
-#: çıkarırsa 46 da ekransızdır).
-ONAY_EKRANSIZ_SON_BUILD = 45
+#: Onay ekranını KESİNLİKLE taşımayan son sürüm. Ekran Mac'in
+#: `ios-hazirlik` dalında yazıldı ve Android dalına ancak 2026-10-22'de
+#: (`8d6f67b`) birleşti; Windows o güne kadar 46…53'ü ekransız çıkardı
+#: (ölçüldü: `33bb9f4`'te `ai_consent.dart` yok, sürüm 1.20.0+53). Sabit
+#: önce 45'ti — Mac sıradaki Android paketini 46 sanıyordu. 45 kalsaydı
+#: U17'nin şart koştuğu backend deploy'u, yayındaki 46–53 kullanıcılarının
+#: sabah cümlesini teknik satıra düşürür ve akşam sorusunu keserdi
+#: (`arka_plan_karari`); 46–53 arası yazılan bir eşik de bu paketlerde
+#: sohbeti, onay verecek ekranı olmayan kullanıcıya kilitlerdi.
+#:
+#: Eşik bunun altına yazılırsa (ör. 54 yerine 5) zorlama yayındaki bütün
+#: eski paketleri kapsardı — `app_gate`'in K9 bekçisinin bu kapıdaki
+#: karşılığı. 0 < eşik <= bu değer ise eşik bir sonraki sürüme çekilir.
+#: Doğru eşiği seçmek yine operatörün işi: onay ekranlı kodu İÇEREN ilk
+#: paketin numarası. Birleşmeyi almamış bir dalda bir paket daha
+#: derlenirse o da ekransızdır ve bu sayı onunla yükselir.
+ONAY_EKRANSIZ_SON_BUILD = 53
 
 _memo: tuple[int, float] | None = None
 
@@ -162,8 +171,13 @@ def arka_plan_karari(kayit: Any, build: int) -> bool:
     (uygulamayı kapatmış) her yeni sürüm ve iOS kullanıcısının haritası her
     sabah Gemini'ye gider, gizlilik metnindeki "AI işlemeye izin verdiysen"
     cümlesi yalan olurdu. Aynası olmayan profil (``build == 0``) sürümü
-    bilinmediği için izinli SAYILMAZ; ekransız bir 46 çıkarsa bedeli de
-    zararsız: o kullanıcılar teknik satırı alır.
+    bilinmediği için izinli SAYILMAZ.
+
+    Bu karar `ONAY_EKRANSIZ_SON_BUILD`'in doğruluğuna yaslanır: sabit
+    gerçeğin altında kalırsa aradaki ekransız sürümlerin BÜTÜN kullanıcıları
+    teknik satıra düşer ve akşam sorusu onlara hiç gitmez — onay verecek
+    ekranları olmadığı için kendileri de düzeltemezler (2026-10-22'de
+    46–53 tam olarak buydu).
     """
     from services import consent_service
 
