@@ -104,7 +104,7 @@ literaline** bağla. ⚠️ Yasak-alan KAPISI bir tur boyunca tam bunu yaptı
 finans, "mutlu **olurum**" → ölüm, "**sick of** my job" → sağlık,
 "kendi**mi**" → soru eki. Engellenen tur kaydedilmediği için korpusta
 görünmedi; yalnız ekranda ve probe ile ölçüldü. Kural: kapı kalıpları
-`` + KAPALI ek listesi, bir de doğrudan-kalıp tuzak-kelime bekçisi
+`\b` + KAPALI ek listesi, bir de doğrudan-kalıp tuzak-kelime bekçisi
 (`test_kaliplar_tuzak_kelimelere_takilmaz`).
 
 **Bir şeyin YOKLUĞUNU arayan bekçi, onu ANLATAN yorumu görmemeli.** İki kez
@@ -284,7 +284,7 @@ kavram için TEK bileşen kalır. Plan dosyası
 | D6 derinlik (OkumaKabi 9 yüzey, çark çizgi dili + salt önizleme, Çevrem/kişi onayları, sohbet hata balonu + 402 tek yol) | ✅ Flutter 1441, 89/89 mutasyon | `707dd4a` |
 | D7 para (bedel kapısı 4 ekran — cüzdan yüklenirken geçmez; yıllık K8 ölçülmüş rozet; abonelik üç hâl + K2; mağaza tek düğme; `purchaseErrorText` tek kapı; rozet 10 yüzey; 429 notu) — ajansız, tek elden | ✅ Flutter 1500+, backend 2749, 33/33 mutasyon | `1531471` |
 | D8 cırcır bekçileri (hareket/token/l10n — dosya başına ÖLÇÜLEN tavan), 58 ölü ARB anahtarı, ✨ 15→5, EN çoğul, Plaque/dock/TypingDots/ErrorCard/GlassSegments.margin, backend varsayılan ad dile göre, belgeler, pubspec 1.20.0+50 | ✅ Flutter 1545, backend 2751, 12/12 mutasyon | `0b687bb` |
-| **S1 sohbet personası** (plan dışı, sahip şikâyeti 2026-10-10; yalnız backend — kapı ``, yetki alanı, `persona_guard`, `tools/sohbet_olc.py`) | ✅ pytest 2750, 66+7 mutasyon · ✅ CANLI rev 00109 | `5da5ed2` |
+| **S1 sohbet personası** (plan dışı, sahip şikâyeti 2026-10-10; yalnız backend — kapı `\b`, yetki alanı, `persona_guard`, `tools/sohbet_olc.py`) | ✅ pytest 2750, 66+7 mutasyon · ✅ CANLI rev 00109 | `5da5ed2` |
 
 ### Cihaz turu 1 (2026-10-14) — K7 geri alındı
 
@@ -966,6 +966,20 @@ gizlilik metni U06'nın onay ekranını anlatıyor; canlıdaki Android
 1.20.0+53'te o ekran yok. Onay ekranlı ilk paket (Android 54+ ya da iOS)
 yayınlanmadan `firebase deploy --only hosting` canlı uygulama için yanlış
 beyan yayınlar. Ayrıntı `docs/mac-devir.md` üst kutu.
+
+⚠️ **Android 54'e giden sıra** (2026-10-22, Mac'ten yazıldı; adımlar Windows'un):
+1. `git pull`. `ONAY_EKRANSIZ_SON_BUILD` 45 → 53 düzeltmesi bu dalda —
+   onsuz backend deploy'u yayındaki 46–53'ün TAMAMINDA sabah cümlesini
+   teknik satıra düşürür, akşam sorusunu keserdi (ölçüldü).
+2. pubspec `+53` → `+54`, sonra `infra/build-aab.ps1`. `app_settings`
+   7.0.0 ile Android derlemesi henüz ÖLÇÜLMEDİ.
+3. 54'ü yüklemeden ÖNCE: `firebase deploy --only firestore:rules --project
+   rhytoai` + `infra/deploy-backend.ps1` (U17 kuralı ve sunucusu; U06
+   sunucu kapısı eşik 0'da eski paketleri kırmaz).
+4. 54 cihazda: ilk açılışta AI onay sayfası, "Şimdi değil" → "yapay zeka
+   kapalı" kartı, iki hesapla engelleme (davet, tepki, Engellenenler).
+5. 54 yayına çıktığı gün hosting deploy'u (gizlilik metni + AASA `/r/*`);
+   kullanıcılar 54'e geçince `config/app.aiConsentMinBuild: 54`.
 
 ⚠️ **Kayıt bir kez `app.rytho` diye açıldı** (`ai` yerine `app`). İnen
 plist o kimliği taşıyordu ve `FirebaseApp.configure()` uyuşmazlığı **hata
