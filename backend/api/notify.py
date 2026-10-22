@@ -249,6 +249,17 @@ def reaction(req: ReactionPush,
                     req.friend_uid)
         return {"status": "skipped", "reason": "zaten-gonderildi"}
 
+    # U17: alıcı göndereni engellediyse push YOK. Engelleme iki kenarı da
+    # sildiği için `are_friends` bunu çoğu zaman zaten keser; kalan hâl
+    # engel kaydıyla `accepted` kenarların BİRLİKTE durması — kural
+    # dağıtımından önce kurulmuş arkadaşlık (eski pakette engelleyenin
+    # davetinde ve kabulde kapı yoktu); o kayıtlar dağıtımdan sonra da
+    # yerinde kalır. Dağıtılmış kural aynı hâlde tepki YAZIMINI da
+    # reddediyor; bu kapı push yarısı. Yeri ve yanıtı: `_ENGEL_YANITI`.
+    if profile_service.has_blocked(req.friend_uid, user.uid):
+        logger.info("Tepki bildirimi atlandi (%s): engelli", req.friend_uid)
+        return dict(_ENGEL_YANITI)
+
     gonderen = profile_service.get_profile(user.uid) or {}
     alici_dili = notification_service.profile_language(alici)
     etiket = REACTION_LABELS.get(alici_dili, REACTION_LABELS["tr"])[req.reaction]
@@ -273,6 +284,22 @@ def reaction(req: ReactionPush,
     if sonuc.sent:
         notification_service.mark_sent(req.friend_uid, tekrar_turu, gun)
     return {"status": "ok", "sent": sonuc.sent}
+
+
+#: Engelli dalının yanıtı (U17) — FCM'in mesajı teslim edemediği sıradan
+#: hâlle (`push_service.send` → `sent=0`) BİREBİR aynı gövde. Yanıtı alan
+#: ENGELLENEN göndericinin kendisi: `{"reason": "engelli"}` dönseydi
+#: "engellendiği ona bildirilmez" sözü protokol düzeyinde bozulurdu. Gövde
+#: yalan da söylemiyor — gerçekten hiçbir push gitmedi. Ayrım yalnız sunucu
+#: günlüğünde kalır.
+#:
+#: Kapı FCM düşüşüyle AYNI NOKTADA durur: sıradan atlamaların hepsinden
+#: (`can_send_event` — sessiz saat, token yok, tercih kapalı, günlük tavan
+#: — ve `already_sent`) SONRA, gönderimden hemen önce. Önlerinde dursaydı
+#: sıradan yol gece `skipped/sessiz-saat` dönerken engelli yol `ok/sent:0`
+#: dönerdi ve engel tek çağrıyla ayırt edilirdi. `mark_sent` yazılmaz —
+#: FCM düşüşünde de yazılmıyor.
+_ENGEL_YANITI: dict[str, Any] = {"status": "ok", "sent": 0}
 
 
 class InvitePush(BaseModel):
@@ -305,6 +332,17 @@ def _event_push(alici_uid: str, gonderen_uid: str, tur: str,
         logger.info("Davet bildirimi atlandi (%s/%s): zaten-gonderildi",
                     tur, alici_uid)
         return {"status": "skipped", "reason": "zaten-gonderildi"}
+
+    # U17 (App Store 1.2): alıcı göndereni engellediyse push YOK. Dağıtılmış
+    # kural davet kenarını ve kabulü engel dururken zaten reddediyor; ama
+    # kenar kuralın dağıtımından önce (ya da geri alınmış bir kuralla)
+    # kurulmuş olabilir ve uç o hâlde engellenenin push'unu engelleyene
+    # düşürürdü. Davet de kabul de buradan geçer. Yeri ve yanıtı:
+    # `_ENGEL_YANITI`.
+    if profile_service.has_blocked(alici_uid, gonderen_uid):
+        logger.info("Davet bildirimi atlandi (%s/%s): engelli",
+                    tur, alici_uid)
+        return dict(_ENGEL_YANITI)
 
     gonderen = profile_service.get_profile(gonderen_uid) or {}
     ad = gonderen.get("displayName") or gonderen.get("username") or "…"

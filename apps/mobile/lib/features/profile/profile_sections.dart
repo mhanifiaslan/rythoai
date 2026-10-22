@@ -31,6 +31,7 @@ import '../../widgets/cosmic_scaffold.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/onay.dart' show onayla;
 import '../face/face_consent.dart';
+import 'blocked_users_screen.dart' show EngellenenlerEkrani;
 import 'legal_page.dart';
 import 'notification_settings.dart';
 
@@ -69,7 +70,8 @@ class NotificationSettingsScreen extends StatelessWidget {
   }
 }
 
-/// Gizlilik — arkadaşlara ne göründüğü ve biyometrik rıza.
+/// Gizlilik — arkadaşlara ne göründüğü, biyometrik ve AI rızası,
+/// engellenenler.
 ///
 /// Tüm görünürlük ayarları varsayılan olarak **kapalıdır** ve yalnızca
 /// buradan açılır.
@@ -118,6 +120,19 @@ class PrivacySettingsScreen extends ConsumerWidget {
             // kadar kolay geri alınabilmeli — yüz rızasıyla aynı yerde.
             const AiConsentRow(),
           ]),
+        ),
+        // U17: engellenenler ve engeli kaldırma. Anahtar değil, alt sayfa —
+        // yukarıdaki dört anahtarın sayısını sabitleyen bekçi
+        // (profile_sections_test) bu yüzden etkilenmez.
+        GlassPanel(
+          padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
+          child: SettingsRow(
+            icon: Icons.block_rounded,
+            title: l10n.blockedUsersTitle,
+            subtitle: l10n.blockedUsersRowSubtitle,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const EngellenenlerEkrani())),
+          ),
         ),
       ],
     );

@@ -26,6 +26,7 @@ import '../../core/contact_match.dart';
 import '../../core/deep_links.dart' show inviteLinkFor;
 import '../../core/friends.dart';
 import '../../core/providers.dart';
+import '../../core/safety.dart' show DavetKarari, davetEngelKapisi, davetHataMetni;
 import '../../core/tr_metin.dart' show trBuyuk;
 import '../../theme/rytho_theme.dart';
 import '../../theme/rytho_tokens.dart';
@@ -293,15 +294,21 @@ class _AktifSatirState extends ConsumerState<_AktifSatir> {
     final l10n = AppLocalizations.of(context);
     final mesajci = ScaffoldMessenger.of(context);
     final dio = ref.read(apiProvider);
+    final uid = widget.kisi.match.uid;
     setState(() => _mesgul = true);
     try {
-      await sendFriendRequest(widget.kisi.match.uid);
+      // U17: engellediğin kişiye davet ancak engeli kaldırarak gider.
+      final karar =
+          await davetEngelKapisi(context, ref, uid, widget.kisi.name);
+      if (karar == DavetKarari.vazgec) return;
+      await sendFriendRequest(uid,
+          engeliKaldir: karar == DavetKarari.engeliKaldirVeGonder);
       // Davet push'u (OB2): kenarlar yazıldıktan sonra, ateşle-unut.
-      unawaited(notifyInvite(dio, widget.kisi.match.uid));
+      unawaited(notifyInvite(dio, uid));
       if (mounted) setState(() => _gonderildi = true);
     } catch (e) {
       if (mounted) {
-        mesajci.showSnackBar(SnackBar(content: Text(friendlyError(e, l10n))));
+        mesajci.showSnackBar(SnackBar(content: Text(davetHataMetni(e, l10n))));
       }
     } finally {
       if (mounted) setState(() => _mesgul = false);

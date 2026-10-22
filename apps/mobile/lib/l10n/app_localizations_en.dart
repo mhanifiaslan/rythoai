@@ -1140,7 +1140,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportFailed => 'The report couldn\'t be sent.';
 
   @override
-  String get aFriend => 'A friend';
+  String get someRythoUser => 'A Rytho user';
+
+  @override
+  String get inboxLoadFailed => 'Couldn\'t show reactions.';
 
   @override
   String get iChingIntro =>
@@ -2376,8 +2379,69 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String blockUserConfirmBody(String name) {
-    return '$name won\'t be able to find you or send invites. You can undo this in Circle settings.';
+    return '$name won\'t be able to send you friend requests or reactions; your friendship or pending request is removed. You can unblock them in Profile > Privacy > Blocked users.';
   }
+
+  @override
+  String get requestMoreActions => 'Block or report';
+
+  @override
+  String userBlockedSnack(String name) {
+    return '$name is blocked.';
+  }
+
+  @override
+  String get blockFailed => 'Couldn\'t save the block. Try again.';
+
+  @override
+  String get blockedUsersTitle => 'Blocked users';
+
+  @override
+  String get blockedUsersRowSubtitle => 'See who you\'ve blocked and unblock';
+
+  @override
+  String get blockedUsersNote =>
+      'People you block can\'t send you friend requests or reactions, and won\'t see you in contact suggestions. They aren\'t told they\'ve been blocked. Unblocking doesn\'t restore the friendship.';
+
+  @override
+  String get blockedUsersEmpty => 'You haven\'t blocked anyone.';
+
+  @override
+  String get blockedUnknownUser => 'Rytho user';
+
+  @override
+  String get unblockUser => 'Unblock';
+
+  @override
+  String unblockConfirmTitle(String name) {
+    return 'Unblock $name?';
+  }
+
+  @override
+  String get unblockConfirmBody =>
+      'They\'ll be able to send you friend requests again. Your friendship won\'t come back on its own.';
+
+  @override
+  String userUnblockedSnack(String name) {
+    return '$name is unblocked.';
+  }
+
+  @override
+  String get unblockFailed => 'Couldn\'t unblock. Try again.';
+
+  @override
+  String get inviteBlockedTitle => 'You\'ve blocked this person';
+
+  @override
+  String inviteBlockedBody(String name) {
+    return 'Unblock $name and send the invite? Once unblocked, they can send you friend requests again.';
+  }
+
+  @override
+  String get inviteBlockedConfirm => 'Unblock and invite';
+
+  @override
+  String get inviteNotSent => 'Couldn\'t send the invite.';
 
   @override
   String peopleSlotsOver(int limit, int used) {

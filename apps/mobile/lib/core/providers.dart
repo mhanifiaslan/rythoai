@@ -36,19 +36,6 @@ enum OnboardOutcome {
 /// açılışlarında sahne tekrarlanmaz.
 final justOnboardedProvider = StateProvider<OnboardOutcome?>((_) => null);
 
-/// Engellenen kullanıcı kimlikleri (users/{uid}/blocked). Akış ve mesajlar
-/// bu kümeye göre istemci tarafında filtrelenir.
-final blockedUsersProvider = StreamProvider<Set<String>>((ref) {
-  final user = ref.watch(authStateProvider).value;
-  if (user == null) return Stream.value(<String>{});
-  return FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .collection('blocked')
-      .snapshots()
-      .map((snapshot) => snapshot.docs.map((d) => d.id).toSet());
-});
-
 /// Bir profil anlık görüntüsüne **karar için** güvenilebilir mi?
 ///
 /// Firestore, dinleyici kurulduğunda önce yerel önbellekten yayın yapıyor.

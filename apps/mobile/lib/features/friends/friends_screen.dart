@@ -138,7 +138,7 @@ class FriendsScreen extends ConsumerWidget {
             username: username,
             streakCount: (profile?['streakCount'] as num?)?.toInt() ?? 0,
           ),
-        _InboxPanel(friends: friendsAsync.value ?? const []),
+        GelenKutusu(friends: friendsAsync.value ?? const []),
         // Rehber önerileri (Revize R3 → F1): panel artık HER ZAMAN mount —
         // ayar kapalıysa/telefon doğrusuzsa/izin yoksa sessiz boşluk yerine
         // yol gösteren kart çizer. Sonuçlar bellekte yaşar; ne istemci ne
@@ -154,8 +154,11 @@ class FriendsScreen extends ConsumerWidget {
           // Boş durum yalnız İKİ liste de boşken çizilir; kişileri olan
           // ama arkadaşı olmayan kullanıcıya "hiç kimsen yok" demek
           // yanlış olurdu.
+          // U17: engellediklerimin (kural öncesinden kalmış) istekleri
+          // gelen istekler bölümünde görünmez (`gelenIstekleriSuz`).
           data: (friends) => _FriendsList(
-              friends: friends,
+              friends: gelenIstekleriSuz(
+                  friends, ref.watch(engellenenKimliklerProvider).value),
               boslugoster: (ref.watch(peopleProvider).value ?? []).isEmpty),
         ),
         // Eklenen kişiler AYRI bölüm (P-turu): satır anatomisi de farklı —
@@ -393,22 +396,104 @@ class _MyCardPanel extends StatelessWidget {
 }
 
 /// Bana gelen hazır tepkiler. Dokununca okundu sayılır ve silinir.
-class _InboxPanel extends ConsumerWidget {
-  const _InboxPanel({required this.friends});
+///
+/// U17: engellediklerimin tepkileri gösterilmez ve sessizce silinir —
+/// yalnız gizlenselerdi 20'lik okuma penceresinde kalıcı yer tutarlardı
+/// ([tepkileriAyir] gerekçesi). Engel listesi henüz YÜKLENİYORKEN kutu
+/// kapalıdır: engellenenin tepkisinin bir an görünmesi, meşru tepkinin bir
+/// an gecikmesinden ağırdır. Engel listesi ya da tepki akışı OKUNAMAZSA
+/// kutu yine kapalı kalır ama sessiz kalmaz: yeniden deneme politikası
+/// (`rythoRetry`, iki deneme) bitince sağlayıcı hatada durur ve
+/// kendiliğinden toparlanmaz; satır bunu söyler ve "Tekrar dene" iki
+/// sağlayıcıyı da yeniden kurar. (Tepki akışının hatası eskiden boş liste
+/// sayılıyor ve kutu sessizce kayboluyordu.)
+class GelenKutusu extends ConsumerStatefulWidget {
+  const GelenKutusu({super.key, required this.friends});
 
   final List<Friend> friends;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GelenKutusu> createState() => _GelenKutusuState();
+}
+
+class _GelenKutusuState extends ConsumerState<GelenKutusu> {
+  /// Silimi istenmiş kimlikler: anlık görüntü güncellenene kadar aynı tepki
+  /// için ikinci istek atılmasın.
+  final _silinenler = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    // `listenManual` + `fireImmediately`: kutu açıldığında liste ZATEN
+    // yüklüyse de silim yapılır — düz `ref.listen` yalnız DEĞİŞİMDE ateşler.
+    ref.listenManual<List<String>>(
+        engellenenTepkileriProvider, (_, kimlikler) => _sessizSil(kimlikler),
+        fireImmediately: true);
+  }
+
+  void _sessizSil(List<String> kimlikler) {
+    final sil = ref.read(tepkiSiliciProvider);
+    for (final id in kimlikler) {
+      // En iyi çaba: düşerse süzgeç gizlemeye devam eder.
+      if (_silinenler.add(id)) unawaited(sil(id).catchError((Object _) {}));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final nudges = ref.watch(myNudgesProvider).value ?? const [];
+    final tepkiDurumu = ref.watch(myNudgesProvider);
+    final engel = ref.watch(engellenenKimliklerProvider);
+    final tepkiler = tepkiDurumu.value;
+    final engellenenler = engel.value;
+    // Okunamayan tepki akışı da, okunamayan engel listesi de aynı satırı
+    // çizer; tepki akışı okunduysa ve boşsa söylenecek bir şey yok.
+    final okunamadi = (tepkiler == null && tepkiDurumu.hasError) ||
+        (tepkiler != null &&
+            tepkiler.isNotEmpty &&
+            engellenenler == null &&
+            engel.hasError);
+    if (okunamadi) {
+      return GlassPanel(
+        label: l10n.inboxLabel,
+        // Dar ekranda düğme alt satıra iner (`Wrap`); `SizedBox`: Wrap
+        // gevşek kısıtta büzülür.
+        child: SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: RythoSpace.sm,
+            children: [
+              Text(l10n.inboxLoadFailed, style: RythoType.bodyDim),
+              TextButton(
+                onPressed: () => ref
+                  ..invalidate(myNudgesProvider)
+                  ..invalidate(engellenenKimliklerProvider),
+                child: Text(l10n.retry,
+                    style: RythoType.button.copyWith(color: RythoColors.lilac)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (tepkiler == null || tepkiler.isEmpty || engellenenler == null) {
+      return const SizedBox.shrink();
+    }
+
+    final nudges = tepkileriAyir(tepkiler, engellenenler).gorunur;
     if (nudges.isEmpty) return const SizedBox.shrink();
 
+    // Gönderen listede yoksa NÖTR ad: tepkiyi yalnız kabul edilmiş arkadaş
+    // atabilir ama o arkadaşlık sonradan bitmiş olabilir (çıkarma) ya da
+    // liste henüz gelmemiştir. "Bir arkadaşın" ikisinde de yanlış bir beyan
+    // olurdu.
     String nameOf(String? uid) {
-      for (final friend in friends) {
+      for (final friend in widget.friends) {
         if (friend.uid == uid) return friend.ad(l10n);
       }
-      return l10n.aFriend;
+      return l10n.someRythoUser;
     }
 
     return GlassPanel(
@@ -418,7 +503,8 @@ class _InboxPanel extends ConsumerWidget {
           if (kReactions[nudge['reaction']] case final emoji?)
             InkWell(
               borderRadius: BorderRadius.circular(RythoRadius.sm),
-              onTap: () => dismissNudge(nudge['id'] as String),
+              onTap: () =>
+                  ref.read(tepkiSiliciProvider)(nudge['id'] as String),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: RythoSpace.sm),
                 child: Row(children: [
@@ -472,7 +558,7 @@ class _FriendsList extends StatelessWidget {
       if (incoming.isNotEmpty) ...[
         const SectionDivider(),
         _sectionTitle(l10n.incomingRequests),
-        for (final friend in incoming) _RequestTile(friend: friend),
+        for (final friend in incoming) GelenIstekKarti(friend: friend),
       ],
       if (accepted.isNotEmpty) ...[
         const SectionDivider(),
@@ -558,22 +644,28 @@ class _FriendTile extends ConsumerWidget {
   }
 }
 
-/// Gelen davet satırı: Yoksay / Kabul et.
+/// Gelen davet satırı: ⋯ (Engelle / Şikayet et) · Yoksay · Kabul et.
 ///
 /// Kabul artık geri bildirim veriyor: düğme meşgul olur, sonuç SnackBar'la
 /// söylenir. Eski hâli ateşle-unut idi — hata yutuluyor, kullanıcı
 /// dokunuşun bir şey yaptığını ancak liste yenilenince anlıyordu.
 /// Yoksay onaysız: davet yıkıcı değil, karşı taraf yeniden gönderebilir.
-class _RequestTile extends ConsumerStatefulWidget {
-  const _RequestTile({required this.friend});
+///
+/// ⋯ düğmesi neden var (U17, App Store 1.2): Engelle ve Şikayet et yalnız
+/// KABUL EDİLMİŞ arkadaşın sayfasındaydı. Kullanıcı adıyla istek atan bir
+/// yabancıyı alıcı kabul etmeden ne engelleyebiliyor ne şikayet
+/// edebiliyordu — "Yoksay" kenarı siliyordu ama gönderen hemen yeniden
+/// atabiliyordu. Kabul etmek, bildirebilmenin bedeli olmamalı.
+class GelenIstekKarti extends ConsumerStatefulWidget {
+  const GelenIstekKarti({super.key, required this.friend});
 
   final Friend friend;
 
   @override
-  ConsumerState<_RequestTile> createState() => _RequestTileState();
+  ConsumerState<GelenIstekKarti> createState() => _GelenIstekKartiState();
 }
 
-class _RequestTileState extends ConsumerState<_RequestTile> {
+class _GelenIstekKartiState extends ConsumerState<GelenIstekKarti> {
   bool _busy = false;
 
   Future<void> _kabul() async {
@@ -624,6 +716,19 @@ class _RequestTileState extends ConsumerState<_RequestTile> {
               alignment: WrapAlignment.end,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                IconButton(
+                  tooltip: l10n.requestMoreActions,
+                  visualDensity: VisualDensity.compact,
+                  // Tooltip ekran okuyucuya AD vermez (semantik `tooltip`
+                  // alanı); ikon-tek düğmenin adı `semanticLabel`dan gelir.
+                  icon: Icon(Icons.more_horiz_rounded,
+                      size: 20,
+                      color: RythoColors.parchmentDim,
+                      semanticLabel: l10n.requestMoreActions),
+                  onPressed: _busy
+                      ? null
+                      : () => showFriendSafetySheet(context, ref, widget.friend),
+                ),
                 TextButton(
                   onPressed: _busy ? null : () => removeFriend(widget.friend.uid),
                   child: Text(l10n.ignore,
@@ -986,7 +1091,12 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
         setState(() => _message = l10n.userNotFound(username));
         return;
       }
-      await sendFriendRequest(uid);
+      if (!mounted) return;
+      // U17: engellediğin kişiye davet ancak engeli kaldırarak gider.
+      final karar = await davetEngelKapisi(context, ref, uid, '@$username');
+      if (karar == DavetKarari.vazgec) return;
+      await sendFriendRequest(uid,
+          engeliKaldir: karar == DavetKarari.engeliKaldirVeGonder);
       // Davet push'u (OB2): kenarlar yazıldıktan SONRA — sunucu gerçek
       // `incoming` kenarını doğruluyor. Ateşle-unut; UI beklemez.
       unawaited(notifyInvite(dio, uid));
@@ -996,7 +1106,7 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
       messenger.showSnackBar(
           SnackBar(content: Text(l10n.inviteSent(username))));
     } catch (e) {
-      if (mounted) setState(() => _message = friendlyError(e, l10n));
+      if (mounted) setState(() => _message = davetHataMetni(e, l10n));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1046,25 +1156,39 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
 /// sayfa kapandıktan sonra ve onaydan geçerek yapılır.
 enum _GuvenlikSecimi { cikar, engelle, sikayet }
 
-/// Arkadaş menüsü: çıkarma, engelleme, şikâyet.
+/// Arkadaş / istek menüsü: çıkarma, engelleme, şikâyet.
+///
+/// İki yerden açılır: arkadaş detayının ⋮ düğmesi ve gelen istek
+/// kutucuğunun ⋯ düğmesi ([GelenIstekKarti]). Engelleme ikisinde de aynı
+/// yoldan geçer ([kullaniciyiEngelle]: kenarlar + engel kaydı tek batch).
+/// "Arkadaşlıktan çıkar" yalnız kabul edilmiş arkadaşta: gelen istekte o
+/// iş "Yoksay"ın ve o adla sunulursa yanlış ad olur.
 ///
 /// `true` döner: arkadaş çıkarıldı ya da engellendi (çağıran ekranı
 /// kapatır). Çıkarma ve engelleme ONAYLI (`onayla`, yıkıcı): eski hâli
 /// tek dokunuşla iki tarafın kenarını siliyordu — geri dönüşü olmayan
 /// eylem, onay sorusu olmadan.
-Future<bool> showFriendSafetySheet(BuildContext context, Friend friend) async {
+Future<bool> showFriendSafetySheet(
+    BuildContext context, WidgetRef ref, Friend friend) async {
   final l10n = AppLocalizations.of(context);
   final ad = friend.ad(l10n);
+  // İkisi de İLK `await`ten önce alınır: engel inince istek kutucuğu
+  // listeden düşer; o noktada `ref` artık kullanılamaz, `context` de
+  // yaşamıyor olabilir.
+  final engelle = ref.read(engelleyiciProvider);
+  final mesajci = ScaffoldMessenger.of(context);
   final secim = await showRythoSheet<_GuvenlikSecimi>(
     context,
     builder: (sheetContext) => Padding(
       padding: const EdgeInsets.only(bottom: RythoSpace.sm),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        ListTile(
-          leading: const Icon(Icons.person_remove_rounded, size: 20),
-          title: Text(l10n.removeFriend, style: RythoType.body),
-          onTap: () => Navigator.of(sheetContext).pop(_GuvenlikSecimi.cikar),
-        ),
+        if (friend.status == FriendStatus.accepted)
+          ListTile(
+            leading: const Icon(Icons.person_remove_rounded, size: 20),
+            title: Text(l10n.removeFriend, style: RythoType.body),
+            onTap: () =>
+                Navigator.of(sheetContext).pop(_GuvenlikSecimi.cikar),
+          ),
         ListTile(
           leading: const Icon(Icons.block_rounded, size: 20),
           title: Text(l10n.blockUser, style: RythoType.body),
@@ -1103,8 +1227,16 @@ Future<bool> showFriendSafetySheet(BuildContext context, Friend friend) async {
         destructive: true,
       );
       if (!tamam) return false;
-      await removeFriend(friend.uid);
-      await blockUser(friend.uid);
+      // Eskiden iki çıplak `await`ti (`removeFriend` + `blockUser`): yazım
+      // düşünce hata yakalanmıyor, kullanıcı hiçbir şey görmüyor ve
+      // engellediğini sanıyordu. Sonuç artık SÖYLENİR.
+      try {
+        await engelle(friend.uid);
+      } catch (_) {
+        mesajci.showSnackBar(SnackBar(content: Text(l10n.blockFailed)));
+        return false;
+      }
+      mesajci.showSnackBar(SnackBar(content: Text(l10n.userBlockedSnack(ad))));
       return true;
     case _GuvenlikSecimi.sikayet:
       showReportSheet(context, targetType: 'user', targetId: friend.uid);

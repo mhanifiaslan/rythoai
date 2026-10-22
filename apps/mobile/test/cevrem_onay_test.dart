@@ -7,6 +7,7 @@
 // şey olmaz (Firestore'a dokunulmaz — bu test tam da o yüzden
 // koşabiliyor: onay verilseydi `removeFriend` gerçek veritabanı isterdi).
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/core/friends.dart';
 import 'package:rytho/features/friends/friends_screen.dart';
@@ -22,14 +23,14 @@ const _arkadas = Friend(
     uid: 'u1', status: FriendStatus.accepted, displayName: 'Zeynep');
 
 /// Düğmeye basınca menüyü açan ve dönüşünü kaydeden kök.
-class _Kok extends StatefulWidget {
+class _Kok extends ConsumerStatefulWidget {
   const _Kok();
 
   @override
-  State<_Kok> createState() => _KokState();
+  ConsumerState<_Kok> createState() => _KokState();
 }
 
-class _KokState extends State<_Kok> {
+class _KokState extends ConsumerState<_Kok> {
   bool? sonuc;
 
   @override
@@ -38,7 +39,7 @@ class _KokState extends State<_Kok> {
       body: Center(
         child: ElevatedButton(
           onPressed: () async {
-            final s = await showFriendSafetySheet(context, _arkadas);
+            final s = await showFriendSafetySheet(context, ref, _arkadas);
             setState(() => sonuc = s);
           },
           child: const Text('menü'),
