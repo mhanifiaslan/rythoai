@@ -883,6 +883,17 @@ ediyor. Kural: **piksel elle düzenlenmez**, ya kadraj ya yeniden yakalama.
 
 ### Play Console tuzakları (ölçüldü, gün kaybettirdi)
 
+**UYGULAMA FİYATI ≠ RYTHO+** (2026-10-22, ölçüldü). Mağaza sayfası "Satın
+al — ₺179,99" gösteriyordu: uygulama ÜCRETLİ listelenmişti (eski abonelik
+fiyatı uygulama fiyatına girilmiş). Bir kullanıcı (operatör faturasıyla)
+uygulamayı satın aldı ve Rytho+ alamadı — sipariş türü "Ücretli uygulama",
+RevenueCat'e HİÇ gitmez; Plus yalnız `rytho_plus_monthly` aboneliğinden
+(RevenueCat → webhook) gelir. Sahip kararı: model **ücretsiz indirme +
+abonelik**; Console'da Uygulama fiyatlandırması → Ücretsiz (geri alınamaz).
+Teşhis sırası: kullanıcı belgesinde `private/subscription` yok + `revenueEvents`
+0 → Console sipariş türüne bak. Aynı gün ilk GERÇEK abonelik (PRODUCTION,
+₺239,99, 2026-10-21) sürüm 53'te sorunsuz işlendi — satın alma hattı sağlam.
+
 **"Reklam kimliği beyanı eksik" hatası ETKİN TÜM KANALLARA bakar.** İzni
 44'te kaldırdık ama hata sürdü: **dahili test** hâlâ 41'deydi ve o pakette
 AD_ID vardı. Kapalı testi temizlemek yetmedi. 10 saniyelik teşhis: formda
