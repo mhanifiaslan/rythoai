@@ -438,7 +438,7 @@
   "reportSubmitted": "Report received — we'll look into it shortly. Thank you.",
   "reportFailed": "The report couldn't be sent.",
   "someRythoUser": "A Rytho user",
-  "inboxLoadFailed": "Couldn't load reactions.",
+  "inboxLoadFailed": "Couldn't show reactions.",
   "iChingIntro": "The 64-hexagram matrix, three thousand years old. Write your question; the coins fall on real probability, and the moving lines bridge to what comes next.",
   "iChingQuestionHint": "What's on your mind?",
   "iChingMethodCoins": "Three Coins 🪙",

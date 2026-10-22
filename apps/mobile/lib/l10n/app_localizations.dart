@@ -2057,7 +2057,7 @@ abstract class AppLocalizations {
   /// No description provided for @inboxLoadFailed.
   ///
   /// In tr, this message translates to:
-  /// **'Tepkiler yüklenemedi.'**
+  /// **'Tepkiler gösterilemedi.'**
   String get inboxLoadFailed;
 
   /// No description provided for @iChingIntro.

@@ -64,12 +64,13 @@ def _kurallar_yorumsuz() -> str:
     bekçiyi geçirirdi.
     """
     metin = (_KOK / "infra" / "firestore.rules").read_text(encoding="utf-8")
-    # Önce `/* … */` blokları: yalnız `//` atılsaydı korumalı dal blok
-    # yoruma alınıp yerine korumasız bir dal yazıldığında bekçi yorumdaki
-    # korumayı görüp geçerdi (inceleme ölçtü).
-    metin = re.sub(r"/\*.*?\*/", " ", metin, flags=re.S)
-    satirlar = [s.split("//", 1)[0] for s in metin.splitlines()]
-    return " ".join(" ".join(satirlar).split())
+    # İki yorum türü TEK geçişte, soldan sağa: hangisi önce açılıyorsa o
+    # yorumdur. Sırayla silmek iki yönde de delikti — önce `//` silinseydi
+    # blok yoruma alınmış korumalı dal bekçiyi geçirirdi; önce `/* */`
+    # silinince de bir `//` yorumunun içindeki `/*` ondan sonraki CANLI
+    # kodu `*/`a kadar bekçiden saklıyordu (inceleme ölçtü).
+    metin = re.sub(r"//[^\n]*|/\*.*?\*/", " ", metin, flags=re.S)
+    return " ".join(metin.split())
 
 
 def _dize_sayisi(ifade: str, deger: str) -> int:
@@ -117,8 +118,10 @@ _ENGELLEYEN_KORUMASI = re.compile(
 
 def test_kural_engelleyen_engelledigine_davet_atamaz():
     """İkinci yön (U17 incelemesi): A, B'yi engelledikten sonra B'ye davet
-    atabiliyordu; B kabul edince ikisi `accepted` arkadaş olurdu ve engel
-    kaydı dururken B dürtme atabilirdi.
+    atabiliyordu. Kabul ve tepki kapıları bugün B'nin kabulünü ve dürtmesini
+    ayrıca kesiyor; ama bu kapı olmasaydı B'nin listesinde KABUL EDİLEMEYEN
+    sarkık bir davet kalır ve /notify/invite B'ye push atardı (sunucu
+    yalnız ALICININ listesine bakıyor — B, A'yı engellememiş).
 
     Burada `uid` davetin GÖNDERENİ (sahip dalı), yani gönderenin kendi
     listesine bakılır. `exists` DEĞİL `existsAfter` olmalı: istemci "engeli
@@ -167,9 +170,10 @@ def test_kural_kabul_engel_dururken_yapilamaz():
 
 
 def test_kural_durtme_kabul_edilmis_arkadaslik_istiyor():
-    """Tepkinin ilk hattı: create alıcının ağacında `accepted` kenar ister
-    ve engelleme iki kenarı da siler. Şart gevşerse engellenen kişi
-    dürtme atabilir hâle gelir."""
+    """Tepkinin ilk hattı: create alıcının ağacında `accepted` kenar ister.
+    Bu şartın koruduğu şey arkadaş OLMAYAN herkesin herkese tepki
+    yazamaması (H2); engelleneni ayrıca engel kapısı tutuyor
+    (`test_kural_engellenen_tepki_yazamaz`)."""
     create = _ifade(_kurallar_yorumsuz(), "match /nudges/{nudgeId}",
                     "create")
     assert ("get(/databases/$(database)/documents/users/$(uid)/friends/"
@@ -185,6 +189,9 @@ def test_kural_engellenen_tepki_yazamaz():
                     "create")
     assert ("!exists(/databases/$(database)/documents/users/$(uid)/blocked/"
             "$(request.auth.uid))") in create, create
+    # Kapı bir `&&` zincirinin halkası; `||` girerse koşulun yanında
+    # durur ama hiçbir şeyi kesmez (`... || !exists(...)`).
+    assert "||" not in create, create
 
 
 def test_kural_engel_kaydi_yeniden_yazilabilir():
@@ -263,12 +270,19 @@ def _davet_deposu(engel_yolu: str | None) -> SahteFirestore:
 def _davet_gonder(monkeypatch, depo: SahteFirestore,
                   yol: str = "/api/v1/notify/invite",
                   govde: dict | None = None,
-                  teslim: bool = True) -> tuple[dict, list]:
-    """`teslim=False`: FCM mesajı teslim edemiyor (`sent=0`) — engel
-    yanıtının ayırt edilemezliğini ölçmek için sıradan eş hâl."""
+                  teslim: bool = True,
+                  atla: str | None = None,
+                  zaten: bool = False) -> tuple[dict, list]:
+    """Sıradan eş hâller — engel yanıtının ayırt edilemezliğini ölçmek için:
+    `teslim=False` FCM mesajı teslim edemiyor (`sent=0`); `atla` alıcı
+    tarafında `can_send_event`in sıradan atlaması (ör. "sessiz-saat");
+    `zaten=True` çift başına günlük tekrar koruması dolu."""
     _depoya_bagla(monkeypatch, depo)
     monkeypatch.setattr(config, "DEV_MODE", True)
-    monkeypatch.setattr(ns, "already_sent", lambda uid, tur, gun: False)
+    monkeypatch.setattr(ns, "already_sent", lambda uid, tur, gun: zaten)
+    if atla is not None:
+        monkeypatch.setattr(ns, "can_send_event",
+                            lambda profil, tur, now_utc=None: (False, atla))
     isaretlenen: list = []
     monkeypatch.setattr(ns, "mark_sent",
                         lambda uid, tur, gun: isaretlenen.append(uid))
@@ -387,6 +401,31 @@ def test_engel_yaniti_engeli_ele_vermez(monkeypatch, caplog, yol, depo_kur,
     assert engelli == sirada, (engelli, sirada)
     assert "engel" not in json.dumps(engelli)
     assert "engelli" in caplog.text, "ayrım sunucu günlüğünde de yok"
+
+
+@uygulama_gerekir
+@pytest.mark.parametrize("yol, depo_kur, istek", [
+    ("/api/v1/notify/invite", _davet_deposu, None),
+    ("/api/v1/notify/reaction", _arkadas_deposu, _TEPKI),
+])
+@pytest.mark.parametrize("hal", [
+    {"atla": "sessiz-saat"},  # varsayılan sessiz saat 22-08
+    {"atla": "token-yok"},
+    {"zaten": True},
+])
+def test_engel_yan_kanal_yok_sirasi_atlamalarda(monkeypatch, yol, depo_kur,
+                                               istek, hal):
+    """Yan kanal: engel kapısı sıradan atlamaların ÖNÜNDE dursaydı, sıradan
+    yol gece `skipped/sessiz-saat` dönerken engelli yol `ok/sent:0` dönerdi
+    — engel tek çağrıyla ayırt edilirdi. Kapı gönderimden hemen önce
+    durduğu için her sıradan atlamada iki yolun gövdesi birebir aynı."""
+    engelli, iz = _davet_gonder(
+        monkeypatch, depo_kur("users/alici/blocked/dev-user"),
+        yol=yol, govde=istek, **hal)
+    sirada, _ = _davet_gonder(monkeypatch, depo_kur(None), yol=yol,
+                              govde=istek, **hal)
+    assert engelli == sirada, (engelli, sirada)
+    assert iz == []
 
 
 # --------------------------------------------------------------------------

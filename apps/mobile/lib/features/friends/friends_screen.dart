@@ -401,10 +401,12 @@ class _MyCardPanel extends StatelessWidget {
 /// yalnız gizlenselerdi 20'lik okuma penceresinde kalıcı yer tutarlardı
 /// ([tepkileriAyir] gerekçesi). Engel listesi henüz YÜKLENİYORKEN kutu
 /// kapalıdır: engellenenin tepkisinin bir an görünmesi, meşru tepkinin bir
-/// an gecikmesinden ağırdır. Liste OKUNAMAZSA kutu yine kapalı kalır ama
-/// sessiz kalmaz: yeniden deneme politikası (`rythoRetry`, iki deneme)
-/// bitince sağlayıcı hatada durur ve kendiliğinden toparlanmaz; satır bunu
-/// söyler ve "Tekrar dene" sağlayıcıyı yeniden kurar.
+/// an gecikmesinden ağırdır. Engel listesi ya da tepki akışı OKUNAMAZSA
+/// kutu yine kapalı kalır ama sessiz kalmaz: yeniden deneme politikası
+/// (`rythoRetry`, iki deneme) bitince sağlayıcı hatada durur ve
+/// kendiliğinden toparlanmaz; satır bunu söyler ve "Tekrar dene" iki
+/// sağlayıcıyı da yeniden kurar. (Tepki akışının hatası eskiden boş liste
+/// sayılıyor ve kutu sessizce kayboluyordu.)
 class GelenKutusu extends ConsumerStatefulWidget {
   const GelenKutusu({super.key, required this.friends});
 
@@ -440,13 +442,18 @@ class _GelenKutusuState extends ConsumerState<GelenKutusu> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final tepkiler = ref.watch(myNudgesProvider).value ?? const [];
-    if (tepkiler.isEmpty) return const SizedBox.shrink();
-
+    final tepkiDurumu = ref.watch(myNudgesProvider);
     final engel = ref.watch(engellenenKimliklerProvider);
+    final tepkiler = tepkiDurumu.value;
     final engellenenler = engel.value;
-    if (engellenenler == null) {
-      if (!engel.hasError) return const SizedBox.shrink();
+    // Okunamayan tepki akışı da, okunamayan engel listesi de aynı satırı
+    // çizer; tepki akışı okunduysa ve boşsa söylenecek bir şey yok.
+    final okunamadi = (tepkiler == null && tepkiDurumu.hasError) ||
+        (tepkiler != null &&
+            tepkiler.isNotEmpty &&
+            engellenenler == null &&
+            engel.hasError);
+    if (okunamadi) {
       return GlassPanel(
         label: l10n.inboxLabel,
         // Dar ekranda düğme alt satıra iner (`Wrap`); `SizedBox`: Wrap
@@ -460,7 +467,9 @@ class _GelenKutusuState extends ConsumerState<GelenKutusu> {
             children: [
               Text(l10n.inboxLoadFailed, style: RythoType.bodyDim),
               TextButton(
-                onPressed: () => ref.invalidate(engellenenKimliklerProvider),
+                onPressed: () => ref
+                  ..invalidate(myNudgesProvider)
+                  ..invalidate(engellenenKimliklerProvider),
                 child: Text(l10n.retry,
                     style: RythoType.button.copyWith(color: RythoColors.lilac)),
               ),
@@ -468,6 +477,9 @@ class _GelenKutusuState extends ConsumerState<GelenKutusu> {
           ),
         ),
       );
+    }
+    if (tepkiler == null || tepkiler.isEmpty || engellenenler == null) {
+      return const SizedBox.shrink();
     }
 
     final nudges = tepkileriAyir(tepkiler, engellenenler).gorunur;

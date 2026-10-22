@@ -277,10 +277,11 @@ service cloud.firestore {
         // 'outgoing' kenarı alıcının ağacına hiçbir şey koymaz.
         //
         // İkinci yön (U17 incelemesi): ENGELLEYEN de engellediğine davet
-        // atamaz — engel kaydı durdukça. Kapı olmasaydı A, B'yi engelleyip
-        // sonra davet atabilir, B kabul edince ikisi `accepted` arkadaş
-        // olurdu ve `users/A/blocked/B` dururken B dürtme atabilir, A'nın
-        // Engellenenler listesinde de görünmeye devam ederdi. İstemci
+        // atamaz — engel kaydı durdukça. Kabul ve tepki kapıları (aşağıda)
+        // B'nin kabulünü ve dürtmesini ayrıca keser; ama bu kapı olmasaydı
+        // A, B'yi engelleyip davet atabilir, B'nin listesinde KABUL
+        // EDİLEMEYEN sarkık bir davet kalır ve /notify/invite B'ye push
+        // atardı (sunucu yalnız alıcının listesine bakıyor). İstemci
         // önce sorar, evet derse engel silimini iki kenarla AYNI batch'te
         // gönderir. `exists` DEĞİL `existsAfter`: batch kuralları yazım
         // ÖNCESİ durumu görür, `exists` aynı batch'te silinen kaydı hâlâ

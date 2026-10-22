@@ -1106,7 +1106,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get someRythoUser => 'Bir Rytho kullanıcısı';
 
   @override
-  String get inboxLoadFailed => 'Tepkiler yüklenemedi.';
+  String get inboxLoadFailed => 'Tepkiler gösterilemedi.';
 
   @override
   String get iChingIntro =>

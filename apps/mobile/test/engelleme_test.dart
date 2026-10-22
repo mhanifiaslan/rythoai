@@ -66,21 +66,16 @@ Finder _yikiciOnay() => find.descendant(
     of: find.byType(AlertDialog), matching: find.byType(GoldButton));
 
 /// Yorumlar atılır: bekçi, aradığı yapıyı ANLATAN bir yorumu görüp
-/// geçmemeli. Önce `/* … */` blokları, sonra her satır `//`dan kesilir —
-/// yalnız `//` ile BAŞLAYAN satırları atmak yetmiyordu: satır sonuna
-/// yorumlanmış bir `..set(…)` ya da blok yoruma alınmış kod tek-batch
-/// bekçisini kandırıyordu (inceleme ölçtü). Dize içindeki `//` (URL) da
-/// kesilir; bu bekçilerin baktığı satırlarda URL yok.
+/// geçmemeli. İki tür TEK geçişte, soldan sağa — hangisi önce açılıyorsa o
+/// yorumdur. Yalnız `//` ile BAŞLAYAN satırları atmak satır sonu ve blok
+/// yorumla kandırılıyordu; türleri SIRAYLA silmek de delikti: önce
+/// `/* */` silinince bir `//` yorumunun içindeki `/*` ondan sonraki CANLI
+/// kodu saklıyordu (inceleme ölçtü). Dize içindeki `//` (URL) da yorum
+/// sayılır; bu bekçilerin baktığı satırlarda URL yok.
 String _yorumsuz(String yol) => File(yol)
     .readAsStringSync()
     .replaceAll('\r\n', '\n')
-    .replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '')
-    .split('\n')
-    .map((s) {
-      final i = s.indexOf('//');
-      return i == -1 ? s : s.substring(0, i);
-    })
-    .join('\n');
+    .replaceAll(RegExp(r'//[^\n]*|/\*[\s\S]*?\*/'), '');
 
 /// [kaynak] içinde [bas]tan başlayıp [son]a kadar (hariç) olan dilim.
 String _dilim(String kaynak, String bas, String son) {
@@ -374,6 +369,21 @@ void main() {
           greaterThan(govde.indexOf('await batch.commit();')));
     });
 
+    test('engellemede tepki silimi YALNIZ engellenenin tepkilerini okur', () {
+      // Filtre satırı düşerse sorgu TÜM tepkileri döndürür ve her
+      // engellemede meşru tepkiler sessizce silinir — takım yine yeşil
+      // kalıyordu (inceleme ölçtü).
+      final govde = _dilim(_yorumsuz('lib/core/safety.dart'),
+          'Future<void> _engellenenTepkileriniSil(', '\n}\n');
+      final duz = govde.replaceAll(RegExp(r'\s+'), '');
+      expect(duz, contains(".collection('users').doc(uid).collection('nudges')"
+          ".where('fromUid',isEqualTo:hedefUid).get()"));
+      // En iyi çaba: hata YUTULUR. Çağrı `unawaited`; burada fırlayan
+      // (ya da yeniden fırlatılan) hata yakalanmamış hata olurdu.
+      expect(govde, contains('catch (_)'));
+      expect(RegExp(r'\b(re)?throw\b').hasMatch(govde), isFalse);
+    });
+
     test('engelleme dalı tek yoldan: önce removeFriend YOK, dikiş var', () {
       // Asıl geri dönüş "engellemeden önce removeFriend" idi (iki ayrı
       // yazım); yalnız `blockUser(` aramak onu yakalamıyordu.
@@ -631,6 +641,56 @@ void main() {
       await tester.tap(find.text('aç'));
       await _bekle(tester);
       expect(silinen.cagrilar, ['n2']);
+    });
+
+    testWidgets('aynı tepki için ikinci silim isteği atılmıyor',
+        (tester) async {
+      // Silim düşse ya da gecikse de akış aynı tepkiyi yeniden yayınlar;
+      // her yayında yeniden silmek istek seli olurdu.
+      final akis = StreamController<List<Map<String, Object>>>();
+      addTearDown(akis.close);
+      final silinen = _Kayit()..dussun = true;
+      await tester.pumpWidget(sar(
+        const Scaffold(body: GelenKutusu(friends: [arkadas])),
+        overrides: [
+          myNudgesProvider.overrideWith((ref) => akis.stream),
+          engellenenKimliklerProvider
+              .overrideWith((ref) => Stream.value({'u-engelli'})),
+          tepkiSiliciProvider.overrideWithValue(silinen.call),
+        ],
+      ));
+      for (var i = 0; i < 3; i++) {
+        akis.add([for (final t in tepkiler) {...t}]);
+        await _bekle(tester);
+      }
+      expect(silinen.cagrilar, ['n2']);
+    });
+
+    testWidgets('tepki akışı okunamazsa da sessiz değil; tekrar dene',
+        (tester) async {
+      var hata = true;
+      final silinen = _Kayit();
+      await tester.pumpWidget(sar(
+        const Scaffold(body: GelenKutusu(friends: [arkadas])),
+        retry: rythoRetry,
+        overrides: [
+          myNudgesProvider.overrideWith((ref) => hata
+              ? Stream<List<Map<String, dynamic>>>.error(Exception('x'))
+              : Stream.value(tepkiler)),
+          engellenenKimliklerProvider
+              .overrideWith((ref) => Stream.value(const <String>{})),
+          tepkiSiliciProvider.overrideWithValue(silinen.call),
+        ],
+      ));
+      await tester.pump(const Duration(milliseconds: 1500));
+      await _bekle(tester);
+      expect(find.text(_tr.inboxLoadFailed), findsOneWidget);
+
+      hata = false;
+      await tester.tap(find.text(_tr.retry));
+      await _bekle(tester);
+      expect(find.text(_tr.inboxLoadFailed), findsNothing);
+      expect(find.text(satir('Deniz', _tr.reactionHug)), findsOneWidget);
     });
 
     testWidgets('dokunulan tepki dikişten siliniyor', (tester) async {

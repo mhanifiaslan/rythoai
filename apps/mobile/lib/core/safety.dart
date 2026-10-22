@@ -125,7 +125,7 @@ DocumentReference<Map<String, dynamic>> _blockedRef(String targetUid) {
 /// firestore.rules (davet kenarının iki dalı, kabulün iki dalı, tepki
 /// yazımı), sunucu (`/notify/invite`, `/notify/reaction`,
 /// `/contacts/match`) ve istemci (davet öncesi soru, gelen kutusu, gelen
-/// istekler). Buradaki kenar silimi ayrıca kabul edilmiş arkadaşlığı
+/// istekler, Engellenenler ekranı — `at`ı okuyan tek yer). Buradaki kenar silimi ayrıca kabul edilmiş arkadaşlığı
 /// bitirir; tepki kuralı zaten `accepted` kenar istiyor.
 ///
 /// Engellenenin bana BIRAKTIĞI tepkiler batch'e girmiyor (göndericiye göre

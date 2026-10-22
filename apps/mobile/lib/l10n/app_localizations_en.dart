@@ -1143,7 +1143,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get someRythoUser => 'A Rytho user';
 
   @override
-  String get inboxLoadFailed => 'Couldn\'t load reactions.';
+  String get inboxLoadFailed => 'Couldn\'t show reactions.';
 
   @override
   String get iChingIntro =>
