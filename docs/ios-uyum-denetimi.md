@@ -90,6 +90,7 @@ Denetimden sonra sahibin verdiği kararlar. Bazı kayıtları kapatır, bazılar
 | U53 | DÜŞÜK | hesap | ⏳ Apple silicon Mac / Vision Pro erişilebilirliği | A4 mağaza |
 | U54 | DÜŞÜK | kod | ⏳ FCM `getToken` APNs jetonundan önce (belirsiz) | A5 test |
 | U55 | DÜŞÜK | kod | ⏳ Xcode 27 SDK tabanı borcu | Sonra |
+| U56 | BOZUK | kod | ⏳ `app_settings` iOS derlemesini durduruyor (yalnız SwiftPM) | A3 ortak kod |
 
 **Aşama dağılımı:** A1 4 · A2 19 · A3 19 · A4 8 · A5 2 · Sonra 3.
 
@@ -215,6 +216,8 @@ Yayın sırası (sahibin işi): güncellenen web gizlilik politikası (`web/lega
 
 **Android güvenliği** — Sahibin kararı: ekran iki platformda. Sunucu zorlaması build numarasıyla kademelendiği için eski Android paketleri kırılmaz.
 
+**Birleşme notu (2026-10-22, `8d6f67b`)** — Windows'un 27 Eylül'den sonra eklediği AI yüzeyleri için kapsam yeniden ölçüldü. Sunucu: kişisel veri taşıyan her Gemini çağrısı kapılı (sohbet, rapor uçlarının hepsi, takvim yorumu, ilişki, sabah/öğle paketi, akşam sorusu); kapı dışı yalnız burç bazlı genel yorum ve bildirim satırı (kişisel veri yok). İstemci: AI ucu çağıran her yer kapılı. Windows'un ortak okuma kabına (`OkumaKabi`) tek koruma dalı eklendi: `OkumaHata(AiOnayiGerekli)` → onay kartı; ilişki ucunun `reading_ai_off`ı aynı temsile çevrildi. Sohbet kapısı Windows'un P-turu akışına yerleşti (kriz/yasak alan kapılarından sonra, cihaz kilidi ve harcamadan önce). Gizlilik politikası (dört kopya) ve onay ekranı metni öğle bildirimini, akşam sorusunu ve takvim yorum satırlarını da sayıyor.
+
 ### U07 — App Store boyutunda ekran görüntüsü yok
 ⏳ açık · RET · ikisi · A4 mağaza · kaynak: `store-screenshots-play-only-ipad-required`, `store-screenshots-ipad`
 
@@ -261,6 +264,17 @@ Kapandı: `[iOS] U09 U23: yuz okuma kare geometrisi ve izin reddi` — Kanıt ek
 Kalan: A5 (U21) — gerçek iPhone'da deklanşörün açıldığı, alının ölçüldüğü ve noktaların iki lenste de yüzün üstüne düştüğü görülmeli. Cihazda ölçülmedi (sahibin 3. kararı: ilk kez TestFlight / App Review'da).
 
 **Android güvenliği** — Değişiklik iOS dalında; Android hesaplaması aynen kalır.
+
+### U56 — `app_settings` 8.0+ iOS'ta yalnız SwiftPM: birleşmiş dal iOS için derlenmiyor
+⏳ açık · BOZUK · kod · A3 ortak kod · kaynak: birleşme sonrası ölçüm (2026-10-22)
+
+**Kanıt** — `8d6f67b` (`ios-hazirlik` → `yuz-okuma-cihaz-usti-olcum`) sonrası `LANG=en_US.UTF-8 flutter build ios --simulator --debug`: *"The following plugin(s) are only compatible with Swift Package Manager: app_settings"* ve derleme durur. `pubspec.yaml` `app_settings: ^9.0.0` (Windows, D3 `b9b81c7`, 2026-10-10); `enable-swift-package-manager: false` (bu denetimin U25'i, `4ba7d9d`). Eklentinin değişiklik günlüğü: 8.0.0 "BREAKING: Drop CocoaPods support for iOS and macOS"; son CocoaPods sürümü 7.0.0; `openAppSettings` API'si 7→9 değişmedi. 8.0.1–8.0.3'ün Android değişiklikleri AGP 9 derleme uyumluluğu; proje AGP 9.0.1 (`android.builtInKotlin=false`, `android.newDsl=false`). Kullanım: `lib/features/face/face_capture_screen.dart` (kamera reddi "Ayarları aç") ve `lib/widgets/izin_kapisi.dart`. `flutter test` (1668) ve `flutter analyze` yeşil — kusur yalnız iOS derlemesinde görünür.
+
+**Etki** — iOS paketi hiç üretilemez: simülatör, TestFlight, App Store. İki makinenin kararı çakıştı: Mac U25'te Google kütüphanelerinin iki kez bağlanmasını SPM'i kapatarak çözdü, Windows iki hafta sonra SPM'e geçmiş bir eklenti ekledi; ikisi ayrı dallardaydı.
+
+**Düzeltme** — sahip kararı bekliyor. Seçenekler: (a) `app_settings: 7.0.0`'a sabitlemek — iOS'ta CocoaPods var; Android derlemesi AGP 9.0.1 altında Mac'te ÖLÇÜLEMEDİ (Java yok), Windows `infra/build-aab.ps1` ile ölçmeli. (b) Eklentiyi kaldırmak — iOS'ta mevcut `uygulamaAyarlariniAc` (`app-settings:`, U23); Android için ayrı bir yol (yerel kod ya da başka eklenti) gerekir ve cihazda ölçülmeli. (c) SPM'i açmak — U25'i geri getirir, önerilmez.
+
+**Android güvenliği** — (a) Android paketinin bağımlılığını düşürür; yayın öncesi Windows'ta derlenip cihazda kamera reddi + bildirim izni kapısı ölçülür.
 
 ---
 
@@ -392,6 +406,8 @@ Kalan: yukarıdaki konsol maddesi (hesap işi; o yapılmadan iptal çağrısı d
 
 **Android güvenliği** — Ortak ve sunucu değişiklikleri iki platforma birden uygulanır; yeni kural eski Android paketlerinde de temiz hata verir.
 
+**Durum notu (2026-10-22)** — Mac'te commit'lenmemiş bir TASLAK var, yerel stash'te: `stash@{0}` "U17 taslak (ios-hazirlik, 2026-10-22)". İçeriği: friends counterpart create dalında engel kapısı, `/notify/invite` ve `/contacts/match` atlaması (`profile_service.has_blocked`), gelen istek kutucuğunda Engelle/Şikayet, Profil > Gizlilik > Engellenenler ekranı; backend 12/12. Birleşmeden ÖNCEKİ tabana yazıldı, uygulanırken birleşmiş koda göre yeniden çözülmeli. Windows bunu yeniden yazmasın — stash yalnız bu Mac'te.
+
 ### U18 — Hazır App Review notları yanlış ya da eskimiş; demo planı cihaz kilidini atlıyor
 ⏳ açık · YÜKSEK · ikisi · A4 mağaza · kaynak: `review-notes-inaccurate`
 
@@ -473,6 +489,8 @@ Kapandı: `[iOS] U09 U23: yuz okuma kare geometrisi ve izin reddi` — `face_cap
 Düzeltmeden sapma: yüklem iki platformda ORTAK değil. Denetimin "Android güvenliği" satırı yanlış öncüle dayanıyordu — `camera_android_camerax` 0.6.30'un ret kodu da `CameraAccessDenied` (`CameraPermissionsManager.java`), `Permission` içermiyor. Önek Android'e de uygulansaydı Android reddi izin katmanına düşer ve oradaki `resumed` yeniden denemesi diyaloğu tekrar tekrar açabilirdi (Android ilk retten sonra yeniden SORABİLİYOR: 11+'da bir kez daha, 7–10'da "Bir daha sorma"ya dek); cihazda ölçülmeden Android'e taşınmadı. Android'de ret bugün de arıza sayılıyor ve Crashlytics'e yazılıyor — Windows oturumu için açık kalem, izlendiği yer **`docs/test-raporu.md` B11** (döngü riski ve önce ölçülecekler orada).
 
 **Android güvenliği** — Android'de mevcut yeniden deneme kalır (app_settings ya da permission_handler eklenmedikçe); `Permission` içeren Android kodları aynı dala düşmeye devam eder.
+
+**Birleşme notu (2026-10-22, `8d6f67b`)** — Windows aynı kusuru D6'da iki platform için birden onarmıştı (`_hataKatmani`: "Ayarları aç" gerçekten ayarları açar, dönüşte kendiliğinden yeniden dener). Birleşmede o sürüm kaldı; Mac'in yalnız-iOS katmanı `YuzKameraEngeli` ve onun widget testleri çıktı. `kameraIzniReddi` (iOS'un `CameraAccess*` kodları) ve rehber kartı kaldı. ⚠️ Windows'un katmanı `app_settings` kullanıyor — U56.
 
 ### U24 — UI ses efektleri iOS'ta sessiz anahtarını yok sayıyor ve müziği kesiyor
 ✅ kapandı · ORTA · kod · A2 iOS kod · kaynak: `ios-audio-session-ignores-silent-switch`
@@ -779,6 +797,8 @@ Kapandı: `[iOS] U33 U46 U47: satin alma hata eslemesi, magaza metinleri, abonel
 
 **Android güvenliği** — Platform dalı seçilirse Android'in test kanalı ipucu bayt bayt korunur.
 
+**Birleşme notu (2026-10-22, `8d6f67b`)** — Windows'un D7'si "zaten satın alınmış" ve "ürün yok" metinlerini platformdan bağımsız yeniden yazmıştı ("Bu hesapta…", "Bu ürün şu anda mağazada sunulmuyor…"); iki kusur orada da kapanmış. `purchaseAlreadyOwnedIos` ve `purchaseItemUnavailableIos` kaldırıldı. Asıl bekçi ("iOS'ta hiçbir mağaza kodu Google/Play/test kanalı anmaz") kaldı ve geçiyor; kalan tek platform dalı `purchaseNotAllowedIos`.
+
 ### U47 — "Aboneliği yönet" aboneliğin alındığı mağazaya bakmıyor
 ✅ kapandı · DÜŞÜK · kod · A3 ortak kod · kaynak: `manage-subscription-cross-store`, `manage-subscription-ignores-origin-store`
 
@@ -819,6 +839,8 @@ Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `widge
 Kapandı: `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi` — `auth_service.dart` `girisIptalEdildi`; `_runSocial` iptalde sessiz döner (nötr mesaj da yok: hata olmadı, düğmenin boşa dönmesi yeterli), Crashlytics'e yazmaz. Kodda ölçülen tuzak: google_sign_in_android 7.2.15 Credential Manager'ın `GetCredentialCancellationException`'ını `GoogleSignInExceptionCode.canceled`'a çeviriyor; B1'in "[16] Account reauth failed" hatası bu sınıfla gelebildiği için yalnız koda bakan süzgeç B1 mesajını yutardı — süzgeç önce reauth metnine bakıyor (`googleYenidenDogrulamaGerekli`). Apple `unknown` (1000) bastırılmıyor. Ortak düzeltme: Android'de Google iptali de sessiz. Ölçüldü (`test/giris_ios_test.dart`): Apple/Google iptali snack göstermiyor; Apple `unknown` hâlâ `authFailed`; iptal koduyla gelen [16] hatası `authReauthNeeded` gösteriyor. Süzgeç satırı söküldüğünde iki iptal testinin düştüğü de denendi.
 
 **Android güvenliği** — Google iptali Android'de de sessizleşir; genel catch'teki "[16] reauth" dalı (B1) aynen kalır.
+
+**Birleşme notu (2026-10-22, `8d6f67b`)** — Windows da iptali ayrı onarmıştı (`socialHataSonucu`); o yapı kaldı ama Mac'in ölçtüğü sıra uygulandı: reauth İPTALDEN ÖNCE (Credential Manager "[16]"yı iptal koduyla bildirebiliyor; tersi B1'i sessizce yutardı). `girisIptalEdildi` artık `isAuthCancelled` üzerine kurulu, iki kopya ayrışmasın diye.
 
 ### U50 — 426 `update_required` metni "Google Play'den güncelle" diyor
 ⏳ açık · DÜŞÜK · kod · A3 ortak kod · kaynak: `update-required-message-names-google-play`

@@ -22,6 +22,20 @@ madde ya ölçülerek bulundu ya da bir kez zarar verdi. Windows makinesinde
 > - Ortak panosu `rytho.app/affiliate/` (eski `/ortak/` 301), varsayılan dil EN.
 > - iOS'ta yapılacak ilk ürün işi: **ortak (affiliate) bağlantısının iOS'ta
 >   da sayılması** — bkz. **4.10**.
+
+> **Mac durumu (2026-10-22, Mac'ten ölçüldü):**
+> - Mac'in iOS/App Store işi (`ios-hazirlik`, 2026-09-26/27, 16 commit,
+>   15'i push edilmemişti) bu dala **birleşti**: `8d6f67b`. U-kimlikli
+>   kayıt `docs/ios-uyum-denetimi.md`'de (55 kayıt + birleşme notları).
+>   Bu belgenin 4.2/4.4/4.8 maddeleri o işe göre güncellendi.
+> - ⛔ **Birleşmiş dal iOS için DERLENMİYOR (U56).** Windows'un D3'te
+>   eklediği `app_settings` 8.0+ iOS'ta yalnız Swift Package Manager
+>   destekliyor; depo ise U25 gereği CocoaPods'ta (SPM kapalı). Karar
+>   sahipte — §6.
+> - Bu Mac: Xcode 26.6 seçili, Flutter 3.44.7, CocoaPods 1.17.0. İmza
+>   sertifikası **0**, bağlı iPhone **yok** (sahip: haftaya). `firebase`,
+>   `gcloud`, `pwsh`, Java ve tam Android SDK **kurulu değil**.
+> - 4.10 kodu hazır (`31ee208`): **deploy edilmedi, cihazda ölçülmedi.**
 Uzak depo: `https://github.com/mhanifiaslan/rythoai.git`
 (GitHub deposu `rhytoai` → `rythoai` olarak yeniden adlandırılmış; eski
 adres hâlâ yönlendiriyor ama **yeni adresi kullan** — yönlendirme kalıcı
@@ -96,6 +110,15 @@ python3.11 -m venv .venv
 .venv/bin/python -m pytest -q     # beklenen (2026-10-19): 2756 passed, 2 skipped
 ```
 
+**Mac'te ölçülen (2026-10-22, Apple Silicon):** saf `33bb9f4`'te
+`flutter test` **1528/1528**; `pytest` **2755 geçti, 2 atlandı, 1 kaldı** —
+`test_rag_coverage[tr-family-Babamla…]`. Kod kusuru DEĞİL: kelime modunda en
+yüksek skorda 10 parça EŞİT ve üç sonuç NumPy'nin işlemci mimarisine bağlı
+eşitlik bozmasıyla seçiliyor (x86_64'te geçer; üretim de x86_64). Birleşme
+(`8d6f67b`) sonrası: `flutter test` **1668/1668**, `pytest` **2795 + 2
+atlandı + aynı 1**. `flutter analyze` Mac'te `build/**` dışlanmazsa 864 sahte
+hata sayar (§7; dışlama birleşmeyle geldi).
+
 Betikler macOS'a hazır (ölçüldü): `infra/deploy-backend.ps1` venv düzenini
 iki platformda da buluyor (`Scripts/python.exe` → `bin/python`),
 `infra/build-aab.ps1` flutter'ı önce PATH'ten arıyor. Ama
@@ -115,6 +138,10 @@ gerektiriyor; atlanırsa sonraki adım anlaşılmaz bir hatayla düşer.
 Yıllık ücretli. Bunsuz ne imzalama ne TestFlight ne App Store Connect var.
 Üyelikten çıkan **Team ID** (10 karakter) üç yerde birden lazım: Xcode
 imzalama, `apple-app-site-association`, ve entitlements profili.
+
+**Durum (2026-10-22):** Team ID **`292WJ9TP74`** depoda (pbxproj + AASA,
+`c3dca0e`). Üyeliğin **ücretli ve etkin** olduğu sahipten teyit bekliyor:
+Associated Domains (Universal Link) ücretsiz kişisel takımda açılamıyor.
 
 ### 4.2 — Firebase'de iOS kaydı · ✅ **BİTTİ** (2026-09-26)
 
@@ -158,12 +185,13 @@ dönemezdi ve giriş yarıda kalırdı.
 Kayıt açılınca doğan anahtarın bundle listesi **boş** geliyordu — dün
 Android ve Browser anahtarları için kapattığımız bot yolunun aynısı.
 
-### 4.4 — İmzalama · **SEN (Xcode'da)**
-`project.pbxproj`'de `DEVELOPMENT_TEAM` anahtarı **hiç yok** ve Runner
-hedefinde `CODE_SIGN_STYLE` yok; imza kimliği eski biçimde
-(`"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer"`). Xcode'da
-Runner → Signing & Capabilities → Team seç; Xcode gerekli anahtarları
-kendisi yazar. **Bunu Xcode'a yaptır**, elle pbxproj düzenleme.
+### 4.4 — İmzalama · ✅ **pbxproj'de** · **SEN (Xcode hesabı)**
+✅ `c3dca0e` (2026-09-27): `DEVELOPMENT_TEAM = 292WJ9TP74` ve
+`CODE_SIGN_STYLE = Automatic` altı yapılandırma girdisinde (ölçüldü
+2026-10-22). **Kalan:** Xcode → Settings → Accounts'ta takımın Apple
+kimliği. Bu Mac'te imza sertifikası **0** (`security find-identity -v -p
+codesigning`, 2026-10-22); otomatik imza ilk cihaz derlemesinde sertifikayı
+ve profili kendisi kurar — iPhone geldiğinde.
 
 ### 4.5 — Yetenekler (Capabilities) · **SEN (Xcode'da)**
 Apple Developer portalında App ID üzerinde de **açık olmalı**, yalnız
@@ -206,17 +234,18 @@ bağlanmaz) — panel adıyla **birebir** aynı olmalı.
 sahip doğruladı; kayıt e-postasındaki Enrollment ID aynı biçimde ama
 FARKLI bir şey). Aynı değer pbxproj'de `DEVELOPMENT_TEAM`; ikisinin
 ayrışması `backend/tests/test_ios_config.py`'de bekçili. **Kalan:**
-`firebase deploy --only hosting --project rhytoai` (Windows tarafı). Yayın
-olmadan davet bağlantıları iOS'ta uygulamayı açmaz, tarayıcıya düşer.
+`firebase deploy --only hosting --project rhytoai` — sahibe SORULUR; bu
+Mac'te `firebase` CLI yok. Yayın olmadan davet bağlantıları iOS'ta
+uygulamayı açmaz, tarayıcıya düşer.
 
 Entitlements tarafı hazır: `applinks:rytho.app` **ve**
 `applinks:rhytoai.web.app` ikisi de yazılı (sahadaki eski davet bağlantıları
 ikincisini taşıyor).
 
-⚠️ AASA bugün yalnız `"paths": ["/i/*"]` taşıyor — **`/r/*` (ortak
-bağlantısı) YOK**. Android'de App Links ikisini de kapsıyor
-(`AndroidManifest.xml` `/i/` + `/r/`). Team ID yazılırken `/r/*` de
-eklenmeli; ayrıntı ve gerekçe 4.10.
+✅ `/r/*` (ortak bağlantısı) da eklendi: `"paths": ["/i/*", "/r/*"]`
+(`31ee208`, 4.10). Bekçi `test_aasa_android_app_links_yollarini_kapsiyor`:
+AndroidManifest'in her App Links yol öneki AASA'da da olmalı — eski boşluk
+tam bu ayrışmaydı ve hiçbir test kırmızı değildi.
 
 ### 4.9 — App Store Connect kaydı ve `APPSTORE_APP_ID` · **SEN**
 Kayıt açılınca **sayısal uygulama kimliği** doğar. Onu
@@ -228,46 +257,70 @@ kurulan bağlantı mağazada "uygulama bulunamadı" açar ve kullanıcı o
 ekranda gerçekten kilitli kalır (bekçi:
 `test/force_update_screen_test.dart`).
 
-### 4.10 — Ortak (affiliate) bağlantısı iOS'ta · **KOD + SAHİP KARARI**
+### 4.10 — Ortak (affiliate) bağlantısı iOS'ta · ✅ **kod** (`31ee208`) · ⏳ **deploy + cihaz ölçümü**
 
-Ortaklık programı canlı ve **yalnız Android'de sayıyor**. Ölçülen durum:
+Ortaklık programı canlı ve bugün **yalnız Android'de sayıyor**. Ölçülen
+durum (2026-10-22):
 
-| Parça | Android | iOS bugün |
+| Parça | Android | iOS (kod, `31ee208`) |
 |---|---|---|
-| Kurulu uygulamada `rytho.app/r/KOD` | App Links → `deep_links.dart` kodu çıkarır → `POST /api/v1/billing/redeem-code` | AASA'da `/r/*` yok → **tarayıcıda açılır, uygulamaya gelmez** |
-| Kurulu DEĞİLKEN tıklama → kurulum → ilk açılış | `web/r/index.html` Play'e `&referrer=` ile yönlendirir, `partner_referrer.dart` Install Referrer'dan okur | `partner_referrer.dart:52` Android değilse **döner** — App Store'da referrer'ın karşılığı YOK |
-| `/r/` sayfasının iPhone metni | — | "Ortak bağlantısı şimdilik yalnız Android kurulumlarında sayılıyor" (`digerNot`) |
+| Kurulu uygulamada `rytho.app/r/KOD` | App Links → `deep_links.dart` → `POST /api/v1/billing/redeem-code` | AASA `/r/*` → Universal Link → **aynı** `deep_links.dart` yolu. Yayın ve cihaz ölçümü bekliyor |
+| Kurulu DEĞİLKEN tıklama → kurulum | `web/r/index.html` Play'e `&referrer=`; `partner_referrer.dart` Install Referrer | App Store'da dengi YOK → "kur, hesabını aç, bağlantıya bir kez daha dokun" (aşağıda) |
+| `/r/` sayfasının iPhone metni | — | `APPSTORE_ID` boşken **bugünkü** cümle: "Ortak bağlantısı şimdilik yalnız Android kurulumlarında sayılıyor" |
 
-**1. adım (kesin, kod): Universal Link.** AASA'ya `/r/*` ekle (Team ID ile
-birlikte), `firebase deploy --only hosting --project rhytoai`. Kurulu
-uygulamada bağlantı uygulamayı açar ve **mevcut** `deep_links.dart` yolu
-kodu zaten sunucuya yazar — istemcide yeni kod gerekmeyebilir; **gerçek
-cihazda ölç** (Universal Link'ler simülatörde ve aynı alan adından
-yazılarak açıldığında güvenilir tetiklenmez — bağlantıyı Notlar/Mesajlar'dan
-dokunarak dene).
+**Sahip kararı (2026-10-22): "bir kez daha dokun".** Parmak izi eşleştirme
+yok. Profesyonel seçenekler tartıldı: Branch'in "NativeLink"i (pano; iOS 16+
+"Yapıştırılsın mı?" izni sorar), Apple Custom Product Page (ortak başına bir
+mağaza sayfası, en çok 70, her biri incelemeden geçer; "Aç" derin bağlantısı
+iOS 18+, yeni kurulumda da çalıştığını Apple açıkça yazmıyor), App Store
+teklif kodları (kullanıcıya kod yazdırıp indirim verir — programın iki
+kuralını bozar). Hiçbiri seçilmedi.
 
-**2. adım (sahip kararı): kurulum öncesi (ertelenmiş) atıf.** App Store'da
-Play Install Referrer'ın dengi yok. Seçenekler, önerilen önce:
+**Nasıl çalışıyor:**
+- Kurulu uygulamada bağlantı uygulamayı açar ve kod mevcut yoldan sayılır.
+  ⚠️ O yol **oturum ister** (`deep_links.dart`: 401 terminal sayılmaz) —
+  sayfa metni bu yüzden "kur, **hesabını aç**, sonra dokun" diyor.
+- `/r/` sayfası iPhone'da App Store bağlantısı ve **"Uygulamada aç"**
+  düğmesi gösterir. Düğme KARŞI host'a gider (`rytho.app` ↔
+  `rhytoai.web.app`): Universal Link aynı alan adı içinde tetiklenmez.
+  Uygulama kurulu değilse sayfa orada `?tekrar=1` ile açılır ve tıklama
+  İKİNCİ kez sayılmaz.
+- Bekçiler (`test_web_seo.py`): dalın `APPSTORE_ID`'ye kapılı olması,
+  `?tekrar=1`'de ping olmaması, düğme hedefinin `applinks:` listesinde ve
+  sayfadan farklı host olması. Dördü de mutasyonla kırmızı ölçüldü. Yedi
+  senaryo (masaüstü, iPhone kimliksiz/kimlikli, iki host, tekrar, Android,
+  geçersiz kod) JavaScriptCore'da sahte DOM ile koşturuldu.
 
-- **A — "kurduktan sonra bağlantıya bir kez daha dokun"** (önerilen):
-  `/r/` sayfası iPhone'da App Store'a gönderirken bunu açıkça söyler;
-  ikinci dokunuş Universal Link ile uygulamayı açar ve 1. adımdaki yol
-  sayar. Mahremiyet sorunu yok, App Store kurallarıyla çatışmaz. Bedeli:
-  ikinci dokunuşu yapmayanlar sayılmaz → panolardaki "iPhone'dan gelen
-  tıklamalar atfa geçemeyebilir" dipnotu güncellenir, kaldırılmaz.
-- **B — pano (clipboard):** iOS 16+ "yapıştırılsın mı?" izni sorar; güven
-  kırıcı ve kullanıcının metnini okuma izlenimi verir. Önerilmez.
-- **C — parmak izi eşleştirme (IP + cihaz bilgisi):** ATT ve App Store
-  5.1.2 riski; "ölçülmeyen söylenmez" ile de çelişir (olasılıksal eşleşme
-  ölçüm değildir). **Yapma.**
+**Yayın günü listesi** — uygulama App Store'da YAYINLANIP cihazda
+ölçülmeden YAPILMAZ. Hosting her deploy'da `web/`'i tümden değiştirdiği için
+erken yazılan bir metin herhangi bir makinenin ilk deploy'unda canlıya
+çıkardı:
+1. `web/r/index.html` → `APPSTORE_ID` (App Store Connect'in sayısal kimliği).
+2. `web/ortaklik.html` (iPhone paragrafı) ve `web/en/partners.html`
+   (aynısı) — "iPhone'dan gelen bağlantı sayılmaz" → "ikinci dokunuşta sayılır".
+3. `web/affiliate/ortak.js` iPhone dipnotları (TR + EN + kod yorumu):
+   **güncellenir, kaldırılmaz** — ikinci dokunuşu yapmayan hâlâ sayılmaz,
+   dönüşüm oranının böleninde iPhone tıklamaları duruyor.
+4. Yönetim paneli `web/rytho-admin/gorunumler/ortaklar.js` ("iOS ve
+   masaüstü" dipnotu) ve `web/index.html` / `web/en/index.html`
+   "iPhone'da ne zaman?" SSS'i.
+5. `docs/ortaklik-programi.md` §8 "Durum" satırı.
+
+**Cihazda ölçülecek (iPhone gelince):**
+1. Notlar'a `https://rytho.app/r/TESTKOD` yaz, dokun → uygulama açılır,
+   `users/{uid}/private/attribution` yazılır (oturum açıkken).
+2. Safari'de `rytho.app/r/TESTKOD` → "Uygulamada aç" (karşı host) →
+   uygulama açılır mı?
+3. Instagram / WhatsApp uygulama içi tarayıcısından dokunuş — Universal
+   Link'i açmayabilirler; ölçülmeden hiçbir şey söylenmez.
+4. Apple'ın AASA önbelleği:
+   `https://app-site-association.cdn-apple.com/a/v1/rytho.app` deploy'dan
+   sonra güncellenmeyebilir; önce oradan oku.
 
 Kurallar (Android'de ölçülenlerle aynı kalmalı): kullanıcı **kod yazmaz**,
 kullanıcıya ödül **yok**, ortak kendi kodunu kendi hesabında kullanamaz,
 sayılan şey **"bağlantıyı kullanan"** (kuran değil). Sunucu tarafı
-(`partner_service.redeem`) platformdan bağımsız — değişiklik istemci +
-`web/r/index.html` + AASA'da. `web/r/index.html` iPhone dalının metni ve
-`backend/tests/test_web_seo.py`'nin `/r/` bekçileri birlikte güncellenir;
-ortak panosu ve yönetim panelindeki iOS dipnotları da.
+(`partner_service.redeem`) platformdan bağımsız.
 
 ---
 
@@ -303,25 +356,30 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
 - **Mağaza metinleri** — dört kullanıcı dizesi "Google Play" yazmıyor
   artık. Türkçe ek uyumu yüzünden yer tutucu kullanılamadı ("Play'**de**"
   ama "App Store'**da**"), bu yüzden mağaza adı metinden çıkarıldı.
-  ⚠️ Burada eskiden "mağaza metinleri nötr" yazıyordu ve iki satın alma
-  hata metni için YANLIŞTI: `purchaseAlreadyOwned` "Google hesabı",
-  `purchaseItemUnavailable` "test kanalı" diyor (U46). Artık
-  `storeErrorText` iOS'ta ayrı anahtarlara gidiyor; Android metinleri bayt
-  bayt duruyor.
+  Satın alma hata metinleri de artık iki platformda doğru: Mac U46'da iOS'a
+  ayrı anahtarlar açmıştı ("Google hesabı" ve "test kanalı" diyen iki metin
+  yüzünden); Windows'un D7'si o iki metni platformdan bağımsız yeniden
+  yazdığı için birleşmede (`8d6f67b`) iOS kopyaları kaldırıldı. Kalan tek
+  platform dalı `purchaseNotAllowed` (iOS'ta çaresi Ekran Süresi).
 
 ---
 
 ## 6. Bitmemiş, Mac'te yapılacak kod işleri
 
-- **`en.lproj/InfoPlist.strings` bağlanmalı.** Dosya
-  `apps/mobile/ios/Runner/en.lproj/` altında **hazır** ama Xcode projesine
-  bağlı değil: Copy Bundle Resources'ta yok ve `knownRegions` yalnız
-  `(en, Base)`. Windows'tan pbxproj'e variant-group cerrahisi yapmak
-  projeyi hiç açılmaz hâle getirebilirdi, o yüzden yapılmadı.
-  Xcode'da: Info.plist seç → File Inspector → Localize → Türkçe ekle.
-  Şu an `developmentRegion = en` ama Info.plist metinleri **Türkçe**, yani
-  İngilizce cihaz Türkçe izin diyaloğu görüyor. Türkiye-öncelikli
-  lansmanda kabul edilebilir; **dünyaya açılmadan önce** düzeltilmeli.
+- ⛔ **U56 — `app_settings` iOS derlemesini durduruyor** (ölçüldü
+  2026-10-22). `flutter build ios --simulator`: *"The following plugin(s)
+  are only compatible with Swift Package Manager: app_settings"*. 8.0.0
+  CocoaPods desteğini bıraktı; depoda `pubspec.yaml`
+  `enable-swift-package-manager: false` (U25: SPM + Pods Google
+  kütüphanelerini iki kez bağlıyordu). Kullanım iki yerde:
+  `face_capture_screen.dart` (kamera reddi "Ayarları aç") ve
+  `widgets/izin_kapisi.dart`. Son CocoaPods sürümü **7.0.0**; API 7→9
+  değişmedi. 8.x'teki Android değişiklikleri AGP 9 derleme uyumluluğu ve
+  proje AGP **9.0.1**'de (`builtInKotlin=false`, `newDsl=false`) — 7.0.0'ın
+  Android'de derlendiği bu Mac'te ÖLÇÜLEMEDİ (Java yok). Karar sahipte.
+- ✅ **`InfoPlist.strings` bağlı** (U27, `54130b9`): `en` + `tr` varyant
+  grubu Copy Bundle Resources'ta, `knownRegions` `(en, Base, tr)` — ölçüldü
+  2026-10-22. İngilizce cihaz İngilizce izin metni görür.
 - **Bildirim delegesi — ÇÖZÜLDÜ, `AppDelegate.swift`'e satır EKLENMEZ**
   (`docs/ios-uyum-denetimi.md` U14). Soru kaynak okumasıyla yanıtlandı:
   AppDelegate delege atamadığı için delegeyi `firebase_messaging` alıyor;
@@ -377,15 +435,24 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
   silinir.
 - **Xcode'un yolunda boşluk ya da Türkçe harf olmasın.** Finder'da
   kopyalanınca "Xcode kopyası.app" oluyor; adını `Xcode-26.app` yap.
-- **Uygulama iOS 26+ simülatörde HİÇ çalışmaz.** ML Kit (yüz okuma) arm64
-  simülatör dilimi taşımıyor; Flutter `EXCLUDED_ARCHS[sdk=iphonesimulator*]
-  = arm64` yazıyor ama iOS 26+ Apple Silicon simülatörleri arm64 zorunlu
-  tutuyor. Test yolu **gerçek cihaz**. (TFLite ve App Attest de zaten
-  cihaz istiyordu.)
+- **Simülatörde uygulama AÇILIR, yüz okuma açılmaz.** ML Kit arm64
+  simülatör dilimi taşımıyor ve iOS 26+ Apple Silicon simülatörleri arm64
+  zorunlu tutuyor. `e4789d4` bunu yalnız simülatör derlemesinde çözdü:
+  ML Kit çerçeveleri simülatör bağlamasından çıkar, yerine
+  `SimulatorStubs/MLKitSimulatorStubs.m` aynı sınıfları ve kanal adlarını
+  verir ve çağrıya açık bir `SIMULATORDE_YOK` hatası döner (sessiz "yüz
+  yok" değil). Cihaz derlemesi DEĞİŞMEZ. Ölçülen (2026-09-26): giriş ekranı
+  açıldı, App Check **debug jetonuyla** giriş çalıştı — jeton simülatör
+  kurulumuna bağlı, sıfırlanan simülatörde Firebase App Check'e yeniden
+  eklenir. (Burada eskiden "uygulama simülatörde HİÇ çalışmaz" yazıyordu;
+  `e4789d4` onu onardı ama notu güncellemedi — bayat bulundu 2026-10-22.)
+  Yüz okuma, App Attest, push ve Universal Link yalnız **cihazda**.
 - **`flutter analyze` Mac'te `build/`'i taramasın.** Flutter burada SPM
   için eklenti kaynaklarını `build/ios/SourcePackages`'a indiriyor;
   dışlanmazsa üçüncü taraf testlerinden 864 sahte hata sayılıyordu.
   `analysis_options.yaml`'da `analyzer: exclude: [build/**]`.
+- **CocoaPods UTF-8 ister:** kabuğun yerel ayarı UTF-8 değilse her `pod`
+  çağrısı uyarı basar — `export LANG=en_US.UTF-8` (ölçüldü 2026-10-22).
 - **CocoaPods ve Homebrew:** `brew install cocoapods` (sistem ruby 2.6
   yeni CocoaPods'u kaldırmaz). `powershell` cask'ı kaldırılmış; yalnız
   `powershell@preview` var ya da GitHub'dan `.pkg`. Model indirmek için

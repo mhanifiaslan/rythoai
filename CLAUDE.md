@@ -938,9 +938,17 @@ derlenen `Runner.app` içinde olduğu ölçüldü.
 **Mac ortamı (2026-09-26):** Xcode 27 bu depoyu derleyemiyor (RevenueCat
 Swift 6.4'te kırık + `lipo` değişikliği); **Xcode 26.6 yan yana kurulu**
 (`/Applications/Xcode-26.app`) ve `xcode-select` ona bakmalı —
-`DEVELOPER_DIR` tek başına yetmiyor. Uygulama iOS 26+ simülatörde hiç
-açılmaz (ML Kit arm64 simülatör dilimi yok); test gerçek cihazda. Ayrıntı:
-`docs/mac-devir.md` §7. iOS işleri `ios-hazirlik` dalında yürüyor.
+`DEVELOPER_DIR` tek başına yetmiyor. Uygulama simülatörde **açılır**
+(`e4789d4`: ML Kit yalnız simülatör derlemesinden çıkarıldı, çağrıya açık
+`SIMULATORDE_YOK` hatası döner); yüz okuma, App Attest, push ve Universal
+Link yalnız cihazda. Ayrıntı: `docs/mac-devir.md` §7.
+
+**Mac'in iOS işi 2026-10-22'de bu dala birleşti** (`8d6f67b`;
+`ios-hazirlik` artık izlenmez). U-kimlikli App Store uyum kaydı
+`docs/ios-uyum-denetimi.md` (55 kayıt + birleşme notları). ⚠️ Ders: o iş
+dört hafta push edilmeden Mac'te kaldı ve Windows habersiz ilerledi —
+belgeler "TEAMID yer tutucu", "imza yok" diyordu, 29 dosyada çakışma
+çıktı. **İki makinede çalışırken iş push edilmeden "bitti" sayılmaz.**
 
 ⚠️ **Kayıt bir kez `app.rytho` diye açıldı** (`ai` yerine `app`). İnen
 plist o kimliği taşıyordu ve `FirebaseApp.configure()` uyuşmazlığı **hata
@@ -950,11 +958,13 @@ bozulurdu. Firebase bundle kimliğini **düzenlettirmiyor** — kayıt silinip
 yeniden açıldı. Bekçi: `backend/tests/test_ios_config.py`, kimliği beş
 dosyada birden bağlıyor (pbxproj ×3, gradle, AASA, plist).
 
-**Kalan engelleyiciler hesap işidir, kod değil:** Apple Developer üyeliği →
-Team ID · imzalama · APNs anahtarı · gerçek `appl_` RevenueCat anahtarı
-(şu anki `test_` önekli) · App Store Connect kaydı ve IAP ürünleri.
-Team ID `292WJ9TP74` (2026-09-27): AASA'ya ve pbxproj'e yazıldı, hosting
-yayını bekliyor.
+**Kod engeli (U56, 2026-10-22):** birleşmiş dal iOS için DERLENMİYOR —
+aşağıdaki `app_settings` tuzağı. **Hesap işleri:** ücretli üyelik teyidi ·
+Xcode'da takım hesabı (bu Mac'te imza sertifikası 0) · APNs anahtarı ·
+gerçek `appl_` RevenueCat anahtarı (şu anki `test_` önekli) · App Store
+Connect kaydı ve IAP ürünleri. Team ID `292WJ9TP74` (2026-09-27): AASA'ya
+ve pbxproj'e yazıldı (`CODE_SIGN_STYLE = Automatic`); AASA `/i/*` + `/r/*`
+taşıyor, hosting yayını bekliyor.
 
 ### iOS tuzakları (ölçüldü)
 
@@ -978,17 +988,23 @@ ikincisine bakıyor. İkisi **yalnız o değerde** farklı kalmalı.
 klasör-senkronlu grup kullanmıyor (`objectVersion = 54`,
 `PBXFileSystemSynchronizedRootGroup` yok) ve Copy Bundle Resources'ta
 yalnız dört girdi vardı. `GoogleService-Info.plist` eklendi (beşinci
-girdi); `en.lproj/InfoPlist.strings` hâlâ **Xcode'da hedefe eklenmeli**.
+girdi); `InfoPlist.strings` `en` + `tr` varyant grubu olarak bağlandı (U27,
+`54130b9`; `knownRegions` `(en, Base, tr)`, ölçüldü 2026-10-22) — İngilizce
+cihaz İngilizce izin metni görür.
 
-**`developmentRegion = en` ama izin metinleri Türkçe** — yani İngilizce
-cihaz Türkçe izin diyaloğu görüyor. Türkiye-öncelikli lansmanda kabul;
-dünyaya açılmadan önce düzeltilmeli. İngilizce metinler
-`ios/Runner/en.lproj/InfoPlist.strings`'te **hazır ama bağlı değil**.
+**`AppDelegate`'e bildirim delegesi EKLENMEZ** (U14, kaynak okumasıyla):
+delegeyi `firebase_messaging` alıyor; README'nin istediği satır eklenirse
+`willPresent` iki eklentiye birden gider. Ön plan push'unu iOS'ta FCM
+kendisi gösteriyor (`notifications.dart` `iosOnPlanSunumunuAc`); bekçi
+`test/bildirim_ios_test.dart`. Kalan yalnız cihaz doğrulaması.
 
-**`AppDelegate`'e bildirim delegesi körlemesine eklenmedi.**
-`flutter_local_notifications` README'si istiyor ama `firebase_messaging` de
-aynı delegeyi sahipleniyor; hangisinin kazandığı yalnız cihazda ölçülür.
-Ölçmeden eklemek push'u onarmak yerine bozabilirdi.
+**`app_settings` 8.0+ iOS'ta yalnız Swift Package Manager** (U56, ölçüldü
+2026-10-22). Depo SPM'i bilerek kapalı tutuyor (`pubspec.yaml`
+`enable-swift-package-manager: false`; U25: SPM + Pods Google
+kütüphanelerini iki kez bağlıyordu) ve Flutter bu durumda derlemeyi
+"only compatible with Swift Package Manager" diye DURDURUYOR. `flutter
+test` ve `analyze` yeşil kalır — kusur yalnız `flutter build ios`ta
+görünür. Yeni bir eklenti eklerken iOS'ta podspec'i var mı bak.
 
 **Simülatörde çalışmayan ikili:** TFLite ve App Attest. İkisi de gerçek
 cihaz ister.
@@ -996,8 +1012,11 @@ cihaz ister.
 **Bu bölümde iki kez bayat not yakalandı** (2026-09-26): "associated-domains
 hâlâ `rhytoai.web.app` diyor" yazıyordu — oysa `Runner.entitlements` iki
 alan adını birden taşıyor, önceki bir turda düzeltilmiş ve not
-güncellenmemişti. İkincisi yukarıdaki Podfile gerekçesiydi. **Bu bölümdeki
-hiçbir iddiaya ölçmeden güvenme.**
+güncellenmemişti. İkincisi yukarıdaki Podfile gerekçesiydi. 2026-10-22'de
+üç tane daha: "uygulama simülatörde hiç açılmaz" (`e4789d4` onarmıştı),
+"`en.lproj` hâlâ bağlı değil" (U27 bağlamıştı), "bildirim delegesi
+cihazda ölçülecek" (U14 kaynaktan çözmüştü). **Bu bölümdeki hiçbir iddiaya
+ölçmeden güvenme.**
 
 ---
 
@@ -1005,6 +1024,7 @@ hiçbir iddiaya ölçmeden güvenme.**
 
 `docs/mac-devir.md` — **Mac kurulumu ve iOS yol haritası** (yeni makineye
 geçerken ÖNCE bu okunur) ·
+`docs/ios-uyum-denetimi.md` — App Store uyum kaydı (U01…U56) ·
 `docs/test-raporu.md` — senaryo listesi ve bulgular (B1…B10) ·
 `docs/konsol-gorevleri.md` — Firebase/Play/Cloud konsol işleri ·
 `docs/store-launch.md` — mağaza metni, yasak dil, görsel borçları ·
