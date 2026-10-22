@@ -5,7 +5,23 @@ madde ya ölçülerek bulundu ya da bir kez zarar verdi. Windows makinesinde
 **her şey çalışıyor**; buradaki listede yazanlar Mac'te *ek olarak* gereken
 şeyler.
 
-Ölçüm tarihi: **2026-09-26**. Dal: `yuz-okuma-cihaz-usti-olcum`.
+Ölçüm tarihi: **2026-09-26**, güncelleme **2026-10-22** (aşağıdaki
+"Bugünkü durum" kutusu ve 4.10). Dal: `yuz-okuma-cihaz-usti-olcum`.
+
+> **Bugünkü durum (2026-10-22, Windows'tan ölçüldü):**
+> - Android **1.20.0+53** derlendi (AAB, 6 kapı OK). Play'de **açık test
+>   (yalnız Türkiye)** incelemede; **üretim erişimi verildi** (2026-10-17),
+>   üretim kanalı henüz açılmadı. Sürüm kodları 48/50/52 YANMIŞ; sıradaki
+>   Android kodu **54**. iOS'un `CFBundleVersion`'ı Android'den bağımsızdır
+>   ama `pubspec.yaml` `version` ikisini birden besler — iOS'ta numarayı
+>   yükseltirken Android'in yanmış kodlarına dikkat.
+> - Backend Cloud Run rev **00112-dtj**; istatistik özeti saatlik
+>   (`rytho-stats`), Çevrem/geri kazanım bildirim işleri kurulu.
+> - Gemini faturası **ön ödemeli**: bakiye sıfırlanırsa tüm AI anında durur
+>   (CLAUDE.md "CANLI KESİNTİ 2").
+> - Ortak panosu `rytho.app/affiliate/` (eski `/ortak/` 301), varsayılan dil EN.
+> - iOS'ta yapılacak ilk ürün işi: **ortak (affiliate) bağlantısının iOS'ta
+>   da sayılması** — bkz. **4.10**.
 Uzak depo: `https://github.com/mhanifiaslan/rythoai.git`
 (GitHub deposu `rhytoai` → `rythoai` olarak yeniden adlandırılmış; eski
 adres hâlâ yönlendiriyor ama **yeni adresi kullan** — yönlendirme kalıcı
@@ -68,7 +84,7 @@ cd apps/mobile
 flutter pub get
 pwsh scripts/fetch_models.ps1     # segmentasyon modeli (16 MB)
 flutter analyze                   # beklenen: No issues found
-flutter test                      # beklenen: 574 test geçer
+flutter test                      # beklenen (2026-10-19): 1528 test geçer
 ```
 
 Backend:
@@ -77,7 +93,7 @@ Backend:
 cd backend
 python3.11 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python -m pytest -q     # beklenen: 1590 test geçer
+.venv/bin/python -m pytest -q     # beklenen (2026-10-19): 2756 passed, 2 skipped
 ```
 
 Betikler macOS'a hazır (ölçüldü): `infra/deploy-backend.ps1` venv düzenini
@@ -194,6 +210,11 @@ Entitlements tarafı hazır: `applinks:rytho.app` **ve**
 `applinks:rhytoai.web.app` ikisi de yazılı (sahadaki eski davet bağlantıları
 ikincisini taşıyor).
 
+⚠️ AASA bugün yalnız `"paths": ["/i/*"]` taşıyor — **`/r/*` (ortak
+bağlantısı) YOK**. Android'de App Links ikisini de kapsıyor
+(`AndroidManifest.xml` `/i/` + `/r/`). Team ID yazılırken `/r/*` de
+eklenmeli; ayrıntı ve gerekçe 4.10.
+
 ### 4.9 — App Store Connect kaydı ve `APPSTORE_APP_ID` · **SEN**
 Kayıt açılınca **sayısal uygulama kimliği** doğar. Onu
 `dart_defines.local.json`'a `APPSTORE_APP_ID` olarak yaz.
@@ -203,6 +224,47 @@ Boş bırakılırsa zorunlu güncelleme ekranı iOS'ta mağaza düğmesi
 kurulan bağlantı mağazada "uygulama bulunamadı" açar ve kullanıcı o
 ekranda gerçekten kilitli kalır (bekçi:
 `test/force_update_screen_test.dart`).
+
+### 4.10 — Ortak (affiliate) bağlantısı iOS'ta · **KOD + SAHİP KARARI**
+
+Ortaklık programı canlı ve **yalnız Android'de sayıyor**. Ölçülen durum:
+
+| Parça | Android | iOS bugün |
+|---|---|---|
+| Kurulu uygulamada `rytho.app/r/KOD` | App Links → `deep_links.dart` kodu çıkarır → `POST /api/v1/billing/redeem-code` | AASA'da `/r/*` yok → **tarayıcıda açılır, uygulamaya gelmez** |
+| Kurulu DEĞİLKEN tıklama → kurulum → ilk açılış | `web/r/index.html` Play'e `&referrer=` ile yönlendirir, `partner_referrer.dart` Install Referrer'dan okur | `partner_referrer.dart:52` Android değilse **döner** — App Store'da referrer'ın karşılığı YOK |
+| `/r/` sayfasının iPhone metni | — | "Ortak bağlantısı şimdilik yalnız Android kurulumlarında sayılıyor" (`digerNot`) |
+
+**1. adım (kesin, kod): Universal Link.** AASA'ya `/r/*` ekle (Team ID ile
+birlikte), `firebase deploy --only hosting --project rhytoai`. Kurulu
+uygulamada bağlantı uygulamayı açar ve **mevcut** `deep_links.dart` yolu
+kodu zaten sunucuya yazar — istemcide yeni kod gerekmeyebilir; **gerçek
+cihazda ölç** (Universal Link'ler simülatörde ve aynı alan adından
+yazılarak açıldığında güvenilir tetiklenmez — bağlantıyı Notlar/Mesajlar'dan
+dokunarak dene).
+
+**2. adım (sahip kararı): kurulum öncesi (ertelenmiş) atıf.** App Store'da
+Play Install Referrer'ın dengi yok. Seçenekler, önerilen önce:
+
+- **A — "kurduktan sonra bağlantıya bir kez daha dokun"** (önerilen):
+  `/r/` sayfası iPhone'da App Store'a gönderirken bunu açıkça söyler;
+  ikinci dokunuş Universal Link ile uygulamayı açar ve 1. adımdaki yol
+  sayar. Mahremiyet sorunu yok, App Store kurallarıyla çatışmaz. Bedeli:
+  ikinci dokunuşu yapmayanlar sayılmaz → panolardaki "iPhone'dan gelen
+  tıklamalar atfa geçemeyebilir" dipnotu güncellenir, kaldırılmaz.
+- **B — pano (clipboard):** iOS 16+ "yapıştırılsın mı?" izni sorar; güven
+  kırıcı ve kullanıcının metnini okuma izlenimi verir. Önerilmez.
+- **C — parmak izi eşleştirme (IP + cihaz bilgisi):** ATT ve App Store
+  5.1.2 riski; "ölçülmeyen söylenmez" ile de çelişir (olasılıksal eşleşme
+  ölçüm değildir). **Yapma.**
+
+Kurallar (Android'de ölçülenlerle aynı kalmalı): kullanıcı **kod yazmaz**,
+kullanıcıya ödül **yok**, ortak kendi kodunu kendi hesabında kullanamaz,
+sayılan şey **"bağlantıyı kullanan"** (kuran değil). Sunucu tarafı
+(`partner_service.redeem`) platformdan bağımsız — değişiklik istemci +
+`web/r/index.html` + AASA'da. `web/r/index.html` iPhone dalının metni ve
+`backend/tests/test_web_seo.py`'nin `/r/` bekçileri birlikte güncellenir;
+ortak panosu ve yönetim panelindeki iOS dipnotları da.
 
 ---
 
@@ -292,6 +354,10 @@ yüklenir. Bu belgeyi ayrıca göstermek gerekir:
 > Önce 3. bölümdeki doğrulamayı koş (`flutter analyze`, `flutter test`,
 > `pytest`) ve bana sonucu söyle; beklenen değerler belgede yazılı.
 > Sonra 4. bölümdeki sırayı takip edeceğiz, ben hesap işlerini yapacağım.
+> İlk ürün işi 4.10: ortak bağlantısının iOS'ta Universal Link ile
+> sayılması; ertelenmiş atıf için seçeneği bana sor.
+
+(Sahibin bu tur için yazdırdığı tam ilk mesaj oturum kaydında; özü yukarıda.)
 
 **Hiçbir şeyi hatırladığını sanma, ölç.** Bu depoda notların bayatladığı
 iki kez yakalandı ve ikisi de yanlış yöne saatler harcattı.
