@@ -14,7 +14,6 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/ai_consent.dart' show aiOnayiIste;
 import '../../core/api.dart';
 import '../../core/okuma_durumu.dart';
 import '../../l10n/app_localizations.dart';
@@ -51,11 +50,6 @@ import 'face_consent.dart';
 /// Kural: **hiçbir ekran kendi rotasını değiştirip onu beklemez.** Ekranlar
 /// yalnızca `pop` ile değer döndürür; sırayı burası kurar.
 Future<void> startFaceReading(BuildContext context, WidgetRef ref) async {
-  // U06: oranlar Gemini'ye gider. AI aktarım onayı biyometrik rızadan ÖNCE
-  // ve AYRI sorulur — ikisi farklı şeye izin (işleme vs. üçüncü tarafa
-  // aktarım); birini ötekinin içine gömmek paket rıza olurdu. Onay yoksa
-  // kamera hiç açılmaz: ölçüp gönderemeyeceğimiz yüzü ölçmek boşuna.
-  if (!await aiOnayiIste(context, ref) || !context.mounted) return;
   final riza = await Navigator.of(context).push<bool>(
     MaterialPageRoute(builder: (_) => const FaceConsentGate()),
   );

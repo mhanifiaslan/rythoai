@@ -33,7 +33,6 @@ final _ciplakSure =
 
 /// Dosya başına tavan — ölçülen değer. Gerekçe sütunu: sürenin sınıfı.
 const _sureTavani = <String, int>{
-  'lib/core/ai_consent.dart': 2, // onay durumu/kaydı zaman aşımı (U06)
   'lib/core/api.dart': 2, // ağ zaman aşımı
   'lib/core/app_config.dart': 2, // uzak yapılandırma tazeleme
   'lib/core/device_session.dart': 1, // kilit yenileme
@@ -100,8 +99,10 @@ void main() {
       }
       // 71 → 74 (2026-10-22): Mac'in iOS birleşmesi üç AĞ zaman aşımı
       // getirdi (U06 onay ×2, U47 kaynak mağaza) — hareket değil, dosya
-      // tavanlarında gerekçeleriyle.
-      expect(toplam, lessThanOrEqualTo(74));
+      // tavanlarında gerekçeleriyle. 74 → 72 (aynı gün): U06'nın onay
+      // sayfası ve durum sağlayıcısı kalktı (sahip kararı: onay yalnız
+      // kurulumda), iki zaman aşımı onlarla gitti.
+      expect(toplam, lessThanOrEqualTo(72));
     });
   });
 

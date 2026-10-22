@@ -73,7 +73,15 @@ void main() {
     tasmaYok(tester, neden: 'karşılama');
     expect(find.text(_tr.wizardWelcomeTitle), findsOneWidget);
 
-    await _dokun(tester, find.byType(Checkbox).first);
+    // İki zorunlu kutu (şartlar + yapay zeka onayı). İkincisinin uzun
+    // metni dar ekranda kaydırma alanının altına düşüyor; görünür olmayan
+    // hedefe dokunuş sessizce boşa düşerdi.
+    for (final i in [0, 1]) {
+      await tester.ensureVisible(find.byType(Checkbox).at(i));
+      await tester.pump();
+      await _dokun(tester, find.byType(Checkbox).at(i));
+    }
+    tasmaYok(tester, neden: 'karşılama (iki kutu işaretli)');
     await _devam(tester);
     expect(find.text(_tr.wizardDateTitle), findsOneWidget);
     await _dokun(tester, find.text(_tr.birthDate));

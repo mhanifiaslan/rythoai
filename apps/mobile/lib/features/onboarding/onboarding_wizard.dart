@@ -16,6 +16,10 @@
 /// * **Rıza baştan** — Google/Apple girişlerinde bugüne dek hiçbir onay
 ///   kutusu yoktu; ilk adım açık kabul kutusuyla bu boşluğu kapatır ve
 ///   kabul sunucuda ispatlanabilir kayda geçer (POST /account/consent).
+///   Altında AYRI ve zorunlu ikinci kutu: verilerin Google Gemini'ye
+///   gönderilmesine izin (sahip kararı 2026-10-22). Yapay zeka onayının
+///   sorulduğu TEK yer burası; kaydı POST /account/ai-consent
+///   (`core/ai_consent.dart`).
 /// * **Zirve sonda** — kayıt sırasında StagedWaiting (gerçek iş), sonra
 ///   mevcut Büyük Üçlü perdesi (AppShell köprüsü, R12-B1 düzeni korunur).
 ///
@@ -35,6 +39,7 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/ai_consent.dart' show aiOnayiKurulumdaVerildi;
 import '../../core/analytics.dart';
 import '../../core/api.dart';
 import '../../core/birth_record.dart';
@@ -87,9 +92,14 @@ const Duration kKayitAsamaAraligi = Duration(milliseconds: 1600);
 /// Bilinmeyen adım `false`: yeni bir adım eklenip kuralı unutulursa düğme
 /// kapalı kalır ve eksik ilk denemede görünür; `true` olsaydı adım sessizce
 /// atlanabilir olurdu.
+///
+/// `welcome` İKİ kutuyu birden ister: şartlar ([riza]) ve yapay zeka
+/// aktarımı ([aiRiza]). Biri yetmez — ikincisi, onayın sorulduğu tek yer
+/// olduğu için atlanabilir olsaydı hiç sorulmamış olurdu.
 bool sihirbazIlerleyebilir({
   required String adim,
   required bool riza,
+  required bool aiRiza,
   DateTime? tarih,
   required bool saatBiliniyor,
   TimeOfDay? saat,
@@ -98,7 +108,7 @@ bool sihirbazIlerleyebilir({
   bool? bildirimSecimi,
 }) =>
     switch (adim) {
-      'welcome' => riza,
+      'welcome' => riza && aiRiza,
       'date' => tarih != null,
       'time' => dogumSaatiGecerli(biliniyor: saatBiliniyor, saat: saat),
       'place' => sehir != null && sehir.trim().isNotEmpty,
@@ -191,6 +201,9 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
   // (`_saatSec`), değer değil; `_cinsiyet` için `female` önseçimi
   // dokunmadan geçeni "kadın" beyan ediyordu.
   bool _riza = false;
+  // Yapay zeka aktarım onayı — şartlar kutusundan AYRI tutulur: iki ayrı
+  // izin, tek bir değişkende birleşseydi biri ötekinin içine gömülürdü.
+  bool _aiRiza = false;
   DateTime? _tarih;
   TimeOfDay? _saat;
   bool _saatBiliniyor = true;
@@ -220,6 +233,7 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
   bool get _ilerleyebilir => sihirbazIlerleyebilir(
         adim: _adimAdlari[_adim],
         riza: _riza,
+        aiRiza: _aiRiza,
         tarih: _tarih,
         saatBiliniyor: _saatBiliniyor,
         saat: _saat,
@@ -296,6 +310,15 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
       // başarı bayrakla işaretlenir, bayrak yoksa AppShell her açılışta
       // yeniden dener (KT2 — jeton + KVKK ispatı tek çağrıya rehin olmaz).
       await ensureConsentRecorded(ref.read(apiProvider));
+
+      // Yapay zeka (Google Gemini) onayının kanıtı — aynı desen: kutuyu
+      // işaretleyen BU hesap adına borçlanır, düşerse kurulum düşmez ve
+      // AppShell her açılışta yeniden dener. Koşul bilinçli: kapı zaten iki
+      // kutu olmadan geçirmiyor ama kayıt, kapının değil kutunun sonucudur —
+      // işaretlemeyen kişinin kaydı olmaz.
+      if (_aiRiza) {
+        await aiOnayiKurulumdaVerildi(ref.read(apiProvider), uid: user.uid);
+      }
 
       final sonuc = await saveBirthRecord(
         BirthRecord(
@@ -413,6 +436,8 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
                   _KarsilamaAdimi(
                     riza: _riza,
                     onRiza: (v) => setState(() => _riza = v),
+                    aiRiza: _aiRiza,
+                    onAiRiza: (v) => setState(() => _aiRiza = v),
                   ),
                   _AdimSayfasi(
                     emoji: '🌌',
@@ -510,12 +535,20 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
   }
 }
 
-/// Karşılama + rıza (adım 0). Yolun vaadi + tek zorunlu kutu.
+/// Karşılama + rıza (adım 0). Yolun vaadi + iki zorunlu kutu: şartlar ve
+/// yapay zeka aktarımı.
 class _KarsilamaAdimi extends StatelessWidget {
-  const _KarsilamaAdimi({required this.riza, required this.onRiza});
+  const _KarsilamaAdimi({
+    required this.riza,
+    required this.onRiza,
+    required this.aiRiza,
+    required this.onAiRiza,
+  });
 
   final bool riza;
   final ValueChanged<bool> onRiza;
+  final bool aiRiza;
+  final ValueChanged<bool> onAiRiza;
 
   @override
   Widget build(BuildContext context) {
@@ -563,17 +596,23 @@ class _KarsilamaAdimi extends StatelessWidget {
               child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CheckboxListTile(
-                  value: riza,
-                  onChanged: (v) => onRiza(v ?? false),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  // Tek kutu: şartlar + gizlilik + 13 yaş beyanı. Google/
-                  // Apple girişinde bugüne dek hiçbir kutu yoktu (O3).
-                  title: Text(l10n.wizardConsentLabel,
-                      style: RythoText.body(13,
-                          color: RythoColors.parchment)),
+                // Birinci kutu: şartlar + gizlilik + 13 yaş beyanı. Google/
+                // Apple girişinde bugüne dek hiçbir kutu yoktu (O3).
+                _RizaKutusu(
+                  deger: riza,
+                  onDegisti: onRiza,
+                  metin: l10n.wizardConsentLabel,
+                ),
+                // İkinci kutu AYRI ve zorunlu (sahip kararı 2026-10-22):
+                // verilerin Google Gemini'ye gönderilmesine izin. Şartlar
+                // kutusunun cümlesine eklenmedi — iki ayrı izin tek kutuda
+                // birleşseydi biri ötekinin içine gömülürdü. Yasal
+                // bağlantılar ikisinin de altında: gizlilik politikası
+                // yapay zeka ile işlemeyi de anlatıyor.
+                _RizaKutusu(
+                  deger: aiRiza,
+                  onDegisti: onAiRiza,
+                  metin: l10n.wizardAiConsentLabel,
                 ),
                 // İki yasal bağlantı esnemeyen bir `Row`daydı: "Kullanım
                 // Şartları" + "Gizlilik Politikası" dar ekranda tek satıra
@@ -631,6 +670,33 @@ class _KarsilamaAdimi extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Karşılama adımının zorunlu onay kutusu. İki kutu AYNI bileşenden çizilir:
+/// ikinci kutu ilkinin kopyası olsaydı görünüşleri (yazı, dokunma alanı,
+/// hizalama) zamanla ayrışır ve ikisi aynı ağırlıkta iki karar gibi
+/// durmazdı — aynı kavram için tek bileşen (D3).
+class _RizaKutusu extends StatelessWidget {
+  const _RizaKutusu({
+    required this.deger,
+    required this.onDegisti,
+    required this.metin,
+  });
+
+  final bool deger;
+  final ValueChanged<bool> onDegisti;
+  final String metin;
+
+  @override
+  Widget build(BuildContext context) => CheckboxListTile(
+        value: deger,
+        onChanged: (v) => onDegisti(v ?? false),
+        controlAffinity: ListTileControlAffinity.leading,
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        title: Text(metin,
+            style: RythoText.body(13, color: RythoColors.parchment)),
+      );
 }
 
 /// Ortak adım sayfası: emoji + başlık + tek cümle + giriş bileşeni.

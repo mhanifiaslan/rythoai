@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rytho/core/ai_consent.dart' show aiOnayHesabiProvider;
 import 'package:rytho/core/providers.dart';
 import 'package:rytho/features/face/face_consent.dart';
 import 'package:rytho/features/profile/legal_page.dart';
@@ -51,10 +50,6 @@ String _yorumsuz(String yol) => File(yol)
     .split('\n')
     .where((s) => !s.trimLeft().startsWith('//'))
     .join('\n');
-/// Yuz rizasi satirinin anahtari. `.last` DEGIL: U06'da altina AI onayi
-/// satiri eklendi ve "son anahtar" artik o.
-Finder _yuzAnahtari() => find.descendant(
-    of: find.byType(FaceConsentRow), matching: find.byType(Switch));
 
 /// Yildiz alani surekli animasyonlu — `pumpAndSettle` hicbir zaman donmez.
 Future<void> _bekle(WidgetTester tester) async {
@@ -67,8 +62,6 @@ void main() {
     testWidgets('biyometrik riza geri alma KAYBOLMADI', (tester) async {
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          // Firebase kurulmadan: hesap yok → AI onayi kapali, aga gidilmez.
-          aiOnayHesabiProvider.overrideWithValue(null),
           profileProvider.overrideWith(
               (ref) => Stream.value({'streakVisible': false})),
           faceConsentProvider.overrideWith(
@@ -80,7 +73,7 @@ void main() {
 
       expect(find.text('Yüz okuma rızası'), findsOneWidget);
       // Riza VERILMISKEN anahtar acik ve kapatilabilir olmali.
-      final anahtar = tester.widget<Switch>(_yuzAnahtari());
+      final anahtar = tester.widget<Switch>(find.byType(Switch).last);
       expect(anahtar.value, isTrue);
       expect(anahtar.onChanged, isNotNull,
           reason: 'riza geri alinamiyor — GDPR Md.7/3');
@@ -91,8 +84,6 @@ void main() {
       // bilgilendirilmis riza olmazdi.
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          // Firebase kurulmadan: hesap yok → AI onayi kapali, aga gidilmez.
-          aiOnayHesabiProvider.overrideWithValue(null),
           profileProvider.overrideWith(
               (ref) => Stream.value({'streakVisible': false})),
           faceConsentProvider.overrideWith(
@@ -102,7 +93,7 @@ void main() {
       ));
       await _bekle(tester);
 
-      final anahtar = tester.widget<Switch>(_yuzAnahtari());
+      final anahtar = tester.widget<Switch>(find.byType(Switch).last);
       expect(anahtar.value, isFalse);
       expect(anahtar.onChanged, isNull,
           reason: 'riza buradan verilemez, yalnizca geri alinabilir');
@@ -112,8 +103,6 @@ void main() {
         '+ onay etiketi; vazgec hicbir sey yapmaz', (tester) async {
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          // Firebase kurulmadan: hesap yok → AI onayi kapali, aga gidilmez.
-          aiOnayHesabiProvider.overrideWithValue(null),
           profileProvider.overrideWith(
               (ref) => Stream.value({'streakVisible': false})),
           faceConsentProvider.overrideWith(
@@ -123,7 +112,7 @@ void main() {
       ));
       await _bekle(tester);
 
-      await tester.tap(_yuzAnahtari());
+      await tester.tap(find.byType(Switch).last);
       await _bekle(tester);
       expect(find.byType(AlertDialog), findsOneWidget);
       expect(find.text(_tr.faceConsentWithdrawTitle), findsOneWidget);
@@ -136,7 +125,7 @@ void main() {
       await _bekle(tester);
       expect(find.byType(AlertDialog), findsNothing);
       // Riza hala verili: anahtar acik kaldi, ag cagrisi olmadi.
-      expect(tester.widget<Switch>(_yuzAnahtari()).value, isTrue);
+      expect(tester.widget<Switch>(find.byType(Switch).last).value, isTrue);
     });
 
     test('kaynak: elle AlertDialog yok, onayla var; Switch rengi temadan',
@@ -149,15 +138,12 @@ void main() {
       expect(k, isNot(contains('activeTrackColor')));
     });
 
-    testWidgets('dort gizlilik anahtari da burada', (tester) async {
-      // Seri gorunurlugu + rehber eslesmesi (R3) + biyometrik riza + AI
-      // aktarim onayi (U06). Sayi bilincli: yeni bir gizlilik anahtari
-      // eklenirse bu test duser ve eklenenin varsayilaninin KAPALI oldugu
-      // gozden gecirilir — AI onayi da kayit yokken KAPALI (asagida).
+    testWidgets('uc gizlilik anahtari da burada', (tester) async {
+      // Seri gorunurlugu + rehber eslesmesi (R3) + biyometrik riza.
+      // Sayi bilincli: yeni bir gizlilik anahtari eklenirse bu test duser
+      // ve eklenenin varsayilaninin KAPALI oldugu gozden gecirilir.
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          // Firebase kurulmadan: hesap yok → AI onayi kapali, aga gidilmez.
-          aiOnayHesabiProvider.overrideWithValue(null),
           profileProvider
               .overrideWith((ref) => Stream.value({'streakVisible': true})),
           faceConsentProvider.overrideWith(
@@ -167,10 +153,7 @@ void main() {
       ));
       await _bekle(tester);
 
-      expect(find.byType(Switch), findsNWidgets(4));
-      final ai = tester.widget<Switch>(find.descendant(
-          of: find.byType(AiConsentRow), matching: find.byType(Switch)));
-      expect(ai.value, isFalse, reason: 'AI onayi varsayilan KAPALI');
+      expect(find.byType(Switch), findsNWidgets(3));
     });
   });
 

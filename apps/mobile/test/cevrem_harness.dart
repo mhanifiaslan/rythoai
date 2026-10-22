@@ -12,33 +12,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rytho/core/ai_consent.dart'
-    show AiOnayDeposu, aiOnayDeposuProvider, aiOnayHesabiProvider;
 import 'package:rytho/l10n/app_localizations.dart';
 import 'package:rytho/main.dart' show kMaxTextScale;
 import 'package:rytho/theme/rytho_theme.dart';
-
-/// Sunucuda AI aktarım onayı VERİLMİŞ hesap (U06).
-///
-/// Neden açıkça istenir, `sar`ın varsayılanı değil: onaysız hâl de bir ürün
-/// durumu (ikili okuma isteği hiç atılmaz, yerine onay kartı çıkar) ve onu
-/// sınayan test bu kurulumu ALMAMALI. Okumayı ölçen test onayı kendisi
-/// beyan eder.
-class _OnayliDepo implements AiOnayDeposu {
-  @override
-  Future<bool> durum() async => true;
-
-  @override
-  Future<void> ver(int surum) async {}
-
-  @override
-  Future<void> geriAl() async {}
-}
-
-List<Override> aiOnayliHesap() => [
-      aiOnayHesabiProvider.overrideWithValue('u-test'),
-      aiOnayDeposuProvider.overrideWithValue(_OnayliDepo()),
-    ];
 
 /// Yola göre sabit gövde veren sahte sunucu: `yollar` anahtarı isteğin
 /// yolunda GEÇİYORSA o gövde döner; yoksa boş nesne. Her yakalanan istek

@@ -17,7 +17,6 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/ai_consent.dart' show aiOnayProvider, aiOnayiIste;
 import '../../core/api.dart' show apiProvider, friendlyError;
 import '../../core/friends.dart' show setContactMatch, setStreakVisible;
 import '../../core/locale.dart';
@@ -70,8 +69,7 @@ class NotificationSettingsScreen extends StatelessWidget {
   }
 }
 
-/// Gizlilik — arkadaşlara ne göründüğü, biyometrik ve AI rızası,
-/// engellenenler.
+/// Gizlilik — arkadaşlara ne göründüğü, biyometrik rıza, engellenenler.
 ///
 /// Tüm görünürlük ayarları varsayılan olarak **kapalıdır** ve yalnızca
 /// buradan açılır.
@@ -114,15 +112,18 @@ class PrivacySettingsScreen extends ConsumerWidget {
             // Biyometrik rıza. Verildiği kadar kolay geri alınabilmeli
             // (GDPR Md.7/3) — bu yüzden diğer gizlilik ayarlarıyla aynı
             // yerde ve aynı biçimde duruyor, ayrı bir menüye gömülü değil.
+            //
+            // Yapay zeka (Google Gemini) onayının anahtarı burada YOK (sahip
+            // kararı 2026-10-22): onay kurulumun ilk adımında ayrı, zorunlu
+            // bir kutuyla bir kez alınır ve hiçbir özellik ona kapılı
+            // değil — "kapalı" konumdaki bir anahtar gönderimi durdurmaz,
+            // yani ekranda yalan söylerdi. Geri alma yolu hesabı silmek
+            // (gizlilik metni bunu söyler).
             const FaceConsentRow(),
-            const Divider(height: 1, indent: RythoSpace.lg),
-            // U06: AI aktarım onayı. Apple 5.1.2(i) ve GDPR Md.7(3): verildiği
-            // kadar kolay geri alınabilmeli — yüz rızasıyla aynı yerde.
-            const AiConsentRow(),
           ]),
         ),
         // U17: engellenenler ve engeli kaldırma. Anahtar değil, alt sayfa —
-        // yukarıdaki dört anahtarın sayısını sabitleyen bekçi
+        // yukarıdaki üç anahtarın sayısını sabitleyen bekçi
         // (profile_sections_test) bu yüzden etkilenmez.
         GlassPanel(
           padding: const EdgeInsets.symmetric(vertical: RythoSpace.xs),
@@ -309,62 +310,6 @@ class FaceConsentRow extends ConsumerWidget {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: Text(l10n.faceConsentWithdrawn(silinen))));
-                } catch (e) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(friendlyError(e, l10n))));
-                }
-              },
-      ),
-    );
-  }
-}
-
-/// AI aktarım onayı satırı (U06).
-///
-/// Yüz rızası satırından farkı: AÇMA yönü de burada çalışır — ama doğrudan
-/// değil, onay sayfası üzerinden. Anahtar sayfayı açar; onay ancak
-/// sağlayıcıyı ve gönderilen veriyi sayan metin görüldükten sonra verilir.
-/// Kapatma onay diyaloğuyla, tek dokunuş mesafesinde.
-class AiConsentRow extends ConsumerWidget {
-  const AiConsentRow({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final durum = ref.watch(aiOnayProvider);
-    final verildi = durum.value ?? false;
-
-    return SettingsRow(
-      icon: Icons.auto_awesome_outlined,
-      title: l10n.aiConsentSetting,
-      subtitle: verildi ? l10n.aiConsentSettingOn : l10n.aiConsentSettingOff,
-      // Anahtar rengi temadan (`switchTheme`, D2); onay kalıbı yüz rızasıyla
-      // aynı `onayla` — geri almak yıkıcı DEĞİL, kullanıcı istediği an
-      // yeniden verebilir.
-      trailing: Switch(
-        value: verildi,
-        // Durum okunurken anahtar kilitli: yükleniyorken "kapalı" görünüp
-        // dokunulunca onaylı kullanıcıya sayfayı yeniden açmasın.
-        onChanged: durum.isLoading
-            ? null
-            : (acilsin) async {
-                if (acilsin) {
-                  await aiOnayiIste(context, ref);
-                  return;
-                }
-                final onay = await onayla(
-                  context,
-                  title: l10n.aiConsentWithdrawTitle,
-                  body: l10n.aiConsentWithdrawBody,
-                  confirmLabel: l10n.aiConsentWithdrawConfirm,
-                );
-                if (!onay || !context.mounted) return;
-                try {
-                  await ref.read(aiOnayProvider.notifier).geriAl();
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(l10n.aiConsentWithdrawn)));
                 } catch (e) {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(

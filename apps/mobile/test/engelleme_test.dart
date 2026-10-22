@@ -24,7 +24,6 @@ import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rytho/core/ai_consent.dart' show aiOnayHesabiProvider;
 import 'package:rytho/core/friends.dart';
 import 'package:rytho/core/providers.dart';
 import 'package:rytho/core/safety.dart';
@@ -287,8 +286,6 @@ void main() {
     await tester.pumpWidget(sar(
       const PrivacySettingsScreen(),
       overrides: [
-        // Firebase kurulmadan: hesap yok → AI onayı kapalı, ağa gidilmez.
-        aiOnayHesabiProvider.overrideWithValue(null),
         profileProvider.overrideWith((ref) => Stream.value({})),
         faceConsentProvider.overrideWith(
             (ref) async => const FaceConsent(granted: false, version: 1)),

@@ -7,8 +7,10 @@ import 'package:rytho/l10n/app_localizations.dart';
 
 /// Yıldız Yolu sihirbazının değişmezleri (O3).
 ///
-/// * Rıza kutusu işaretlenmeden İLERLENEMEZ — Google/Apple girişindeki
-///   onay boşluğunu kapatan adım atlanabilir olsaydı boşluk geri gelirdi.
+/// * İki rıza kutusu da (şartlar + yapay zeka onayı) işaretlenmeden
+///   İLERLENEMEZ — Google/Apple girişindeki onay boşluğunu kapatan adım
+///   atlanabilir olsaydı boşluk geri gelirdi; yapay zeka onayının sorulduğu
+///   tek yer de burası.
 /// * Adımlar kaydırmayla atlanamaz (NeverScrollableScrollPhysics) —
 ///   zorunlu alanların kapısı düğme.
 /// * Tarih seçilmeden tarih adımından çıkılamaz.
@@ -49,7 +51,14 @@ void main() {
     // Hâlâ karşılamadayız — kutu işaretlenmedi.
     expect(find.text('Yolculuk başlıyor'), findsOneWidget);
 
-    await tester.tap(find.byType(Checkbox).first);
+    // Yalnız şartlar kutusu YETMEZ.
+    await tester.tap(find.byType(Checkbox).at(0));
+    await _bekle(tester);
+    await tester.tap(find.text('Devam ✦'));
+    await _bekle(tester);
+    expect(find.text('Yolculuk başlıyor'), findsOneWidget);
+
+    await tester.tap(find.byType(Checkbox).at(1));
     await _bekle(tester);
     await tester.tap(find.text('Devam ✦'));
     await _bekle(tester);
@@ -59,7 +68,8 @@ void main() {
   testWidgets('tarih secilmeden tarih adimindan cikilamaz',
       (tester) async {
     await _pompala(tester);
-    await tester.tap(find.byType(Checkbox).first);
+    await tester.tap(find.byType(Checkbox).at(0));
+    await tester.tap(find.byType(Checkbox).at(1));
     await _bekle(tester);
     await tester.tap(find.text('Devam ✦'));
     await _bekle(tester);

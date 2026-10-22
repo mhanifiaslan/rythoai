@@ -1,415 +1,421 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/core/ai_consent.dart';
-import 'package:rytho/core/api.dart' show friendlyError;
+import 'package:rytho/core/api.dart' show apiProvider;
+import 'package:rytho/core/providers.dart'
+    show
+        PlusHali,
+        dailyReadingProvider,
+        profileProvider,
+        raporKapisiProvider,
+        signalsDataProvider;
+import 'package:rytho/features/onboarding/onboarding_wizard.dart';
 import 'package:rytho/features/profile/legal_texts.dart';
-import 'package:rytho/features/profile/profile_sections.dart'
-    show AiConsentRow;
 import 'package:rytho/l10n/app_localizations.dart';
-import 'package:rytho/main.dart' show rythoRetry;
+import 'package:rytho/l10n/app_localizations_en.dart';
+import 'package:rytho/l10n/app_localizations_tr.dart';
+import 'package:rytho/theme/rytho_theme.dart';
+import 'package:rytho/widgets/atlas_widgets.dart' show GoldButton;
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// U06 — üçüncü taraf AI (Google Gemini) aktarım onayı, Apple 5.1.2(i).
+/// Yapay zeka (Google Gemini) aktarım onayı — sahip kararı 2026-10-22.
 ///
 /// Korunan değişmezler:
 ///
-/// 1. Onay verilene kadar sayfa HER istekte yeniden gelir — "bir kez
-///    gösterildi" bayrağı YOK (Apple'ın reddettiği `hasSeenConsent`
-///    kısayolu tam olarak buydu).
-/// 2. "Şimdi değil" AI'yı kapatır ve kararı sunucuya yazmayı dener; yazım
-///    düşse de uygulama çökmez.
-/// 3. Onay verildiyse sayfa hiç açılmaz; geri alınınca yeniden açılır.
-/// 4. Onay kaydedilemediyse onay VERİLMİŞ SAYILMAZ (ispatsız aktarım yok).
+/// 1. Onay YALNIZ kurulumun ilk adımında, şartlar kutusunun altındaki AYRI
+///    ve zorunlu ikinci kutuyla alınır; iki kutu işaretlenmeden "Devam"
+///    açılmaz, biri yetmez.
+/// 2. Kurulum bitince kanıt (`POST /account/ai-consent`) bir kez gider;
+///    düşerse AppShell açılışında yeniden denenir, başarıdan sonra bir daha
+///    gitmez.
+/// 3. Kutuyu hiç görmemiş kullanıcı (1.20.0+53'ten güncelleyen) HİÇ istek
+///    atmaz — adına kayıt yazılmaz. Bayrak hesaba bağlı: aynı cihazdaki
+///    başka bir hesap onu kullanamaz.
+/// 4. Kurulum dışında hiçbir yerde sorulmaz ve hiçbir özellik onaya kapılı
+///    değil: onay kaydı ya da sağlayıcısı olmadan günlük okuma ve sinyal
+///    istekleri gider, sohbet gönderimi kapısız.
 
-class _SahteDepo implements AiOnayDeposu {
-  _SahteDepo({this.sunucu = false});
+final _tr = AppLocalizationsTr();
+final _en = AppLocalizationsEn();
 
-  bool sunucu;
-  bool durumHatasi = false;
-  bool verHatasi = false;
-  bool geriAlHatasi = false;
-  int durumSayisi = 0;
-  final List<int> verilenSurumler = [];
-  int geriAlSayisi = 0;
+const _onayYolu = '/api/v1/account/ai-consent';
+
+/// İstekleri kaydeden sahte sunucu. [durumlar] sıradaki isteklerin durum
+/// kodları (tükenince 200); gövde yola göre [govdeler]den, yoksa `{}`.
+class _Sunucu implements HttpClientAdapter {
+  _Sunucu({List<int>? durumlar, Map<String, Object>? govdeler})
+      : _durumlar = [...?durumlar],
+        _govdeler = govdeler ?? const {};
+
+  final List<int> _durumlar;
+  final Map<String, Object> _govdeler;
+  final List<RequestOptions> istekler = [];
+
+  List<RequestOptions> yola(String yol) =>
+      istekler.where((i) => i.path == yol).toList();
 
   @override
-  Future<bool> durum() async {
-    durumSayisi++;
-    if (durumHatasi) throw StateError('ag yok');
-    return sunucu;
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    istekler.add(options);
+    final durum = _durumlar.isEmpty ? 200 : _durumlar.removeAt(0);
+    var govde = '{}';
+    for (final e in _govdeler.entries) {
+      if (options.path.contains(e.key)) govde = jsonEncode(e.value);
+    }
+    return ResponseBody.fromString(govde, durum, headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    });
   }
 
   @override
-  Future<void> ver(int surum) async {
-    if (verHatasi) throw StateError('yazilamadi');
-    verilenSurumler.add(surum);
-    sunucu = true;
-  }
-
-  @override
-  Future<void> geriAl() async {
-    geriAlSayisi++;
-    if (geriAlHatasi) throw StateError('yazilamadi');
-    sunucu = false;
-  }
+  void close({bool force = false}) {}
 }
 
-AppLocalizations _tr() => lookupAppLocalizations(const Locale('tr'));
+Dio _dio(_Sunucu sunucu) =>
+    Dio(BaseOptions(baseUrl: 'https://test.invalid'))
+      ..httpClientAdapter = sunucu;
 
-ProviderContainer _kap(_SahteDepo depo, {String? uid = 'u1'}) {
-  // Uygulamanın kendi yeniden deneme politikası: AiOnayiGerekli DENENMEZ
-  // (Riverpod varsayılanı 10 kez dener ve bekleyen okuma hiç bitmez).
-  final kap = ProviderContainer(retry: rythoRetry, overrides: [
-    aiOnayHesabiProvider.overrideWithValue(uid),
-    aiOnayDeposuProvider.overrideWithValue(depo),
-  ]);
-  addTearDown(kap.dispose);
-  return kap;
+/// Kaynak bekçileri kendi açıklama yorumlarına takılmasın (CLAUDE.md §5:
+/// bir şeyin YOKLUĞUNU arayan bekçi onu anlatan yorumu görmemeli).
+String _yorumsuz(String yol) => File(yol)
+    .readAsStringSync()
+    .replaceAll('\r\n', '\n')
+    .split('\n')
+    .where((s) => !s.trimLeft().startsWith('//'))
+    .join('\n');
+
+Iterable<String> _libDosyalari() => Directory('lib')
+    .listSync(recursive: true)
+    .whereType<File>()
+    .map((f) => f.path.replaceAll(r'\', '/'))
+    .where((p) => p.endsWith('.dart') && !p.contains('/l10n/'));
+
+/// [bas] imzasından [son] imzasına kadarki kaynak dilimi.
+String _dilim(String kaynak, String bas, String son) {
+  final i = kaynak.indexOf(bas);
+  expect(i, greaterThan(-1), reason: '$bas bulunamadı');
+  final j = kaynak.indexOf(son, i);
+  expect(j, greaterThan(i), reason: '$son, $bas\'tan sonra olmalı');
+  return kaynak.substring(i, j);
 }
 
-/// Tek düğmeli ekran: dokununca [aiOnayiIste] çağrılır, sonuç kaydedilir.
-class _Tetik extends ConsumerWidget {
-  const _Tetik(this.sonuclar);
-
-  final List<bool> sonuclar;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
-        body: Center(
-          child: TextButton(
-            onPressed: () async => sonuclar.add(await aiOnayiIste(context, ref)),
-            child: const Text('AI ozelligini ac'),
-          ),
-        ),
-      );
-}
-
-Widget _sar(ProviderContainer kap, Widget child) => UncontrolledProviderScope(
-      container: kap,
+Widget _sihirbaz() => ProviderScope(
       child: MaterialApp(
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('tr'),
-        home: child,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: buildRythoTheme(),
+        // Takımyıldız nabzı sonsuz animatör; ölçülen şey kapının kuralı.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: const OnboardingWizard(),
       ),
     );
 
-/// Dokunup kararın yerleşmesini bekler. Sahte zamanda: sahte depo ve
-/// SharedPreferences sahtesi mikro görevlerle biter; gerçek olay döngüsü
-/// (`runAsync`) GoogleFonts'un ağdan font çekme denemesini gerçek kılar ve
-/// hatası teste sızar.
-Future<void> _dokun(WidgetTester tester, Finder hedef) async {
-  // Sayfa uzun: düğmeler küçük test yüzeyinde kaydırma alanının altında
-  // kalabiliyor — görünür olmayan hedefe dokunuş sessizce boşa düşer.
+bool _devamAcik(WidgetTester tester) =>
+    tester.widget<GoldButton>(find.byType(GoldButton)).onPressed != null;
+
+Future<void> _kutu(WidgetTester tester, int i) async {
+  final hedef = find.byType(Checkbox).at(i);
   await tester.ensureVisible(hedef);
   await tester.pump();
   await tester.tap(hedef);
-  for (var i = 0; i < 5; i++) {
-    await tester.pump(const Duration(milliseconds: 100));
-  }
-  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump();
 }
-
-Future<void> _yerles(WidgetTester tester) async {
-  for (var i = 0; i < 5; i++) {
-    await tester.pump(const Duration(milliseconds: 50));
-  }
-}
-
-Future<void> _ac(WidgetTester tester) =>
-    _dokun(tester, find.text('AI ozelligini ac'));
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-    aiOnayKapisiniSifirla();
-  });
+  setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  group('Kapı: onay yokken sayfa HER seferinde gelir', () {
-    testWidgets('Şimdi değil → false, ikinci açılışta sayfa YİNE gelir',
+  group('Kurulum: iki ayrı zorunlu kutu', () {
+    testWidgets('iki kutu işaretlenmeden Devam kapalı; biri yetmez',
         (tester) async {
-      final depo = _SahteDepo();
-      final kap = _kap(depo);
-      final sonuclar = <bool>[];
-      await tester.pumpWidget(_sar(kap, _Tetik(sonuclar)));
+      await tester.pumpWidget(_sihirbaz());
+      await tester.pump();
 
-      await _ac(tester);
-      expect(find.text(_tr().aiConsentTitle), findsOneWidget);
-      await _dokun(tester, find.text(_tr().aiConsentNotNow));
-      expect(sonuclar, [false]);
-      expect(find.text(_tr().aiConsentTitle), findsNothing);
-      // Dostça mesaj: veri gönderilmiyor.
-      expect(find.text(_tr().aiConsentDeclinedSnack), findsOneWidget);
-      // Karar sunucuya "hayır" olarak yazıldı (sabah bildirimi de AI'sız).
-      expect(depo.geriAlSayisi, 1);
+      expect(find.byType(Checkbox), findsNWidgets(2),
+          reason: 'yapay zeka onayı şartlar kutusundan AYRI bir kutu');
+      expect(find.text(_tr.wizardConsentLabel), findsOneWidget);
+      expect(find.text(_tr.wizardAiConsentLabel), findsOneWidget);
+      // Şartlar kutusunun ALTINDA.
+      expect(tester.getTopLeft(find.text(_tr.wizardAiConsentLabel)).dy,
+          greaterThan(tester.getTopLeft(find.text(_tr.wizardConsentLabel)).dy));
+      expect(_devamAcik(tester), isFalse);
 
-      await _ac(tester);
-      expect(find.text(_tr().aiConsentTitle), findsOneWidget,
-          reason: '"bir kez gösterildi" bayrağı olmamalı');
-      await _dokun(tester, find.text(_tr().aiConsentNotNow));
-      expect(sonuclar, [false, false]);
-      expect(depo.verilenSurumler, isEmpty);
+      await _kutu(tester, 0);
+      expect(_devamAcik(tester), isFalse, reason: 'yalnız şartlar yetmez');
+
+      await _kutu(tester, 0);
+      await _kutu(tester, 1);
+      expect(_devamAcik(tester), isFalse, reason: 'yalnız yapay zeka yetmez');
+
+      await _kutu(tester, 0);
+      expect(_devamAcik(tester), isTrue);
+
+      // Biri geri alınınca kapı yeniden kapanır.
+      await _kutu(tester, 1);
+      expect(_devamAcik(tester), isFalse);
     });
 
-    testWidgets('sayfa sağlayıcıyı ve gönderilen veriyi adıyla sayar',
+    testWidgets('onay bir kez sorulur: sonraki adımda kutu yok',
         (tester) async {
-      final kap = _kap(_SahteDepo());
-      await tester.pumpWidget(_sar(kap, _Tetik(<bool>[])));
-      await _ac(tester);
-      final l10n = _tr();
-      for (final metin in [
-        l10n.aiConsentIntro,
-        l10n.aiConsentDataChart,
-        l10n.aiConsentDataChat,
-        l10n.aiConsentDataMemory,
-        l10n.aiConsentDataPeople,
-        l10n.aiConsentDataFace,
-        l10n.aiConsentPurpose,
-        l10n.aiConsentDeclineInfo,
-        l10n.aiConsentPrivacyLink,
-        l10n.aiConsentAgree,
-        l10n.aiConsentNotNow,
-      ]) {
-        expect(find.text(metin), findsOneWidget, reason: metin);
+      await tester.pumpWidget(_sihirbaz());
+      await tester.pump();
+      await _kutu(tester, 0);
+      await _kutu(tester, 1);
+      await tester.tap(find.byType(GoldButton));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text(_tr.wizardDateTitle), findsOneWidget);
+      expect(find.text(_tr.wizardAiConsentLabel), findsNothing);
+    });
+
+    test('kutu metni sahibin cümlesi, birebir (TR + EN)', () {
+      expect(
+          _tr.wizardAiConsentLabel,
+          "Yorumlarımın ve sohbet yanıtlarımın üretilmesi için harita "
+          "bilgilerimin, mesajlarımın ve paylaştığım diğer verilerin Google "
+          "Gemini'ye (üçüncü taraf yapay zeka) gönderilmesine izin "
+          'veriyorum.');
+      expect(
+          _en.wizardAiConsentLabel,
+          'I allow my chart data, messages and other data I share to be '
+          'sent to Google Gemini (third-party AI) so my readings and chat '
+          'replies can be generated.');
+    });
+  });
+
+  group('Kayıt: kurulumda bir kez, düşerse AppShell yeniden dener', () {
+    test('kurulum bitince POST /account/ai-consent BİR KEZ, sürümle',
+        () async {
+      final sunucu = _Sunucu();
+      await aiOnayiKurulumdaVerildi(_dio(sunucu), uid: 'u1');
+
+      expect(sunucu.istekler, hasLength(1));
+      final istek = sunucu.istekler.single;
+      expect(istek.method, 'POST');
+      expect(istek.path, _onayYolu);
+      expect(istek.data, {'version': kAiConsentVersion});
+
+      // Sonraki açılış (AppShell): kayıt yerinde, bir daha ağa çıkılmaz.
+      await ensureAiConsentRecorded(_dio(sunucu), uid: 'u1');
+      expect(sunucu.istekler, hasLength(1));
+    });
+
+    test('kayıt düşerse kurulum DÜŞMEZ; açılışta yeniden dener, başarıdan '
+        'sonra bir daha atmaz', () async {
+      final sunucu = _Sunucu(durumlar: [500, 503]);
+      // Hata dışarı sızmaz — sızsaydı `_bitir`in catch'i kurulumu düşürürdü.
+      await aiOnayiKurulumdaVerildi(_dio(sunucu), uid: 'u1');
+      expect(sunucu.yola(_onayYolu), hasLength(1));
+
+      await ensureAiConsentRecorded(_dio(sunucu), uid: 'u1'); // 503
+      expect(sunucu.yola(_onayYolu), hasLength(2));
+      await ensureAiConsentRecorded(_dio(sunucu), uid: 'u1'); // 200
+      expect(sunucu.yola(_onayYolu), hasLength(3));
+      await ensureAiConsentRecorded(_dio(sunucu), uid: 'u1');
+      await ensureAiConsentRecorded(_dio(sunucu), uid: 'u1');
+      expect(sunucu.yola(_onayYolu), hasLength(3),
+          reason: 'başarıdan sonra bayrak silinmeli');
+    });
+
+    test('bayrağı olmayan kullanıcı (53\'ten gelen) HİÇ POST atmaz',
+        () async {
+      final sunucu = _Sunucu();
+      for (var i = 0; i < 3; i++) {
+        await ensureAiConsentRecorded(_dio(sunucu), uid: 'u53');
       }
-      expect(l10n.aiConsentIntro, contains('Gemini'));
-      expect(l10n.aiConsentIntro, contains('Google'));
+      await ensureAiConsentRecorded(_dio(sunucu), uid: null);
+      expect(sunucu.istekler, isEmpty,
+          reason: 'kutuyu işaretlemeyenin adına kayıt yazılmaz');
     });
 
-    testWidgets('geri tuşu Şimdi değil gibi KAYDEDİLİR, bir kez',
-        (tester) async {
-      // Android geri tuşu `isDismissible: false`a rağmen sayfayı kapatır
-      // (sonuç null). Kaydedilmeseydi "veri gönderilmiyor" mesajı çıkar ama
-      // sunucu açık "hayır"ı hiç öğrenmezdi.
-      final depo = _SahteDepo();
-      final kap = _kap(depo);
-      final sonuclar = <bool>[];
-      await tester.pumpWidget(_sar(kap, _Tetik(sonuclar)));
-      await _ac(tester);
-      expect(find.text(_tr().aiConsentTitle), findsOneWidget);
+    test('bayrak HESABA bağlı: aynı cihazdaki başka hesap onu kullanamaz',
+        () async {
+      final sunucu = _Sunucu(durumlar: [500]);
+      await aiOnayiKurulumdaVerildi(_dio(sunucu), uid: 'u1'); // düştü
+      expect(sunucu.istekler, hasLength(1));
 
-      await tester.binding.handlePopRoute();
-      await _yerles(tester);
-      await tester.pump(const Duration(milliseconds: 400));
+      // u1 çıktı, kutuyu hiç görmemiş u2 girdi.
+      await ensureAiConsentRecorded(_dio(sunucu), uid: 'u2');
+      expect(sunucu.istekler, hasLength(1),
+          reason: 'istek u2\'nin kimliğiyle gider ve ona kayıt yazardı');
 
-      expect(find.text(_tr().aiConsentTitle), findsNothing);
-      expect(sonuclar, [false]);
-      expect(depo.geriAlSayisi, 1);
-      expect(depo.verilenSurumler, isEmpty);
-      expect(kap.read(aiOnayProvider).value, isFalse);
-      expect(find.text(_tr().aiConsentDeclinedSnack), findsOneWidget);
-
-      // "Şimdi değil" düğmesi kaydı kendisi yapar; null yolu onu ikinci
-      // kez yazmamalı.
-      await _ac(tester);
-      await _dokun(tester, find.text(_tr().aiConsentNotNow));
-      expect(sonuclar, [false, false]);
-      expect(depo.geriAlSayisi, 2);
+      // u1 geri dönünce borcu hâlâ duruyor.
+      await ensureAiConsentRecorded(_dio(sunucu), uid: 'u1');
+      expect(sunucu.istekler, hasLength(2));
     });
 
-    testWidgets('Şimdi değil kaydı sunucuya yazılamasa da çökmez',
-        (tester) async {
-      final depo = _SahteDepo()..geriAlHatasi = true;
-      final kap = _kap(depo);
-      final sonuclar = <bool>[];
-      await tester.pumpWidget(_sar(kap, _Tetik(sonuclar)));
-      await _ac(tester);
-      await _dokun(tester, find.text(_tr().aiConsentNotNow));
-      expect(sonuclar, [false]);
-      expect(kap.read(aiOnayProvider).value, isFalse);
-      expect(tester.takeException(), isNull);
+    test('kaynak: _bitir kaydı şartlar kaydından HEMEN sonra, kutuya bağlı '
+        've kullanıcının kimliğiyle borçlanır', () {
+      final govde = _dilim(
+          _yorumsuz('lib/features/onboarding/onboarding_wizard.dart'),
+          'Future<void> _bitir() async {',
+          'Future<void> _tarihSec()');
+      final sartlar = govde.indexOf('await ensureConsentRecorded(');
+      final ai = govde.indexOf('if (_aiRiza) {\n'
+          '        await aiOnayiKurulumdaVerildi(ref.read(apiProvider), '
+          'uid: user.uid);\n'
+          '      }');
+      final dogum = govde.indexOf('saveBirthRecord(');
+      expect(sartlar, greaterThan(-1));
+      expect(ai, greaterThan(sartlar),
+          reason: 'yapay zeka kaydı yok ya da kutuya bağlı değil');
+      expect(dogum, greaterThan(ai));
+      // Aradaki tek ifade: şartlar kaydı ile yapay zeka kaydı arasında
+      // başka bir adım yok.
+      final ara = govde.substring(sartlar, ai);
+      expect(';'.allMatches(ara), hasLength(1));
+    });
+
+    test('kaynak: AppShell açılışı ensureConsentRecorded\'ın yanında, '
+        'oturumdaki hesabın kimliğiyle dener', () {
+      final acilis = _dilim(
+          _yorumsuz('lib/features/shell/app_shell.dart'),
+          'void initState() {',
+          'void _buyukUcluPerdesi()');
+      expect(acilis, contains('ensureConsentRecorded(ref.read(apiProvider));\n'
+          '      ensureAiConsentRecorded(ref.read(apiProvider),\n'
+          '          uid: ref.read(authStateProvider).value?.uid);'));
+      // Açılış sırası 1.20.0+53'teki gibi: Büyük Üçlü perdesi doğrudan
+      // oynar, önüne ya da arkasına bir onay sorusu girmez (tanıtım
+      // paywall'ı ve bildirim izni ikinci şansı onu beklemez).
+      expect(acilis, contains('if (!mounted) return;\n'
+          '      _buyukUcluPerdesi();\n'));
     });
   });
 
-  group('Kapı: onay verilince geçer, geri alınınca yine sorar', () {
-    testWidgets('Kabul ediyorum → sürümle kaydedilir, sonra sayfa gelmez',
-        (tester) async {
-      final depo = _SahteDepo();
-      final kap = _kap(depo);
-      final sonuclar = <bool>[];
-      await tester.pumpWidget(_sar(kap, _Tetik(sonuclar)));
+  group('Kapı YOK: hiçbir özellik onaya bağlı değil', () {
+    /// Abone, kurulumu bitmiş profil — onay kaydı, onay sağlayıcısı ya da
+    /// bayrak YOK (53'ten gelen kullanıcının hâli).
+    ProviderContainer kap(_Sunucu sunucu) {
+      final k = ProviderContainer(overrides: [
+        apiProvider.overrideWithValue(_dio(sunucu)),
+        raporKapisiProvider.overrideWithValue(PlusHali.abone),
+        profileProvider.overrideWith((ref) => Stream.value({
+              'onboardingCompleted': true,
+              'birthDate': '1990-03-07',
+              'birthTime': '04:30',
+              'birthCity': 'İstanbul',
+            })),
+      ]);
+      addTearDown(k.dispose);
+      return k;
+    }
 
-      await _ac(tester);
-      await _dokun(tester, find.text(_tr().aiConsentAgree));
-      expect(sonuclar, [true]);
-      expect(depo.verilenSurumler, [kAiConsentVersion]);
-      expect(kap.read(aiOnayProvider).value, isTrue);
+    /// Profil önce DİNLENİR, sonra ilk değeri beklenir ki okuma sağlayıcısı
+    /// kurulurken kurulumu bitmiş profili görsün. Dinlemeden yalnız
+    /// `read(.future)` ile beklenen akış bu kurulumda hiç değer vermedi
+    /// (ölçüldü: 30 sn zaman aşımı, kap sökülürken "disposed during loading
+    /// state").
+    Future<void> profilHazir(ProviderContainer k) async {
+      k.listen(profileProvider, (_, _) {});
+      await k.read(profileProvider.future);
+    }
 
-      await _ac(tester);
-      expect(find.text(_tr().aiConsentTitle), findsNothing);
-      expect(sonuclar, [true, true]);
-    });
-
-    testWidgets('sunucuda onay varsa sayfa HİÇ açılmaz', (tester) async {
-      final kap = _kap(_SahteDepo(sunucu: true));
-      final sonuclar = <bool>[];
-      await tester.pumpWidget(_sar(kap, _Tetik(sonuclar)));
-      await _ac(tester);
-      expect(find.text(_tr().aiConsentTitle), findsNothing);
-      expect(sonuclar, [true]);
-    });
-
-    testWidgets('geri alınınca sonraki açılışta sayfa yeniden gelir',
-        (tester) async {
-      final depo = _SahteDepo(sunucu: true);
-      final kap = _kap(depo);
-      final sonuclar = <bool>[];
-      await tester.pumpWidget(_sar(kap, _Tetik(sonuclar)));
-      kap.read(aiOnayProvider.notifier);
-      await _yerles(tester);
-      kap.read(aiOnayProvider.notifier).geriAl();
-      await _yerles(tester);
-      expect(depo.sunucu, isFalse);
-      expect(kap.read(aiOnayProvider).value, isFalse);
-
-      await _ac(tester);
-      expect(find.text(_tr().aiConsentTitle), findsOneWidget);
-    });
-
-    testWidgets('kayıt yazılamazsa onay VERİLMİŞ SAYILMAZ, hata sayfada',
-        (tester) async {
-      final depo = _SahteDepo()..verHatasi = true;
-      final kap = _kap(depo);
-      final sonuclar = <bool>[];
-      await tester.pumpWidget(_sar(kap, _Tetik(sonuclar)));
-      await _ac(tester);
-      await _dokun(tester, find.text(_tr().aiConsentAgree));
-      expect(find.text(_tr().aiConsentSaveFailed), findsOneWidget);
-      expect(find.text(_tr().aiConsentTitle), findsOneWidget);
-      expect(kap.read(aiOnayProvider).value, isFalse);
-      expect(sonuclar, isEmpty, reason: 'sayfa hâlâ açık, karar yok');
-    });
-  });
-
-  group('Durum', () {
-    test('hesap yoksa onay yok, sunucuya gidilmez', () async {
-      final depo = _SahteDepo(sunucu: true);
-      final kap = _kap(depo, uid: null);
-      expect(await kap.read(aiOnayProvider.future), isFalse);
-      expect(depo.durumSayisi, 0);
-    });
-
-    test('sunucuya ulaşılamazsa SON BİLİNEN karar, o da yoksa kapalı',
-        () async {
-      final depo = _SahteDepo()..durumHatasi = true;
-      expect(await _kap(depo).read(aiOnayProvider.future), isFalse);
-
-      SharedPreferences.setMockInitialValues(
-          {'ai-consent-v$kAiConsentVersion-u1': true});
-      expect(await _kap(depo).read(aiOnayProvider.future), isTrue);
-      // Önbellek HESABA bağlı: başka hesap bu onayı devralmaz.
-      expect(await _kap(depo, uid: 'u2').read(aiOnayProvider.future),
-          isFalse);
-    });
-
-    test('sunucu cevabı önbelleğin ÖNÜNE geçer', () async {
-      SharedPreferences.setMockInitialValues(
-          {'ai-consent-v$kAiConsentVersion-u1': true});
-      final depo = _SahteDepo(sunucu: false);
-      expect(await _kap(depo).read(aiOnayProvider.future), isFalse,
-          reason: 'başka cihazda geri alınmış onay burada da kapanmalı');
-    });
-
-    test('AI sağlayıcısı onay yokken AiOnayiGerekli, verilince kurulur',
-        () async {
-      final depo = _SahteDepo();
-      final kap = _kap(depo);
-      var istek = 0;
-      final rapor = FutureProvider<String>((ref) async {
-        await aiOnayiGerektir(ref);
-        istek++;
-        return 'okuma';
+    test('günlük okuma isteği onaysız GİDER ve okuma döner', () async {
+      final sunucu = _Sunucu(govdeler: {
+        '/reports/daily': {
+          'data': {'reading': 'Bugün gökyüzü sakin.'},
+        },
       });
-      kap.listen(rapor, (_, _) {});
-      await expectLater(kap.read(rapor.future),
-          throwsA(isA<AiOnayiGerekli>()));
-      expect(istek, 0, reason: 'onay yokken istek ATILMAMALI');
+      final k = kap(sunucu);
+      await profilHazir(k);
+      k.listen(dailyReadingProvider, (_, _) {});
+      final veri = await k.read(dailyReadingProvider.future);
 
-      await kap.read(aiOnayProvider.notifier).ver();
-      expect(await kap.read(rapor.future), 'okuma');
-      expect(istek, 1);
+      expect(veri?['reading'], 'Bugün gökyüzü sakin.');
+      final gunluk = sunucu.yola('/api/v1/reports/daily');
+      expect(gunluk, hasLength(1));
+      expect(gunluk.single.method, 'POST');
+      expect(gunluk.single.queryParameters, isEmpty);
+      expect(sunucu.yola(_onayYolu), isEmpty,
+          reason: 'okuma onay durumunu sormaz');
     });
 
-    test('yumuşak uçlara onay yokken ai=0, varken parametre YOK', () async {
-      final depo = _SahteDepo();
-      final kap = _kap(depo);
-      final parametre = FutureProvider<Map<String, dynamic>?>(
-          (ref) => aiSorguParametresi(ref));
-      kap.listen(parametre, (_, _) {});
-      expect(await kap.read(parametre.future), {'ai': '0'});
-      await kap.read(aiOnayProvider.notifier).ver();
-      expect(await kap.read(parametre.future), isNull,
-          reason: 'onaylı istek eski istemcininkiyle bayt bayt aynı');
-    });
-  });
+    test('sinyaller ai=0 OLMADAN istenir (yorum katmanı kısılmaz)', () async {
+      final sunucu = _Sunucu(govdeler: {
+        '/reports/signals': {
+          'data': {'signals': []},
+        },
+      });
+      final k = kap(sunucu);
+      await profilHazir(k);
+      k.listen(signalsDataProvider, (_, _) {});
+      await k.read(signalsDataProvider.future);
 
-  group('Hata eşlemesi', () {
-    DioException yanit(int kod, {String? isaret}) => DioException(
-          requestOptions: RequestOptions(path: '/api/v1/chat'),
-          response: Response(
-            requestOptions: RequestOptions(path: '/api/v1/chat'),
-            statusCode: kod,
-            headers: Headers.fromMap({
-              if (isaret != null) kAiConsentHeader: [isaret],
-            }),
-          ),
-        );
-
-    test('işaretli 403 AI onay hatasıdır, işaretsiz 403 değildir', () {
-      expect(aiOnayHatasiMi(const AiOnayiGerekli()), isTrue);
-      expect(aiOnayHatasiMi(yanit(403, isaret: 'required')), isTrue);
-      expect(aiOnayHatasiMi(yanit(403)), isFalse,
-          reason: 'yüz rızası / arkadaşlık 403\'ü onay sayfası açmamalı');
-      expect(aiOnayHatasiMi(yanit(402, isaret: 'required')), isFalse);
-      expect(aiOnayHatasiMi(StateError('x')), isFalse);
+      final sinyal = sunucu.yola('/api/v1/reports/signals');
+      expect(sinyal, hasLength(1));
+      expect(sinyal.single.queryParameters, isEmpty);
     });
 
-    test('friendlyError onay durumunu dürüst cümleyle söyler', () {
-      expect(friendlyError(const AiOnayiGerekli(), _tr()),
-          _tr().aiConsentOffBody);
-    });
-  });
-
-  group('Ayarlar satırı (geri alınabilirlik)', () {
-    testWidgets('kapalıyken anahtar onay SAYFASINI açar, doğrudan açmaz',
-        (tester) async {
-      final depo = _SahteDepo();
-      final kap = _kap(depo);
-      await tester.pumpWidget(
-          _sar(kap, const Scaffold(body: Material(child: AiConsentRow()))));
-      await _yerles(tester);
-      expect(find.text(_tr().aiConsentSettingOff), findsOneWidget);
-
-      await _dokun(tester, find.byType(Switch));
-      expect(find.text(_tr().aiConsentTitle), findsOneWidget);
-      expect(depo.verilenSurumler, isEmpty,
-          reason: 'metin görülmeden onay yazılmamalı');
-      await _dokun(tester, find.text(_tr().aiConsentAgree));
-      expect(find.text(_tr().aiConsentSettingOn), findsOneWidget);
+    test('ai_consent.dart yalnız kurulum ve AppShell\'den kullanılır', () {
+      // Sohbet, I Ching, yüz okuma, Atlas, BaZi, ilişki, profil — hiçbiri
+      // onay modülünü içe aktarmıyorsa hiçbiri onayla kapılanamaz.
+      final kullananlar = {
+        for (final yol in _libDosyalari())
+          if (_yorumsuz(yol).contains("core/ai_consent.dart'")) yol,
+      };
+      expect(kullananlar, {
+        'lib/features/onboarding/onboarding_wizard.dart',
+        'lib/features/shell/app_shell.dart',
+      });
     });
 
-    testWidgets('açıkken anahtar onaylı diyalogla geri alır', (tester) async {
-      final depo = _SahteDepo(sunucu: true);
-      final kap = _kap(depo);
-      await tester.pumpWidget(
-          _sar(kap, const Scaffold(body: Material(child: AiConsentRow()))));
-      await _yerles(tester);
-      expect(find.text(_tr().aiConsentSettingOn), findsOneWidget);
+    test('onay modülü kanıttan ibaret: sayfa, sağlayıcı, GET/DELETE yok', () {
+      final k = _yorumsuz('lib/core/ai_consent.dart');
+      for (final yasak in [
+        'Widget',
+        'showModalBottomSheet',
+        'Provider',
+        '.get(',
+        '.delete(',
+        'Exception',
+      ]) {
+        expect(k, isNot(contains(yasak)), reason: yasak);
+      }
+      expect('.post('.allMatches(k), hasLength(1));
+    });
 
-      await _dokun(tester, find.byType(Switch));
-      expect(find.text(_tr().aiConsentWithdrawBody), findsOneWidget);
-      await _dokun(tester, find.text(_tr().aiConsentWithdrawConfirm));
-      expect(depo.geriAlSayisi, 1);
-      expect(depo.sunucu, isFalse);
-      expect(find.text(_tr().aiConsentSettingOff), findsOneWidget);
+    test('kapının izleri lib\'de yok: ai=0, X-Ai-Consent 403, reading_ai_off',
+        () {
+      final izler = <String>[];
+      for (final yol in _libDosyalari()) {
+        final k = _yorumsuz(yol);
+        for (final iz in [
+          "'ai': '0'",
+          'x-ai-consent',
+          'X-Ai-Consent',
+          'reading_ai_off',
+        ]) {
+          if (k.contains(iz)) izler.add('$yol: $iz');
+        }
+        if (yol != 'lib/core/ai_consent.dart' && k.contains(_onayYolu)) {
+          izler.add('$yol: $_onayYolu');
+        }
+      }
+      expect(izler, isEmpty);
+    });
+
+    test('sohbet gönderimi kapısız: _send doğrudan _gonder\'e iner', () {
+      final k = _yorumsuz('lib/features/chat/chat_screen.dart');
+      final gonderim =
+          _dilim(k, 'Future<void> _send([String? preset]) async {',
+              'Future<void> _tekrarDene(');
+      // Tek bekleme gönderimin kendisi: araya bir soru/kapı girerse ikinci
+      // bir `await` belirir.
+      expect('await '.allMatches(gonderim), hasLength(1));
+      expect(gonderim, contains('await _gonder(mesaj);'));
+      final acilis = _dilim(k, 'void initState() {', 'void _onTextChanged()');
+      expect(acilis, isNot(contains('showModalBottomSheet')));
     });
   });
 

@@ -11,8 +11,6 @@ import '../features/paywall/paywall_acilis.dart'
     show PaywallKaynak, acPaywall;
 import '../features/paywall/token_store_screen.dart';
 import '../l10n/app_localizations.dart';
-import 'ai_consent.dart'
-    show AiOnayiGerekli, aiOnayHatasiMi, aiOnayiSunucuIstedi;
 import 'app_config.dart'
     show
         appBuildInterceptor,
@@ -313,10 +311,6 @@ final apiProvider = Provider<Dio>((ref) {
         // 402'nin detayı ve paywall kararı kaybolurdu.
         debugPrint('402/429 yan etkisi düştü: $e');
       }
-      // U06: sunucu "AI onayı yok" dedi — bu cihazın bildiği bayat (onay
-      // başka cihazda geri alınmış olabilir). Onay sayfası açılır; hata
-      // yine çağırana gider ve ekran "yapay zeka kapalı" kartını gösterir.
-      if (aiOnayHatasiMi(error)) aiOnayiSunucuIstedi();
       handler.next(error);
     },
   ));
@@ -380,7 +374,6 @@ String friendlyError(Object error, AppLocalizations l10n) {
   // `Future.timeout` ile kesilen akislar (profil yuklemesi, 12 sn) Dio
   // disinda duser; "beklenmeyen sorun" degil, baglanti yok demektir.
   if (error is TimeoutException) return l10n.errorConnection;
-  if (error is AiOnayiGerekli) return l10n.aiConsentOffBody;
   if (error is DioException) {
     // 429 + Retry-After: sunucunun soyledigi sure, genel `detail`
     // cumlesinden daha dogru — kullanici NE ZAMAN deneyecegini ogrenir.

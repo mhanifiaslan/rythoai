@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
-import '../../core/ai_consent.dart' show aiAcilisSorusu;
+import '../../core/ai_consent.dart' show ensureAiConsentRecorded;
 import '../../core/api.dart' show apiProvider;
 import '../../core/consent.dart' show ensureConsentRecorded;
 import '../../core/partner_referrer.dart' show ensurePartnerReferrer;
@@ -22,7 +22,11 @@ import '../../widgets/nebula_widgets.dart' show signIndexOf;
 import '../friends/relationship_screen.dart' show RelationshipScreen;
 import '../sky/sign_story_screen.dart' show SignStoryScreen;
 import '../../core/providers.dart'
-    show OnboardOutcome, justOnboardedProvider, profileProvider;
+    show
+        OnboardOutcome,
+        authStateProvider,
+        justOnboardedProvider,
+        profileProvider;
 import '../../widgets/big_three_reveal.dart';
 import '../../widgets/cosmic_scaffold.dart';
 import '../../l10n/app_localizations.dart';
@@ -114,15 +118,17 @@ class _AppShellState extends ConsumerState<AppShell> {
     // `_Gate` kapısında gösterilir (bkz. core/device_session.dart).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // U06: AI onayı yoksa onay sayfası HER açılışta gelir ("bir kez
-      // gösterildi" bayrağı yok — Apple'ın reddettiği kısayol tam olarak
-      // oydu). Büyük Üçlü perdesi önce oynar; sayfa perdenin üstüne
-      // binmez. Tanıtım paywall'ı ve bildirim izni bu sorunun bitmesini
-      // bekler (SkyScreen → `aiAcilisSorusuBekle`).
-      aiAcilisSorusu(context, ref, once: _buyukUcluPerdesi);
+      _buyukUcluPerdesi();
       // KT2: kabul kaydı onboarding'de düşmüşse burada telafi edilir
       // (bayraklı — başarı sonrası bir daha ağa çıkmaz).
       ensureConsentRecorded(ref.read(apiProvider));
+      // Yapay zeka (Google Gemini) onayının kaydı da aynı desenle telafi
+      // edilir — ama YALNIZ bu hesap kurulumda iki kutuyu işaretleyip kaydı
+      // borçlandıysa (bayrak). 1.20.0+53'ten güncelleyen kullanıcı kutuyu
+      // hiç görmedi: bayrağı yok, istek atılmaz, adına kayıt yazılmaz.
+      // Sorulmaz da — onay yalnız kurulumda alınır (sahip kararı 2026-10-22).
+      ensureAiConsentRecorded(ref.read(apiProvider),
+          uid: ref.read(authStateProvider).value?.uid);
       // OP: ortak bağlantısıyla gelindiyse Play Install Referrer'daki kod
       // hesaba bağlanır. `main.dart`'ta DEĞİL burada: kullanıcı oturumu
       // açılmış olmalı (uç kimlik istiyor) ve ayrıca `main.dart` şu sıra
@@ -138,7 +144,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// Onboarding'in finali (R12-B1): kullanıcı doğum verisini az önce verdiyse
   /// Büyük Üçlü perdesi burada açılır — onboarding ekranında açılamaz, çünkü
   /// `onboardingCompleted` yazımı iner inmez `_Gate` o ekranı söker.
-  Future<void> _buyukUcluPerdesi() async {
+  void _buyukUcluPerdesi() {
     final sonuc = ref.read(justOnboardedProvider);
     if (sonuc == null) return;
     ref.read(justOnboardedProvider.notifier).state = null;
@@ -161,8 +167,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               Text(AppLocalizations.of(context).onboardingSavedNoChart)));
       return;
     }
-    await showBigThreeReveal(context,
-        sun: gunes, moon: ay, ascendant: yukselen);
+    showBigThreeReveal(context, sun: gunes, moon: ay, ascendant: yukselen);
   }
 
   /// Bildirim niyetinin MERKEZİ tüketicisi (BY-turu).

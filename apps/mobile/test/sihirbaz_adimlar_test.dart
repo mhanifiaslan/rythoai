@@ -67,9 +67,10 @@ Future<void> _dokun(WidgetTester tester, Finder f) async {
 
 Future<void> _devam(WidgetTester tester) => _dokun(tester, find.byType(GoldButton));
 
-/// Karşılama → tarih.
+/// Karşılama → tarih. İki zorunlu kutu: şartlar ve yapay zeka onayı.
 Future<void> _tariheGit(WidgetTester tester) async {
-  await _dokun(tester, find.byType(Checkbox).first);
+  await _dokun(tester, find.byType(Checkbox).at(0));
+  await _dokun(tester, find.byType(Checkbox).at(1));
   await _devam(tester);
   expect(find.text(_tr.wizardDateTitle), findsOneWidget);
 }

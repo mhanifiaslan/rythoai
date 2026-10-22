@@ -46,6 +46,7 @@ void main() {
     bool f(
       String adim, {
       bool riza = true,
+      bool aiRiza = true,
       DateTime? tarih,
       bool saatBiliniyor = true,
       TimeOfDay? saat,
@@ -56,6 +57,7 @@ void main() {
         sihirbazIlerleyebilir(
           adim: adim,
           riza: riza,
+          aiRiza: aiRiza,
           tarih: tarih,
           saatBiliniyor: saatBiliniyor,
           saat: saat,
@@ -64,9 +66,20 @@ void main() {
           bildirimSecimi: bildirim,
         );
 
-    test('welcome: rıza şart', () {
+    test('welcome: iki kutu da şart — şartlar ve yapay zeka; biri yetmez',
+        () {
       expect(f('welcome', riza: false), isFalse);
+      expect(f('welcome', aiRiza: false), isFalse,
+          reason: 'yapay zeka onayının sorulduğu tek yer; atlanabilirse '
+              'hiç sorulmamış olur');
+      expect(f('welcome', riza: false, aiRiza: false), isFalse);
       expect(f('welcome'), isTrue);
+    });
+
+    test('yapay zeka kutusu YALNIZ welcome adımında sayılır', () {
+      // Onay bir kez sorulur: sonraki adımlar onu yeniden istemez.
+      expect(f('date', aiRiza: false, tarih: DateTime(1990, 3, 7)), isTrue);
+      expect(f('notify', aiRiza: false, bildirim: false), isTrue);
     });
 
     test('date: tarih şart', () {

@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../core/ai_consent.dart' show aiOnayiIste;
 import '../../core/api.dart';
 import '../../core/conversations.dart';
 import '../../core/discovery.dart';
@@ -211,12 +210,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (tohum != null && tohum.isNotEmpty) _controller.text = tohum;
     // Dinleyici girece hareketlerini de yakalar — FocusNode gerekmez.
     _controller.addListener(_onTextChanged);
-    // U06: sohbet tamamen AI — ekran her açıldığında onay yoksa sayfa
-    // gelir. "Şimdi değil" ekranı KAPATMAZ (geçmiş konuşmalar okunabilir
-    // kalır); gönderim ayrıca kapılı (bkz. `_send`).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) aiOnayiIste(context, ref);
-    });
   }
 
   void _onTextChanged() {
@@ -342,10 +335,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _send([String? preset]) async {
     final text = (preset ?? _controller.text).trim();
     if (text.isEmpty || _busy) return;
-    // U06: mesaj Gemini'ye gider — onay yoksa GÖNDERİLMEZ ve metin kutuda
-    // kalır (kullanıcı yazdığını kaybetmesin). Sunucu da aynı kapıyı
-    // tutuyor; bu, isteğin hiç çıkmaması için.
-    if (!await aiOnayiIste(context, ref) || !mounted) return;
     _controller.clear();
     HapticFeedback.lightImpact();
     SoundFx.send();
