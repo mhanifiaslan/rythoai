@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
+import 'providers.dart' show authStateProvider;
 
 /// Kullanıcı güvenliği yardımcıları: şikayet (report) ve engelleme (block).
 /// Şikayetler `reports` koleksiyonuna yazılır ve yalnızca konsoldan incelenir;
@@ -110,9 +112,112 @@ DocumentReference<Map<String, dynamic>> _blockedRef(String targetUid) {
       .doc(targetUid);
 }
 
-/// Kullanıcıyı engelle: akışta ve mesajlarda içeriği istemci tarafında gizlenir.
-Future<void> blockUser(String targetUid) =>
-    _blockedRef(targetUid).set({'at': FieldValue.serverTimestamp()});
+/// Kullanıcıyı engeller (U17, App Store 1.2): arkadaşlık kenarlarını İKİ
+/// taraftan siler ve engel kaydını yazar — TEK batch'te.
+///
+/// Kayıt yalnız saklanmıyor, üç yerde okunuyor: firestore.rules (engellenen
+/// yeni davet kenarı kuramaz), sunucunun davet push'u (atlanır) ve rehber
+/// eşleşmesi (engelleyenin kartı engellenene dönmez). Dürtmenin ayrı kapısı
+/// yok: kuralı alıcının ağacında `accepted` kenar istiyor ve buradaki silim
+/// o kenarı kaldırıyor.
+///
+/// Neden tek batch: eskiden `removeFriend` ve ardından `blockUser` iki ayrı
+/// yazımdı. İkincisi düşseydi arkadaşlık gitmiş ama engel yazılmamış olurdu
+/// ve karşı taraf yeniden davet atabilirdi; sıra ters çevrilseydi engel
+/// yazılıp kenarlar kalabilirdi — bekleyen istek ekranda, kabul edilmiş
+/// arkadaşlık (dürtme yolu) açık. Batch hepsini birlikte yazar ya da
+/// hiçbirini. Zaten engelli birine yeniden `set` kurala göre update'tir;
+/// kural bu yüzden `update`'e de izin veriyor.
+Future<void> kullaniciyiEngelle(String hedefUid) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) throw StateError('Oturum yok');
+  final db = FirebaseFirestore.instance;
+  final kullanicilar = db.collection('users');
+  final batch = db.batch()
+    ..delete(kullanicilar.doc(uid).collection('friends').doc(hedefUid))
+    ..delete(kullanicilar.doc(hedefUid).collection('friends').doc(uid))
+    ..set(_blockedRef(hedefUid), {'at': FieldValue.serverTimestamp()});
+  await batch.commit();
+}
 
-/// Engeli kaldır.
-Future<void> unblockUser(String targetUid) => _blockedRef(targetUid).delete();
+/// Engeli kaldırır. Eski arkadaşlığı GERİ GETİRMEZ: engelleme kenarları
+/// silmişti; yeniden arkadaş olmak için yeni bir davet gerekir.
+Future<void> engeliKaldir(String hedefUid) => _blockedRef(hedefUid).delete();
+
+/// Tek kullanıcı üzerinde yazım işlemi (engelle / engeli kaldır).
+typedef KullaniciIslemi = Future<void> Function(String uid);
+
+/// Engelleme işlevi — TEST DİKİŞİ: istek kutucuğunun ve arkadaş menüsünün
+/// "Engelle" dalı Firebase kurulmadan ancak bununla ölçülebiliyor
+/// (bkz. core/subscription.dart `paketSatinAliciProvider`).
+final engelleyiciProvider =
+    Provider<KullaniciIslemi>((_) => kullaniciyiEngelle);
+
+/// Engel kaldırma işlevi — TEST DİKİŞİ ([engelleyiciProvider] gerekçesi).
+final engelKaldiriciProvider = Provider<KullaniciIslemi>((_) => engeliKaldir);
+
+/// Engellenenler listesinin bir satırı.
+class EngellenenKullanici {
+  const EngellenenKullanici({
+    required this.uid,
+    this.displayName,
+    this.username,
+    this.at,
+  });
+
+  final String uid;
+  final String? displayName;
+  final String? username;
+
+  /// Engelleme anı; sunucu zamanı henüz inmemişse null.
+  final DateTime? at;
+}
+
+/// Engellenen kullanıcılar, herkese açık kartlarıyla (Profil > Gizlilik >
+/// Engellenenler).
+///
+/// Ad `publicProfiles/{uid}`den okunur — kural `get`'i girişli herkese
+/// açıyor, `users/{uid}` ise yalnız sahibine. Kart yoksa ya da okunamazsa
+/// satır ADSIZ çizilir ama çizilir: engeli kaldırma yolu adı bilinmeyen
+/// kişi için de açık kalmalı.
+///
+/// Eski `blockedUsersProvider`ın (providers.dart) yerine geçti. O sağlayıcı
+/// "akış ve mesajlar bu kümeye göre filtrelenir" diyordu ama hiçbir yer onu
+/// okumuyordu — engel kaydının saklanıp uygulanmamasının (U17) istemcideki
+/// yüzü buydu.
+final engellenenlerProvider =
+    StreamProvider<List<EngellenenKullanici>>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return Stream.value(const <EngellenenKullanici>[]);
+  final db = FirebaseFirestore.instance;
+  return db
+      .collection('users')
+      .doc(user.uid)
+      .collection('blocked')
+      .snapshots()
+      .asyncMap((snapshot) async {
+    final liste = <EngellenenKullanici>[];
+    for (final doc in snapshot.docs) {
+      Map<String, dynamic>? kart;
+      try {
+        kart = (await db.collection('publicProfiles').doc(doc.id).get()).data();
+      } catch (_) {
+        // Adsız satır; yukarıdaki gerekçe.
+      }
+      final at = doc.data()['at'];
+      liste.add(EngellenenKullanici(
+        uid: doc.id,
+        displayName: kart?['displayName'] as String?,
+        username: kart?['username'] as String?,
+        at: at is Timestamp ? at.toDate() : null,
+      ));
+    }
+    // En yeni engel üstte. Zamanı henüz inmemiş kayıt az önce yazılmıştır.
+    liste.sort((a, b) {
+      if (a.at == null) return b.at == null ? 0 : -1;
+      if (b.at == null) return 1;
+      return b.at!.compareTo(a.at!);
+    });
+    return liste;
+  });
+});

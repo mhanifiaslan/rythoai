@@ -472,7 +472,7 @@ class _FriendsList extends StatelessWidget {
       if (incoming.isNotEmpty) ...[
         const SectionDivider(),
         _sectionTitle(l10n.incomingRequests),
-        for (final friend in incoming) _RequestTile(friend: friend),
+        for (final friend in incoming) GelenIstekKarti(friend: friend),
       ],
       if (accepted.isNotEmpty) ...[
         const SectionDivider(),
@@ -558,22 +558,28 @@ class _FriendTile extends ConsumerWidget {
   }
 }
 
-/// Gelen davet satırı: Yoksay / Kabul et.
+/// Gelen davet satırı: ⋯ (Engelle / Şikayet et) · Yoksay · Kabul et.
 ///
 /// Kabul artık geri bildirim veriyor: düğme meşgul olur, sonuç SnackBar'la
 /// söylenir. Eski hâli ateşle-unut idi — hata yutuluyor, kullanıcı
 /// dokunuşun bir şey yaptığını ancak liste yenilenince anlıyordu.
 /// Yoksay onaysız: davet yıkıcı değil, karşı taraf yeniden gönderebilir.
-class _RequestTile extends ConsumerStatefulWidget {
-  const _RequestTile({required this.friend});
+///
+/// ⋯ düğmesi neden var (U17, App Store 1.2): Engelle ve Şikayet et yalnız
+/// KABUL EDİLMİŞ arkadaşın sayfasındaydı. Kullanıcı adıyla istek atan bir
+/// yabancıyı alıcı kabul etmeden ne engelleyebiliyor ne şikayet
+/// edebiliyordu — "Yoksay" kenarı siliyordu ama gönderen hemen yeniden
+/// atabiliyordu. Kabul etmek, bildirebilmenin bedeli olmamalı.
+class GelenIstekKarti extends ConsumerStatefulWidget {
+  const GelenIstekKarti({super.key, required this.friend});
 
   final Friend friend;
 
   @override
-  ConsumerState<_RequestTile> createState() => _RequestTileState();
+  ConsumerState<GelenIstekKarti> createState() => _GelenIstekKartiState();
 }
 
-class _RequestTileState extends ConsumerState<_RequestTile> {
+class _GelenIstekKartiState extends ConsumerState<GelenIstekKarti> {
   bool _busy = false;
 
   Future<void> _kabul() async {
@@ -624,6 +630,19 @@ class _RequestTileState extends ConsumerState<_RequestTile> {
               alignment: WrapAlignment.end,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                IconButton(
+                  tooltip: l10n.requestMoreActions,
+                  visualDensity: VisualDensity.compact,
+                  // Tooltip ekran okuyucuya AD vermez (semantik `tooltip`
+                  // alanı); ikon-tek düğmenin adı `semanticLabel`dan gelir.
+                  icon: Icon(Icons.more_horiz_rounded,
+                      size: 20,
+                      color: RythoColors.parchmentDim,
+                      semanticLabel: l10n.requestMoreActions),
+                  onPressed: _busy
+                      ? null
+                      : () => showFriendSafetySheet(context, ref, widget.friend),
+                ),
                 TextButton(
                   onPressed: _busy ? null : () => removeFriend(widget.friend.uid),
                   child: Text(l10n.ignore,
@@ -1046,25 +1065,39 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
 /// sayfa kapandıktan sonra ve onaydan geçerek yapılır.
 enum _GuvenlikSecimi { cikar, engelle, sikayet }
 
-/// Arkadaş menüsü: çıkarma, engelleme, şikâyet.
+/// Arkadaş / istek menüsü: çıkarma, engelleme, şikâyet.
+///
+/// İki yerden açılır: arkadaş detayının ⋮ düğmesi ve gelen istek
+/// kutucuğunun ⋯ düğmesi ([GelenIstekKarti]). Engelleme ikisinde de aynı
+/// yoldan geçer ([kullaniciyiEngelle]: kenarlar + engel kaydı tek batch).
+/// "Arkadaşlıktan çıkar" yalnız kabul edilmiş arkadaşta: gelen istekte o
+/// iş "Yoksay"ın ve o adla sunulursa yanlış ad olur.
 ///
 /// `true` döner: arkadaş çıkarıldı ya da engellendi (çağıran ekranı
 /// kapatır). Çıkarma ve engelleme ONAYLI (`onayla`, yıkıcı): eski hâli
 /// tek dokunuşla iki tarafın kenarını siliyordu — geri dönüşü olmayan
 /// eylem, onay sorusu olmadan.
-Future<bool> showFriendSafetySheet(BuildContext context, Friend friend) async {
+Future<bool> showFriendSafetySheet(
+    BuildContext context, WidgetRef ref, Friend friend) async {
   final l10n = AppLocalizations.of(context);
   final ad = friend.ad(l10n);
+  // İkisi de İLK `await`ten önce alınır: engel inince istek kutucuğu
+  // listeden düşer; o noktada `ref` artık kullanılamaz, `context` de
+  // yaşamıyor olabilir.
+  final engelle = ref.read(engelleyiciProvider);
+  final mesajci = ScaffoldMessenger.of(context);
   final secim = await showRythoSheet<_GuvenlikSecimi>(
     context,
     builder: (sheetContext) => Padding(
       padding: const EdgeInsets.only(bottom: RythoSpace.sm),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        ListTile(
-          leading: const Icon(Icons.person_remove_rounded, size: 20),
-          title: Text(l10n.removeFriend, style: RythoType.body),
-          onTap: () => Navigator.of(sheetContext).pop(_GuvenlikSecimi.cikar),
-        ),
+        if (friend.status == FriendStatus.accepted)
+          ListTile(
+            leading: const Icon(Icons.person_remove_rounded, size: 20),
+            title: Text(l10n.removeFriend, style: RythoType.body),
+            onTap: () =>
+                Navigator.of(sheetContext).pop(_GuvenlikSecimi.cikar),
+          ),
         ListTile(
           leading: const Icon(Icons.block_rounded, size: 20),
           title: Text(l10n.blockUser, style: RythoType.body),
@@ -1103,8 +1136,16 @@ Future<bool> showFriendSafetySheet(BuildContext context, Friend friend) async {
         destructive: true,
       );
       if (!tamam) return false;
-      await removeFriend(friend.uid);
-      await blockUser(friend.uid);
+      // Eskiden iki çıplak `await`ti (`removeFriend` + `blockUser`): yazım
+      // düşünce hata yakalanmıyor, kullanıcı hiçbir şey görmüyor ve
+      // engellediğini sanıyordu. Sonuç artık SÖYLENİR.
+      try {
+        await engelle(friend.uid);
+      } catch (_) {
+        mesajci.showSnackBar(SnackBar(content: Text(l10n.blockFailed)));
+        return false;
+      }
+      mesajci.showSnackBar(SnackBar(content: Text(l10n.userBlockedSnack(ad))));
       return true;
     case _GuvenlikSecimi.sikayet:
       showReportSheet(context, targetType: 'user', targetId: friend.uid);

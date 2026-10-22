@@ -133,7 +133,7 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
   }
 
   Future<void> _guvenlikMenusu() async {
-    final gitti = await showFriendSafetySheet(context, widget.friend);
+    final gitti = await showFriendSafetySheet(context, ref, widget.friend);
     // Çıkarılan/engellenen arkadaşın ekranında kalmak, artık var olmayan
     // bir ilişkiyi göstermek olurdu.
     if (gitti && mounted) Navigator.of(context).pop();

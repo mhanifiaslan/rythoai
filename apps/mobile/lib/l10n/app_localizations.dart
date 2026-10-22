@@ -4067,8 +4067,86 @@ abstract class AppLocalizations {
   /// No description provided for @blockUserConfirmBody.
   ///
   /// In tr, this message translates to:
-  /// **'{name} seni bulamaz ve davet gönderemez. Bunu Çevrem ayarlarından geri alabilirsin.'**
+  /// **'{name} sana arkadaşlık isteği ya da tepki gönderemez; aranızdaki arkadaşlık ya da bekleyen istek silinir. Engeli Profil > Gizlilik > Engellenenler\'den kaldırabilirsin.'**
   String blockUserConfirmBody(String name);
+
+  /// No description provided for @requestMoreActions.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engelle ya da şikayet et'**
+  String get requestMoreActions;
+
+  /// No description provided for @userBlockedSnack.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} engellendi.'**
+  String userBlockedSnack(String name);
+
+  /// No description provided for @blockFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engelleme kaydedilemedi. Tekrar dene.'**
+  String get blockFailed;
+
+  /// No description provided for @blockedUsersTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engellenenler'**
+  String get blockedUsersTitle;
+
+  /// No description provided for @blockedUsersRowSubtitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engellediğin kişileri gör, engeli kaldır'**
+  String get blockedUsersRowSubtitle;
+
+  /// No description provided for @blockedUsersNote.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engellediğin kişi sana arkadaşlık isteği ya da tepki gönderemez ve rehber önerilerinde seni görmez. Engellendiği ona bildirilmez. Engeli kaldırmak eski arkadaşlığı geri getirmez.'**
+  String get blockedUsersNote;
+
+  /// No description provided for @blockedUsersEmpty.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engellediğin kimse yok.'**
+  String get blockedUsersEmpty;
+
+  /// No description provided for @blockedUnknownUser.
+  ///
+  /// In tr, this message translates to:
+  /// **'Rytho kullanıcısı'**
+  String get blockedUnknownUser;
+
+  /// No description provided for @unblockUser.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engeli kaldır'**
+  String get unblockUser;
+
+  /// No description provided for @unblockConfirmTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} için engel kaldırılsın mı?'**
+  String unblockConfirmTitle(String name);
+
+  /// No description provided for @unblockConfirmBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sana yeniden arkadaşlık isteği gönderebilir. Arkadaşlığınız kendiliğinden geri gelmez.'**
+  String get unblockConfirmBody;
+
+  /// No description provided for @userUnblockedSnack.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} için engel kaldırıldı.'**
+  String userUnblockedSnack(String name);
+
+  /// No description provided for @unblockFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engel kaldırılamadı. Tekrar dene.'**
+  String get unblockFailed;
 
   /// No description provided for @peopleSlotsOver.
   ///

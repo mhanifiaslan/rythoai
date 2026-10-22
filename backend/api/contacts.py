@@ -111,6 +111,12 @@ def match(req: MatchRequest,
         if (not karsi.get("contactMatch")
                 and not profile_service.are_friends(user.uid, uid)):
             continue  # karşı taraf kapalı ve arkadaş değil: görünmez
+        # U17: karşı taraf çağıranı engellediyse kartı (ad, foto, burç)
+        # engellenene gösterilmez. Kural davet kenarını zaten reddediyor;
+        # bu kapı olmasa engellenen kişi engelleyenin uygulamada olduğunu
+        # ve kartını rehberinden görmeye devam ederdi.
+        if profile_service.has_blocked(uid, user.uid):
+            continue
         try:
             kart_anlik = client.collection("publicProfiles").document(uid).get()
         except Exception:

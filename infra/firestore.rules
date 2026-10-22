@@ -193,8 +193,20 @@ service cloud.firestore {
       }
 
       // Engellenen kullanıcılar: yalnızca liste sahibi yazar/siler/okur.
+      //
+      // Kayıt YALNIZ SAKLANMIYOR, UYGULANIYOR (U17, App Store 1.2): aşağıda
+      // friends counterpart create dalı bu dokümana bakıp engellenenin
+      // yeni davet kenarını reddediyor; sunucu /notify/invite push'unu
+      // ve rehber eşleşmesini de aynı kayda göre kesiyor.
+      //
+      // `update` neden açık: istemci engellemeyi arkadaşlık kenarlarının
+      // silinmesiyle TEK batch'te yazıyor (core/safety.dart
+      // kullaniciyiEngelle). Zaten engelli birine `set` motor için update
+      // sayılır; update kapalıyken batch'in tamamı düşer ve kenarlar da
+      // silinmezdi — ör. engellediği kişiyi sonradan yeniden ekleyip
+      // tekrar engelleyen kullanıcıda.
       match /blocked/{targetUid} {
-        allow read, create, delete: if isOwner(uid);
+        allow read, create, update, delete: if isOwner(uid);
       }
 
       // ---------- Eklenen kişiler (P-turu) ----------
@@ -252,9 +264,20 @@ service cloud.firestore {
         allow read: if isOwner(uid);
         // Davet başlatma: sahip kendine 'outgoing', counterpart karşıya
         // 'incoming' yazar. 'accepted' create edilemez (önce davet şart).
+        //
+        // Engel kapısı (U17): sahip (davetin ALICISI) göndereni
+        // engellediyse karşıya 'incoming' yazılamaz. Kapı yalnız bu dalda
+        // yeterli: istemci iki kenarı TEK batch'te yazıyor
+        // (core/friends.dart sendFriendRequest), bu yazım düşünce
+        // gönderenin kendi 'outgoing' kenarı da düşer — eski paketlerde
+        // de temiz bir permission-denied. Tek başına yazılmış bir
+        // 'outgoing' kenarı alıcının ağacına hiçbir şey koymaz.
+        // Dürtme için ayrı kapı gerekmiyor: nudges create kabul edilmiş
+        // arkadaşlık istiyor ve engelleme iki kenarı da siliyor.
         allow create: if sadeceIzinliAlan() && (
           (isOwner(uid) && request.resource.data.status == 'outgoing') ||
-          (counterpart() && request.resource.data.status == 'incoming')
+          (counterpart() && request.resource.data.status == 'incoming'
+            && !exists(/databases/$(database)/documents/users/$(uid)/blocked/$(request.auth.uid)))
         );
         allow update: if sadeceIzinliAlan() && (
           // Sahip kendi gelen davetini kabul eder.

@@ -344,6 +344,15 @@ def invite(req: InvitePush,
     if not profile_service.has_pending_invite(user.uid, req.friend_uid):
         raise HTTPException(status_code=403, detail=text("invite.none", lang))
 
+    # U17 (App Store 1.2): alıcı göndereni engellediyse push YOK. Dağıtılmış
+    # kural bu kenarın kurulmasını zaten reddediyor; ama kenar kuralın
+    # dağıtımından önce (ya da geri alınmış bir kuralla) kurulmuş olabilir
+    # ve bu uç o hâlde engellenenin push'unu engelleyene düşürürdü. 200 +
+    # skipped: davet ucunun sözleşmesi (doğrulamadan sonra raise yok).
+    if profile_service.has_blocked(req.friend_uid, user.uid):
+        logger.info("Davet bildirimi atlandi (%s): engelli", req.friend_uid)
+        return {"status": "skipped", "reason": "engelli"}
+
     return _event_push(req.friend_uid, user.uid, f"invite-{user.uid}",
                        "PUSH_INVITE_TITLE", "PUSH_INVITE_BODY",
                        src="invite")

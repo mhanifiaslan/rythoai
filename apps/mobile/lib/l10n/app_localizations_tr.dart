@@ -2300,8 +2300,56 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String blockUserConfirmBody(String name) {
-    return '$name seni bulamaz ve davet gönderemez. Bunu Çevrem ayarlarından geri alabilirsin.';
+    return '$name sana arkadaşlık isteği ya da tepki gönderemez; aranızdaki arkadaşlık ya da bekleyen istek silinir. Engeli Profil > Gizlilik > Engellenenler\'den kaldırabilirsin.';
   }
+
+  @override
+  String get requestMoreActions => 'Engelle ya da şikayet et';
+
+  @override
+  String userBlockedSnack(String name) {
+    return '$name engellendi.';
+  }
+
+  @override
+  String get blockFailed => 'Engelleme kaydedilemedi. Tekrar dene.';
+
+  @override
+  String get blockedUsersTitle => 'Engellenenler';
+
+  @override
+  String get blockedUsersRowSubtitle =>
+      'Engellediğin kişileri gör, engeli kaldır';
+
+  @override
+  String get blockedUsersNote =>
+      'Engellediğin kişi sana arkadaşlık isteği ya da tepki gönderemez ve rehber önerilerinde seni görmez. Engellendiği ona bildirilmez. Engeli kaldırmak eski arkadaşlığı geri getirmez.';
+
+  @override
+  String get blockedUsersEmpty => 'Engellediğin kimse yok.';
+
+  @override
+  String get blockedUnknownUser => 'Rytho kullanıcısı';
+
+  @override
+  String get unblockUser => 'Engeli kaldır';
+
+  @override
+  String unblockConfirmTitle(String name) {
+    return '$name için engel kaldırılsın mı?';
+  }
+
+  @override
+  String get unblockConfirmBody =>
+      'Sana yeniden arkadaşlık isteği gönderebilir. Arkadaşlığınız kendiliğinden geri gelmez.';
+
+  @override
+  String userUnblockedSnack(String name) {
+    return '$name için engel kaldırıldı.';
+  }
+
+  @override
+  String get unblockFailed => 'Engel kaldırılamadı. Tekrar dene.';
 
   @override
   String peopleSlotsOver(int limit, int used) {

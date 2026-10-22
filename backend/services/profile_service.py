@@ -178,6 +178,35 @@ def has_pending_invite(from_uid: str, to_uid: str) -> bool:
     return _friend_status(to_uid, from_uid) == "incoming"
 
 
+def has_blocked(owner_uid: str, target_uid: str) -> bool:
+    """`owner_uid`, `target_uid`'i engellemiş mi? (U17, App Store 1.2)
+
+    Kayıt `users/{owner}/blocked/{target}`: istemci yazar
+    (core/safety.dart), firestore.rules yalnız sahibine açar; sunucu
+    Admin SDK ile okur. Engeli sunucunun da okuması şart, çünkü kural
+    dosyası depoda durdukça KORUMA DEĞİL — dağıtılana kadar (ya da bir
+    geri almada) engellenen kişi davet kenarını yine yazabilir ve push
+    yalnız kenara bakarak giderdi.
+
+    Okuma düşerse ENGELLİ sayılır: bu yardımcı yalnız gönderilmesi
+    isteğe bağlı şeyleri (push, rehber kartı) keser. Yanlış bir "engelli"
+    bir bildirimi kaçırtır; yanlış bir "engelli değil" engelleyene
+    engellediği kişiden bildirim düşürür — engelleme sözünün kendisi.
+    Firestore hiç yoksa (istemci None) engel de yoktur: davet kenarı da
+    okunamadığı için çağıran zaten daha önce durur.
+    """
+    doc_ref = _user_doc(owner_uid)
+    if doc_ref is None:
+        return False
+    try:
+        snapshot = doc_ref.collection("blocked").document(target_uid).get()
+    except Exception as exc:
+        logger.warning("Engel kaydı okunamadı (%s-%s), engelli sayıldı: %s",
+                       owner_uid, target_uid, exc)
+        return True
+    return bool(snapshot.exists)
+
+
 def are_friends(uid: str, other_uid: str) -> bool:
     """İki kullanıcı arasında **kabul edilmiş** arkadaşlık var mı?
 
