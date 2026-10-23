@@ -961,25 +961,55 @@ dört hafta push edilmeden Mac'te kaldı ve Windows habersiz ilerledi —
 belgeler "TEAMID yer tutucu", "imza yok" diyordu, 29 dosyada çakışma
 çıktı. **İki makinede çalışırken iş push edilmeden "bitti" sayılmaz.**
 
-⚠️ **Hosting deploy'u BEKLET** (2026-10-22): birleşmiş `web/legal/`
-gizlilik metni U06'nın onay ekranını anlatıyor; canlıdaki Android
-1.20.0+53'te o ekran yok. Onay ekranlı ilk paket (Android 54+ ya da iOS)
-yayınlanmadan `firebase deploy --only hosting` canlı uygulama için yanlış
-beyan yayınlar. Ayrıntı `docs/mac-devir.md` üst kutu.
+⚠️ **Hosting deploy'u BEKLET** (2026-10-22; gerekçe 2026-10-23'te
+yenilendi): birleşmiş `web/legal/` gizlilik metni yapay zeka onayının
+kurulumun ilk adımındaki AYRI ve ZORUNLU kutuyla alındığını söylüyor;
+canlıdaki Android 1.20.0+53'te o kutu yok. Kutulu ilk paket (Android 54 ya
+da iOS) yayınlanmadan `firebase deploy --only hosting` canlı uygulama için
+yanlış beyan yayınlar. Ayrıntı `docs/mac-devir.md` üst kutu.
 
-⚠️ **Android 54'e giden sıra** (2026-10-22, Mac'ten yazıldı; adımlar Windows'un):
-1. `git pull`. `ONAY_EKRANSIZ_SON_BUILD` 45 → 53 düzeltmesi bu dalda —
-   onsuz backend deploy'u yayındaki 46–53'ün TAMAMINDA sabah cümlesini
-   teknik satıra düşürür, akşam sorusunu keserdi (ölçüldü).
+⚠️ **Yapay zeka onayı = kurulumda ikinci kutu, KAPI YOK** (sahip kararı
+2026-10-22/23). Mac'in U06'sı (her açılışta soran onay sayfası, "Şimdi
+değil" sonrası kapanan özellikler, sunucuda 403 ve şablona düşen bildirim,
+Profil'de geri alma anahtarı, `aiConsentMinBuild` eşiği) Android'e
+birleşince sahip "uygulamamın kullanımını zorlaştırıyorsun, bana danışmadan
+politikalarımı değiştiremezsin" dedi; Eylül'deki tek kayıtlı karar "ekran
+iki platformda"ydı, sürtünme hiç sorulmamıştı. Hepsi kaldırıldı. Bugünkü
+model: şartlar kutusunun altında ayrı, zorunlu ikinci kutu; ikisi
+işaretlenmeden Devam açılmaz. Kutu metni sağlayıcı adı TAŞIMAZ ("bugün
+Gemini yarın Claude"); sağlayıcıyı gizlilik politikası adıyla anar —
+sağlayıcı değişirse yalnız politikanın dört kopyası değişir. Geri alma =
+hesabı silmek. 53'ten güncelleyen hesap hiçbir şey görmez, adına kayıt
+yazılmaz; politikadaki geçiş cümlesi onları anlatır. Kanıt `POST
+/api/v1/account/ai-consent` → `users/{uid}/private/aiConsent`; sunucu ilk
+onay anını korur. ⚠️ `kTermsConsentVersion`/`kAiConsentVersion` metin
+değişti diye ARTIRILMAZ: bayrak anahtarı sürümü taşıdığı için artış mevcut
+hesaplar adına kayıt yazdırır. **Kural: onay/izin akışını, özellik kısıtını
+ya da hukuk metnini değiştiren her şey — mağaza uyumu gerekçesiyle bile —
+önce sahibe sorulur.**
+
+⚠️ **Android 54'e giden sıra** (2026-10-23, Mac'ten yazıldı; adımlar Windows'un):
+1. `git pull`.
 2. pubspec `+53` → `+54`, sonra `infra/build-aab.ps1`. `app_settings`
    7.0.0 ile Android derlemesi henüz ÖLÇÜLMEDİ.
-3. 54'ü yüklemeden ÖNCE: `firebase deploy --only firestore:rules --project
-   rhytoai` + `infra/deploy-backend.ps1` (U17 kuralı ve sunucusu; U06
-   sunucu kapısı eşik 0'da eski paketleri kırmaz).
-4. 54 cihazda: ilk açılışta AI onay sayfası, "Şimdi değil" → "yapay zeka
-   kapalı" kartı, iki hesapla engelleme (davet, tepki, Engellenenler).
-5. 54 yayına çıktığı gün hosting deploy'u (gizlilik metni + AASA `/r/*`);
-   kullanıcılar 54'e geçince `config/app.aiConsentMinBuild: 54`.
+3. Deploy'dan ÖNCE üretimde SALT OKUMA sayım: `users/X/blocked/Y` kaydı
+   olup X–Y arasında iki kenarı da `accepted` olan çiftler. 53'te engeli
+   kaldıracak ekran yoktu, tek "barışma" yolu yeniden eklemekti; yeni
+   kurallar ve backend bu çiftlerde 53 kullanıcısının tepkisini ve rehber
+   eşleşmesini sessizce keser. Sayı sıfır değilse karar sahibin.
+4. 54'ü yüklemeden ÖNCE: `firebase deploy --only firestore:rules --project
+   rhytoai` + `infra/deploy-backend.ps1` (U17 kuralı ve sunucusu, AI onay
+   kanıt ucu). Ters sırada 54'ün Engellenenler ekranındaki sözler yanlış
+   olur ve aradaki dönemde kurulum yapanların onay kanıtı kalıcı
+   kaybolabilir (bayrak yalnız o cihazda yaşar).
+5. 54 cihazda: kurulumun ilk adımında iki kutu, biri işaretliyken Devam
+   kapalı; kurulum bitince Firestore'da `users/{uid}/private/aiConsent`
+   oluşuyor; 53'ten güncelleyen cihazda hiçbir şey sorulmuyor; iki hesapla
+   engelleme (davet, tepki, Engellenenler, rehber önerisi).
+6. 54 yayına çıktığı gün hosting deploy'u (gizlilik metni + AASA `/r/*`).
+7. Konsol: Play Veri güvenliği ve App Privacy formlarını yeni gizlilik
+   metniyle karşılaştır (`docs/store-privacy-labels.md` yaşadığın şehri,
+   arkadaşla ortak harita verisini ve I Ching soru kapısını saymıyor).
 
 ⚠️ **Kayıt bir kez `app.rytho` diye açıldı** (`ai` yerine `app`). İnen
 plist o kimliği taşıyordu ve `FirebaseApp.configure()` uyuşmazlığı **hata

@@ -38,10 +38,11 @@ madde ya ölçülerek bulundu ya da bir kez zarar verdi. Windows makinesinde
 >   `gcloud`, `pwsh`, Java ve tam Android SDK **kurulu değil**.
 > - 4.10 kodu hazır (`31ee208`): **deploy edilmedi, cihazda ölçülmedi.**
 > - ⚠️ **Hosting deploy'u BEKLET** (hangi makineden olursa olsun). Birleşmiş
->   `web/legal/` gizlilik metni U06'nın onay ekranını anlatıyor ("uygulama
->   içinde ayrı ve açık izninizi isteriz"). Canlıdaki Android 1.20.0+53'te o
->   ekran YOK — onay ekranlı ilk paket (Android 54+ ya da iOS) yayınlanmadan
->   deploy edilirse politika canlı uygulama için yanlış beyan olur. Canlıda
+>   `web/legal/` gizlilik metni yapay zeka onayının kurulumun ilk adımındaki
+>   ayrı ve zorunlu kutuyla alındığını söylüyor (sahip kararı 2026-10-22/23;
+>   U06'nın onay sayfası kalktı, bkz. CLAUDE.md §7). Canlıdaki Android
+>   1.20.0+53'te o kutu YOK — kutulu ilk paket (Android 54 ya da iOS)
+>   yayınlanmadan deploy edilirse politika canlı uygulama için yanlış beyan olur. Canlıda
 >   ölçülen (2026-10-22): AASA hâlâ `TEAMID` + yalnız `/i/*`, gizlilik
 >   sayfası 17 Ekim.
 Uzak depo: `https://github.com/mhanifiaslan/rythoai.git`
