@@ -189,6 +189,12 @@ class TestSohbetFisiltisi:
         # fonksiyona giriyor); `cached_axes` artik ince bir sarmal.
         monkeypatch.setattr(synastry_service, "axes_for",
                             lambda uid, other: sonuc)
+        # Bugünün çift transiti (GT2) sahtelenmezse test takvime bağlanır:
+        # 2026-10-22'de canlı gökyüzü "orb 0.82°" üretti ve aşağıdaki puan
+        # sızıntısı bekçisi ("82") sahte kırmızı verdi. Bu test eksen
+        # bloğunu ölçüyor; günlük blok kendi testlerinde.
+        monkeypatch.setattr(synastry_service, "pair_transits",
+                            lambda uid, other, today=None: None)
         import services.profile_service as ps
         monkeypatch.setattr(ps, "get_profile",
                             lambda uid: {"displayName": "Erkan",
