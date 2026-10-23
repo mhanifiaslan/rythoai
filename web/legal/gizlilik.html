@@ -35,7 +35,7 @@
     <header>
       <a href="/"><img src="/assets/rytho_logo.svg" alt="RythoAI"></a>
       <h1>Rytho Gizlilik Politikası</h1>
-      <p class="tarih">Son güncelleme: 22 Ekim 2026 · <a href="/en/legal/privacy.html">English</a></p>
+      <p class="tarih">Son güncelleme: 23 Ekim 2026 · <a href="/en/legal/privacy.html">English</a></p>
     </header>
 
     <p>Rytho ("Uygulama"), kişisel kozmik içgörü deneyimi sunan bir mobil
@@ -57,12 +57,15 @@
     <h3>b) Doğum verisi</h3>
     <ul>
       <li><strong>Ne:</strong> Doğum tarihi, saati (biliniyorsa), şehri ve
-      tercihe bağlı cinsiyet bilgisi.</li>
+      tercihe bağlı cinsiyet bilgisi; Profil'de girerseniz yaşadığınız
+      şehir.</li>
       <li><strong>Neden:</strong> Astroloji (natal harita), BaZi, I Ching
       bağlamı ve günlük okuma hesaplamaları yalnızca bu verilerle
       yapılabilir. Doğum verisi, yorum üretimi amacıyla sunucularımızda
-      işlenir ve profilinizde saklanır. Bu veriler reklam veya profilleme
-      amacıyla üçüncü taraflarla paylaşılmaz.</li>
+      işlenir ve profilinizde saklanır. Yaşadığınız şehri girerseniz o da
+      profilinizde saklanır, başka kullanıcılara görünmez ve yalnızca Yıl
+      Haritası'nı o şehre kurmak için kullanılır. Bu veriler reklam veya
+      profilleme amacıyla üçüncü taraflarla paylaşılmaz.</li>
     </ul>
 
     <h3>c) Yüz okuma (firaset) ölçümleri</h3>
@@ -160,9 +163,7 @@
       okumasının, öğle bildiriminin ve akşam check-in sorusunun gövdesi
       <strong>sizin doğum haritanızdan</strong> çıkan o güne özgü sinyalden
       üretilir. Sabah ve öğle bildirimindeki kişisel cümleyi ve akşam
-      sorusunu yapay zeka yazar; bu yalnız <strong>yapay zeka izniniz</strong>
-      varsa olur (bkz. 2. bölüm). İzniniz yoksa sabah ve öğle bildiriminde
-      aynı sinyalin teknik satırı gider, akşam sorusu hiç gönderilmez. O
+      sorusunu <strong>yapay zeka</strong> yazar (bkz. 2. bölüm). O
       gün haritanızdan gönderilecek bir sinyal çıkmazsa yerine
       burcunuza göre hazırlanan ortak metin gider; seri hatırlatıcısı ve
       arkadaş tepkisi bildirimi ise sabit şablondur (serinin kaç gün olduğu,
@@ -206,38 +207,56 @@
     </ul>
 
     <h2>2. Yapay zeka ile işleme (Google Gemini)</h2>
-    <p>Kişisel okumalar (günlük okuma, natal rapor, BaZi, Yıl Haritası, İç
-    Takvim, Doğum Heksagramı, I Ching, ilişki okumaları), sohbet yanıtları,
-    yüz okuması yorumu, sinyal kartlarındaki ve takvim olaylarındaki yorum
-    satırları, sabah ve öğle bildirimindeki kişisel cümleler ve akşam
-    check-in sorusu üçüncü taraf bir yapay zeka hizmetiyle — Google LLC'nin
-    <strong>Gemini API</strong>'siyle — üretilir. Bu özellikler için uygulama
-    içinde <strong>ayrı ve açık izninizi</strong> isteriz. İzin vermezseniz bu
-    özellikler kapalı kalır ve aşağıdaki veriler Gemini'ye gönderilmez; doğum
-    haritası, gökyüzü, takvim ve arkadaş özellikleri çalışmaya devam eder.</p>
-    <p>İzin verdiğinizde, kullandığınız özelliğe göre şunlar Google'a gönderilir:</p>
+    <p>Kişisel okumalar (günlük okuma, doğum haritası analizi, BaZi, Yıl
+    Haritası, İç mevsim, Doğum Heksagramı, I Ching, ilişki okumaları),
+    sohbet yanıtları, yüz okuması yorumu, sinyal kartlarındaki ve takvim
+    olaylarındaki yorum satırları, sabah ve öğle bildirimindeki kişisel
+    cümleler ve akşam check-in sorusu üçüncü taraf bir yapay zeka
+    hizmetiyle — Google LLC'nin <strong>Gemini API</strong>'siyle —
+    üretilir. Sohbetlerinizden, sizi sonraki konuşmalarda daha iyi anlamaya
+    yarayan kısa notlar da aynı hizmetle çıkarılır; I Ching'e sorduğunuz
+    sorunun çekime uygun olup olmadığı da aynı hizmetle belirlenir.
+    Verilerinizin bu amaçlarla <strong>üçüncü taraf yapay zeka
+    hizmetlerine</strong> aktarılması için <strong>açık onayınızı</strong>
+    uygulamanın ilk kurulum adımında alırız: Kullanım Şartları ve Gizlilik
+    Politikası kutusunun altında, ondan <strong>ayrı ve zorunlu</strong> bir
+    kutuyla. İki kutu da işaretlenmeden kurulum tamamlanmaz. Bu ayrı kutu
+    1.20.0+54 sürümüyle eklendi. Daha önce kurulumu tamamlayan hesaplar,
+    Gemini aktarımını anlatan önceki Gizlilik Politikası'nı kabul ederek
+    devam etti.</p>
+    <p>Kullandığınız özelliğe göre şunlar Google'a gönderilir:</p>
     <ul>
       <li>Doğum haritanızdan hesaplanan bilgiler: gezegen konumları, evler,
-      açılar, transitler, BaZi sütunları; Yıl Haritası okumasında güneş
-      dönüşü tarihi ve şehir adları.</li>
+      açılar, transitler, BaZi sütunları ve şans sütunlarının yılları ile yaş
+      aralıkları; Yıl Haritası okumasında güneş dönüşünün tarihi ve saati,
+      yaşadığınız şehri girdiyseniz de doğum şehriniz ve yaşadığınız şehir.
+      BaZi okumasında, biliniyorsa doğum saatiniz.</li>
       <li>Sohbet mesajlarınız ve konuşmanın son kısmı; I Ching'e sorduğunuz
       soru. Bir mesaja yazdığınız her şey — bir ad dahil — mesajın parçası
       olarak gider.</li>
       <li>Sohbetlerden çıkarılan kısa notlar, ruh hâli seyriniz ve son günlük
       notlarınız.</li>
-      <li>Adınız (ilişki okumalarında); arkadaşlarınızın görünen adı ve burcu
-      (ilişki okumalarında ve sohbette); eklediğiniz kişilerin yakınlık türü
-      ve haritası — onlara verdiğiniz isim cihazınızda kalır.</li>
+      <li>Adınız (ilişki okumalarında); arkadaşlarınızın görünen adı —
+      görünen ad yoksa kullanıcı adı — ve burcu (ilişki okumalarında ve
+      sohbette); eklediğiniz kişilerin yakınlık türü ve haritası — onlara
+      verdiğiniz isim cihazınızda kalır.</li>
+      <li>Bir arkadaşınız ya da eklediğiniz bir kişiyle ilgili okumalarda ve
+      sohbette, ikinizin haritası arasındaki açılar (sinastri) ve o gün
+      ikinizin haritasına değen transitler.</li>
       <li>Yüz okumasında yüz hatlarından türetilen oranlar; fotoğraf
       gönderilmez.</li>
     </ul>
-    <p>Bu veriler yalnızca istediğiniz yorumu ya da cevabı üretmek için
+    <p>Bu veriler yalnızca bu bölümün başında sayılan metinleri üretmek, o
+    kısa notları çıkarmak ve I Ching sorusunun uygunluğunu belirlemek için
     gönderilir. Genel burç yorumları ve burca göre hazırlanan bildirim
     satırları da yapay zekayla yazılır, ancak bunlara kişisel veriniz
-    katılmaz. İzninizi uygulamada <strong>Profil &gt; Gizlilik</strong>
-    bölümünden istediğiniz an geri alabilir, yeniden verebilirsiniz; geri
-    aldığınız andan itibaren gönderim durur, daha önce üretilmiş okumalar ve
-    sohbet geçmişiniz bu işlemle silinmez.</p>
+    katılmaz.</p>
+    <p>Onayınızı geri almak isterseniz hesabınızı silmeniz gerekir: uygulamada
+    <strong>Profil → Hesap → Hesabı sil</strong>. Hesabınız silindiğinde
+    yapay zeka hizmetlerine yeni gönderim olmaz (yalnız arkadaşlarınızın
+    sohbetinde önbellekte kalmış adınız ve burcunuz en geç 6 saat içinde
+    düşer) ve bizdeki verileriniz 4.
+    bölümde anlatıldığı gibi silinir.</p>
     <p>Üretilen yorumlar <strong>eğlence ve kişisel içgörü amaçlıdır; tıbbi,
     hukuki, finansal veya psikolojik tavsiye niteliği taşımaz.</strong></p>
 
@@ -248,11 +267,14 @@
       <li><strong>Google Cloud Platform / Cloud Run</strong> (hesaplama,
       us-central1 bölgesi) — Google LLC</li>
       <li><strong>Google Gemini API</strong> (yapay zeka ile okuma ve sohbet
-      üretimi; yalnızca izin verdiğinizde, bkz. madde 2) — Google LLC</li>
+      üretimi; bkz. madde 2) — Google LLC</li>
       <li><strong>RevenueCat</strong> (abonelik ve satın alma durumunun
       yönetimi; ödeme kartı bilgileriniz bize veya RevenueCat'e değil,
       Google Play / App Store'a verilir) — RevenueCat, Inc.</li>
     </ul>
+    <p>Sunucumuz (Cloud Run) Google Cloud'un us-central1 (ABD) bölgesinde
+    çalışır; verilerinizin orada işlenmesi, Türkiye, Avrupa Birliği ve
+    Birleşik Krallık dışına aktarılması anlamına gelir.</p>
     <p>Google'ın veri işleme koşulları:
     <a href="https://cloud.google.com/terms/data-processing-addendum">cloud.google.com/terms/data-processing-addendum</a></p>
 
@@ -263,6 +285,9 @@
       sunucuda yalnız sayısal oranlar ve metin yorum).</li>
       <li>Konuşmalar: son açılıştan 30 gün sonra otomatik silinir; hesap
       silmede tamamı silinir.</li>
+      <li>Size özel üretilen yapay zeka okumalarının önbellek süresi türüne
+      göre değişir: Yıl Haritası 90 gün; doğum haritası analizi, İç mevsim
+      ve ilişki okuması 30 gün; diğerleri daha kısa.</li>
       <li>Sosyal veriler: siz kaldırana veya hesabınız silinene kadar.</li>
       <li>Çökme/analitik kayıtları: Firebase'in standart saklama süreleri
       (en fazla 90 gün ham veri).</li>

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -169,6 +170,176 @@ void main() {
       expect(kod.contains(r"'${aday.display} '"), isTrue,
           reason: 'mention artık adı gövdeye yazmıyorsa metin daraltması '
               'gereksiz kalmış olabilir');
+    });
+  });
+
+  // Sahip kararı 2026-10-22: yapay zeka aktarım onayı YALNIZ kurulumun ilk
+  // adımında, şartlar kutusundan AYRI ve ZORUNLU ikinci bir kutuyla alınır;
+  // ayrı onay sayfası, "Şimdi değil", Profil > Gizlilik'teki anahtar ve
+  // onaya bağlı kapanan özellik YOK. Geri alma yolu hesap silme. Metin bir
+  // gün eski modele (U06 sayfası) geri yazılırsa kullanıcıya olmayan bir
+  // anahtarı, olmayan bir "kapalı" hâli vaat eder — bu grup o yüzden var.
+  // Sahip kararı 2026-10-23: kutu ve onay cümlesi sağlayıcı ADI taşımaz
+  // ("üçüncü taraf yapay zeka hizmetleri"); sağlayıcıyı politikanın geri
+  // kalanı adıyla anar. Dört kopyanın (uygulama TR/EN + web TR/EN) cümle
+  // düzeyindeki bekçileri `backend/tests/test_gizlilik_kopyalari.py`ta;
+  // burada uygulama kopyası ve KUTUNUN KENDİSİ (ARB) duruyor.
+  // Grup `ai_onay_test.dart`tan taşındı: içerik bekçisi, onay sayfasının
+  // testleriyle birlikte silinmesin diye politikanın kendi dosyasında durur.
+  group('yapay zeka bölümü', () {
+    String bolum(LegalSections s, String baslik) =>
+        s.firstWhere((b) => b.$1 == baslik).$2;
+    final aiTr = bolum(kPrivacyPolicyTr, 'Yapay zeka ile işleme');
+    final aiEn = bolum(kPrivacyPolicyEn, 'AI processing');
+
+    Map<String, dynamic> arb(String dil) =>
+        jsonDecode(_kaynak('lib/l10n/app_$dil.arb')) as Map<String, dynamic>;
+
+    test('Gemini\'yi, Google LLC\'yi ve veri kategorilerini adlandırır', () {
+      // Kutu sağlayıcı adı taşımıyor ve "kullanılan hizmet Gizlilik
+      // Politikası'nda yazar" diyor; o söz ancak politika bugünkü
+      // sağlayıcıyı şirketiyle ve hizmet adıyla andıkça doğru.
+      for (final metin in [aiTr, aiEn]) {
+        expect(metin, contains('Gemini API'));
+        expect(metin, contains('Google LLC'));
+        expect(metin, contains('BaZi'));
+        expect(metin, contains('I Ching'));
+      }
+      expect(aiTr, contains('günlük notların'));
+      expect(aiEn, contains('journal notes'));
+    });
+
+    test('onay kurulumun ilk adımında, ayrı ve zorunlu kutuyla', () {
+      expect(aiTr, contains('ilk kurulum adımında'));
+      expect(aiTr, contains('AYRI ve ZORUNLU'));
+      expect(aiTr, contains('kurulum tamamlanmaz'));
+      expect(aiTr, contains('üçüncü taraf yapay zeka hizmetlerine'));
+      expect(aiEn, contains('first step of the app\'s initial setup'));
+      expect(aiEn, contains('SEPARATE, MANDATORY'));
+      expect(aiEn, contains('Setup cannot be completed'));
+      expect(aiEn, contains('third-party AI services'));
+    });
+
+    test('kurulum kutusu sağlayıcı adı taşımaz, sağlayıcıyı politikaya '
+        'bırakır', () {
+      // K1 (sahip kararı 2026-10-23): "bugün Gemini yarın başka bir hizmet
+      // olur". Kutu metni sağlayıcıyı adıyla anarsa sağlayıcı değiştiği gün
+      // kullanıcının işaretlediği onay, verinin gittiği yeri YANLIŞ
+      // söyler — ve o kutu bir daha gösterilmiyor (yalnız kurulumda), yani
+      // düzeltilemez. Liste bugünkü sağlayıcıyla sınırlı değil: yarının
+      // adı da kutuya girmemeli. Kutu yerine politikayı gösterir; o
+      // gösterilen yerin sağlayıcıyı adıyla andığı bir üstteki testte.
+      const saglayicilar = [
+        'Gemini',
+        'Google',
+        'Claude',
+        'Anthropic',
+        'OpenAI',
+        'GPT',
+      ];
+      final kutuTr = arb('tr')['wizardAiConsentLabel'] as String;
+      final kutuEn = arb('en')['wizardAiConsentLabel'] as String;
+      for (final ad in saglayicilar) {
+        expect(kutuTr.contains(ad), isFalse,
+            reason: 'TR kutu sağlayıcı adı taşıyor: $ad');
+        expect(kutuEn.contains(ad), isFalse,
+            reason: 'EN kutu sağlayıcı adı taşıyor: $ad');
+      }
+      expect(kutuTr, contains('üçüncü taraf yapay zeka hizmetlerine'));
+      expect(kutuTr, contains('Gizlilik Politikası'));
+      expect(kutuEn, contains('third-party AI services'));
+      expect(kutuEn, contains('Privacy Policy'));
+    });
+
+    test('geri alma yolu hesap silme — menü adı ARB\'den birebir', () {
+      // Yol elle yazılsaydı menü etiketi değişince metin var olmayan bir
+      // düğmeyi gösterirdi; etiketler sözlükten okunup kurulur.
+      final tr = arb('tr');
+      final en = arb('en');
+      final yolTr =
+          '${tr['tabProfile']} > ${tr['accountSection']} > ${tr['deleteAccount']}';
+      final yolEn =
+          '${en['tabProfile']} > ${en['accountSection']} > ${en['deleteAccount']}';
+      expect(aiTr, contains(yolTr));
+      expect(aiEn, contains(yolEn));
+      // Hesap Ekranı'nda düğme gerçekten o etiketle duruyor mu.
+      expect(_kaynak('lib/features/profile/account_screen.dart'),
+          contains('l10n.deleteAccount'));
+    });
+
+    test('kaldırılan onay modeli metne geri gelmedi', () {
+      // Profil > Gizlilik YÜZ OKUMA rızası için hâlâ doğru (o bölümde
+      // durur); yasak olan, yapay zeka bölümünde anılması. Listenin ikinci
+      // yarısı U06'nın menü adı TAŞIMAYAN cümleleri: menü adı silinip
+      // "uygulama içinde AYRI … iznini isteriz" / "Geri aldığın andan
+      // itibaren gönderim durur" bırakılsa ilk yarı görmezdi — olmayan bir
+      // uygulama içi izin ve geri alma vaadi okunurken bekçi yeşil kalırdı.
+      for (final eski in [
+        'Profil > Gizlilik',
+        'kapalı kalır',
+        'İzin vermezsen',
+        'yeniden verebilir',
+        'uygulama içinde AYRI',
+        'Geri aldığın andan',
+        'zorunlu değil',
+      ]) {
+        expect(aiTr.contains(eski), isFalse, reason: 'TR: "$eski" döndü');
+      }
+      for (final eski in [
+        'Profile > Privacy',
+        'stay off',
+        'If you do not give it',
+        'give this permission again',
+        'inside the app',
+        'from the moment you withdraw',
+        'not mandatory',
+      ]) {
+        expect(aiEn.contains(eski), isFalse, reason: 'EN: "$eski" döndü');
+      }
+      final bildirimTr = bolum(kPrivacyPolicyTr, 'Bildirimler');
+      final bildirimEn = bolum(kPrivacyPolicyEn, 'Notifications');
+      for (final eski in ['iznin varsa', 'İznin yoksa', 'teknik satır']) {
+        expect(bildirimTr.contains(eski), isFalse,
+            reason: 'TR bildirim: "$eski" döndü');
+      }
+      for (final eski in [
+        'allowed AI processing',
+        'If you have not',
+        'technical line',
+      ]) {
+        expect(bildirimEn.contains(eski), isFalse,
+            reason: 'EN bildirim: "$eski" döndü');
+      }
+    });
+
+    test('eski yanlış iddialar geri gelmedi', () {
+      final bildirimTr = bolum(kPrivacyPolicyTr, 'Bildirimler');
+      final bildirimEn = bolum(kPrivacyPolicyEn, 'Notifications');
+      // Sabah bildirimi haritaya değen transitten yazılıyor — "kişiye özel
+      // değildir" demek ölçülene aykırıydı.
+      expect(bildirimTr.contains('kişiye özel değildir'), isFalse);
+      expect(bildirimEn.contains('not individually personalised'), isFalse);
+      // 53'ün "doğum tarihin/saatin değil" iddiası koda aykırıydı: BaZi
+      // istemi doğum saatini, Yıl Haritası güneş dönüşü anını taşıyor.
+      expect(aiTr.contains('doğum tarihin/saatin değil'), isFalse);
+      expect(aiEn.contains('not your birth date or time'), isFalse);
+    });
+
+    test('kod BaZi istemine doğum saatini koyuyor — metin bu yüzden söylüyor',
+        () {
+      // `_bazi_notes` gerçek güneş zamanı beyanını doğumun DUVAR SAATİYLE
+      // (`birth_local`'ın SS:DD kısmı) kuruyor ve beyan BaZi istemine
+      // giriyor; şans sütunu satırı takvim yılı + yaş aralığı taşıyor (doğum
+      // yılı ikisinin farkı). Kod bunu bırakırsa burası düşer ve metindeki
+      // "doğum saatin" / "yaş aralıkları" beyanı yeniden okunur.
+      final notlar = _kaynak('../../backend/services/prompts/__init__.py');
+      expect(notlar, contains('local=yerel[11:16]'));
+      final rapor = _kaynak('../../backend/services/report_service.py');
+      expect(rapor, contains("lp['from_age']"));
+      expect(aiTr, contains('doğum saatin'));
+      expect(aiTr, contains('yaş aralıkları'));
+      expect(aiEn, contains('birth time'));
+      expect(aiEn, contains('age ranges'));
     });
   });
 }
