@@ -113,7 +113,7 @@ class PrivacySettingsScreen extends ConsumerWidget {
             // (GDPR Md.7/3) — bu yüzden diğer gizlilik ayarlarıyla aynı
             // yerde ve aynı biçimde duruyor, ayrı bir menüye gömülü değil.
             //
-            // Yapay zeka (Google Gemini) onayının anahtarı burada YOK (sahip
+            // Yapay zeka aktarım onayının anahtarı burada YOK (sahip
             // kararı 2026-10-22): onay kurulumun ilk adımında ayrı, zorunlu
             // bir kutuyla bir kez alınır ve hiçbir özellik ona kapılı
             // değil — "kapalı" konumdaki bir anahtar gönderimi durdurmaz,

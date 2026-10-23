@@ -122,7 +122,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       // KT2: kabul kaydı onboarding'de düşmüşse burada telafi edilir
       // (bayraklı — başarı sonrası bir daha ağa çıkmaz).
       ensureConsentRecorded(ref.read(apiProvider));
-      // Yapay zeka (Google Gemini) onayının kaydı da aynı desenle telafi
+      // Yapay zeka aktarım onayının kaydı da aynı desenle telafi
       // edilir — ama YALNIZ bu hesap kurulumda iki kutuyu işaretleyip kaydı
       // borçlandıysa (bayrak). 1.20.0+53'ten güncelleyen kullanıcı kutuyu
       // hiç görmedi: bayrağı yok, istek atılmaz, adına kayıt yazılmaz.

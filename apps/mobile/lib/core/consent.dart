@@ -16,7 +16,13 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Kabul edilen şartlar sürümü — backend `TERMS_CONSENT_VERSION` ile
-/// elle senkron (legal_texts güncellenince ikisi birlikte artar).
+/// elle senkron.
+///
+/// ⚠️ Metin değişti diye ARTIRILMAZ: bayrak anahtarı sürümü taşıdığı için
+/// artış, bir sonraki açılışta mevcut BÜTÜN hesaplar adına — yeni metni
+/// hiç görmemiş olanlar dahil — yeni sürümle kabul kaydı yazdırır
+/// (`ensureConsentRecorded` her açılışta koşuyor). Yeni sürüme kabul
+/// toplanacaksa önce kullanıcıya gösteren bir akış kurulur; karar sahibin.
 const int kTermsConsentVersion = 1;
 
 String get _bayrak => 'consent-recorded-v$kTermsConsentVersion';

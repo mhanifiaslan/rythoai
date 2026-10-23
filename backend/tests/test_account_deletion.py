@@ -116,6 +116,12 @@ def ornek_store():
         "users/ben/private/memory": {"facts": ["x"]},
         "users/ben/private/subscription": {"active": True},
         "users/ben/private/notifications": {"dailyLastSent": "2026-08-01"},
+        # Kurulumdaki yapay zeka onayının kanıtı: geri alma yolu hesabı
+        # silmek, yani kayıt hesapla birlikte GİTMELİ (onu silen başka yol
+        # olmadığı `test_ai_consent` (e)'de ayrıca bekçili).
+        "users/ben/private/aiConsent": {"granted": True, "version": 1,
+                                        "grantedAt": "2026-10-22T20:12:58",
+                                        "locale": "tr"},
         "users/ben/friends/arkadas": {"status": "accepted"},
         "users/ben/nudges/n1": {"fromUid": "arkadas", "reaction": "shine"},
         "users/ben/blocked/kotu": {"at": 1},
@@ -158,6 +164,20 @@ def ornek_store():
     })
 
 
+@pytest.fixture(autouse=True)
+def onbellek_yalitimi(monkeypatch, tmp_path):
+    """Hesap silme artık arkadaşların çevre önbelleğine YAZIYOR
+    (`circle_context.invalidate`). Bu dosyadaki her silme testi o yazımı
+    depodaki gerçek önbellek dizinine ve süreç boyu yaşayan bellek
+    katmanına bırakmasın: dosya arka ucu `tmp_path`te, bellek teste özel."""
+    from collections import OrderedDict
+
+    from core import cache, config
+    monkeypatch.setattr(config, "CACHE_BACKEND", "file")
+    monkeypatch.setattr(config, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(cache, "_memory", OrderedDict())
+
+
 @pytest.fixture
 def store(monkeypatch):
     s = ornek_store()
@@ -176,6 +196,7 @@ def store(monkeypatch):
     "users/ben/private/memory",
     "users/ben/private/subscription",
     "users/ben/private/notifications",
+    "users/ben/private/aiConsent",
     "users/ben/friends/arkadas",
     "users/ben/nudges/n1",
     "users/ben/blocked/kotu",
@@ -197,6 +218,54 @@ def test_karsi_taraftaki_arkadaslik_silinir(store):
 
 def test_gonderdigim_tepkiler_silinir(store):
     account_service.delete_account("ben")
+    assert "users/arkadas/nudges/n9" not in store.veriler
+
+
+def test_arkadasin_cevre_onbellegi_silinen_kisiyi_tasimaz(store):
+    """Silinen kişinin adı + burcu arkadaşının sohbet fısıltısında kalıyordu.
+
+    Fısıltı `circle-{arkadaş}-{dil}` anahtarında 6 saat önbellekli ve
+    kaydın sahibi ARKADAŞ — `_delete_owned_cache` onu görmüyordu, yani ad
+    ve burç 6 saate kadar her sohbet turunda yapay zekaya gidiyordu.
+    Fısıltı burada GERÇEKTEN kurulur (aynı sahte Firestore'dan), sonra
+    hesap silinir. Önbellek gerçek `core.cache` (yalıtımı autouse
+    `onbellek_yalitimi`)."""
+    from core import cache
+    from services import circle_context
+    store.veriler["users/ben"]["sunSign"] = "Boğa ♉"
+    for dil in ("tr", "en"):
+        onceki = circle_context.circle_whisper("arkadas", dil)
+        # Ölçüm kör değil: silmeden önce ad ve burç fısıltıda.
+        assert "gezgin" in onceki, (dil, onceki)
+        assert ("Boğa" if dil == "tr" else "Taurus") in onceki, onceki
+
+    account_service.delete_account("ben")
+
+    anahtarlar = [circle_context._anahtar("arkadas", dil)
+                  for dil in ("tr", "en")]
+    for anahtar in anahtarlar:
+        kalan = cache.get(anahtar) or ""
+        assert "gezgin" not in kalan and "Boğa" not in kalan, kalan
+    # Kalıcı katman da: belleğinde kopyası olmayan bir instance orayı okur.
+    cache._memory.clear()
+    for anahtar in anahtarlar:
+        kalan = cache.get(anahtar) or ""
+        assert "gezgin" not in kalan and "Boğa" not in kalan, kalan
+
+
+def test_cevre_onbellegi_dusurulemezse_silme_tamamlanir(store, monkeypatch):
+    """Önbellek best-effort: düşürme fırlatsa da hesap silinir — kimliğin
+    kalması, 6 saatlik bir önbellek kaydının kalmasından kötü."""
+    from services import circle_context
+
+    def patla(uid):
+        raise RuntimeError("onbellek kizdi")
+
+    monkeypatch.setattr(circle_context, "invalidate", patla)
+    sayac = account_service.delete_account("ben")
+    assert sayac["user"] == 1
+    assert sayac["auth"] == 1
+    assert "users/arkadas/friends/ben" not in store.veriler
     assert "users/arkadas/nudges/n9" not in store.veriler
 
 

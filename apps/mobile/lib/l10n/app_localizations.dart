@@ -143,7 +143,7 @@ abstract class AppLocalizations {
   /// No description provided for @wizardAiConsentLabel.
   ///
   /// In tr, this message translates to:
-  /// **'Yorumlarımın ve sohbet yanıtlarımın üretilmesi için harita bilgilerimin, mesajlarımın ve paylaştığım diğer verilerin Google Gemini\'ye (üçüncü taraf yapay zeka) gönderilmesine izin veriyorum.'**
+  /// **'Yorumlarımın ve sohbet yanıtlarımın üretilmesi, sohbetlerimden beni hatırlamaya yarayan notların çıkarılması ve uygulamadaki diğer yapay zeka özellikleri için harita bilgilerimin, mesajlarımın ve paylaştığım diğer verilerin üçüncü taraf yapay zeka hizmetlerine gönderilmesine izin veriyorum. Kullanılan hizmet Gizlilik Politikası\'nda yazar.'**
   String get wizardAiConsentLabel;
 
   /// No description provided for @wizardDateTitle.

@@ -7,7 +7,7 @@
   "wizardWelcomeTitle": "Yolculuk başlıyor",
   "wizardWelcomeBody": "Birkaç adımda haritanı çizeceğiz: doğduğun an, gökyüzünün o anki hâli. Her adımda bir yıldız yanacak.",
   "wizardConsentLabel": "Kullanım Şartları'nı ve Gizlilik Politikası'nı okudum, kabul ediyorum. 13 yaşından büyüğüm.",
-  "wizardAiConsentLabel": "Yorumlarımın ve sohbet yanıtlarımın üretilmesi için harita bilgilerimin, mesajlarımın ve paylaştığım diğer verilerin Google Gemini'ye (üçüncü taraf yapay zeka) gönderilmesine izin veriyorum.",
+  "wizardAiConsentLabel": "Yorumlarımın ve sohbet yanıtlarımın üretilmesi, sohbetlerimden beni hatırlamaya yarayan notların çıkarılması ve uygulamadaki diğer yapay zeka özellikleri için harita bilgilerimin, mesajlarımın ve paylaştığım diğer verilerin üçüncü taraf yapay zeka hizmetlerine gönderilmesine izin veriyorum. Kullanılan hizmet Gizlilik Politikası'nda yazar.",
   "wizardDateTitle": "Hangi gün doğdun?",
   "wizardDateBody": "Gökyüzü her gün başka bir düzendeydi — seninki hangisiydi?",
   "wizardTimeTitle": "Saat kaçtı?",

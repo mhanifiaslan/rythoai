@@ -35,12 +35,19 @@ def _anahtar(uid: str, lang: str | None) -> str:
 
 
 def invalidate(uid: str) -> None:
-    """Kişi eklendi/silindi — her iki dilin kaydı düşer.
+    """Kişi eklendi/silindi ya da bir arkadaş hesabını sildi — her iki
+    dilin kaydı düşer.
 
     `core.cache`'te silme API'si bilerek yok (tek çağıran biz olurduk);
     1 saniyelik TTL ile boş değer yazmak aynı işi görür: kayıt bir saniye
-    içinde iki katmandan da düşer ve bir sonraki sohbet turu taze listeyi
-    kurar.
+    içinde paylaşımlı kalıcı katmandan ve BU instance'ın belleğinden düşer,
+    bir sonraki sohbet turu taze listeyi kurar.
+
+    ⚠️ Sınır: BAŞKA bir instance listeyi daha önce okuduysa kendi bellek
+    kopyası, kalıcı kayıttan aldığı bitiş anına kadar (en çok
+    `CIRCLE_TTL`) yaşar — `cache.get_katmanli` terfide o anı kopyalıyor ve
+    buradan erişilemez. Yani düşürme bu instance ve kalıcı katman için
+    kesin, diğerleri için değil.
     """
     from core import cache
     for lang in ("tr", "en"):

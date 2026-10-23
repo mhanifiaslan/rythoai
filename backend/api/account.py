@@ -114,7 +114,11 @@ class AiConsentRequest(BaseModel):
 def grant_ai_consent(req: AiConsentRequest,
                      user: AuthUser = Depends(get_current_user),
                      lang: str = Depends(get_language)):
-    """Kurulumdaki yapay zeka (Google Gemini) onayının KANITI.
+    """Kurulumdaki üçüncü taraf yapay zeka aktarım onayının KANITI.
+
+    Kutu metni sağlayıcı ADI taşımaz (sahip kararı 2026-10-23: bugün
+    Gemini, yarın başka bir hizmet olabilir); kullanılan hizmeti Gizlilik
+    Politikası söyler.
 
     Sahip kararı 2026-10-22: onay kurulumun ilk adımında, şartlar
     kutusunun altındaki ikinci, ayrı ve zorunlu kutuyla BİR KEZ alınır;
@@ -131,13 +135,20 @@ def grant_ai_consent(req: AiConsentRequest,
     anlatmalı); `private/` alt koleksiyonu hesapla birlikte gider
     (`account_service._SUB_COLLECTIONS`).
 
-    Tekrarı zararsız: aynı durum (onay + gösterilen sürüm) yeniden yazılır,
-    ağ hatasında yeniden deneyen istemci ikinci bir anlam üretmez.
+    Tekrar İLK onayı korur: kayıt zaten varsa dokunulmaz ve uç yine
+    başarı döner (istemci bekleyen bayrağını silsin, her açılışta yeniden
+    denemesin). Eski gerekçe "aynı durumu yeniden yazar — zararsız" idi ve
+    yanlıştı: yeniden yazım `grantedAt`'i ileri, `locale`'i o anki dile
+    çekiyordu (ölçüldü: 20:12:58.778 → 20:12:59.983, tr → en) — oysa
+    kanıtın sorusu "ilk ne zaman izin verdi".
+
+    Yanıt `version` YANKILAMAZ: kayıt önceden varsa ilk sürümü taşır ve
+    istekteki sürümü döndürmek yazılmamış bir kaydı yazılmış gibi sunardı.
     Abonelik İSTEMEZ — kurulumdaki herkes çağırır.
     """
     if not consent_service.grant_ai_consent(user.uid, req.version, lang):
         raise HTTPException(status_code=500, detail=text("internal", lang))
-    return {"status": "success", "granted": True, "version": req.version}
+    return {"status": "success", "granted": True}
 
 
 @router.post("/phone/sync")

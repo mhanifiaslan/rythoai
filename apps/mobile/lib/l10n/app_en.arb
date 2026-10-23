@@ -7,7 +7,7 @@
   "wizardWelcomeTitle": "The journey begins",
   "wizardWelcomeBody": "A few steps and your chart is drawn: the moment you were born, the sky exactly as it stood. A star lights up at every step.",
   "wizardConsentLabel": "I have read and accept the Terms of Use and Privacy Policy. I am over 13.",
-  "wizardAiConsentLabel": "I allow my chart data, messages and other data I share to be sent to Google Gemini (third-party AI) so my readings and chat replies can be generated.",
+  "wizardAiConsentLabel": "I allow my chart data, messages and other data I share to be sent to third-party AI services to generate my readings and chat replies, to extract notes from my chats that help remember me, and for the app's other AI features. The service in use is named in the Privacy Policy.",
   "wizardDateTitle": "What day were you born?",
   "wizardDateBody": "The sky arranged itself differently every single day — which one was yours?",
   "wizardTimeTitle": "What time was it?",

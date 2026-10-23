@@ -4,8 +4,10 @@
 // ölçülen şey sihirbazın KURALI (hangi adım neyle geçer, düğme ne zaman
 // açılır, ekran okuyucu neyi duyar), seçicilerin diyaloğu değil.
 //
-// `_bitir` burada ÇALIŞTIRILMAZ: Firebase ister. Onun kuralları
-// `sihirbaz_mantik_test` kaynak bekçilerinde.
+// `_bitir` burada ÇALIŞTIRILMAZ: başarı yolu Firebase ister. Kuralları
+// `sihirbaz_mantik_test` kaynak bekçilerinde; hata yolu ve "Tekrar dene"
+// kapısı `ai_onay_test`te koşturuluyor (Firebase'siz ortamda oturum
+// okuması düşer ve hata dalı açılır).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

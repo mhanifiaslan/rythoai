@@ -290,7 +290,7 @@ def delete_face_readings(uid: str) -> int:
 
 
 # --------------------------------------------------------------------------
-# Üçüncü taraf AI (Google Gemini) aktarım onayı — kurulumdaki ikinci kutu
+# Üçüncü taraf yapay zeka aktarım onayı — kurulumdaki ikinci kutu
 # --------------------------------------------------------------------------
 #
 # Sahip kararı 2026-10-22: onay kurulumun ilk adımında, şartlar kutusunun
@@ -303,9 +303,10 @@ def delete_face_readings(uid: str) -> int:
 #
 # Şartlar kutusundan AYRI kutu ve yüz rızasından AYRI kayıt, çünkü konuları
 # ayrı: bu, kişisel verinin (harita, sohbet, günlük, kişi etiketleri...)
-# ÜÇÜNCÜ bir tarafa — Google'ın Gemini API'sine — gönderilmesi. Birini
-# diğerinin içine gömmek GDPR Md.7(2)'nin geçersiz saydığı "paket rıza"
-# olurdu.
+# ÜÇÜNCÜ taraf yapay zeka hizmetlerine (bugün Google'ın Gemini API'si)
+# gönderilmesi. Birini diğerinin içine gömmek GDPR Md.7(2)'nin geçersiz
+# saydığı "paket rıza" olurdu. Kutu metni sağlayıcı ADI taşımaz (sahip
+# kararı 2026-10-23); kullanılan hizmeti Gizlilik Politikası söyler.
 #
 # Neden `users/{uid}` alanı DEĞİL de `private/aiConsent` dokümanı: kullanıcı
 # dokümanına sunucunun yazdığı her yeni alan `infra/firestore.rules`
@@ -321,11 +322,16 @@ def delete_face_readings(uid: str) -> int:
 #: kayda yazılan varsayılan.
 #:
 #: Kayıt, kullanıcının GÖRDÜĞÜ metnin sürümünü taşır (istemci gönderir;
-#: şartlar kabulüyle aynı ilke). Gönderilen veri KATEGORİSİ ya da sağlayıcı
-#: değiştiğinde istemcideki karşılığıyla birlikte artırılır ki yeni kayıtlar
-#: yeni metne bağlansın; yazım düzeltmesi artırmaz (FACE_CONSENT_VERSION ile
-#: aynı rıza yorgunluğu kuralı). Sunucu eski sürümlü kaydı reddetmez ve
-#: kimseye yeniden sormaz — kayıt kapı değil ispat.
+#: şartlar kabulüyle aynı ilke). Kutu metninin ANLAMI — gönderilen veri
+#: kategorisi ya da kullanım amacı — değiştiğinde istemcideki karşılığıyla
+#: birlikte artırılır ki yeni kayıtlar yeni metne bağlansın; yazım
+#: düzeltmesi artırmaz (FACE_CONSENT_VERSION ile aynı rıza yorgunluğu
+#: kuralı). Sağlayıcı değişimi kutu metnini DEĞİŞTİRMEZ: metin sağlayıcı
+#: adı taşımıyor (sahip kararı 2026-10-23), değişen Gizlilik Politikası.
+#: Sunucu eski sürümlü kaydı reddetmez ve kimseye yeniden sormaz — kayıt
+#: kapı değil ispat. `grant_ai_consent` ilk kaydı koruduğu için sürüm
+#: artışı mevcut kayıtları da güncellemez; yeni metne yeniden onay
+#: toplanacaksa o gün ayrı bir kayıt biçimi gerekir.
 AI_CONSENT_VERSION = 1
 
 
@@ -368,16 +374,28 @@ def _ai_doc(uid: str):
 
 
 def grant_ai_consent(uid: str, version: int, locale: str) -> bool:
-    """Kurulumdaki AI onayını kaydeder — zaman damgası + GÖSTERİLEN sürüm.
+    """Kurulumdaki AI onayını kaydeder — İLK onayın anı + GÖSTERİLEN sürüm.
 
     Sürüm istemciden gelir (şartlar kabulüyle aynı ilke): ispat,
     kullanıcının GÖRDÜĞÜ metne bağlanmalı. Eski bir istemci eski metni
     göstermişse kayıt bunu söyler.
 
-    Tam yazım, merge DEĞİL: kaydın tek yazanı bu fonksiyon ve tekrarı
-    (ağ hatasında yeniden deneyen istemci) aynı durumu yeniden yazar —
-    zararsız. Alan alan birleşseydi ileride değişen bir kayıt biçiminin
-    eski alanları yeni kaydın içinde kalırdı.
+    Yalnız YOKSA oluşturur; kayıt varsa ``grantedAt``/``locale``/
+    ``version``'a dokunmadan başarı döner. Kanıtın sorusu "kullanıcı İLK
+    ne zaman izin verdi": veri o andan beri gidiyor. Eski hâl her çağrıda
+    tam yazım yapıyordu ve gerekçesi "tekrar aynı durumu yeniden yazar —
+    zararsız" idi; yanlıştı — yeniden yazım zamanı ileri ve dili ikinci
+    isteğin diline çekiyordu (ölçüldü: 20:12:58.778 → 20:12:59.983,
+    tr → en), yani ilk onayla ikinci çağrı arasındaki aktarımların
+    dayanağı kayıttan siliniyordu. Tekrarın bilinen kaynağı: yanıtı
+    kaybolan başarılı isteği her açılışta yeniden deneyen istemci
+    (`ai_consent.dart`, bayrak yalnız başarıda silinir) — o deneme ilk
+    onayı değiştirmemeli.
+
+    Firestore'da ``create`` (ön koşul: doküman yok) — oku-sonra-yaz
+    DEĞİL: iki eşzamanlı istek ikisi de "yok" görüp birbirini ezerdi;
+    ön koşul bunu sunucuda tek atomik adımda kapatıyor. Doküman varsa
+    istemci ``AlreadyExists`` fırlatır ve bu BAŞARIDIR (kanıt duruyor).
     """
     kayit = {
         "granted": True,
@@ -388,10 +406,17 @@ def grant_ai_consent(uid: str, version: int, locale: str) -> bool:
     doc_ref = _ai_doc(uid)
     if doc_ref is None:
         kayitlar = _ai_local_read()
+        if uid in kayitlar:
+            # Yerel yedek aynı anlambilimi taşır: yerelde geçen bir akış
+            # üretimdekinden farklı bir kayıt bırakmasın.
+            return True
         kayitlar[uid] = kayit
         return _ai_local_write(kayitlar)
+    from google.api_core.exceptions import AlreadyExists
     try:
-        doc_ref.set(kayit)
+        doc_ref.create(kayit)
+        return True
+    except AlreadyExists:
         return True
     except Exception as exc:
         logger.warning("AI onayı yazılamadı (%s): %s", uid, exc)

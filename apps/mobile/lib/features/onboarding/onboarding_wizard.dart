@@ -16,10 +16,12 @@
 /// * **Rıza baştan** — Google/Apple girişlerinde bugüne dek hiçbir onay
 ///   kutusu yoktu; ilk adım açık kabul kutusuyla bu boşluğu kapatır ve
 ///   kabul sunucuda ispatlanabilir kayda geçer (POST /account/consent).
-///   Altında AYRI ve zorunlu ikinci kutu: verilerin Google Gemini'ye
-///   gönderilmesine izin (sahip kararı 2026-10-22). Yapay zeka onayının
-///   sorulduğu TEK yer burası; kaydı POST /account/ai-consent
-///   (`core/ai_consent.dart`).
+///   Altında AYRI ve zorunlu ikinci kutu: verilerin üçüncü taraf yapay zeka
+///   hizmetlerine gönderilmesine izin (sahip kararı 2026-10-22; metin
+///   sağlayıcı adı taşımaz, 2026-10-23 — hizmetin adı Gizlilik
+///   Politikası'nda). Yapay zeka onayının sorulduğu TEK yer burası; kaydı
+///   POST /account/ai-consent (`core/ai_consent.dart`), kurulum GERÇEKTEN
+///   bittikten (doğum kaydı yazıldıktan) sonra gider.
 /// * **Zirve sonda** — kayıt sırasında StagedWaiting (gerçek iş), sonra
 ///   mevcut Büyük Üçlü perdesi (AppShell köprüsü, R12-B1 düzeni korunur).
 ///
@@ -116,6 +118,41 @@ bool sihirbazIlerleyebilir({
       'notify' => bildirimSecimi != null,
       _ => false,
     };
+
+/// Kurulum bitirilebilir mi — `_bitir`in kendi kapısı, saf ve test
+/// edilebilir.
+///
+/// NEDEN düğme kapısı ([sihirbazIlerleyebilir]) yetmiyor: o yalnız
+/// BULUNULAN adıma bakar ve `_bitir`e giden ikinci bir yol var — kayıt
+/// düşünce çıkan "Tekrar dene" bildirimi. Eylemli SnackBar bu SDK'da
+/// kendiliğinden kapanmaz (`persist` varsayılanı `action != null`); kullanıcı
+/// geri gidip yapay zeka kutusunu kaldırdıktan sonra ona basınca kurulum,
+/// iki kutu işaretli olmadan yine yazılıyordu (bekçi `ai_onay_test`). Bu
+/// yüzden şart: son adımda olunmalı ve altı adımın HER BİRİ (iki kutu
+/// dahil) kendi kuralından geçmeli — geri gidilen adımda ne değiştiyse.
+bool sihirbazBitirebilir({
+  required int adimSirasi,
+  required bool riza,
+  required bool aiRiza,
+  DateTime? tarih,
+  required bool saatBiliniyor,
+  TimeOfDay? saat,
+  String? sehir,
+  String? cinsiyet,
+  bool? bildirimSecimi,
+}) =>
+    adimSirasi == kOnboardingSteps.length - 1 &&
+    kOnboardingSteps.every((adim) => sihirbazIlerleyebilir(
+          adim: adim,
+          riza: riza,
+          aiRiza: aiRiza,
+          tarih: tarih,
+          saatBiliniyor: saatBiliniyor,
+          saat: saat,
+          sehir: sehir,
+          cinsiyet: cinsiyet,
+          bildirimSecimi: bildirimSecimi,
+        ));
 
 /// Bildirim izni OS'a sorulsun mu — yalnız "Haber ver" seçildiyse.
 ///
@@ -242,6 +279,19 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
         bildirimSecimi: _bildirimSecimi,
       );
 
+  /// Kurulum bitirilebilir mi — `_bitir`in kapısı buradan.
+  bool get _bitirebilir => sihirbazBitirebilir(
+        adimSirasi: _adim,
+        riza: _riza,
+        aiRiza: _aiRiza,
+        tarih: _tarih,
+        saatBiliniyor: _saatBiliniyor,
+        saat: _saat,
+        sehir: _sehir,
+        cinsiyet: _cinsiyet,
+        bildirimSecimi: _bildirimSecimi,
+      );
+
   void _ileri() {
     if (!_ilerleyebilir || _busy) return;
     HapticFeedback.lightImpact();
@@ -259,13 +309,29 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
 
   void _geri() {
     if (_adim == 0 || _busy) return;
+    // Bekleyen "Tekrar dene" bildirimi geri giderken kaldırılır: eylemli
+    // SnackBar kendiliğinden kapanmıyor ve geri gidilen adımda bir kutu
+    // kaldırılabilir. Asıl kapı `_bitir`in başında (`_bitirebilir`); bu
+    // satır, o kapıya çarpacak bir düğmeyi ekranda bırakmamak için.
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     setState(() => _adim--);
     sayfayaGit(_sayfa, context, _adim, curve: RythoMotion.enter);
   }
 
   Future<void> _bitir() async {
-    final user = FirebaseAuth.instance.currentUser!;
+    // İki giriş yolu var ("Haritamı çiz" ve hata bildirimindeki "Tekrar
+    // dene"); ikisi de bu kapıdan geçer. Kapı HİÇBİR yazımdan, bayraktan ve
+    // Firebase erişiminden önce: işaretsiz bir kutuyla buraya gelen çağrı
+    // geride iz bırakmaz.
+    if (_busy || !_bitirebilir) return;
     final l10n = AppLocalizations.of(context);
+    // İstemci BURADA, sihirbaz kesin takılıyken bir kez alınır ve kurulumun
+    // bütün çağrıları onu kullanır: doğum kaydı `onboardingCompleted`ı
+    // yazınca `_Gate` bu ekranı söküyor, yani `saveBirthRecord` döndüğünde
+    // sihirbaz sökülmüş olabilir — Riverpod sökülmüş widget'ta `ref.read`e
+    // StateError fırlatır (`consumer.dart` `_assertNotDisposed`). Yapay zeka
+    // kaydı tam o noktadan SONRA gittiği için `ref`e dayanamaz.
+    final dio = ref.read(apiProvider);
     setState(() => _busy = true);
     // Bildirim izni YALNIZ "Haber ver" seçildiyse OS'a sorulur. "Şimdi
     // değil" de bir karar ama OS'a değil bize verilmiş bir karar: bayrak
@@ -286,6 +352,11 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
     // takıyor — sonuç o anda hazır olmalı. Hata olursa geri iner.
     ref.read(justOnboardedProvider.notifier).state = OnboardOutcome.chartOk;
     try {
+      // Oturum okuması `try` İÇİNDE: dışarıdayken buradaki bir istisna
+      // (boş oturumda `!`, Firebase erişim hatası) `_ileri`nin beklemediği
+      // Future'da yakalanmadan kalıyor, düğme hiçbir şey söylemiyordu;
+      // içeride sebepli hata + "Tekrar dene" çıkar ve `_busy` iner.
+      final user = FirebaseAuth.instance.currentUser!;
       // Kimlik alanları yalnızca ilk kurulumda yazılır; doğum verisi ve
       // Büyük Üçlü ortak yoldan gider (core/birth_record.dart) — profil
       // düzeltme ekranıyla aynı kod.
@@ -309,16 +380,7 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
       // Kabul kaydı — düşerse kurulum DÜŞMEZ ama kayıp da KALICI değil:
       // başarı bayrakla işaretlenir, bayrak yoksa AppShell her açılışta
       // yeniden dener (KT2 — jeton + KVKK ispatı tek çağrıya rehin olmaz).
-      await ensureConsentRecorded(ref.read(apiProvider));
-
-      // Yapay zeka (Google Gemini) onayının kanıtı — aynı desen: kutuyu
-      // işaretleyen BU hesap adına borçlanır, düşerse kurulum düşmez ve
-      // AppShell her açılışta yeniden dener. Koşul bilinçli: kapı zaten iki
-      // kutu olmadan geçirmiyor ama kayıt, kapının değil kutunun sonucudur —
-      // işaretlemeyen kişinin kaydı olmaz.
-      if (_aiRiza) {
-        await aiOnayiKurulumdaVerildi(ref.read(apiProvider), uid: user.uid);
-      }
+      await ensureConsentRecorded(dio);
 
       final sonuc = await saveBirthRecord(
         BirthRecord(
@@ -331,8 +393,22 @@ class _OnboardingWizardState extends ConsumerState<OnboardingWizard> {
           gender: _cinsiyet!,
           nation: _ulke,
         ),
-        dio: ref.read(apiProvider),
+        dio: dio,
       );
+      // Yapay zeka onayının kanıtı — doğum kaydı başarıyla döndükten SONRA:
+      // kurulum ancak burada gerçekten bitti (`onboardingCompleted` yazıldı).
+      // Önceden şartlar kaydının hemen ardındaydı; doğum yazımı düşüp
+      // kullanıcı vazgeçerse ya da geri gidip kutuyu kaldırırsa, kurulumu
+      // bitmemiş bir hesap için onay kaydı kalıyordu. Şartlar kaydıyla aynı
+      // desen: kutuyu işaretleyen BU hesap adına borçlanır, düşerse kurulum
+      // düşmez (çağrı hiçbir hatayı dışarı sızdırmaz) ve AppShell her
+      // açılışta yeniden dener. Koşul bilinçli: kapı (`_bitirebilir`) iki
+      // kutu olmadan buraya getirmiyor ama kayıt kapının değil kutunun
+      // sonucudur. Aşağıdaki perde dalından ÖNCE: o dal `ref` kullanıyor ve
+      // sihirbaz sökülmüşse fırlatabilir — kanıt o ihtimale rehin kalmasın.
+      if (_aiRiza) {
+        await aiOnayiKurulumdaVerildi(dio, uid: user.uid);
+      }
       if (sonuc == BirthSaveResult.savedWithoutChart) {
         // AppShell köprüsü dürüst bildirimi buradan okur (O3).
         ref.read(justOnboardedProvider.notifier).state =
@@ -604,11 +680,13 @@ class _KarsilamaAdimi extends StatelessWidget {
                   metin: l10n.wizardConsentLabel,
                 ),
                 // İkinci kutu AYRI ve zorunlu (sahip kararı 2026-10-22):
-                // verilerin Google Gemini'ye gönderilmesine izin. Şartlar
-                // kutusunun cümlesine eklenmedi — iki ayrı izin tek kutuda
-                // birleşseydi biri ötekinin içine gömülürdü. Yasal
-                // bağlantılar ikisinin de altında: gizlilik politikası
-                // yapay zeka ile işlemeyi de anlatıyor.
+                // verilerin üçüncü taraf yapay zeka hizmetlerine
+                // gönderilmesine izin. Şartlar kutusunun cümlesine
+                // eklenmedi — iki ayrı izin tek kutuda birleşseydi biri
+                // ötekinin içine gömülürdü. Metin sağlayıcıyı ADLANDIRMAZ
+                // (2026-10-23: hizmet değişebilir) ve adı için gizlilik
+                // politikasını gösterir; yasal bağlantılar bu yüzden
+                // ikisinin de altında.
                 _RizaKutusu(
                   deger: aiRiza,
                   onDegisti: onAiRiza,

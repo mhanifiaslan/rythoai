@@ -155,6 +155,14 @@ def _delete_friend_edges(client, uid: str, sayac: DeletionReport) -> None:
 
     Silinmezse arkadaşın listesinde artık var olmayan bir kişi görünür ve
     o kişiye ikili okuma denenebilir.
+
+    Arkadaşın ÇEVRE önbelleği de burada düşer: sohbet fısıltısı
+    (`circle_context`) arkadaşların görünen adını ve Güneş burcunu
+    `circle-{arkadaş}-{dil}` anahtarında 6 saat tutuyor ve kaydın sahibi
+    ARKADAŞ — `_delete_owned_cache` yalnız silinen kişinin sahip olduğu
+    kayıtları sildiği için bu kayıt ona hiç girmiyordu. Sonuç: silinen
+    kişinin adı ve burcu, arkadaşının her sohbet turunda 6 saate kadar
+    yapay zekaya gitmeye devam ediyordu.
     """
     kullanici = client.collection("users").document(uid)
     try:
@@ -170,6 +178,20 @@ def _delete_friend_edges(client, uid: str, sayac: DeletionReport) -> None:
             sayac["friendEdges"] = sayac.get("friendEdges", 0) + 1
         except Exception as exc:
             logger.warning("Karsi arkadaslik silinemedi (%s): %s",
+                           arkadas_uid, exc)
+
+        # Kenar silme denemesinden SONRA: önce düşürülseydi arkadaşın o
+        # arada koşan bir sohbet turu listeyi silinen kişiyle yeniden kurup
+        # 6 saatlik ömürle geri yazabilirdi. Kenar silinemediyse de koşar;
+        # o hâlde profil silinene kadarki kısa aralıkta kurulan bir liste
+        # adı yine yazabilir — bilinen sınır, kenar hatası yukarıda
+        # loglanıyor. Best-effort: önbellek düşürülemedi diye hesap silme
+        # durmaz.
+        try:
+            from services import circle_context
+            circle_context.invalidate(arkadas_uid)
+        except Exception as exc:
+            logger.warning("Arkadasin cevre onbellegi dusurulemedi (%s): %s",
                            arkadas_uid, exc)
 
         # Bu kişiye gönderdiğim, henüz okunmamış tepkiler.

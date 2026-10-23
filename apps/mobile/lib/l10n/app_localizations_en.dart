@@ -33,7 +33,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wizardAiConsentLabel =>
-      'I allow my chart data, messages and other data I share to be sent to Google Gemini (third-party AI) so my readings and chat replies can be generated.';
+      'I allow my chart data, messages and other data I share to be sent to third-party AI services to generate my readings and chat replies, to extract notes from my chats that help remember me, and for the app\'s other AI features. The service in use is named in the Privacy Policy.';
 
   @override
   String get wizardDateTitle => 'What day were you born?';

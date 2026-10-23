@@ -1,4 +1,4 @@
-r"""Yapay zeka (Google Gemini) onayı — kurulumdaki ikinci kutu, KAPI DEĞİL.
+r"""Yapay zeka aktarım onayı — kurulumdaki ikinci kutu, KAPI DEĞİL.
 
 Sahip kararı 2026-10-22 (U06'nın sunucu kapısının yerine geçti): onay
 YALNIZ kurulumun ilk adımında, şartlar kutusunun altındaki ikinci, ayrı
@@ -13,8 +13,9 @@ Korunan değişmezler:
 
 1. **Kayıt yalnız ispat.** `POST /account/ai-consent`, kutuyu işaretleyip
    kurulumu bitiren kullanıcı için `users/{uid}/private/aiConsent`'e
-   onay + gösterilen sürüm + zaman + dil yazar; tekrarı zararsız. GET ve
-   DELETE yok.
+   onay + gösterilen sürüm + zaman + dil yazar; tekrar İLK onayın anını,
+   dilini ve sürümünü korur. Onu çağıran tek yol bu uç; önekte GET,
+   DELETE ya da alt yol yok; dokümanı silen tek yol hesap silme.
 2. **Kapı yok.** Kaydı OLMAYAN kullanıcı — 53'ten güncelleyen herkes
    böyledir, onun adına kayıt yazılmaz — sohbette, okumalarda, yüz
    okumada, yumuşak uçlarda ve sabah/öğle/akşam bildiriminde 53'ün
@@ -30,10 +31,12 @@ from __future__ import annotations
 
 import ast
 import datetime as dt
+import functools
 import hashlib
 import importlib.util
 import json
 import pathlib
+import types
 
 import pytest
 from fastapi.routing import APIRoute
@@ -149,24 +152,44 @@ def kayda_dokunan(monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# (a) Kayıt: POST yazar, tekrarı zararsız
+# (a) Kayıt: POST yazar; tekrar İLK onayın anını, dilini, sürümünü korur
 # --------------------------------------------------------------------------
 
-@uygulama_gerekir
-def test_post_kaydi_yazar_ve_tekrari_zararsiz(kullanici, basliklar):
-    with TestClient(app) as client:
-        ilk = client.post(ONAY_UCU, json={"version": 1},
-                          headers=basliklar(**{"Accept-Language": "en"}))
-        ikinci = client.post(ONAY_UCU, json={"version": 1},
-                             headers=basliklar(**{"Accept-Language": "en"}))
+@pytest.fixture
+def saat(monkeypatch):
+    """`consent_service`in saatini elle ilerletir.
 
-    assert ilk.status_code == 200, ilk.text
-    assert ikinci.status_code == 200, ikinci.text
-    assert ilk.json() == ikinci.json() == {
-        "status": "success", "granted": True, "version": 1}
+    İki POST arasında zaman GERÇEKTEN geçmeli: aynı mikrosaniyede koşan
+    iki çağrıda ezilen `grantedAt` eskisiyle aynı çıkar ve kusur görünmez.
+    Başlangıç anı ölçülen vakanın kendisi (20:12:58.778 → 20:12:59.983).
+    """
+    anlar = [dt.datetime(2026, 10, 22, 20, 12, 58, 778000,
+                         tzinfo=dt.timezone.utc)]
+
+    class _Saat(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return anlar[-1]
+
+    monkeypatch.setattr(consent_service, "dt", types.SimpleNamespace(
+        datetime=_Saat, timezone=dt.timezone))
+
+    def ilerlet(saniye: float) -> None:
+        anlar.append(anlar[-1] + dt.timedelta(seconds=saniye))
+
+    return ilerlet
+
+
+@uygulama_gerekir
+def test_post_kaydi_yazar(kullanici, basliklar):
+    with TestClient(app) as client:
+        yanit = client.post(ONAY_UCU, json={"version": 1},
+                            headers=basliklar(**{"Accept-Language": "en"}))
+
+    assert yanit.status_code == 200, yanit.text
+    assert yanit.json() == {"status": "success", "granted": True}
 
     kayitlar = consent_service._ai_local_read()
-    # Tekrar ikinci bir kayıt doğurmaz, aynı durumu yeniden yazar.
     assert list(kayitlar) == [UID]
     kayit = kayitlar[UID]
     assert kayit["granted"] is True
@@ -175,6 +198,31 @@ def test_post_kaydi_yazar_ve_tekrari_zararsiz(kullanici, basliklar):
     dt.datetime.fromisoformat(kayit["grantedAt"])
     # Kanıtın alanları bunlar; "geri alındı" izi taşıyan alan yok.
     assert set(kayit) == {"granted", "version", "grantedAt", "locale"}
+
+
+@uygulama_gerekir
+def test_tekrar_post_ilk_onayi_ezmez_yerel_depo(kullanici, basliklar, saat):
+    """Ölçülen kusur: ikinci çağrı `grantedAt`'i 20:12:58.778'den
+    20:12:59.983'e, `locale`'i tr'den en'e çekiyordu. Kanıtın sorusu
+    "kullanıcı İLK NE ZAMAN izin verdi" — veri o andan beri gidiyor;
+    sonraki bir tekrar (ağ yeniden denemesi, dili değişmiş cihaz) o anı
+    ileri iterse aradaki aktarımların dayanağı kayıttan silinir."""
+    with TestClient(app) as client:
+        ilk = client.post(ONAY_UCU, json={"version": 1},
+                          headers=basliklar(**{"Accept-Language": "tr"}))
+        ilk_kayit = dict(consent_service._ai_local_read()[UID])
+        saat(1.205)
+        ikinci = client.post(ONAY_UCU, json={"version": 2},
+                             headers=basliklar(**{"Accept-Language": "en"}))
+
+    assert ilk.status_code == ikinci.status_code == 200, ikinci.text
+    # Yanıt sürümü YANKILAMAZ: kayıt ilk sürümü taşırken istekteki 2'yi
+    # döndürmek, yazılmamış bir kaydı yazılmış gibi sunmak olurdu.
+    assert ikinci.json() == {"status": "success", "granted": True}
+    assert consent_service._ai_local_read() == {UID: ilk_kayit}
+    assert ilk_kayit["grantedAt"] == "2026-10-22T20:12:58.778000+00:00"
+    assert ilk_kayit["locale"] == "tr"
+    assert ilk_kayit["version"] == 1
 
 
 @uygulama_gerekir
@@ -203,6 +251,14 @@ def test_post_abonelik_istemez(kullanici, basliklar, monkeypatch):
 
 
 class _Doc:
+    """Sahte doküman: `yazilan["kayitlar"]` yol → veri deposu.
+
+    `create` gerçek istemcinin ön koşulunu taklit eder (doküman varsa
+    `AlreadyExists`); `set` koşulsuz üzerine yazar. İkisinin farkı tam
+    da korunan değişmez: üretim kodu `set`e dönerse ikinci POST kaydı
+    ezer ve aşağıdaki test kırmızıya döner.
+    """
+
     def __init__(self, yol, yazilan, patlat=False):
         self.yol = yol
         self.yazilan = yazilan
@@ -211,12 +267,21 @@ class _Doc:
     def collection(self, ad):
         return _Koleksiyon(self.yol + [ad], self.yazilan, self.patlat)
 
-    def set(self, veri, merge=False):
+    def _yaz(self, islem, veri):
         if self.patlat:
             raise RuntimeError("firestore hıçkırığı")
-        self.yazilan["yol"] = "/".join(self.yol)
-        self.yazilan["veri"] = veri
-        self.yazilan["merge"] = merge
+        yol = "/".join(self.yol)
+        self.yazilan.setdefault("islemler", []).append((islem, yol))
+        self.yazilan.setdefault("kayitlar", {})[yol] = dict(veri)
+
+    def create(self, veri):
+        from google.api_core.exceptions import AlreadyExists
+        if "/".join(self.yol) in self.yazilan.get("kayitlar", {}):
+            raise AlreadyExists("Document already exists")
+        self._yaz("create", veri)
+
+    def set(self, veri, merge=False):
+        self._yaz("set-merge" if merge else "set", veri)
 
 
 class _Koleksiyon:
@@ -238,19 +303,93 @@ class _Istemci:
         return _Koleksiyon([ad], self.yazilan, self.patlat)
 
 
-def test_firestoreda_kayit_private_altinda_tam_yazimla_durur(monkeypatch):
+class _YokAnlik:
+    exists = False
+
+    def to_dict(self):
+        return None
+
+
+class _HerSeyiKaydeden:
+    """Her yolu kabul eden sahte istemci; yazımları `yol → veri` kaydeder.
+
+    Bir isteğin Firestore'a NEREYE yazdığını ölçmek için: okumalar boş
+    döner (doküman yok, sorgu sonuçsuz), `set`/`create`/`update` yolu
+    kaydeder. Tanımadığı çağrı (ör. işlem/transaction) `AttributeError`
+    ile düşer; o yollar zaten best-effort `try` içinde.
+    """
+
+    def __init__(self, yazilan, yol=()):
+        self._yazilan = yazilan
+        self._yol = tuple(yol)
+
+    def collection(self, ad):
+        return _HerSeyiKaydeden(self._yazilan, self._yol + (ad,))
+
+    document = collection
+
+    def where(self, *a, **k):
+        return self
+
+    order_by = limit = where
+
+    def stream(self):
+        return iter(())
+
+    def get(self, *a, **k):
+        return _YokAnlik()
+
+    def _yaz(self, veri, *a, **k):
+        self._yazilan["/".join(self._yol)] = dict(veri)
+
+    set = create = update = _yaz
+
+
+def test_firestoreda_kayit_private_altinda_olusturmayla_durur(monkeypatch):
     """`users/{uid}` alanı DEĞİL: yeni sunucu alanı firestore.rules
-    hasOnly listesine girmezse istemcinin tüm profil yazımları düşer."""
+    hasOnly listesine girmezse istemcinin tüm profil yazımları düşer.
+    Yazım `create` (yoksa-oluştur): ilk onay anı ancak ön koşullu
+    yazımla atomik olarak korunur."""
     from core import firestore as firestore_client
     yazilan: dict = {}
     monkeypatch.setattr(firestore_client, "get_client",
                         lambda: _Istemci(yazilan))
     assert consent_service.grant_ai_consent(UID, 1, "tr") is True
-    assert yazilan["yol"] == f"users/{UID}/private/aiConsent"
-    assert yazilan["merge"] is False
-    assert yazilan["veri"]["granted"] is True
-    assert yazilan["veri"]["version"] == 1
-    assert yazilan["veri"]["locale"] == "tr"
+    yol = f"users/{UID}/private/aiConsent"
+    assert yazilan["islemler"] == [("create", yol)]
+    veri = yazilan["kayitlar"][yol]
+    assert veri["granted"] is True
+    assert veri["version"] == 1
+    assert veri["locale"] == "tr"
+
+
+@uygulama_gerekir
+def test_tekrar_post_ilk_onayi_ezmez_firestore(kullanici, basliklar, saat,
+                                               monkeypatch):
+    """Yerel depo testinin Firestore yüzü: üretimde koşan dal bu. İkinci
+    POST başarılı döner (istemci bayrağını silsin, sonsuz yeniden deneme
+    olmasın) ama dokümana dokunmaz."""
+    from core import firestore as firestore_client
+    yazilan: dict = {}
+    monkeypatch.setattr(firestore_client, "get_client",
+                        lambda: _Istemci(yazilan))
+    yol = f"users/{UID}/private/aiConsent"
+    with TestClient(app) as client:
+        ilk = client.post(ONAY_UCU, json={"version": 1},
+                          headers=basliklar(**{"Accept-Language": "tr"}))
+        ilk_kayit = dict(yazilan["kayitlar"][yol])
+        saat(1.205)
+        ikinci = client.post(ONAY_UCU, json={"version": 2},
+                             headers=basliklar(**{"Accept-Language": "en"}))
+
+    assert ilk.status_code == ikinci.status_code == 200, ikinci.text
+    assert yazilan["kayitlar"][yol] == ilk_kayit
+    assert ilk_kayit["grantedAt"] == "2026-10-22T20:12:58.778000+00:00"
+    assert ilk_kayit["locale"] == "tr"
+    assert ilk_kayit["version"] == 1
+    # Tek yazım: ikinci çağrı ezen bir `set` göndermedi. (Sahtenin
+    # `update`i yok; ona dönen bir kod 500 alır ve yukarıda düşer.)
+    assert yazilan["islemler"] == [("create", yol)]
 
 
 @uygulama_gerekir
@@ -799,13 +938,138 @@ def test_hicbir_rota_bagimliliginda_onay_kapisi_yok():
         assert "ai" not in _parametre_adlari(rota.dependant), yol
 
 
+def _tum_rotalar(rotalar, onek: str = ""):
+    """HER yaprak rota: (yöntem, tam yol) çiftleri.
+
+    `_rotalar` yalnız APIRoute veriyor (bağımlılık bekçisinin işi o);
+    burada soru "bu önekte NE var" ve cevap türden bağımsız olmalı:
+    düz Starlette `Route` (/openapi.json bunlardan), WebSocket rotası ve
+    `Mount` altındaki alt uygulama da bir geri alma ya da okuma yolu
+    açabilir. Sarmalayıcıya (`original_router`) ve `Mount`a (`routes`)
+    iner; yöntemsiz yaprak "WS" sayılır ki gözden kaçmasın.
+    """
+    for rota in rotalar:
+        alt = getattr(rota, "original_router", None)
+        if alt is not None:
+            yield from _tum_rotalar(
+                alt.routes, onek + (rota.include_context.prefix or ""))
+            continue
+        yol = onek + getattr(rota, "path", "")
+        ic = getattr(rota, "routes", None)
+        if ic is not None and not isinstance(rota, APIRoute):
+            yield from _tum_rotalar(ic, yol)
+            continue
+        for yontem in (getattr(rota, "methods", None) or {"WS"}):
+            yield yontem, yol
+
+
 @uygulama_gerekir
-def test_onay_ucu_yalniz_post():
-    yontemler = set()
-    for yol, rota, _ in _rotalar(app.routes):
-        if yol == ONAY_UCU:
-            yontemler |= rota.methods
-    assert yontemler == {"POST"}
+def test_onay_onekinde_yalniz_post_var():
+    """`/api/v1/account/ai-consent` ile BAŞLAYAN her rota — alt yollar
+    (`/ai-consent/geri-al`, `/ai-consent/durum`) ve aynı ucun başka
+    yöntemleri dahil — tam olarak tek POST. Kaldırılan GET/DELETE ya da
+    yeni bir "geri al" ucu, kimsenin okumadığı bir red durumu üretirdi
+    (sahip kararı 2026-10-22: geri alma yolu hesabı silmek)."""
+    rotalar = set(_tum_rotalar(app.routes))
+    # Ölçüm kör değil: iç içe `include_router` altındaki komşu uçlar ve
+    # sarmalayıcı dışındaki düz Starlette rotası da görülüyor.
+    assert {("POST", "/api/v1/account/consent"),
+            ("DELETE", "/api/v1/account/me"),
+            ("GET", "/openapi.json")} <= rotalar
+    onekte = {(yontem, yol) for yontem, yol in rotalar
+              if yol.startswith(ONAY_UCU)}
+    assert onekte == {("POST", ONAY_UCU)}
+
+
+def _cagri_yerleri(ad: str) -> set[tuple[str, str]]:
+    """`ad` adına yapılan HER başvurunun (dosya, kapsayan fonksiyon) kümesi.
+
+    Yalnız `x.ad(...)` çağrısı değil: çıplak `ad` adı (`from ... import
+    ad`), içe aktarma takma adı ve `getattr(m, "ad")` dizesi de sayılır
+    — bunların her biri fonksiyonu başka bir yerden çağırmanın yolu.
+    Tanımın kendisi (`def ad`) bir başvuru değildir, sayılmaz.
+    """
+    bulunan: set[tuple[str, str]] = set()
+
+    class _Gezgin(ast.NodeVisitor):
+        def __init__(self, goreli):
+            self.goreli = goreli
+            self.yigin: list[str] = []
+
+        def _isaretle(self):
+            bulunan.add((self.goreli,
+                         self.yigin[-1] if self.yigin else "<modül>"))
+
+        def visit_FunctionDef(self, dugum):
+            self.yigin.append(dugum.name)
+            self.generic_visit(dugum)
+            self.yigin.pop()
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Attribute(self, dugum):
+            if dugum.attr == ad:
+                self._isaretle()
+            self.generic_visit(dugum)
+
+        def visit_Name(self, dugum):
+            if dugum.id == ad:
+                self._isaretle()
+
+        def visit_alias(self, dugum):
+            if dugum.name == ad:
+                self._isaretle()
+
+        def visit_Constant(self, dugum):
+            if dugum.value == ad:
+                self._isaretle()
+
+    for goreli, agac in _kaynaklar():
+        _Gezgin(goreli).visit(agac)
+    return bulunan
+
+
+@uygulama_gerekir
+def test_ai_onayini_yalniz_onay_ucu_yazar():
+    """`grant_ai_consent`i çağıran TEK fonksiyon POST /ai-consent işleyicisi.
+
+    Kanıt yalnız kutuyu İŞARETLEYEN kişi için yazılır; şartlar ucu, giriş
+    kancası ya da bir göç betiği onu da yazarsa 53'ten gelen ve kutuyu hiç
+    görmemiş hesaplar adına sunucuda VERİLMEMİŞ bir onay belirir. AST —
+    yorumlar ("tek yazan grant_ai_consent") görülmez."""
+    assert _cagri_yerleri("grant_ai_consent") == {
+        ("api/account.py", "grant_ai_consent")}
+    # O fonksiyon gerçekten POST /ai-consent işleyicisi: ad eşleşmesi
+    # başka bir uca taşınmış bir çağrıyı örtmesin.
+    isleyiciler = {(rota.endpoint.__module__, rota.endpoint.__name__,
+                    tuple(sorted(rota.methods)))
+                   for yol, rota, _ in _rotalar(app.routes)
+                   if yol == ONAY_UCU}
+    assert isleyiciler == {("api.account", "grant_ai_consent", ("POST",))}
+
+
+@uygulama_gerekir
+def test_sartlar_onayi_ai_onayi_kaydi_dogurmaz(kullanici, basliklar,
+                                              monkeypatch):
+    """Davranış yüzü: şartlar kutusunun kanıtı (`POST /consent`) AI
+    onayının kanıtını yazmaz. İki kutu ayrı; birinin kaydı ötekini
+    doğursaydı ayrı kutunun anlamı kalmazdı (GDPR Md.7(2) paket rıza)."""
+    from core import firestore as firestore_client
+    with TestClient(app) as client:
+        # Yerel dal (Firestore pinli): şartlar kaydı yazılır, AI kaydı yok.
+        assert client.post("/api/v1/account/consent", json={"version": 1},
+                           headers=basliklar()).status_code == 200
+        assert consent_service._ai_local_read() == {}
+
+        # Firestore dalı: aynı istek `private/aiConsent`e hiçbir şey
+        # yazmaz (şartlar kaydı kullanıcı dokümanına iner).
+        yazilan: dict = {}
+        monkeypatch.setattr(firestore_client, "get_client",
+                            lambda: _HerSeyiKaydeden(yazilan))
+        assert client.post("/api/v1/account/consent", json={"version": 1},
+                           headers=basliklar()).status_code == 200
+    assert f"users/{UID}" in yazilan, "ölçüm kör: şartlar kaydı görülmedi"
+    assert not any(yol.endswith("/aiConsent") for yol in yazilan), yazilan
 
 
 def test_kapi_modulu_geri_dogmaz():
@@ -815,13 +1079,24 @@ def test_kapi_modulu_geri_dogmaz():
     assert importlib.util.find_spec("core.ai_consent") is None
 
 
-def _kaynaklar():
-    """Testler ve sanal ortam dışındaki backend kaynakları."""
+@functools.lru_cache(maxsize=1)
+def _kaynak_agaclari() -> tuple:
+    """Bir kez ayrıştırılır: bu dosyadaki AST bekçileri tüm kaynağı
+    defalarca geziyor ve her gezinti yeniden ayrıştırınca takıma saniyeler
+    ekliyordu. Ağaçlar salt okunur gezilir, paylaşmak güvenli; mutasyon
+    sınaması her mutasyonda yeni süreç açtığı için bayat ağaç görmez."""
+    sonuc = []
     for yol in sorted(BACKEND.rglob("*.py")):
         goreli = yol.relative_to(BACKEND).as_posix()
         if goreli.startswith((".venv/", "tests/")) or "/." in "/" + goreli:
             continue
-        yield goreli, ast.parse(yol.read_text(encoding="utf-8"))
+        sonuc.append((goreli, ast.parse(yol.read_text(encoding="utf-8"))))
+    return tuple(sonuc)
+
+
+def _kaynaklar():
+    """Testler ve sanal ortam dışındaki backend kaynakları."""
+    return iter(_kaynak_agaclari())
 
 
 #: "granted: False" yazmasına İZİN verilen yerler — yalnız BİYOMETRİK
@@ -921,3 +1196,157 @@ def test_ai_onay_dokumanina_yalniz_onay_yazilir():
     assert {ad for ad in dir(consent_service) if "ai" in ad.lower()
             and "consent" in ad.lower()} == {"AI_CONSENT_VERSION",
                                              "grant_ai_consent"}
+
+
+# --------------------------------------------------------------------------
+# (e) aiConsent dokümanını silen TEK yol hesap silme
+# --------------------------------------------------------------------------
+#
+# Geri alma yolu hesabı silmek (sahip kararı 2026-10-22; gizlilik metni bu
+# yolu anlatıyor). Kanıtı tek başına silen bir yol — "geri al" ucu, bakım
+# betiği, `private` altını süpüren bir yardımcı — iki kusur birden üretir:
+# hesap ve ondan beri giden veri dururken aktarımın dayanağı kaybolur, ve
+# kimsenin okumadığı bir "geri alındı" durumu doğar.
+
+#: Firestore istemcisinin silme yüzü. `.delete()` blob ve HTTP istemcisinde
+#: de var; o fonksiyonlar yalnız aşağıdaki `private` erişimiyle BİRLİKTE
+#: sayıldığı için yanlış pozitif üretmez.
+_SILME_ADLARI = {"delete", "recursive_delete"}
+
+
+def _fonksiyonlar(agac):
+    return [d for d in ast.walk(agac)
+            if isinstance(d, (ast.FunctionDef, ast.AsyncFunctionDef))]
+
+
+def _silen_fonksiyonlar(agac) -> set[str]:
+    """Doğrudan ya da AYNI modüldeki bir silen yardımcıyı çağırarak silen
+    fonksiyon adları.
+
+    Modül içi geçişlilik şart: hesap silme `private`'ı
+    `_delete_user_subcollections` → `_delete_collection` zinciriyle
+    siliyor ve `.delete()` yalnız ikincisinde yazılı. Modüller ARASI ad
+    eşleştirmesi bilerek yok: `get` gibi ortak adlar (önbellek okuması
+    süresi geçmiş dokümanı siler) her okumayı "silen" yapardı.
+    """
+    fonksiyonlar = _fonksiyonlar(agac)
+    silen = {f.name for f in fonksiyonlar
+             if any(isinstance(c, ast.Call)
+                    and isinstance(c.func, ast.Attribute)
+                    and c.func.attr in _SILME_ADLARI
+                    for c in ast.walk(f))}
+    degisti = True
+    while degisti:
+        degisti = False
+        for f in fonksiyonlar:
+            if f.name in silen:
+                continue
+            if any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
+                   and c.func.id in silen for c in ast.walk(f)):
+                silen.add(f.name)
+                degisti = True
+    return silen
+
+
+def _private_kumeleri() -> set[str]:
+    """Değeri "private" içeren modül düzeyi demet/liste/küme adları.
+
+    `_SUB_COLLECTIONS` böyle bir ad: `collection(ad)` çağrısında koleksiyon
+    adı değişkenden geldiği için "private" sabiti çağrının yanında hiç
+    görünmez. Bu adlara başvuru, `private`'ın tamamına erişim sayılır.
+    """
+    adlar: set[str] = set()
+    for _, agac in _kaynaklar():
+        for dugum in agac.body:
+            if isinstance(dugum, ast.Assign):
+                hedefler, deger = dugum.targets, dugum.value
+            elif isinstance(dugum, ast.AnnAssign) and dugum.value:
+                hedefler, deger = [dugum.target], dugum.value
+            else:
+                continue
+            if (isinstance(deger, (ast.Tuple, ast.List, ast.Set))
+                    and any(isinstance(e, ast.Constant)
+                            and e.value == "private"
+                            for e in ast.walk(deger))):
+                adlar |= {h.id for h in hedefler if isinstance(h, ast.Name)}
+    return adlar
+
+
+def _belirli_private_dokumani_mi(sabit, ust) -> bool:
+    """`collection("private").document("<sabit>")` — aiConsent DIŞINDA
+    adı sabit tek bir doküman (wallet, memory, phone...)."""
+    cagri = ust.get(id(sabit))
+    oz = ust.get(id(cagri))
+    dok_cagri = ust.get(id(oz))
+    return (isinstance(cagri, ast.Call) and len(cagri.args) == 1
+            and cagri.args[0] is sabit
+            and isinstance(cagri.func, ast.Attribute)
+            and cagri.func.attr == "collection"
+            and isinstance(oz, ast.Attribute) and oz.value is cagri
+            and oz.attr == "document"
+            and isinstance(dok_cagri, ast.Call) and dok_cagri.func is oz
+            and len(dok_cagri.args) == 1
+            and isinstance(dok_cagri.args[0], ast.Constant)
+            and isinstance(dok_cagri.args[0].value, str)
+            and dok_cagri.args[0].value != "aiConsent")
+
+
+def _genel_private_erisimi(fonksiyon, kumeler: set[str]) -> bool:
+    """Fonksiyon `private` altında aiConsent'e UZANABİLEN bir şeye dokunuyor
+    mu: koleksiyonun tamamı (akış, sorgu, `collection_group`, değişken
+    doküman adı, "private"in argüman olarak taşınması), "private" içeren
+    bir modül kümesi ya da `recursive_delete`."""
+    ust = {id(cocuk): dugum for dugum in ast.walk(fonksiyon)
+           for cocuk in ast.iter_child_nodes(dugum)}
+    for dugum in ast.walk(fonksiyon):
+        if (isinstance(dugum, ast.Constant) and dugum.value == "private"
+                and not _belirli_private_dokumani_mi(dugum, ust)):
+            return True
+        if isinstance(dugum, ast.Name) and dugum.id in kumeler:
+            return True
+        if isinstance(dugum, ast.Attribute) and (
+                dugum.attr in kumeler or dugum.attr == "recursive_delete"):
+            return True
+    return False
+
+
+def test_ai_onay_dokumani_yalniz_hesap_silmeyle_silinir():
+    """aiConsent'e uzanan HER silme yolu hesap silmeden geçer.
+
+    Üç kapı:
+    1. Dokümanı ADIYLA tutan fonksiyonlar (`"aiConsent"` sabiti ya da
+       `_ai_doc` başvurusu) yalnız yazanlar ve hiçbiri silmez — "geri al"
+       fonksiyonu ancak bu adlardan biriyle kurulabilir.
+    2. `private`'ın tamamına dokunan silen fonksiyon yalnız
+       `_delete_user_subcollections`.
+    3. Onu çağıran yalnız `delete_account` (kullanıcının ve panelin hesap
+       silmesi ikisi de bu fonksiyon).
+
+    Sınır beyanı: değişken adlı bir fabrika (`entitlements._private_doc`)
+    üzerinden silme burada görülmez; ona "aiConsent" adını verecek sabit
+    `test_ai_onay_dokumanina_yalniz_onay_yazilir` ile tek dosyaya
+    kilitli. Davranış yüzü (hesap silme dokümanı gerçekten siler)
+    `test_account_deletion.py`de.
+    """
+    adlayan = _cagri_yerleri("aiConsent") | _cagri_yerleri("_ai_doc")
+    assert adlayan == {("services/consent_service.py", "_ai_doc"),
+                       ("services/consent_service.py", "grant_ai_consent")}
+    consent_agaci = ast.parse((BACKEND / "services" / "consent_service.py")
+                              .read_text(encoding="utf-8"))
+    assert {fn for _, fn in adlayan} & _silen_fonksiyonlar(consent_agaci) \
+        == set()
+
+    kumeler = _private_kumeleri()
+    # Ölçüm kör değil: hesap silmenin değişken adlı süpürmesi görülüyor.
+    assert "_SUB_COLLECTIONS" in kumeler
+    supurenler = set()
+    for goreli, agac in _kaynaklar():
+        silen = _silen_fonksiyonlar(agac)
+        for f in _fonksiyonlar(agac):
+            if f.name in silen and _genel_private_erisimi(f, kumeler):
+                supurenler.add((goreli, f.name))
+    assert supurenler == {("services/account_service.py",
+                           "_delete_user_subcollections")}
+
+    assert _cagri_yerleri("_delete_user_subcollections") == {
+        ("services/account_service.py", "delete_account")}
