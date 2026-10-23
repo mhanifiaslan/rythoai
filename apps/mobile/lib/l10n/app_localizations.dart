@@ -629,7 +629,7 @@ abstract class AppLocalizations {
   /// No description provided for @birthHexagram.
   ///
   /// In tr, this message translates to:
-  /// **'Doğum Kapısı'**
+  /// **'Doğum Heksagramı'**
   String get birthHexagram;
 
   /// No description provided for @birthHexagramSubtitle.
@@ -755,7 +755,7 @@ abstract class AppLocalizations {
   /// No description provided for @iChingLockedTitle.
   ///
   /// In tr, this message translates to:
-  /// **'İ Ching — Değişimler Kitabı'**
+  /// **'I Ching — Değişimler Kitabı'**
   String get iChingLockedTitle;
 
   /// No description provided for @iChingLockedBody.
@@ -1295,13 +1295,13 @@ abstract class AppLocalizations {
   /// No description provided for @benefitTimingTitle.
   ///
   /// In tr, this message translates to:
-  /// **'Yıl Haritası, İç Takvim ve Doğum Kapısı'**
+  /// **'Yıl Haritası, İç mevsim ve Doğum Heksagramı'**
   String get benefitTimingTitle;
 
   /// No description provided for @benefitTimingBody.
   ///
   /// In tr, this message translates to:
-  /// **'Güneş\'in doğum boylamına döndüğü ana kurulan yıl haritan, ilerletilmiş iç takvimin ve 64 kapı çarkındaki doğum kapın.'**
+  /// **'Güneş\'in doğum boylamına döndüğü ana kurulan yıl haritan, ilerletilmiş iç mevsimin ve 64 kapı çarkındaki doğum kapın.'**
   String get benefitTimingBody;
 
   /// No description provided for @benefitIchingTitle.
@@ -1685,7 +1685,7 @@ abstract class AppLocalizations {
   /// No description provided for @subPlanFreeBody.
   ///
   /// In tr, this message translates to:
-  /// **'Kişiye özel günlük okuma, natal rapor, BaZi, Yıl Haritası ve İç Takvim Rytho+ ile açılır.'**
+  /// **'Kişiye özel günlük okuma, natal rapor, BaZi, Yıl Haritası ve İç mevsim Rytho+ ile açılır.'**
   String get subPlanFreeBody;
 
   /// No description provided for @subPlanMonthly.

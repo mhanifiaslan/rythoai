@@ -11,7 +11,7 @@
 
 **Rytho, gerçek gökyüzü hesabı üzerine kurulmuş kişisel bir kendini tanıma
 uygulamasıdır:** Swiss Ephemeris ile senin doğum anını hesaplar, dört ayrı
-kadim sistemden (Batı astrolojisi, BaZi, İ Ching, firaset) okuma üretir ve
+kadim sistemden (Batı astrolojisi, BaZi, I Ching, firaset) okuma üretir ve
 bunları yapay zekâyla senin diline çevirir — **ölçemediğini söylemez.**
 
 Rakiplerden ayrıldığı yer özellik sayısı değil, **dürüstlük mimarisi**:
@@ -96,7 +96,7 @@ tam ekran açılıyor (`sky_now_screen.dart`).
 - **🌞 Yıl Haritası (Solar Return)** — güneş dönüşü haritası; yılın tonu.
   **Relocation destekli:** yaşadığın şehri girersen harita oraya kurulur
   (dönüş anı değişmez, evler/ASC değişir).
-- **🌗 İç Takvim** — ikincil progresyon (gün-yıl kuralı): progres Ay'ın
+- **🌗 İç mevsim** — ikincil progresyon (gün-yıl kuralı): progres Ay'ın
   burcu ve evi, sonraki burç değişimi, progres lunasyon fazı; **solar arc**
   kesinleşmeleri kapalı formda çözülür. Üstüne **30 günlük transit
   takvimi**: kesinleşme günü altın, yaklaşan lila, ayrılan soluk; retro
@@ -104,7 +104,7 @@ tam ekran açılıyor (`sky_now_screen.dart`).
 
 ### Kehanet araçları (dördü de Rytho+)
 
-> **Üçü artık GÜNLÜK yüzey** (2026-10-03): BaZi, Doğum Kapısı ve Yüz Okuma
+> **Üçü artık GÜNLÜK yüzey** (2026-10-03): BaZi, Doğum Heksagramı ve Yüz Okuma
 > kimlik yüzeyiyken günlük yüzeye geçti. Üçünün de **ölçülmüş çekirdeği
 > KALICI** (doğumun dört sütunu · sabit kapı ve pasajı · cihazda hesaplanan
 > yüz oranları) ve değişmiyor; her gün değişen şey o çekirdeğin **bugünle
@@ -148,7 +148,7 @@ kadın yönü sayılıyordu. Onboarding cinsiyeti önseçili değil (D4).
   terim Liu Ri — ölçüldü: gün sütunu 30 günde 30 ayrı etiket alıyor, ay
   sütunu 2 (Jie sınırına bağlı), o yüzden ay sütunu bağlam olarak basılıyor.
 
-**🪙 İ Ching — Değişimler Kitabı.**
+**🪙 I Ching — Değişimler Kitabı.**
 - İki çekim yöntemi **gerçek olasılıklarıyla**: madeni para ve
   civanperçemi (yarrow'un asimetrik dağılımı doğru uygulanmış).
 - Rastgelelik `secrets` (kriptografik), `random` değil.
@@ -158,7 +158,7 @@ kadın yönü sayılıyordu. Onboarding cinsiyeti önseçili değil (D4).
 - 64 heksagram × 384 yao pasajı, iki dilde.
 - Niyetsiz sorular ("test", "asdf") çekim hakkını harcamadan geri çevrilir.
 
-**☯ Doğum Kapısı.** Doğum anındaki Güneş'in 64 kapılı çarktaki yeri —
+**☯ Doğum Heksagramı.** Doğum anındaki Güneş'in 64 kapılı çarktaki yeri —
 çekim değil: **gövdesi kalıcı kimlik katmanı**, günlük olan yalnız son
 bölüm (Güneş'in bugün aynı çarkta durduğu kapı + çizgi ve onun doğum
 kapısıyla konuşması). Günlük olanın "kapı + çizgi" olması ölçüm sonucu:
@@ -359,8 +359,8 @@ Sonunda "Büyük Üçlü" perdesi (Güneş/Ay/Yükselen açılışı).
 | Günlük burç yorumu + hikâye + paylaşım kartı | Kişiye özel günlük okuma |
 | Canlı gökyüzü ("Şu an") | Tam natal rapor (AI okuması) + 6 detay ekranı |
 | Doğum haritası çarkı, yerleşimler, açılar (hesap) | Yıl Haritası (solar return) |
-| Günlük seri | İç Takvim (progresyon + transit) |
-| Arkadaş listesi, seri, hazır tepkiler, ilişki eksenlerinin ÖLÇÜMÜ | BaZi · İ Ching · Doğum Kapısı · Yüz Okuma (**BaZi, Doğum Kapısı ve Yüz Okuma GÜNLÜK** — §4; İ Ching çekim başına) |
+| Günlük seri | İç mevsim (progresyon + transit) |
+| Arkadaş listesi, seri, hazır tepkiler, ilişki eksenlerinin ÖLÇÜMÜ | BaZi · I Ching · Doğum Heksagramı · Yüz Okuma (**BaZi, Doğum Heksagramı ve Yüz Okuma GÜNLÜK** — §4; I Ching çekim başına) |
 | Profil, doğum kaydı, avatar, bildirimler, dil, sohbet (kredi) | Arkadaşla günlük ikili okuma |
 | **1 kişi ekleme** — harita, Büyük Üçlü ve ilişki ÖLÇÜMÜ açık, yorum kilitli | **10 kişi kontenjanı** + ilişki AI yorumu (kredisiz) |
 
@@ -408,7 +408,7 @@ alınan paketler (50/100/200 — 2026-10-14'te 100/300/1000'den indi) **hiç yan
   cümlede rakam YOK, rakam yoksa cümle de yok; derin raporların özeti ancak
   hepsi aynı bedeldeyken kurulur (`bedel_notu_test`, `test_honesty`).
   Eski ara çözüm (`bedelSatiri`) şablondaki sayıları KONUMA göre
-  değiştiriyordu ve bir tur boyunca İ Ching ile ikili dinamiğin bedellerini
+  değiştiriyordu ve bir tur boyunca I Ching ile ikili dinamiğin bedellerini
   yer değiştirmiş gösterdi. Sunucu dağıtım penceresi hâlâ geçerli ve bu
   tasarımın sebebi: kurulu paket eski rakamı söyleyemez, çünkü rakam
   pakette değil.
@@ -417,15 +417,15 @@ alınan paketler (50/100/200 — 2026-10-14'te 100/300/1000'den indi) **hiç yan
   görür), Atlas'ın dört karosu ve tam rapor satırı, satış ekranının fayda
   satırları (çoklu satırda yalnız hepsi aynı bedeldeyse tek sayı), yüz
   okuma rıza ekranı, sohbetin boş durumu ("Mesaj başına 1 kredi"), ikili
-  dinamik, İ Ching. Rozet cüzdan okunamadıysa HİÇ çizilmez — uydurma sayı
-  bayat sayıdan kötü. İ Ching'in eski `token_cost` okuyucusu istemciden
+  dinamik, I Ching. Rozet cüzdan okunamadıysa HİÇ çizilmez — uydurma sayı
+  bayat sayıdan kötü. I Ching'in eski `token_cost` okuyucusu istemciden
   kalktı (sunucu alanı eski paketler için duruyor).
-- **Onay kapısı (`BedelKapisi`, eşik 5):** BaZi, Yıl Haritası, İç Takvim ve
-  Doğum Kapısı ekrana GİRİLDİĞİ AN üretiliyordu — abone "bir bakayım" diye
+- **Onay kapısı (`BedelKapisi`, eşik 5):** BaZi, Yıl Haritası, İç mevsim ve
+  Doğum Heksagramı ekrana GİRİLDİĞİ AN üretiliyordu — abone "bir bakayım" diye
   girip 5 kredi harcıyordu. Şimdi sağlayıcı kapının içinde izleniyor: ilk
   "Devam"dan sonra istek gider, tek seferlik (özellik başına tercih), yalnız
   aboneye, yalnız bedel biliniyorken (cüzdan yüklenirken beklenir, okunamadıysa
-  sorulmaz — ölçülmeyen söylenmez). Eşik altı bedellerde (sohbet 1, İ Ching
+  sorulmaz — ölçülmeyen söylenmez). Eşik altı bedellerde (sohbet 1, I Ching
   2, ikili 3) yalnız rozet. Natal tam rapor (Atlas dizini açılınca üretiliyor)
   kapısız kaldı — bedeli satırda, kapı kararı sonraki tur.
   ⚠️ "Uygulama bir raporun kaça geldiğini harcamadan önce gösterir" cümlesi
@@ -486,7 +486,7 @@ Ayrıca motor bir varsayım yaptığında **beyan eder**: şehir çözülemediys
   *Tetrabiblos* (Ashmand 1822) 160 · Bonatti & Cardan *Anima Astrologiae*
   74 · Sepharial *Astrology* 62 · Rosa Baughan *The Influence of the Stars*
   (1904) 38. Yanında dile göre ayrı yazılmış sekiz özgün doktrin dosyası
-  (BaZi, Çin metafiziği, İ Ching, aile, servet, tahmin, ilm-i nücum,
+  (BaZi, Çin metafiziği, I Ching, aile, servet, tahmin, ilm-i nücum,
   *Marifetname* aktarımı). Legge'nin 384 yao metni RAG'de değil
   `hexagrams.json`'da.
 - **Telif kuralı:** eser kamu malı olsa bile **çevirisi ayrı telif taşır**

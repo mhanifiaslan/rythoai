@@ -56,7 +56,7 @@
   /* AI özellik anahtarı (usageEvents.feature) → ad. */
   var OZELLIK = {
     chat: 'Sohbet', signal: 'Sinyal paketi', natal: 'Doğum haritası raporu',
-    iching: 'İ Ching', iching_verdict: 'İ Ching hükmü', face: 'Yüz okuma',
+    iching: 'I Ching', iching_verdict: 'I Ching hükmü', face: 'Yüz okuma',
     bazi: 'BaZi', dyad: 'İkili dinamik', synastry: 'Sinastri', relationship: 'İlişki',
     birth_hexagram: 'Doğum heksagramı', solar_return: 'Yıl haritası',
     progressions: 'Progresyon', calendar: 'Takvim', daily: 'Günlük okuma',

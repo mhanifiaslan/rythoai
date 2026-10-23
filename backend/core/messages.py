@@ -54,7 +54,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "en": "BaZi analysis is part of Rytho+.",
     },
     "paywall.iching": {
-        "tr": "İ Ching çekimi Rytho+ aboneliğine dahildir.",
+        "tr": "I Ching çekimi Rytho+ aboneliğine dahildir.",
         "en": "I Ching readings are part of Rytho+.",
     },
     # Uç `require_plus("firasa")` ile kilitli ama mesajı YOKTU: kullanıcı
@@ -75,8 +75,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "en": "The Year Chart (solar return) is part of Rytho+.",
     },
     "paywall.progressions": {
-        "tr": "İç Takvim (progresyon) okuması Rytho+ aboneliğine dahildir.",
-        "en": "The Inner Calendar (progressions) reading is part of Rytho+.",
+        "tr": "İç mevsim (progresyon) okuması Rytho+ aboneliğine dahildir.",
+        "en": "The Inner season (progressions) reading is part of Rytho+.",
     },
     "paywall.transit_calendar": {
         "tr": "Kişisel transit takvimi Rytho+ aboneliğine dahildir.",

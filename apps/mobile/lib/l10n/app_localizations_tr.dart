@@ -308,7 +308,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get iChingSubtitle => 'Değişimler Kitabı';
 
   @override
-  String get birthHexagram => 'Doğum Kapısı';
+  String get birthHexagram => 'Doğum Heksagramı';
 
   @override
   String get birthHexagramSubtitle => '64 kapı';
@@ -385,7 +385,7 @@ class AppLocalizationsTr extends AppLocalizations {
       'Day Master, On Tanrı ve şans sütunları analizi Rytho+ ile açılır.';
 
   @override
-  String get iChingLockedTitle => 'İ Ching — Değişimler Kitabı';
+  String get iChingLockedTitle => 'I Ching — Değişimler Kitabı';
 
   @override
   String get iChingLockedBody =>
@@ -695,11 +695,12 @@ class AppLocalizationsTr extends AppLocalizations {
       'Yüz hatlarından firaset geleneğine göre mizaç okuması. Görüntü cihazında işlenir; sunucuya yalnız ölçülen oranlar gider.';
 
   @override
-  String get benefitTimingTitle => 'Yıl Haritası, İç Takvim ve Doğum Kapısı';
+  String get benefitTimingTitle =>
+      'Yıl Haritası, İç mevsim ve Doğum Heksagramı';
 
   @override
   String get benefitTimingBody =>
-      'Güneş\'in doğum boylamına döndüğü ana kurulan yıl haritan, ilerletilmiş iç takvimin ve 64 kapı çarkındaki doğum kapın.';
+      'Güneş\'in doğum boylamına döndüğü ana kurulan yıl haritan, ilerletilmiş iç mevsimin ve 64 kapı çarkındaki doğum kapın.';
 
   @override
   String get benefitIchingTitle => 'I Ching çekimi';
@@ -912,7 +913,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get subPlanFreeBody =>
-      'Kişiye özel günlük okuma, natal rapor, BaZi, Yıl Haritası ve İç Takvim Rytho+ ile açılır.';
+      'Kişiye özel günlük okuma, natal rapor, BaZi, Yıl Haritası ve İç mevsim Rytho+ ile açılır.';
 
   @override
   String get subPlanMonthly => 'Aylık Rytho+';

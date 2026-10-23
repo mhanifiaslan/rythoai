@@ -308,7 +308,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get iChingSubtitle => 'Book of Changes';
 
   @override
-  String get birthHexagram => 'Birth Gate';
+  String get birthHexagram => 'Birth Hexagram';
 
   @override
   String get birthHexagramSubtitle => '64 gates';
@@ -725,11 +725,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'A temperament reading from your features, in the firasa tradition. The image is processed on your device; only the measured ratios reach the server.';
 
   @override
-  String get benefitTimingTitle => 'Year Chart, Inner Calendar and Birth Gate';
+  String get benefitTimingTitle =>
+      'Year Chart, Inner season and Birth Hexagram';
 
   @override
   String get benefitTimingBody =>
-      'The chart cast at the Sun\'s return to its birth longitude, your progressed inner calendar, and your gate on the wheel of 64.';
+      'The chart cast at the Sun\'s return to its birth longitude, your progressed inner season, and your gate on the wheel of 64.';
 
   @override
   String get benefitIchingTitle => 'I Ching castings';
@@ -948,7 +949,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subPlanFreeBody =>
-      'Your personalised daily reading, natal report, BaZi, Year Chart and Inner Calendar open with Rytho+.';
+      'Your personalised daily reading, natal report, BaZi, Year Chart and Inner season open with Rytho+.';
 
   @override
   String get subPlanMonthly => 'Rytho+ Monthly';
