@@ -387,6 +387,8 @@ Kalan: A5 — APNs anahtarı (U08) yüklendikten sonra yukarıdaki test: uygulam
 
 **Android güvenliği** — Android'de `_showForeground` aynen çağrılır; değişiklikler iOS dalında.
 
+**Ek (ölçüldü 2026-10-24, simülatör)** — iPhone 17 Pro Max simülatöründe (iOS 26.5, Debug, demo hesap) `xcrun simctl push` ile FCM biçimli bir yük (`gcm.message_id` + `type=daily`, `route=story`; APNs/FCM sunucusu ATLANARAK) gönderildi. Uygulama **ön plandayken banner göründü** (bu kaydın düzeltmesi simülatörde çalışıyor) ve arka plandayken de banner ana ekranda göründü; ikisi birlikte simülatörde bildirim izninin verildiğini de gösteriyor. **Ölçülemedi:** bannera ya da Bildirim Merkezi'ndeki bildirime dokunuşun uygulamayı açıp günlük okumaya yönlendirmesi. Simülatör aracının enjekte ettiği dokunuş bu yüzeylerde "açma" olarak işlemedi (banner kapandı, uygulama açılmadı; araç sınırı, uygulama kusuru olduğuna dair kanıt yok). Dart tarafındaki karar `test/notification_intent_test.dart`'ta tutuluyor; kalan halka (iOS'un dokunuşu `onMessageOpenedApp`'e iletmesi) cihazda ya da Simulator penceresinde fareyle tıklanarak ölçülür. Gerçek FCM → APNs zinciri de ölçülmedi.
+
 ### U15 — Hesap silmede Sign in with Apple jetonu iptal edilmiyor
 ⏳ açık (kısmen — `[iOS] U04 U15 U31 U45 U48 U49: giris ve hesap silme akisi`) · YÜKSEK · ikisi · A2 iOS kod · kaynak: `apple-token-not-revoked-on-delete`, `apple-token-revocation-missing`, `siwa-token-revocation-missing`, `siwa-token-revocation`
 
