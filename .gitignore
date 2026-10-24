@@ -51,6 +51,11 @@ node_modules/
 backend/cache/
 .gradle/
 apps/mobile/android/key.properties
+# Apple ozel anahtarlari (APNs, Sign in with Apple; AuthKey_XXXXXXXXXX.p8):
+# Apple dosyayi YALNIZ BIR KEZ indirtir ve sizarsa anahtar iptal edilip
+# Firebase yapilandirmasi bastan kurulur. Depo klasorune dusen biri tek bir
+# 'git add .' ile GitHub'a gitmesin.
+*.p8
 
 # Ham kaynak metinler (referans). Korpusa donusturulmus hali
 # knowledge/corpus/ altinda ve o izleniyor; ham dosyayi depoya koymak
