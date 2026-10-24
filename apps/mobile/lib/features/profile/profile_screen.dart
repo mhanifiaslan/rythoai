@@ -1,10 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../theme/rytho_tokens.dart';
 import '../../widgets/common.dart';
+import '../../widgets/dogum_formu.dart' show dogumTarihiYazisi;
 import '../../widgets/glass.dart' show GlassPanel, SkeletonPanel;
 import '../../widgets/onay.dart' show onayliCikis;
 import 'account_screen.dart';
@@ -45,19 +45,6 @@ String abonelikOzetiMetni(
   final bakiye =
       c == null || c.bilinmiyor ? '—' : l10n.tokenBalanceChip(c.total);
   return '$plan · $bakiye';
-}
-
-/// Doğum kaydı satırının değeri: ISO `1988-03-07` → `7 Mart 1988`.
-///
-/// Ham ISO satırda duruyordu; tarih kullanıcının dilinde `intl` sembol
-/// verisinden gelir (`DateFormat`), l10n'den değil (bkz. takvim şeridi
-/// bekçisi). Ayrıştırılamayan değer olduğu gibi döner: bozuk kaydı
-/// gizlemek, kullanıcının düzeltmesi gereken şeyi saklamak olurdu.
-String? dogumTarihiYazisi(String? iso, String dil) {
-  if (iso == null) return null;
-  final t = DateTime.tryParse(iso);
-  if (t == null) return iso;
-  return DateFormat('d MMMM yyyy', dil).format(t);
 }
 
 User? _gecerliKullanici() => FirebaseAuth.instance.currentUser;

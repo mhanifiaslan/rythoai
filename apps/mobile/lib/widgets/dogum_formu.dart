@@ -13,6 +13,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../core/city_directory.dart' show sehirGorunenAdi;
 import '../l10n/app_localizations.dart';
@@ -173,4 +174,19 @@ String sehirEtiketi(String? sehir, String? ulke) {
   if (ad.isEmpty) return '—';
   final bayrak = (ulke == null || ulke.isEmpty) ? '' : flagEmoji(ulke);
   return bayrak.isEmpty ? ad : '$bayrak $ad';
+}
+
+/// Doğum tarihinin ekranda görünen hâli: ISO `1988-03-07` → `7 Mart 1988`.
+///
+/// Ham ISO satırda duruyordu; tarih kullanıcının dilinde `intl` sembol
+/// verisinden gelir (`DateFormat`), l10n'den değil (bkz. takvim şeridi
+/// bekçisi). Ayrıştırılamayan değer olduğu gibi döner: bozuk kaydı
+/// gizlemek, kullanıcının düzeltmesi gereken şeyi saklamak olurdu.
+/// NEDEN burada: profil satırı ve Harita İnceleme başlığı aynı kaydı
+/// okur; ikinci kopya biçimi ayrıştırırdı (dosya başındaki gerekçe).
+String? dogumTarihiYazisi(String? iso, String dil) {
+  if (iso == null) return null;
+  final t = DateTime.tryParse(iso);
+  if (t == null) return iso;
+  return DateFormat('d MMMM yyyy', dil).format(t);
 }

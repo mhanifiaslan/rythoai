@@ -136,6 +136,11 @@ void main() {
     expect(sehirEtiketi('Istanbul', 'TR'), '$tr İstanbul');
   });
 
+  test('dogumTarihiYazisi: null → null; bozuk → olduğu gibi', () {
+    expect(dogumTarihiYazisi(null, 'tr'), isNull);
+    expect(dogumTarihiYazisi('bilmemne', 'tr'), 'bilmemne');
+  });
+
   testWidgets('SecimSatiri etiket + değer gösterir, dokunuş çalışır',
       (tester) async {
     var dokunuldu = 0;

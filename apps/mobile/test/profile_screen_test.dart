@@ -191,10 +191,5 @@ void main() {
       expect(find.text('7 Mart 1988'), findsOneWidget);
       expect(find.text('1988-03-07'), findsNothing);
     });
-
-    test('dogumTarihiYazisi: null → null; bozuk → olduğu gibi', () {
-      expect(dogumTarihiYazisi(null, 'tr'), isNull);
-      expect(dogumTarihiYazisi('bilmemne', 'tr'), 'bilmemne');
-    });
   });
 }

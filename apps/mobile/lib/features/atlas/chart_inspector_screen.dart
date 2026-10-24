@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart' show friendlyError;
+import '../../core/city_directory.dart' show sehirGorunenAdi;
 import '../../core/people.dart';
 import '../../core/providers.dart';
 import '../../l10n/app_localizations.dart';
@@ -36,6 +37,7 @@ import '../../widgets/chart/wheel_layout.dart';
 import '../../widgets/chart/wheel_painter.dart';
 import '../../widgets/common.dart' show ErrorCard;
 import '../../widgets/cosmic_scaffold.dart';
+import '../../widgets/dogum_formu.dart' show dogumTarihiYazisi;
 import '../../widgets/glass.dart';
 import '../../widgets/motion.dart' show StagedWaiting;
 import '../../widgets/nebula_widgets.dart' show kSignNamesTr;
@@ -675,15 +677,22 @@ class _Baslik extends ConsumerWidget {
       }
     } else {
       final profil = ref.watch(profileProvider).value ?? {};
-      final ad = mode == ChartInspectorMode.natal && personAd.isNotEmpty
+      final kisininHaritasi =
+          mode == ChartInspectorMode.natal && personAd.isNotEmpty;
+      final ad = kisininHaritasi
           ? personAd
           : (profil['displayName'] as String? ?? '');
-      final dogum = mode == ChartInspectorMode.natal && personAd.isNotEmpty
+      // Profilin tarih satırı ve doğum kaydının şehir satırıyla aynı iki
+      // gösterim kapısı: ham hâl "1997-01-09 · Istanbul" basıyordu
+      // (mağaza çekimi, 2026-10-24).
+      final dogum = kisininHaritasi
           ? null
-          : profil['birthDate'] as String?;
-      final sehir = mode == ChartInspectorMode.natal && personAd.isNotEmpty
+          : dogumTarihiYazisi(profil['birthDate'] as String?,
+              Localizations.localeOf(context).toLanguageTag());
+      final sehirHam = profil['birthCity'] as String?;
+      final sehir = kisininHaritasi || sehirHam == null
           ? null
-          : profil['birthCity'] as String?;
+          : sehirGorunenAdi(sehirHam, profil['birthNation'] as String?);
       satirlar.add([ad, dogum, sehir]
           .where((s) => s != null && s.isNotEmpty)
           .join(' · '));
