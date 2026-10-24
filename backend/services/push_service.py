@@ -27,6 +27,16 @@ ANDROID_CHANNEL_ID = "rytho_default"
 
 #: Token'ın artık geçersiz olduğunu gösteren hata kodları. Bunlar dışındaki
 #: hatalar geçici sayılır ve token silinmez.
+#:
+#: ⚠️ firebase_admin 7.5.0'da bu küme HİÇ eşleşmiyor (mutasyonla ölçüldü
+#: 2026-10-24, test_push_yuku): `exception.cause` bir `requests.HTTPError`
+#: ve `code` niteliği yok; kod yerine sınıf adı (`UNREGISTEREDERROR` gibi)
+#: kalıyor. Budamayı fiilen `_olu_token`'ın SINIF ADI eşlemesi yapıyor.
+#: Küme, `cause`'un kod taşıdığı bir SDK sürümüne karşı zararsız bir yedek
+#: olarak duruyor (öyle bir sürüm ölçülmedi). `THIRD_PARTY_AUTH_ERROR`
+#: (APNs anahtarı eksik/yanlış) BİLEREK yok: o hata jetonun değil
+#: yapılandırmanın kusuru; budansaydı eksik anahtar bütün iOS jetonlarını
+#: sessizce silerdi.
 _DEAD_TOKEN_ERRORS = {
     "UNREGISTERED",
     "INVALID_ARGUMENT",
@@ -96,9 +106,12 @@ def _prune_token(uid: str) -> None:
 def send(messages: list[Message]) -> SendResult:
     """Bildirimleri 500'lük partiler hâlinde gönderir.
 
-    Tek tek göndermek yerine ``send_each_for_multicast`` kullanılır: 5000
-    kullanıcı için 5000 HTTP isteği yerine 10 istek yapılır. Yanıt sırası
-    girdi sırasıyla aynıdır, hataları bu sayede doğru kullanıcıya bağlarız.
+    ``send_each`` kullanılır ve parti tavanı 500'dür (SDK'nın sınırı).
+    firebase_admin 7.5.0'da ``send_each`` mesaj başına AYRI bir FCM v1 HTTP
+    isteği atar, partiyi eşzamanlı gönderir (iş parçacığı havuzu; kaynakta
+    okundu 2026-10-24) — yani 5000 kullanıcı 5000 istektir, "10 istek"
+    değil. Yanıt sırası girdi sırasıyla aynıdır (``executor.map`` sırayı
+    korur); hataları bu sayede doğru kullanıcıya bağlarız.
     """
     if not messages:
         return SendResult(0, 0, [], [])

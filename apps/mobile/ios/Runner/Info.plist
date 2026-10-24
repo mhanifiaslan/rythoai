@@ -119,7 +119,10 @@
 	     aps-environment.
 	     Yine de KALIR: Firebase'in iOS telefon dogrulamasi
 	     (verifyPhoneNumber) sessiz push yolunu kullaniyor, push gelmezse
-	     reCAPTCHA'ya dusuyor; Firebase'in Flutter kurulum belgesi de bu
+	     reCAPTCHA'ya dusuyor; o yol API anahtarinin kisitsiz ya da
+	     rhytoai.firebaseapp.com icin izinli olmasini ister ve iOS anahtari
+	     ai.rytho ile kisitli, yani dogrulama tamamen dusebilir (cikarim,
+	     cihazda olculmedi). Firebase'in Flutter kurulum belgesi de bu
 	     kipi istiyor. Ayni belgeler 'fetch' kipini de sayiyor; onu
 	     kullanan kod yok ve BILEREK eklenmedi (kullanilmayan arka plan
 	     kipi incelemede soru dogurabilir; cikarim, olculmedi). -->

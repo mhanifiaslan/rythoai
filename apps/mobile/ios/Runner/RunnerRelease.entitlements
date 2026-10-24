@@ -7,8 +7,8 @@
 	     Imzada yoksa iOS APNs kaydini REDDEDER: kayit
 	     didFailToRegisterForRemoteNotificationsWithError ile duser (Apple,
 	     "Registering your app with APNs"). Hata yalniz Xcode konsoluna
-	     yazilir (firebase_messaging eklentisi ve FIRMessaging vekili
-	     NSLog'u), uygulamada gorunmez; APNs jetonu gelmedigi icin
+	     yazilir (eklentide NSLog, FIRMessaging vekilinde
+	     FIRMessagingLoggerError ile), uygulamada gorunmez; APNs jetonu gelmedigi icin
 	     cihazFcmJetonu beklemeden null doner (lib/core/notifications.dart),
 	     profile fcmToken yazilmaz ve iOS'a bildirim HIC gitmez.
 	     Info.plist'teki remote-notification kipi gorunur bildirim icin
@@ -19,8 +19,12 @@
 	     CODE_SIGN_ENTITLEMENTS, Release blogu). Imzadaki asil degeri
 	     PROVIZYON PROFILI belirler: Apple'a gore Xcode degeri profile gore
 	     yazar ve dagitim profili (TestFlight + App Store) production yazar;
-	     FCM de ortami bu dosyadan degil gomulu profilden okur
-	     (FIRMessagingUtilities.m) ve jetonla birlikte bildirir. Yani
+	     olagan yolda (swizzling acik) FCM de ortami bu dosyadan degil
+	     gomulu profilden okur (FIRMessagingUtilities.m) ve jetonla
+	     bildirir. APNs jetonu FIRMessaging hazir olmadan eklentiye gelirse
+	     eklentinin derleme zamani DEBUG etiketi gecer; Profile'da pod'lar
+	     DEBUG'siz derlendigi icin sandbox jetonu production etiketlenebilir,
+	     yani Profile'da push testi guvenilmez. Dagitim icin sonuc ayni:
 	     TestFlight ile magaza AYNI ortamda; "TestFlight'ta calisir,
 	     magazada olur" diye bir ariza yok (eski gerekce buydu ve yanlisti).
 	     Ayri Release dosyasinin GEREKIP GEREKMEDIGI olculmedi: ilk imzali
@@ -54,8 +58,9 @@
 	     (web/.well-known/apple-app-site-association). Yayin da tek
 	     basina yetmez: cihaz dosyayi Apple CDN'inden okur, CDN onu
 	     yayindan sonra cekiyor (Apple: 24 saat icinde, elle tazeleme yolu
-	     yok) ve onceden kurulmus uygulama yeni dosyayi ancak YENIDEN
-	     KURULUNCA aliyor (Apple TN3155). -->
+	     yok); onceden kurulu uygulama dosyayi yaklasik haftada bir yeniden
+	     denetler, yeni dosyayi HEMEN almak icin uygulama yeniden kurulur
+	     (Apple TN3155). -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:rytho.app</string>

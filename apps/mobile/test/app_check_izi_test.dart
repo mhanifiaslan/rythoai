@@ -7,9 +7,10 @@
 // alınırken ortaya çıkıyor — bu yüzden bir de jeton yoklaması var. İki
 // değişmez: yoklama açılışı ASLA bekletmez ve ASLA fırlatmaz.
 //
-// Sağlayıcı seçimi de burada çivili ('Apple yayın dalı' testi): yayın dalı
-// App Attest'ten başka bir sağlayıcıya dönerse simülatör ve Debug bunu
-// GÖSTERMEZ (ikisi de debug sağlayıcıda), kusur ilk TestFlight paketinde
+// Sağlayıcı seçimi de burada çivili ('yayın dalı' testleri, iki platform):
+// yayın dalı App Attest / Play Integrity'den başka bir sağlayıcıya dönerse
+// simülatör, emülatör ve Debug bunu GÖSTERMEZ (hepsi debug sağlayıcıda);
+// kusur ilk Profile/Release cihaz derlemesinde, en geç mağaza paketinde
 // görünür.
 import 'dart:io';
 
@@ -207,9 +208,17 @@ void main() {
     // kaydediyor (docs/mac-devir.md §4; DeviceCheck kaydı kendi .p8
     // anahtarını ister ve planda yok — konsol durumu depodan ölçülemez).
     // Kayıtsız sağlayıcıyla jeton alınamaz ve zorlanan üç servis iOS'u
-    // reddeder — bunu gösteren ilk yer TestFlight.
+    // reddeder — bunu gösteren ilk yer cihazdaki Profile/Release derlemesi
+    // (`kDebugMode` orada da false), en geç TestFlight.
     // `providerApple` tamamen silinirse Debug da DeviceCheck'e düşer ve
     // simülatörde görünür; görünmeyen tek hâl yayın dalının değişmesi.
+    //
+    // Yayın dalı TAM eşitlikle çivilenir, desenle değil: ilk sürümün
+    // `AppleDebugProvider\(.*\)` deseni açgözlüydü ve yayın dalına konan
+    // İÇ İÇE bir üçlüyü (`… : kReleaseMode ? const
+    // AppleDeviceCheckProvider() : const AppleAppAttestProvider()`) de
+    // yutup yeşil kalıyordu — TestFlight/App Store DeviceCheck'e döner,
+    // Profile App Attest'te kalırdı (çürütme turu, 2026-10-24).
     test('Apple yayın dalı App Attest, debug dalı debug sağlayıcı', () {
       final ifade = _adliArguman(
           kaynak, 'FirebaseAppCheck.instance.activate(', 'providerApple');
@@ -217,15 +226,113 @@ void main() {
           reason: 'activate çağrısında providerApple yok: paket sessizce '
               'AppleDeviceCheckProvider kullanır (firebase_app_check '
               '0.4.5+2, firebase_app_check.dart:110)');
-      // Üçlü ifadenin biçimi sabit: koşul kDebugMode, doğru dal debug
-      // sağlayıcı, yanlış (yayın) dal App Attest. Dallar ters çevrilirse
-      // yayın paketi debug sağlayıcıyla çıkar — o da reddedilir.
-      expect(
-          RegExp(r'^kDebugMode\?AppleDebugProvider\(.*\):'
-                  r'(const)?AppleAppAttestProvider\(\)$')
-              .hasMatch(ifade!),
-          isTrue,
-          reason: 'providerApple beklenen üçlü değil: $ifade');
+      final dallar = _ucluDallar(ifade!);
+      expect(dallar, isNotNull, reason: 'providerApple üçlü değil: $ifade');
+      expect(dallar!.kosul, 'kDebugMode', reason: ifade);
+      // Dallar ters çevrilirse yayın paketi debug sağlayıcıyla çıkar ve
+      // define dosyasındaki KAYITLI sabit jeton pakete girer: Firebase onu
+      // reddetmez, jetonu bulan herkes App Check'i aşar. `infra/build-ipa.sh`
+      // `paket-appcheck-jetonu-yok` kapısı bunu pakette yakalar, düz
+      // `flutter build ipa` yakalamaz — bu test daha erken yakalar.
+      expect(_tekCagri(dallar.dogru, 'AppleDebugProvider('), isTrue,
+          reason: 'debug dalı tek bir AppleDebugProvider(...) değil: '
+              '${dallar.dogru}');
+      expect(dallar.yanlis, 'constAppleAppAttestProvider()',
+          reason: 'yayın dalı tam olarak const AppleAppAttestProvider() '
+              'olmalı: ${dallar.yanlis}');
+    });
+
+    // Aynı boşluk Android'de de vardı ve canlı platform o: yayın dalı
+    // Play Integrity'den başka bir sağlayıcıya dönse Debug ve emülatör
+    // bunu göstermez (ikisi de debug sağlayıcıda); kusur ancak Play'den
+    // kurulan pakette görünür ve zorlanan üç servis Android'i de reddeder.
+    test('Android yayın dalı Play Integrity, debug dalı debug sağlayıcı', () {
+      final ifade = _adliArguman(
+          kaynak, 'FirebaseAppCheck.instance.activate(', 'providerAndroid');
+      expect(ifade, isNotNull,
+          reason: 'activate çağrısında providerAndroid yok');
+      final dallar = _ucluDallar(ifade!);
+      expect(dallar, isNotNull, reason: 'providerAndroid üçlü değil: $ifade');
+      expect(dallar!.kosul, 'kDebugMode', reason: ifade);
+      expect(dallar.dogru, 'constAndroidDebugProvider()', reason: ifade);
+      expect(dallar.yanlis, 'constAndroidPlayIntegrityProvider()',
+          reason: 'yayın dalı tam olarak const AndroidPlayIntegrityProvider() '
+              'olmalı: ${dallar.yanlis}');
+    });
+
+    // Ayrıştırıcının kendi tuzakları: bekçi kör olmasın.
+    test('üçlü ayrıştırıcı iç içe üçlüyü ve ?? / ?. işlecini doğru böler',
+        () {
+      final d = _ucluDallar('kDebugMode?A(x?y:z):kReleaseMode?B():C()')!;
+      expect(d.kosul, 'kDebugMode');
+      expect(d.dogru, 'A(x?y:z)');
+      expect(d.yanlis, 'kReleaseMode?B():C()',
+          reason: 'yayın dalındaki iç içe üçlü bütün kalmalı ki tam eşitlik '
+              'onu reddetsin');
+      final n = _ucluDallar('a??b?c?.d:e')!;
+      expect(n.kosul, 'a??b');
+      expect(n.dogru, 'c?.d');
+      expect(n.yanlis, 'e');
+      expect(_ucluDallar('constAppleAppAttestProvider()'), isNull);
+      expect(_tekCagri('AppleDebugProvider(debugToken:a?null:a)',
+          'AppleDebugProvider('), isTrue);
+      expect(_tekCagri('AppleDebugProvider()??X()', 'AppleDebugProvider('),
+          isFalse);
     });
   });
+}
+
+/// Boşlukları atılmış bir üçlü ifadeyi DERİNLİK 0'daki `?` ve onun eşi
+/// olan `:` noktasından böler; üçlü değilse `null`. `??` ve `?.` üçlü
+/// sayılmaz; doğru daldaki iç içe üçlüler `?`/`:` sayacıyla atlanır, yanlış
+/// dal ise ilk eşleşen `:`'den sonrasının TAMAMIDIR — yayın dalına konan iç
+/// içe bir üçlü bütün kalır ve tam eşitlik onu reddeder.
+({String kosul, String dogru, String yanlis})? _ucluDallar(String s) {
+  var derinlik = 0;
+  var soru = -1;
+  var bekleyen = 0;
+  for (var i = 0; i < s.length; i++) {
+    final c = s[i];
+    if (c == '(' || c == '[' || c == '{') derinlik++;
+    if (c == ')' || c == ']' || c == '}') derinlik--;
+    if (derinlik != 0) continue;
+    if (c == '?') {
+      final sonraki = i + 1 < s.length ? s[i + 1] : '';
+      final onceki = i > 0 ? s[i - 1] : '';
+      if (sonraki == '?' || sonraki == '.' || onceki == '?') continue;
+      if (soru < 0) {
+        soru = i;
+      } else {
+        bekleyen++;
+      }
+    } else if (c == ':' && soru >= 0) {
+      if (bekleyen > 0) {
+        bekleyen--;
+      } else {
+        return (
+          kosul: s.substring(0, soru),
+          dogru: s.substring(soru + 1, i),
+          yanlis: s.substring(i + 1),
+        );
+      }
+    }
+  }
+  return null;
+}
+
+/// [ifade] tam olarak TEK bir `[cagri]...)` çağrısı mı: açılış parantezinin
+/// eşi ifadenin son karakteri olmalı (ardında `?? X()` gibi bir kuyruk
+/// kalmasın).
+bool _tekCagri(String ifade, String cagri) {
+  if (!ifade.startsWith(cagri)) return false;
+  var derinlik = 0;
+  for (var i = cagri.length - 1; i < ifade.length; i++) {
+    final c = ifade[i];
+    if (c == '(' || c == '[' || c == '{') derinlik++;
+    if (c == ')' || c == ']' || c == '}') {
+      derinlik--;
+      if (derinlik == 0) return i == ifade.length - 1;
+    }
+  }
+  return false;
 }

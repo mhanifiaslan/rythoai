@@ -201,3 +201,30 @@ def test_karisik_partide_yalniz_olu_jeton_budanir(monkeypatch, depo):
     assert sonuc.pruned == ["u3"]
     assert depo.docs["users/u2"]["fcmToken"] == "t2"
     assert depo.docs["users/u3"]["fcmToken"] is None
+
+
+# ------------------------------------------------------------------- pin
+
+def test_pin_sahtelenmemis_send_fcm_e_ulasmaz(monkeypatch, depo):
+    """conftest `push_hermetik` pininin BEYANI ölçülür: `send`i ya da
+    `_get_messaging`i sahtelemeyen bir test gerçek FCM istemcisine HİÇ
+    ulaşmaz (davranışsal; kaynak eşleşmesi değil — pin yarın başka bir
+    satıra taşınsa da bu soru aynı kalır).
+
+    Kaydedici gerçek modülün `send_each`inin ve `initialize_app`ın yerine
+    konur: ulaşılırsa pin delik demektir. Para da bildirim de çıkmaz —
+    kaydedici ağa gitmiyor."""
+    import firebase_admin
+
+    ulasilan = []
+    monkeypatch.setattr(gercek_messaging, "send_each",
+                        lambda *a, **k: ulasilan.append("send_each"))
+    monkeypatch.setattr(firebase_admin, "initialize_app",
+                        lambda *a, **k: ulasilan.append("initialize_app"))
+
+    sonuc = push_service.send([_mesaj("u1", "t1")])
+
+    assert ulasilan == [], f"pin delik: gerçek FCM yoluna ulaşıldı {ulasilan}"
+    # Üretimin "FCM kullanılamıyor" dalı: hepsi başarısız, jeton silinmez.
+    assert (sonuc.sent, sonuc.failed, sonuc.pruned) == (0, 1, [])
+    assert depo.docs["users/u1"]["fcmToken"] == "t1"

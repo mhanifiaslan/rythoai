@@ -29,7 +29,7 @@ import pytest
 
 from core import app_gate, config
 from core import firestore as firestore_client
-from services import account_service, gemini_service, partner_service
+from services import account_service, gemini_service, partner_service, push_service
 
 #: Toplama anında yakalanır: henüz hiçbir fixture koşmadı, bu gerçek
 #: istemci kurucusudur. Kıyas kimlikle (`is`) — sahte istemci kuran her
@@ -237,6 +237,28 @@ def gemini_hermetik(monkeypatch):
         return
     monkeypatch.setattr(gemini_service, "_get_client", lambda: None)
     monkeypatch.setattr(config, "GEMINI_API_KEY", "")
+
+
+@pytest.fixture(autouse=True)
+def push_hermetik(monkeypatch):
+    """Hicbir test istemeden GERCEK FCM'e bildirim gonderemesin.
+
+    CLAUDE.md'nin kurali (dis dunyaya cikan her istemci icin ayri pin) push
+    icin acikti (olculdu 2026-10-24, konsol arastirmasi): `push_service.
+    _get_messaging` firebase_admin uygulamasi yoksa
+    `initialize_app(projectId=rhytoai)` kuruyor; makinede ADC varken
+    `push_service.send`i sahtelemeden cagiran bir test GERCEK kullanicilara
+    bildirim gonderebilirdi. Bugunku testler `send`i ya da `_get_messaging`i
+    kendisi sahteliyor — pin, bunu unutan bir sonraki testi korur.
+
+    `_get_messaging` None doner: uretim kodu bu hali zaten biliyor ("FCM
+    kullanilamiyor", hepsi basarisiz) — pin yeni bir davranis UYDURMUYOR.
+    Cikis: `_get_messaging`i ya da `send`i kendi sahtesiyle degistiren test
+    (test_push_yuku) kendi degerini alir, testin icindeki setattr pinden
+    sonra kosar. Bekcisi davranissal:
+    `test_push_yuku.py::test_pin_sahtelenmemis_send_fcm_e_ulasmaz`.
+    """
+    monkeypatch.setattr(push_service, "_get_messaging", lambda: None)
 #: Canli embedding OLMADAN GECERSIZ olan testlerin nodeid IMZALARI.
 #:
 #: NEDEN burada ve neden `skipif` degil: `gemini_hermetik` pini RAG

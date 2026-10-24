@@ -491,8 +491,9 @@ elif komut in ("imza-aps-ortami", "imza-get-task-allow", "imza-yetkileri"):
         # yazar ve DAĞITIM profili production yazar; dağıtım imzalı pakette
         # başka bir değer yanlış profil ya da imzaya hiç girmemiş push
         # yetkisi demek. Eski metin ("mağaza paketi sandbox jetonu alırsa
-        # sunucu üretim APNs'ine gönderir") yanlıştı: FCM ortamı gömülü
-        # profilden okuyup jetonla birlikte bildiriyor, sunucu tahmin etmiyor.
+        # sunucu üretim APNs'ine gönderir") yanlıştı: FCM ortamı (olağan
+        # yolda) gömülü profilden okuyup jetonla birlikte bildiriyor, sunucu
+        # tahmin etmiyor.
         if v != "production":
             sonuc(False, "aps-environment = " + repr(v) + ". Dağıtım imzalı pakette production "
                   "beklenir (Apple bu değeri provizyon profilinden yazar). 'development' "

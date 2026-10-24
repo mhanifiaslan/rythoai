@@ -107,8 +107,10 @@ def test_push_ortami_yapilandirmaya_gore_ayrilmis():
     üretim paketi sandbox jetonu alır, sunucu üretim APNs'ine gönderir:
     TestFlight'ta çalışır, mağazada ölür"). Apple'a göre imzadaki değeri
     provizyon profili belirler ve dağıtım profili (TestFlight + App Store)
-    production yazar; FCM de ortamı gömülü profilden okuyup jetonla
-    bildirir. TestFlight ile mağaza aynı ortamda. Ayrı Release dosyasının
+    production yazar; olağan yolda FCM de ortamı gömülü profilden okuyup
+    jetonla bildirir (APNs jetonu FIRMessaging hazır olmadan gelirse
+    eklentinin derleme zamanı DEBUG etiketi geçer — Profile'da push testi
+    güvenilmez). TestFlight ile mağaza aynı ortamda. Ayrı Release dosyasının
     gerekip gerekmediği ölçülmedi — ilk imzalı Release'te bakılır
     (docs/mac-devir.md B9); ölçüm "gerekmiyor" derse ayrım ve bu iki
     değer iddiası birlikte değişir."""
@@ -132,9 +134,12 @@ def test_push_ortami_yapilandirmaya_gore_ayrilmis():
     # (Apple: uyarısız arka plan bildirimi içindir; uzak bildirimin
     # paketteki şartı yukarıdaki aps-environment). Firebase'in iOS telefon
     # doğrulaması sessiz push yolunu kullandığı ve Flutter kurulum belgesi
-    # istediği için duruyor (gerekçe Info.plist'teki yorumda). Kaybı
-    # SESSİZDİR: görünür push gelmeye devam eder, yalnız telefon
-    # doğrulaması reCAPTCHA'ya düşer (Firebase belgesi; cihazda ölçülmedi).
+    # istediği için duruyor (gerekçe Info.plist'teki yorumda). Kaybında
+    # görünür push sürer ama telefon doğrulaması sessiz push yolunu yitirip
+    # reCAPTCHA'ya düşer; o yol API anahtarının kısıtsız ya da
+    # rhytoai.firebaseapp.com için izinli olmasını ister ve iOS anahtarı
+    # ai.rytho ile kısıtlı — doğrulama TAMAMEN düşebilir (Firebase belgesi +
+    # çıkarım; cihazda ölçülmedi).
     info = _plist(_RUNNER / "Info.plist")
     assert "remote-notification" in info.get("UIBackgroundModes", [])
 
