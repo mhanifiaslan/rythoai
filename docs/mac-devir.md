@@ -6,7 +6,13 @@ madde ya ölçülerek bulundu ya da bir kez zarar verdi. Windows makinesinde
 şeyler.
 
 Ölçüm tarihi: **2026-09-26**, güncelleme **2026-10-22** (aşağıdaki
-"Bugünkü durum" kutusu ve 4.10). Dal: `yuz-okuma-cihaz-usti-olcum`.
+"Bugünkü durum" kutusu ve 4.10) ve **2026-10-23** (Mac'te hazırlık
+denetimi: dört ölçüm + eksik avcısı, HEAD `ba6108b`; §4 sahibin üç
+aşamasına göre yeniden sıralandı, "Mac durumu" kutusu düzeltildi) ve
+**2026-10-24** (o belgenin çürütme turu: deploy sırası CLAUDE.md §7'ye
+bağlandı, App Check belirtisi koda göre düzeltildi, ölçülemeyen konsol
+durumları "ölçülemedi" diye işaretlendi; U05'in kod yarısı `09bbe23`).
+Dal: `yuz-okuma-cihaz-usti-olcum`.
 
 > **Bugünkü durum (2026-10-22, Windows'tan ölçüldü):**
 > - Android **1.20.0+53** derlendi (AAB, 6 kapı OK). Play'de **açık test
@@ -17,13 +23,26 @@ madde ya ölçülerek bulundu ya da bir kez zarar verdi. Windows makinesinde
 >   yükseltirken Android'in yanmış kodlarına dikkat.
 > - Backend Cloud Run rev **00112-dtj**; istatistik özeti saatlik
 >   (`rytho-stats`), Çevrem/geri kazanım bildirim işleri kurulu.
+>   ⚠️ (Mac'ten kimliksiz ölçüldü 2026-10-23) Canlı `/openapi.json`'daki
+>   89 yolda `POST /api/v1/account/ai-consent` YOK (404; var olan
+>   `/account/consent` → 401). Yani canlı kod Mac birleşmesinden
+>   (`8d6f67b`) önceki Windows hattı — U17'nin sunucu kapıları da canlıda
+>   değil. Bu bir çıkarım: revizyonun commit'i `gcloud`suz ölçülemedi.
 > - Gemini faturası **ön ödemeli**: bakiye sıfırlanırsa tüm AI anında durur
 >   (CLAUDE.md "CANLI KESİNTİ 2").
 > - Ortak panosu `rytho.app/affiliate/` (eski `/ortak/` 301), varsayılan dil EN.
 > - iOS'ta yapılacak ilk ürün işi: **ortak (affiliate) bağlantısının iOS'ta
 >   da sayılması** — bkz. **4.10**.
 
-> **Mac durumu (2026-10-22, Mac'ten ölçüldü):**
+> **Mac durumu (2026-10-22, Mac'ten ölçüldü; 2026-10-23'te yeniden ölçülüp
+> düzeltildi — düzeltilen satırlar yerinde, eskisi silinmeden):**
+> - **Hazırlık hükmü (2026-10-23):** gerçek iPhone'da Debug testi, iç
+>   TestFlight ve App Store incelemesi — üçü de bugün **hazır değil**;
+>   kod tarafı büyük ölçüde hazır, kalanların çoğu sahibin konsol işi ve
+>   üç deploy (kurallar + backend birlikte, hosting). Kod işleri de var:
+>   U05'in kalanı (kod yarısı `09bbe23`; §4 B7), §4 C13 ve U17
+>   şikâyet görünümü, U18 notları, U37 Koşullar maddesi. Sıralı adımlar §4
+>   (Aşama A/B/C).
 > - Mac'in iOS/App Store işi (`ios-hazirlik`, 2026-09-26/27, 16 commit,
 >   15'i push edilmemişti) bu dala **birleşti**: `8d6f67b`. U-kimlikli
 >   kayıt `docs/ios-uyum-denetimi.md`'de (55 kayıt + birleşme notları).
@@ -36,6 +55,42 @@ madde ya ölçülerek bulundu ya da bir kez zarar verdi. Windows makinesinde
 > - Bu Mac: Xcode 26.6 seçili, Flutter 3.44.7, CocoaPods 1.17.0. İmza
 >   sertifikası **0**, bağlı iPhone **yok** (sahip: haftaya). `firebase`,
 >   `gcloud`, `pwsh`, Java ve tam Android SDK **kurulu değil**.
+>   → **"İmza sertifikası 0" BAYAT — ölçüldü 2026-10-23:** `security
+>   find-identity -v -p codesigning` → **1** geçerli kimlik, `Apple
+>   Development: Mehmet Hanifi Aslan` (sertifika OU = `292WJ9TP74`,
+>   geçerlilik 2026-10-22 07:18 GMT → 2027-10-22). "0" notu `63cccf4`'te
+>   (2026-10-22 11:26 +0300) yazıldı; sertifikanın `notBefore`'u 10:18
+>   +0300. Ölçüm büyük olasılıkla sertifikadan önce alındı, ama ölçüm anı
+>   kayıtlı olmadığı için kesin değil (aracı WWDR sertifikası eksikken de
+>   `find-identity` "0 valid identities" döner — dışlanmadı). Xcode'da
+>   **ücretli takım hesabı ekli** (`IDEProvisioningTeamByIdentifier`:
+>   `292WJ9TP74`, `teamType=Individual`, `isFreeProvisioningTeam=0`). Bu
+>   Mac'te hâlâ **0** (aynı gün ölçüldü): Apple Distribution sertifikası,
+>   yerel provizyon profili (iki profil dizini de yok), bağlı cihaz
+>   (`xcrun devicectl list devices` yalnız simülatör — bu komut portaldaki
+>   cihaz kaydını göstermez), `~/Library/Developer/Xcode/Archives`.
+>   Takımda kayıtlı cihaz ve App Store Connect kaydı **ölçülemedi** (portal
+>   ve hesap girişi yok). Araçlar aynı: `firebase`, `gcloud`, `pwsh` yok.
+>   *(Düzeltme 2026-10-24: bu satır "bağlı ya da kayıtlı cihaz 0" diyordu
+>   ve "0" ölçümünün sertifikadan önce alındığını kesin bilgi gibi
+>   yazıyordu.)*
+> - **İmzasız Release derlemesi geçti** (ölçüldü 2026-10-23, `ba6108b`):
+>   `flutter build ios --release --no-codesign
+>   --dart-define-from-file=dart_defines.local.json` → çıkış 0, Runner.app
+>   139,8 MB, `ai.rytho` **1.20.0 (53)**, yalnız arm64, simülatör taslağı
+>   (`SIMULATORDE_YOK`, `MLKitSimulatorStub`) pakette 0, ML Kit + TFLite +
+>   16 MB model pakette, `flutter analyze` temiz. ⚠️ Aynı derleme `test_`
+>   önekli RevenueCat anahtarını pakete gömdü ve hiçbir yerde durmadı
+>   (Aşama B). → U05 yayın kapısı `infra/build-ipa.sh` (`09bbe23`) bu
+>   paketi durduruyor: çürütme turunda aynı artefakta `--yalniz-denetle`
+>   koşuldu, `paket-test-anahtari-yok` ve `paket-derleme-numarasi` (53)
+>   KALDI, çıkış 1 (ölçüldü 2026-10-23, U05'in çürütme turu).
+>   ⚠️ Yan etki (ölçüldü 2026-10-23, `ba6108b`): Crashlytics dSYM fazı
+>   o gün Debug dışındaki HER derlemede koşuyordu — bu imzasız ölçüm
+>   derlemesinde de upload-symbols koştu ("Validation succeeded…";
+>   sembolün rhytoai'ye ulaştığı ölçülemedi; U26). → `09bbe23`'ten beri
+>   faz `CODE_SIGNING_ALLOWED=NO` iken (imzasız derleme) atlanıyor;
+>   bekçi `backend/tests/test_ios_config.py`.
 > - 4.10 kodu hazır (`31ee208`): **deploy edilmedi, cihazda ölçülmedi.**
 > - ⚠️ **Hosting deploy'u BEKLET** (hangi makineden olursa olsun). Birleşmiş
 >   `web/legal/` gizlilik metni yapay zeka onayının kurulumun ilk adımındaki
@@ -44,7 +99,13 @@ madde ya ölçülerek bulundu ya da bir kez zarar verdi. Windows makinesinde
 >   1.20.0+53'te o kutu YOK — kutulu ilk paket (Android 54 ya da iOS)
 >   yayınlanmadan deploy edilirse politika canlı uygulama için yanlış beyan olur. Canlıda
 >   ölçülen (2026-10-22): AASA hâlâ `TEAMID` + yalnız `/i/*`, gizlilik
->   sayfası 17 Ekim.
+>   sayfası 17 Ekim. **Yeniden ölçüldü 2026-10-23 — aynı**, üstüne: Apple'ın
+>   AASA önbelleği (`app-site-association.cdn-apple.com/a/v1/rytho.app`,
+>   `www.rytho.app`, `rhytoai.web.app`) de aynı bayat gövdeyi veriyor
+>   (`X-Cache: hit-stale`); canlı hosting = `e8cc253` (2026-10-19, `last-modified`
+>   + beş dosyanın o ağaçla bayt bayt eşliği). Kilidin seçenekleri §4
+>   "Deploy bağımlılıkları ve hosting kilidi".
+
 Uzak depo: `https://github.com/mhanifiaslan/rythoai.git`
 (GitHub deposu `rhytoai` → `rythoai` olarak yeniden adlandırılmış; eski
 adres hâlâ yönlendiriyor ama **yeni adresi kullan** — yönlendirme kalıcı
@@ -89,6 +150,13 @@ komut başarılı olur, kusur ancak cihazda ya da mağazada görülür.
 `dart_defines.local.json` taşındıktan sonra **içindeki
 `REVENUECAT_IOS_KEY` değerini kontrol et** — şu an `test_` önekli, yani
 RevenueCat Test Store anahtarı, App Store anahtarı değil (madde 6.7).
+(Düzeltme 2026-10-23: doğru atıf **4.7** ve §4 Aşama B6 — "6.7" diye bir
+madde yok. Ölçüldü 2026-10-23: dosyada yalnız üç anahtar var —
+`REVENUECAT_ANDROID_KEY` `goog_`, `REVENUECAT_IOS_KEY` `test_`,
+`RYTHO_PLUS_ENTITLEMENT`; `APPSTORE_APP_ID` hiç yok, bkz. 4.9. 2026-10-24:
+dördüncü anahtar `APP_CHECK_DEBUG_TOKEN` eklendi — Firebase'de kayıtlı
+sabit Debug jetonu, sırdır; dosya taşınırken o da taşınır, örnekten
+yeniden kurulmaz, bkz. §4 A6. `APPSTORE_APP_ID` hâlâ yok.)
 
 ---
 
@@ -145,6 +213,667 @@ yolunda değildir; Mac'te kullanılacaksa yolları parametreleştirilmeli.
 Sıra **bağımlılık sırasıdır**, önem sırası değil. Her adım bir öncekini
 gerektiriyor; atlanırsa sonraki adım anlaşılmaz bir hatayla düşer.
 
+**2026-10-23'ten beri sıra üç aşamadır** — sahibin sorusu buydu:
+**A)** gerçek iPhone'da debug testi, **B)** iç TestFlight, **C)** App Store
+incelemesi. Her adım tam konsol yolunu, neyi açtığını ve yapılmazsa ne
+olduğunu söyler. "Ölçüldü" yazmayan bir konsol durumu **ölçülemedi**
+demektir: bu Mac'te hesap girişi yapılmadı, `firebase`/`gcloud`/`pwsh` yok.
+Kanıtın kaynağı 2026-10-23 hazırlık denetimi (dört ölçüm + eksik avcısı,
+HEAD `ba6108b`) ve depo; kayıt kimlikleri (U…) `docs/ios-uyum-denetimi.md`.
+
+Eski **4.1–4.10 aşağıda ayrıntı ve tarihçe olarak duruyor**; aşama
+adımları onlara işaret eder. Numaraları değiştirilmez: başka belgeler ve
+bekçilerin gerekçeleri onları adıyla anıyor (ör. `test_ios_config.py`,
+`test_web_seo.py` → "mac-devir 4.10"; uyum kaydı → "§4.7").
+
+### Bugünkü hüküm (ölçüldü 2026-10-23; 2026-10-24'te düzeltildi)
+
+*(Düzeltme 2026-10-24: B satırı "App Store Connect kaydı yok … kayıtlı
+cihaz yok" diyordu — ikisi de ölçülemedi; backend deploy'u da B'nin engeli
+sayılıyordu, oysa aşağıdaki Öneri A + C onu beklemiyor. `test_` anahtarının
+çökmesi U05 kod ağıyla değişti.)*
+
+| Aşama | Hazır mı | Kalan engel |
+|---|---|---|
+| **A** — cihazda Debug | **Hayır** — kod tarafı büyük ölçüde hazır | iPhone bağlı değil, provizyon profili 0; üç konsol adımı (App ID yetenekleri, Firebase'de Apple sağlayıcısı, APNs). App Check debug jetonu sabit ve Firebase'de kayıtlı (A6; simülatörde ölçüldü, cihazda ölçülmedi). Universal Link canlı AASA bayat olduğu için ölçülemez |
+| **B** — iç TestFlight | **Hayır** | Gerçek `appl_` anahtarı yok (bugünkü `test_`: U05 kod ağıyla Release açılışta çökmez ama satın alma kapalı çıkar, `infra/build-ipa.sh` paketi durdurur); U05'in kalanı (ilk imzalı IPA, derleme numarası kararı); App Store Connect kaydı ölçülemedi (yerelde `APPSTORE_APP_ID` yok); App Attest kaydı ölçülemedi; dağıtım sertifikası bu Mac'te yok; takımda kayıtlı cihaz ölçülemedi. **Engel değil, önerilir:** kurallar + backend deploy'u ("Deploy bağımlılıkları" 1) — yapılmazsa onay kaydı satırı "bekliyor" kalır |
+| **C** — App Store incelemesi | **Hayır** | IAP + sözleşmeler, inceleme notları, gizlilik etiketi, yaş derecesi, 6,9" ekran görüntüleri, EULA kararı; canlı gizlilik metni eski (hosting kilidi); kurallar + backend deploy'u (engellemenin sunucu kapıları canlıda değil — çıkarım; canlı kurallar ölçülemedi); iOS 27 ve iPad uyumluluk kipinde gezinti sonucu kayıtlı değil (iki simülatöre kuruldu ve açıldı, C11) |
+
+### Aşama A — gerçek iPhone'da debug testi (`flutter run`, Debug kip)
+
+Kod tarafı ölçüldü: imzasız Release derlemesi geçti (üst kutu),
+`backend/tests/test_ios_config.py` 13/13 (HEAD, 2026-10-24; `ba6108b`'de 7 — `09bbe23` Crashlytics fazı bekçilerini ekledi), imza ayarları üç yapılandırmada
+`DEVELOPMENT_TEAM = 292WJ9TP74` + `Automatic` + `ai.rytho`, dört yetki iki
+entitlements dosyasında ve iki dosya yalnız `aps-environment`'ta ayrışıyor.
+Eksik olan cihaz ve konsol.
+
+**A1 — iPhone'u bağla · SEN**
+- Kablo → telefonda "Bu bilgisayara güven" → Xcode → Window → Devices and
+  Simulators'ta telefonun görünmesini bekle → (iOS 16+) Ayarlar →
+  Gizlilik ve Güvenlik → **Geliştirici Modu** → aç → telefon yeniden
+  başlar → açılışta "Aç" + parola. Menü genelde cihaz Xcode'a bir kez
+  bağlanıp görüldükten sonra belirir; iOS 15.5–15.x'te bu menü yok,
+  gerekmez. iOS en az 15.5 (ML Kit tabanı). (Apple'ın davranışı, burada
+  ölçülmedi — cihaz yok.)
+- Yapılmazsa: cihaza hiçbir şey kurulamaz. Bugün `xcrun devicectl list
+  devices` yalnız üç simülatör gösteriyor (ölçüldü 2026-10-23).
+- ⚠️ Telefon **iOS 27**'deyse Xcode 26.6 (iPhoneOS 26.5 SDK) ile kurulum
+  ve hata ayıklama **ölçülmedi**; Xcode 27 bu depoyu derleyemiyor (§7). Bu
+  Mac'te Xcode 27'nin bıraktığı kişiselleştirilmiş DDI duruyor (CoreDevice
+  299.6). Flutter 3.44.7'nin Debug (JIT) kipinin iOS 26+ fiziksel cihazda
+  çalışması da ölçülmedi. Debug düşerse test Profile kipe kayar; o da
+  B1–B2 (App Attest) ister. Ayrı, anahtarsız bir dart-define dosyası
+  artık gerekmez: U05 kod ağıyla (`09bbe23`) Profile'da `test_` anahtarı
+  yapılandırılmaz ve satın alma "kullanılamıyor" der (kodda doğrulandı,
+  cihazda ölçülmedi — A7).
+
+**A2 — App ID üzerinde dört yetenek · SEN**
+- developer.apple.com → Account → Certificates, Identifiers & Profiles →
+  Identifiers → `ai.rytho` → Capabilities: **Sign in with Apple**, **Push
+  Notifications**, **Associated Domains**, **App Attest** → Save. App ID
+  yoksa `+` → App IDs → App → Explicit Bundle ID `ai.rytho` ile açılır.
+  Cihaz gerekmez; yani iPhone gelmeden yapılabilir ve B4'ün (App Store
+  Connect kaydı) önkoşuludur.
+- Açar: provizyon profili bu yetkileri taşır. Entitlements dördünü de
+  istiyor (`Runner.entitlements` ve `RunnerRelease.entitlements` :18-54).
+- Yapılmazsa: profil eksik yetkiyi taşımaz ve imza düşer. **App Attest bu
+  listede bugüne dek yoktu** — 4.5 üç yetenek sayıyordu; eklendi
+  2026-10-23.
+- Durum: **ölçülemedi** (portal). Otomatik imzanın eksik yeteneği
+  kendiliğinden açıp açmadığı ilk cihaz derlemesinde görülür.
+
+**A3 — Cihaz kaydı ve geliştirme profili · SEN (Xcode'da)**
+- `apps/mobile/ios/Runner.xcworkspace` → Runner hedefi → Signing &
+  Capabilities → Team `292WJ9TP74`, "Automatically manage signing" açık →
+  Xcode'un "Register Device" ve profil önerileri onaylanır.
+- Yapılmazsa: imzalı cihaz derlemesi yok. Bugün iki profil dizini de yok
+  (ölçüldü 2026-10-23). Aynı kayıt B9'u da açar: takımda cihaz yokken
+  otomatik imzalı arşiv alınamaz.
+
+**A4 — Firebase Auth'ta Apple sağlayıcısı (U01) · SEN**
+- Firebase Console (rhytoai) → Authentication → Sign-in method → Add new
+  provider → **Apple** → Enable → Save. Yerel iOS girişi için yalnız bu
+  anahtar yeter; Services ID ve OAuth code flow alanları jeton iptali
+  içindir (C7) ve aynı oturumda doldurulabilir.
+- Yapılmazsa: cihazda Apple ile giriş `operation-not-allowed` ile düşer;
+  incelemede 4.8 + 2.1 reddi (U01).
+- Durum: **ölçülemedi.** Bu adım §4'te hiç yoktu (`grep -i "sign-in
+  method"` boştu, ölçüldü 2026-10-23).
+
+**A5 — APNs anahtarı (U08) · SEN**
+- developer.apple.com → Certificates, Identifiers & Profiles → Keys → `+`
+  → **Apple Push Notifications service (APNs)** → Configure: Environment
+  "Sandbox & Production", Key Restriction "Team Scoped (All Topics)" (ya
+  da yalnız `ai.rytho`; U08 adım 1) → Register → `.p8` **yalnız bir
+  kez** iner, Key ID not edilir. Firebase Console → Project settings → Cloud Messaging →
+  Apple app configuration (`ai.rytho`) → APNs Authentication Key → Upload:
+  `.p8` + Key ID + Team ID `292WJ9TP74`. Ayrıntı 4.6.
+- Yapılmazsa: cihaza hiçbir push gelmez (U14'ün ön plan banner'ı dahil);
+  uygulamanın açılmasını engellemez. Firebase belgesine göre telefon
+  doğrulamasının sessiz push yolu da çalışmaz ve reCAPTCHA'ya düşer
+  (ölçülmedi).
+- Durum: **ölçülemedi**; paket tarafı hazır (`aps-environment`,
+  `UIBackgroundModes = remote-notification`).
+
+**A6 — App Check debug jetonu · `APP_CHECK_DEBUG_TOKEN` doluysa yapılmış; boşsa SEN (ilk koşudan hemen sonra)**
+- **Güncel (2026-10-24): sabit jeton.** `dart_defines.local.json`'a
+  `APP_CHECK_DEBUG_TOKEN` (bir UUID) yazılırsa Debug derlemesi her
+  kurulumda o jetonu kullanır (`main.dart` `kAppCheckDebugToken` →
+  `AppleDebugProvider(debugToken:)`); Firebase'e bir kez eklenir, silip
+  yeniden kurmak jetonu değiştirmez. Bu Mac'in dosyasında var ve
+  Firebase'de kayıtlı — simülatörde ölçüldü: kayıtsızken
+  `exchangeDebugToken` 403, kayıtlıyken 200 ve giriş çalıştı. Aynı
+  dosyayla derlenen cihaz Debug'ı da aynı jetonu taşır; cihazda
+  ölçülmedi. Jeton yayın paketine girmez (imzasız Release'te 0 kez,
+  ölçüldü; `infra/build-ipa.sh` `paket-appcheck-jetonu-yok` kapısı her
+  yayında yeniden ölçer). Aşağıdaki iki madde define BOŞKEN geçerli.
+- İlk `flutter run` (A7) konsola `Firebase App Check Debug Token: …`
+  satırını basar; eklenti her kurulum için yeni jeton üretiyor
+  (`FirebaseAppCheckPlugin.swift:318-325`). Firebase Console → App Check →
+  Apps → `ai.rytho` (iOS) → ⋮ → **Manage debug tokens** → Add debug token
+  → yapıştır → uygulamayı yeniden başlat.
+- ⚠️ Jeton gizli bir değerdir: depoya, sohbete, ekran görüntüsüne girmez.
+  Uygulama silinip yeniden kurulunca değişir ve yeniden eklenir. Şemada
+  sabit jeton yok (`Runner.xcscheme`'de `FIRAAppCheckDebugToken` ortam
+  değişkeni yok, ölçüldü 2026-10-23).
+- Yapılmazsa: zorlama Auth + Firestore + Storage'da açık (CLAUDE.md, son
+  ölçüm 2026-10-10) ve Debug derlemesi `AppleDebugProvider` kullanıyor
+  (`main.dart:177-181`) → kayıtsız jetonla giriş, Firestore ve Storage
+  reddedilir. Belirti App Check'e özgü bir hata DEĞİL: iOS'ta
+  `activate()` yalnız sağlayıcıyı kaydeder ve düşmez; kayıtsız jeton
+  ancak jeton değişiminde reddedilir. Kullanıcı App Check'e özgü bir
+  mesaj görmez: giriş genel "Bir şeyler ters gitti. Tekrar dene."
+  metniyle düşer (`authFailed`; simülatörde ölçüldü 2026-10-24) — yanlış
+  şifre metninden ("Giriş yapılamadı. Şifren hatalı olabilir…") farklı,
+  ama başka beklenmedik hatalardan ayırt edilemez; Firestore/Storage'da
+  izin hatası çıkar (`core/app_check_izi.dart:3-16`). Debug'da tek iz Xcode konsoludur;
+  Release/TestFlight'ta Crashlytics'e `app-check-token` kaydı düşer
+  (U30). Simülatörün kendi ürettiği jeton cihaza geçmez; sabit jeton
+  (yukarıdaki ilk madde) ise define dosyasıyla birlikte geçer. *(Düzeltme 2026-10-24: burada "`activate()`
+  hatası yutulduğu için belirti sessiz giriş ekranı" yazıyordu; kod
+  tersini söylüyor — `main.dart:188-190`'daki catch bu durumda hiç
+  çalışmaz.)*
+
+**A7 — Derle ve koş · birlikte**
+- `cd apps/mobile && LANG=en_US.UTF-8 flutter run
+  --dart-define-from-file=dart_defines.local.json` (Debug; simülatör de
+  açıksa `-d <cihaz kimliği>` ile telefon seçilir), ardından —
+  define'da `APP_CHECK_DEBUG_TOKEN` boşsa — A6.
+- `test_` anahtarıyla Debug **çökmez** (RevenueCat'in Test Store kapısı
+  `#if !DEBUG` altında); satın almalar yalnız RevenueCat Test Store
+  simülasyonudur, StoreKit sandbox değil — gerçek satın alma testi B'de.
+- ⚠️ (2026-10-23 hâli, `ba6108b`) Bu aşamada Release/Profile cihaz
+  denemesi YAPILMAZ: `test_` anahtarı açılışta bilerek çöker (B6). "Yalnız
+  iOS anahtarını boşalt" çaresi de güvenli değil: `billingConfigured` iki
+  anahtardan birinin doluluğuna bakıyor (`subscription.dart:53-54`) ve
+  Android anahtarı yüzünden true kalır; `initBilling` iOS'ta configure
+  etmeden döner ama `billingIdentityProvider` (`:139`) girişte yine
+  `Purchases.logIn` çağırır, yani yapılandırılmamış SDK'ya gider (yerel
+  tarafın çöküp çökmediği ölçülmedi; Dart `try/catch` yerel çökmeyi
+  yakalamaz). Zorunluysa İKİ anahtarın da boş olduğu ayrı bir dart-define
+  dosyası + B1–B2.
+- **Güncel (2026-10-24, U05 kod ağı `09bbe23`):** yukarıdaki tavsiye
+  gereksizleşti. `rcEtkinAnahtar` yalnız çalışılan platformun anahtarına
+  bakıyor; Release + Profile'da `test_` önekli anahtar yapılandırılmamış
+  sayılıyor — `Purchases.configure` hiç çağrılmaz, `billingConfigured`
+  false. "Satın alımları geri yükle" düğmesi de kapılı:
+  `ensureBillingIdentity` ilk satırda durur ve "Satın alma şu an
+  kullanılamıyor" der (yapılandırılmamış SDK PurchasesHybridCommon
+  17.55.1 `CommonFunctionality.swift:18-22`'de `fatalError` veriyor).
+  Yani `test_` anahtarlı Profile/Release cihaz derlemesi çökmez, ayrı bir
+  anahtarsız dart-define dosyası gerekmez; yine B1–B2 (App Attest) ister.
+  Kodda doğrulandı, cihazda ölçülmedi. U05'in çürütme turu (2026-10-24,
+  mutasyonla) çağrı yeri kapılarını (`billingIdentityProvider`,
+  `offeringsProvider`, `tokenPacksProvider`) hiçbir testin tutmadığını
+  ölçtü; 2. tur bekçiyi kurdu (`test/satin_alma_yapilandirma_test.dart`,
+  aynı commit `09bbe23`).
+
+**A8 — Cihazda ölçülecekler · birlikte**
+- U21'in A5 satırlarından Debug'da ölçülebilenler (Release'e bağlı olanlar
+  — StoreKit sandbox, Crashlytics dSYM ve App Check izleri — B10'da):
+  giriş (e-posta, Google, Apple); kurulumdaki iki
+  kutu; bildirim izninin soru ânı (U11: girişte değil, ilk anlamlı anda);
+  push (A5'ten sonra — ön plan, arka plan, kapalı, dokunuş rotası);
+  Firestore'da `fcmToken` (U54); yüz okuma (deklanşör açılıyor mu, alın
+  ölçülüyor mu, noktalar iki lenste yüzün üstünde mi — U09); kamera reddi
+  + "Ayarları aç" (U56, `app_settings` 7.0.0); telefon doğrulaması;
+  "Resmi Kaydet" (U44); Sessiz anahtar + Apple Music (U24); silip yeniden
+  kurunca giriş ekranı (U45); Apple düğmesinin iPhone SE + 1,3 yazı
+  ölçeğinde görünmesi (U04).
+- **Deploy'a bağlı, "bekliyor" işaretlenir:** Universal Link `/i/` ve
+  `/r/` (canlı AASA bayat — hosting kilidi), `users/{uid}/private/aiConsent`
+  kaydı (canlıda uç yok) ve engelleme — ikisi de "Deploy bağımlılıkları"
+  1'e (kurallar + backend birlikte) bağlı.
+- Simülatörde görülen hiçbir şey (giriş ekranının açılması dahil) cihaz
+  sonucu sayılmaz.
+
+### Aşama B — iç TestFlight (Release, App Attest, StoreKit sandbox)
+
+**B1 — Firebase iOS uygulamasında Team ID · SEN**
+- Firebase Console → Project settings → General → Your apps → iOS
+  `ai.rytho` → **Team ID** = `292WJ9TP74`. App Attest kaydının önkoşulu
+  (U42, U08).
+- Durum: **ölçülemedi.**
+
+**B2 — App Check'te App Attest kaydı (U08) · SEN**
+- Firebase Console → App Check → Apps → `ai.rytho` (iOS) → **App Attest**
+  → Save. App ID'de App Attest yeteneği açık olmalı (A2).
+- Yapılmazsa: Release, Profile, TestFlight ve inceleme paketi
+  `AppleAppAttestProvider` (`main.dart:181`) ile jeton alamaz; zorlama
+  açık olduğu için **giriş yapılamaz**. Cihazda `flutter run --release`
+  denemesi de giriş ekranında kalır.
+- Doğrulama: ilk TestFlight kurulumunda giriş çalışıyor ve Crashlytics'te
+  `app-check-token` / `app-check-activate` kaydı yok (U30).
+- Ölçülemedi: geliştirme profiliyle imzalı ama
+  `appattest-environment = production` taşıyan derlemenin Firebase'ce
+  kabulü — yalnız cihazda, kayıttan sonra görülür.
+
+**B3 — Paid Apps sözleşmesi, vergi, banka (U02 adım 1) · SEN**
+- App Store Connect → **Business** (eski adı Agreements, Tax, and
+  Banking) → Paid Apps → sözleşmeyi kabul et → vergi formları → banka
+  hesabı. AB DSA **tacir durumu** sorusu da burada cevaplanır (U41 — AB
+  dışı dağıtımda da soruluyor).
+- Yapılmazsa: uygulama içi satın alma ürünleri satışa çıkmaz; teklifler
+  boş ya da `configurationError` döner, paywall fiyat yerine hata gösterir
+  (U02 etki a).
+
+**B4 — App Store Connect uygulama kaydı (4.9) · SEN — iPhone'u beklemez**
+- App Store Connect → Apps → `+` → **New App**: Platforms **iOS** · Name
+  **Rytho** (adın boşta olduğu ölçülemedi) · Primary Language (bölge
+  yalnız Türkiye; öneri Türkçe) · Bundle ID **`ai.rytho`** (listede
+  görünmesi için App ID portalda kayıtlı olmalı — A2) · SKU serbest metin
+  (ör. `rytho-ios`) · User Access: Full Access.
+- Ardından App Information: birincil kategori **Lifestyle** (U19);
+  Content Rights "üçüncü taraf içerik var ve haklar mevcut" (RAG korpusu
+  kamu malı — `docs/rag_corpus/README.md:32`). Copyright ve Support URL
+  bu ekranda değil, sürüm sayfasında (C8). *(Düzeltme 2026-10-24: burada
+  "telif satırı" App Information'a yazılmıştı.)*
+- Doğan sayısal **Apple ID** → `dart_defines.local.json` `APPSTORE_APP_ID`.
+- Yapılmazsa: TestFlight'a yükleme yapılamaz. `APPSTORE_APP_ID` boşken
+  zorunlu güncelleme ekranı iOS'ta mağaza düğmesi göstermez
+  (`force_update_screen.dart:51`) — eksiklik ancak yayından sonra görünür.
+  Bu formun ayrıntıları hiçbir belgede yoktu (ölçüldü 2026-10-23: `SKU`,
+  `Primary Language`, `Content Rights` araması 0).
+
+**B5 — Abonelik grubu ve ürünler (U02 adım 2-4) · SEN**
+- App Store Connect → uygulama → Monetization → **Subscriptions** →
+  Subscription Group (yerelleştirilmiş görünen ad) → `rytho_plus_monthly`.
+  **Tanıtım teklifi ya da ücretsiz deneme EKLENMEZ** — sunucu denemesiyle
+  3+3 gün çakışır (`docs/store-launch.md` "Kalan konsol işleri" 1).
+- Monetization → **In-App Purchases** → `+` Consumable ×3:
+  `rytho_tokens_small`, `rytho_tokens_medium`, `rytho_tokens_large`.
+  Görünen adlar sözlükle aynı (`docs/store-launch.md` "Mağaza ürün adları"
+  tablosu); her ürüne inceleme ekran görüntüsü (paywall, kredi mağazası).
+  Kimlikler kodda sabit, değişmez (4.7).
+- Fiyat noktası ve Aile Paylaşımı: aşağıdaki "Sahibin kararları".
+
+**B6 — RevenueCat App Store uygulaması ve `appl_` anahtarı (U02 adım 5-6) · SEN**
+- App Store Connect → Users and Access → Integrations → **In-App
+  Purchase** → anahtar üret (`.p8` + Key ID + Issuer ID).
+- RevenueCat → proje → Apps → `+` App Store → bundle `ai.rytho` →
+  In-App Purchase Key'i yükle → API keys → `appl_…` →
+  `dart_defines.local.json` `REVENUECAT_IOS_KEY`. Ürünleri içe aktar;
+  `rytho_plus_monthly` → `RhytoAI Pro` yetkisi + Current offering'in
+  `$rc_monthly` paketi; consumable'lar yetkiye bağlanmaz (4.7).
+- Ürünleri içe aktarmak **ayrı bir App Store Connect API anahtarı** ister
+  (U02 adım 6): Users and Access → Integrations → App Store Connect API →
+  Team Keys → `.p8` + Key ID + Issuer ID → RevenueCat'e yüklenir. Bu
+  anahtar yoksa `rytho_plus_monthly` ve üç consumable RevenueCat'e
+  kimlikleriyle elle eklenir. (Konsol menü adları ekranda doğrulanmadı.)
+- Yapılmazsa (2026-10-23 hâli, `ba6108b`): `test_` anahtarlı Release paketi
+  **açılışta BİLEREK çöker** — RevenueCat 5.67.1
+  `Configuration.swift:471-495`, `#if !DEBUG` altında Test Store anahtarı
+  → uyarı penceresi + `fatalError`; `initBilling` arayüzden önce
+  çağrılıyor (`ba6108b`'de `main.dart:198`; HEAD'de `:221`). Anahtar 2026-10-23'teki imzasız Release
+  paketinde `App.framework/App` içinde bulundu (ölçüldü). **U05 kod ağı
+  (`09bbe23`) sonrası:** uygulama Release/Profile'da `test_` anahtarıyla
+  `configure` etmez; çökme yerine satın alma kapalı çıkar ve
+  `infra/build-ipa.sh` böyle bir paketi `revenuecat-ios-anahtari` (ön
+  kapı) ve `paket-test-anahtari-yok` (paket kapısı) ile durdurur (B7).
+  SDK'nın Test Store çökmesi değişmedi; değişen, uygulamanın ona
+  girmemesi. In-App Purchase Key yoksa StoreKit 2 işlemleri RevenueCat'e
+  yazılmaz, webhook tetiklenmez, Rytho+ ve kredi açılmaz (U02 etki b).
+
+**B7 — iOS yayın kapısı: `infra/build-ipa.sh` · kod (U05) + birlikte**
+- IPA **ASLA** düz `flutter build ipa` ile değil, `infra/build-ipa.sh`
+  ile üretilir (CLAUDE.md §4). Kod `09bbe23` (iki tur tek commit); kapıların
+  tam listesi ve durumu U05 kaydında. Kipler (depo kökünden):
+  - `infra/build-ipa.sh --kuru` — yalnız ön kapılar, derleme yok: Xcode
+    26.x, define dosyası var, `REVENUECAT_IOS_KEY` `appl_`,
+    `REVENUECAT_ANDROID_KEY` `test_` önekli değil, `APPSTORE_APP_ID`
+    sayısal, yetki adı, pbxproj takımı ↔ AASA, derleme numarası. B4 (kimlik), B6
+    (`appl_`) ve B8 (numara) bitmeden KALDI der — beklenen.
+  - `infra/build-ipa.sh` (tam kip) — ön kapılar → `flutter build ipa
+    --release --dart-define-from-file` → paket ve imza kapıları. Hiçbir
+    şeyi yüklemez. B9'daki önerilen yol.
+  - `infra/build-ipa.sh --yalniz-denetle <.app|.ipa>` — yalnız paket
+    kapıları: imzasız ölçüm ve Organizer'dan dışa aktarılan IPA için.
+  İmzasız .app'te imza kapıları "ATLANDI (imzasız)" der, GEÇTİ değil;
+  .ipa'da ve tam kipte imza zorunlu, imzasız IPA KALDI (çıkış 1).
+- Ölçülen (2026-10-23): sahte `appl_` anahtarlı gerçek imzasız Release
+  derlemesinde 6 paket kapısı geçti, derleme numarası (53) kapısı KALDI,
+  3 imza kapısı ATLANDI. **Ölçülmedi:** tam kip gerçek araçla hiç koşmadı
+  (yalnız sahte `flutter` ile sınandı) ve imzalı IPA (dağıtım sertifikası
+  yok) — ilk imzalı IPA'da imza kapıları ölçülür.
+- Kapısız arşiv alınmaz: 2026-10-23'teki imzasız Release derlemesi `test_`
+  anahtarıyla hiçbir engele takılmadan "başarılı" çıktı — Android'de
+  1.5.0+17'nin düz komutla çıkmasıyla aynı sınıf kusur (CLAUDE.md §4).
+  Xcode'un kendi Product → Archive yolu betiğin kapılarından geçmez; o yol
+  seçilirse arşivden ÖNCE `--kuru`, dışa aktarılan IPA'ya
+  `--yalniz-denetle` koşulur (ikincisi yalnız paket kapılarıdır; Xcode
+  sürümü, `APPSTORE_APP_ID`, yetki adı ve takım ↔ AASA ön kapılarını
+  koşmaz).
+
+**B8 — Derleme numarası · KARAR (öneri: iOS 54'ten başlar)**
+- Bugünkü pubspec `1.20.0+53` → iOS paketi `1.20.0 (53)` çıkıyor
+  (ölçüldü: imzasız Release'te `CFBundleVersion = 53`).
+- Öneri: ilk iOS yüklemesi **en az 54**. Gerekçe: (1) gizlilik metni "Bu
+  ayrı kutu **1.20.0+54** sürümüyle eklendi" diyor
+  (`web/legal/gizlilik.html:224`, `web/en/legal/privacy.html:231`,
+  `legal_texts.dart:282` ve `:694`) — kutuyu taşıyan iOS 53 için cümle
+  yanlış olur; (2) Android'de en az 17/41/43/44/46/48/50/52/53 kullanıldı
+  (51'in yüklenip yüklenmediği bilinmiyor — CLAUDE.md §6; 53 canlı ve
+  kutusuz). App Store Connect'in derleme numaraları Play'den bağımsızdır;
+  çakışma sunucuda: `appBuild` aynası ve `minBuild` eşiği platform
+  ayırmıyor (U29) — 53'le yüklenen iOS, ileride Android için `minBuild =
+  54` yazıldığında kutuyu zaten taşıdığı hâlde kilitlenir. *(Düzeltme
+  2026-10-24: burada "Android'in kullanılmış kodları 48/50/52/53"
+  yazıyordu — liste eksikti ve gerekçe Apple kısıtı gibi okunuyordu.)*
+- Uygulama: pubspec `+53` → `+54` tek commit'te ve Android 54 ile aynı
+  değişiklik (CLAUDE.md §7 "Android 54'e giden sıra" adım 2); hangi makine
+  önce yaparsa push eder. **Karar sahibin, henüz verilmedi.** Not:
+  `infra/build-ipa.sh` (`09bbe23`) bu öneriyi bugün kapı olarak kodluyor
+  (`RYTHO_EN_DUSUK_KOD=54`; yanmış liste 17/41/43/44/46/48/50/52/53, 51
+  belirsiz — ayrı mesajla reddediliyor) — sahip başka bir numaraya karar
+  verirse betik de değişir. ⚠️ iOS 54 Android 54 ile AYNI commit'ten
+  çıkacaksa, Android 54 yüklendiğinde 54 `RYTHO_YANMIS_KODLAR`'a EKLENMEZ
+  (aynı içerik; eklenirse kapı iOS 54'ü durdurur). Farklı commit'ten
+  çıkacaksa iOS, Android'in kullandığı koddan farklı bir sayı alır.
+
+**B9 — Dağıtım imzası ve arşiv · SEN (Xcode'da)**
+- Önkoşul A3: takımda kayıtlı cihaz yokken otomatik imza arşiv için
+  profil üretemez (Xcode'un bilinen "Your team has no devices…" davranışı —
+  burada ölçülmedi). Daha erken yüklemek gerekirse portalda Devices → `+`
+  ile bir UDID kaydedilir.
+- Dağıtım sertifikası bu Mac'te **yok** (`security find-certificate -a -c
+  "Apple Distribution"` boş, ölçüldü 2026-10-23). Organizer → Distribute
+  App → App Store Connect yolu otomatik imzayla oluşturur; ya da Xcode →
+  Settings → Accounts → takım → Manage Certificates → `+` → Apple
+  Distribution. Bireysel hesabın sahibi buna yetkili.
+- Önerilen yol: `infra/build-ipa.sh` tam kip (B7) — `flutter build ipa`
+  arşivi ve dışa aktarımı yapar, kapılar IPA'nın üstünde koşar
+  (`apps/mobile/build/ios/ipa/`); IPA Transporter ile ya da
+  `apps/mobile/build/ios/archive/` altındaki arşiv Organizer'da açılarak
+  yüklenir (B10). Bu yol gerçek imzayla hiç koşmadı (ölçülmedi).
+- Xcode'un kendi yolu seçilirse: arşivden önce `infra/build-ipa.sh
+  --kuru` (ön kapılar; `--yalniz-denetle` onları koşmaz) ve `flutter build ios
+  --config-only --release --dart-define-from-file=dart_defines.local.json`
+  (Generated.xcconfig gerçek anahtarı taşısın — U05 kaydındaki not), sonra
+  Xcode → Product → Archive (hedef "Any iOS Device"); dışa aktarılan IPA'ya
+  `infra/build-ipa.sh --yalniz-denetle <ipa>`.
+- ⚠️ İlk imzalı Release'te ölçülecek (ölçülmedi): Release
+  `RunnerRelease.entitlements`'ı (`aps-environment = production`)
+  kullanıyor, otomatik imza ise önce geliştirme profiliyle imzalıyor;
+  Xcode "doesn't match the entitlements file's value for the
+  aps-environment entitlement" ile durabilir. Durursa
+  `Runner.entitlements:11-17`'deki gerekçe ("development kalırsa üretim
+  arşivi sandbox jetonu alır") ve 4.5'teki aynı paragraf yeniden ölçülür.
+  Entitlements imzasız derlemede gömülmüyor; imzalı pakette `codesign -d
+  --entitlements :- Runner.app` ile okunur.
+
+**B9a — B10'dan önce: kurallar + backend deploy'u · SEN (onay; önerilir,
+TestFlight'ın engeli değil)** — aşağıdaki "Deploy bağımlılıkları" madde 1.
+Önce CLAUDE.md §7 "Android 54'e giden sıra" adım 3'teki salt okuma sayım;
+backend tek başına öne alınmaz. B10'dan önce yapılırsa ilk iOS kurulumunda
+onay kaydının yazıldığı ölçülür; yapılmazsa TestFlight sürer, onay kaydı
+satırı "bekliyor" kalır. *(Düzeltme 2026-10-24: bu adım "B11 —
+TestFlight'tan ÖNCE backend deploy'u" adıyla B10'un arkasındaydı ve
+sayımı atlıyordu.)*
+
+**B10 — Yükle ve iç gruba ver · SEN**
+- Organizer → Distribute App → App Store Connect → Upload. App Store
+  Connect → uygulama → TestFlight → Internal Testing → `+` grup → sahibin
+  hesabı. Hesap sahibi iç testçidir; iç grupta **Beta App Review yok**.
+  `ITSAppUsesNonExemptEncryption = false` olduğu için şifreleme sorusu
+  çıkmaz (ölçüldü: derlenen Info.plist).
+- İlk kurulumdan sonra doğrula (U21 madde 5-6): giriş çalışıyor;
+  Crashlytics'te bu derlemenin dSYM UUID'si var (U26) ve `app-check-token`
+  / `app-check-activate` kaydı yok (U30); StoreKit sandbox satın alma ve
+  geri yükleme (C2).
+- Dış grup açılacaksa TestFlight → **Test Information** (beta açıklaması,
+  geri bildirim e-postası, iletişim, demo hesap, "What to Test", gizlilik
+  politikası URL'si — Apple belgesine göre dış test için gerekli,
+  ölçülmedi) doldurulur ve ilk dış derleme Beta App Review'dan geçer. Bu
+  bilgiler hiçbir belgede yok (açık iş, U21). Gizlilik URL'si hosting
+  kilidine bağlı (C1): dış grup kilit çözülmeden açılırsa Beta App Review
+  17 Ekim tarihli eski metni görür.
+
+(B11 — "TestFlight'tan ÖNCE backend deploy'u" — 2026-10-24'te B9a'ya
+taşındı ve kurallarla birleştirildi.)
+
+### Aşama C — App Store incelemesi
+
+**C1 — Hosting kilidi ve canlı gizlilik URL'si · KARAR** — aşağıdaki
+"Deploy bağımlılıkları ve hosting kilidi". Gönderimde App Store Connect'e
+verilen Gizlilik Politikası URL'si uygulama içi metinle **aynı tarihi ve
+aynı veri listesini** göstermeli. Bugün canlı 17 Ekim, uygulama içi 23
+Ekim (ölçüldü 2026-10-23: canlı TR metinde "kutu" ve "kurulum" 0 kez,
+depoda 4 ve 3; Gemini alt işleyici satırı ve ABD aktarım cümlesi canlıda
+yok).
+
+**C2 — Satın almalar ilk sürümle (U02 adım 4, 7, 8) · SEN**
+- Sürüm sayfası → In-App Purchases and Subscriptions → dört ürün
+  iliştirilir. Kullanım Koşulları bağlantısı açıklamada ya da EULA
+  alanında (C5). Sandbox satın alma + geri yükleme TestFlight'ta denenir;
+  Ask to Buy (U33).
+
+**C3 — App Privacy etiketi (U20) · SEN + belge**
+- Önce `docs/store-privacy-labels.md` §2 U20 listesine göre düzeltilir:
+  Apple bölümünde Phone Number, Photos or Videos, Customer Support ve
+  Device ID yok, :82'deki transkript iddiası yanlış, belge 2026-09-18'den
+  beri değişmedi (ölçüldü). U20 listesine ek olarak yeni gizlilik
+  metninin saydığı üç tür: yaşanan şehir, arkadaşla ortak harita verisi
+  ve I Ching soru kapısı (CLAUDE.md §7 "Android 54'e giden sıra" adım 7;
+  U20 bu verilerden eski). Etiket deploy edilecek metinle karşılaştırılarak
+  doldurulur. Sonra App Store Connect → uygulama → **App Privacy** → Get
+  Started; izleme hiçbir maddede yok.
+
+**C4 — Yaş derecelendirmesi (U37) · KARAR + SEN**
+- App Store Connect → uygulama → App Information → **Age Rating** → Edit:
+  Messaging and Chat = Evet; UGC cevabı gerekçesiyle; hedef 13+.
+  Belgelerdeki 12+ (`store-privacy-labels.md:220`,
+  `production-checklist.md:175`) düzeltilir; Koşullar'a (TR+EN) sıfır
+  tolerans maddesi — hukuk metni, önce sahibe sorulur.
+
+**C5 — EULA · KARAR**
+- App Store Connect → uygulama → App Information → **License Agreement**.
+  (a) Apple'ın standart EULA'sı kalır, açıklamaya Kullanım Koşulları
+  bağlantısı yazılır — en kısa yol. (b) Koşullar özel EULA olarak girilir;
+  o zaman Apple'ın asgari maddeleri Koşullar'a (TR+EN) eklenir — hukuk
+  metni, sahip onayı.
+- Ölçüldü 2026-10-23: `web/legal/kullanim.html` ve
+  `web/en/legal/terms.html`'de "EULA" ya da Apple standart EULA bağlantısı
+  yok. Otomatik yenilenen abonelikte Koşullar bağlantısı yoksa 3.1.2
+  reddi gelir (U02 etki d).
+
+**C6 — Pricing and Availability (U41, U53) · SEN**
+- App Store Connect → uygulama → **Pricing and Availability**: bölge
+  yalnız Türkiye; "iPhone and iPad Apps on Apple Silicon Macs" ve Apple
+  Vision Pro işaretleri kaldırılır (App Attest ve kamera orada
+  doğrulanmadı — U53). Fiyat: "Sahibin kararları".
+
+**C7 — Apple yetkisi iptali ve Hide My Email (U15, U22) · SEN**
+- developer.apple.com → Keys → `+` → **Sign in with Apple** (Primary App
+  ID `ai.rytho`) → `.p8`; Identifiers → `+` → Services IDs; Firebase →
+  Authentication → Sign-in method → Apple → Services ID + OAuth code flow
+  configuration (Team ID, Key ID, private key). A4 ile aynı oturumda
+  yapılabilir. Yapılmazsa hesap silmede Apple yetkisi iptali düşer, yalnız
+  Crashlytics'te `apple-revoke` görünür (U15).
+- Certificates, Identifiers & Profiles → Services → **Sign in with Apple
+  for Email Communication** → Configure → `noreply@rhytoai.firebaseapp.com`.
+  Yapılmazsa Hide My Email seçen kullanıcıya şifre sıfırlama ve doğrulama
+  postası ulaşmaz (U22).
+
+**C8 — Ekran görüntüleri ve metaveri (U07, U19) · SEN + Mac**
+- 6,9" (1320x2868) iPhone 17 Pro Max simülatöründen; yalnız iOS arayüzü,
+  demo hesap, gerçek hesaplanmış haritalar. Ham simülatör yakalamaları
+  `store/app-store/raw/` altında (git dışı, `.gitignore`; 2026-10-24,
+  demo hesap): 24 kare + 53 sn ham video + temas sayfası. Yüklenecek
+  nihai kareler henüz yok (sahip Higgsfield'da düzenleyecek). Ad, alt başlık (30), anahtar kelimeler (100), tanıtım metni;
+  `docs/store-launch.md` metinleri Play biçiminde. TestFlight için
+  gerekmez.
+- Sürüm sayfası: **Copyright** (ör. "2026 Mehmet Hanifi Aslan" — takım
+  Individual), **Support URL** `https://rytho.app` (TR) /
+  `https://rytho.app/en/` (TR sayfası canlıda 200 ve iletişim bağlantısı
+  taşıyor — hazırlık denetimi, ölçüldü 2026-10-23; EN sayfası depoda aynı
+  bağlantıyı taşıyor, `web/en/index.html`), açıklama, anahtar kelimeler.
+  Support URL gönderim için zorunlu; bu adım §4'te yoktu. (Alanların
+  sürüm sayfasında olduğu App Store Connect düzenine dayanır, ekranda
+  doğrulanmadı.)
+
+**C9 — App Review Information ve demo hesap (U18, U38, U39, U32) · SEN + belge**
+- Sürüm sayfası → **App Review Information**: ad, telefon, e-posta, demo
+  hesap (e-posta/parola — SMS gerekmez), notlar. Demo hesap iOS paketiyle
+  **kurulumdan geçirilerek** açılır ve Rytho+ verilir; inceleme boyunca
+  başka cihazda açık tutulmaz (tek cihaz kilidi, U32).
+- Notlar bayat (`docs/store-review-notes.md` son değişiklik 2026-08-30):
+  "Raw transcripts are never stored" yanlış, "A single monthly …
+  subscription" yanlış (üç kredi paketi var), `<E-POSTA>`/`<PAROLA>` yer
+  tutucusu duruyor, silme yolu "Profile → Delete account" (gerçek yol
+  Profil → Hesap → Hesabı sil), "already has completed onboarding" yeni
+  modelde onay kutusunu inceleyiciden saklar. Yüz okuma, giriş gerekçesi
+  ve cihaz kilidi paragrafları yok.
+
+**C10 — Engelleme canlıda (U17) · SEN (onay)** — "Deploy bağımlılıkları"
+madde 1 (kurallar + backend birlikte, salt okuma sayımından sonra; B9a'da
+yapılmadıysa C'den önce ZORUNLU). Şikâyet görünümü panel kodu işi (U17
+Kalan 4, U37).
+
+**C11 — iOS 27 ve iPad uyumluluk kipi · Mac (kuruldu ve açıldı; gezinti sonucu kayıtlı değil)**
+- iOS 27: bu Mac'te iOS 26.5 ve 27.0 simülatör çalışma ortamları kurulu.
+  2026-10-23 ölçümünde Rytho yalnız iki iOS 26.5 simülatöründeydi; o
+  ölçüm sonraki kurulumlardan ÖNCE alındı → 2026-10-24 (ölçüldü, simülatör veri kabından): Rytho'nun simülatör derlemesi 1.20.0 (53) iOS 27.0'da iki simülatöre kuruldu ve açıldı — iPhone 18 Pro (2026-10-24 01:06; tercihlerde şartlar onayı, tanıtım paywall'ı ve bildirim izni bayrakları var, yani kurulum akışı geçildi) ve iPad (A16) (2026-10-23 20:53; yalnız açılış bayrakları, giriş yok). Gezilen ekranların görsel/işlev sonucu kayıtlı değil. Yani
+  Xcode 26.6 derlemesi iOS 27.0 simülatörüne kurulup açılabiliyor.
+  İnceleme güncel iOS'ta yapılır. Simülatör derlemesi bir iOS 27.0
+  simülatörüne kurulup açılış, giriş, kurulum, paywall, çark, sohbet ve
+  paylaşım gezilir; Xcode 26.6'nın o çalışma ortamını kullanıp kullanamadığı
+  da o anda ölçülür.
+- iPad: `TARGETED_DEVICE_FAMILY = 1`, ama inceleyici iPhone uygulamasını
+  iPad'de uyumluluk kipinde açabilir (2.4.1). "iPad'de uyumluluk kipinde
+  çalışır" (U10) için ölçülen yalnız açılış: iPad (A16, iOS 27.0)
+  simülatörüne kuruldu ve açıldı (2026-10-23 20:53, giriş yok); doğru
+  çalıştığı ölçülmedi. Bir iPad simülatöründe giriş, kurulum, klavye,
+  paylaşım sayfası ve kamera izni akışı gezilir (kamera simülatörde yok).
+- Simülatör sonucu cihaz sonucu sayılmaz; A8 satırları geçmeden gönderim
+  yapılmaz.
+
+**C12 — İnceleme süresince yapay zeka ayakta · SEN**
+- AI Studio → Billing → **Auto-reload** açık (ya da inceleme penceresine
+  yetecek bakiye). Yapılmazsa bakiye 0'da her Gemini çağrısı 402 alır ve
+  inceleyici okumada ya da sohbette hata görür (2.1); 2026-10-17'de ~2 sa
+  kesinti oldu (CLAUDE.md "CANLI KESİNTİ 2"). Durum **ölçülemedi**;
+  açıldığına dair kayıt yok. Aynı risk B'deki testçiler için de geçerli.
+
+**C13 — Kayıtlarda açık kalan kod ve metin işleri** — U28 (uygulama içi
+gizlilik metni Android çerçeveli), U32 (cihaz kilidi platform başına), U35
+(silme sayfası yalnız Play iptalini anlatıyor), U16 (App Store paket
+iadesi — RevenueCat'in paket `CANCELLATION`'ı — yok sayılıyor → bedava
+kredi yolu; düzeltme + backend deploy, iOS satışı başlamadan önce),
+U05'in kalanı (B7). Yayın sonrası parite: U34, U50, U51, U36. U06 burada
+açık iş DEĞİL: modelin kendisi sahip kararı ("Sahibin kararları"). Ayrı
+ve AÇIK bir soru: bu modelin 5.1.2(i) riski kabul ediliyor mu — sahibe
+sorulacak, kayıtlı cevap yok. *(Düzeltme
+2026-10-24: U06 burada "kutu sağlayıcıyı adlandırmıyor, eski hesaplar onay
+vermiyor — karar" diye açık karar gibi duruyordu; U16 ve parite kalemleri
+yoktu.)*
+
+### Deploy bağımlılıkları ve hosting kilidi
+
+Bu Mac'ten hiçbiri yapılamıyor (`gcloud`, `firebase`, `pwsh` yok — ölçüldü
+2026-10-23); hepsi **sahip onayı** ister. Sıranın Windows yarısı CLAUDE.md
+§7 "Android 54'e giden sıra"; buradaki madde 1 onun adım 3–4'ünün
+kendisidir, ayrı bir iOS deploy'u değil.
+
+1. **Kurallar + backend (birlikte; U17 + AI onay ucu)** — ÖNCE CLAUDE.md §7
+   "Android 54'e giden sıra" adım 3'teki üretimde SALT OKUMA sayım
+   (`users/X/blocked/Y` olup iki kenarı da `accepted` olan çiftler; sayı
+   sıfır değilse karar sahibin). Sonra `firebase deploy --only
+   firestore:rules --project rhytoai` ve `infra/deploy-backend.ps1`
+   (adım 4). **Backend tek başına öne alınmaz:** yeni backend
+   `has_blocked` kapılarıyla (`notify.py:259`, `:342`, `contacts.py:118`)
+   o çiftlerde 53 kullanıcısının tepki ve rehber eşleşmesini de keser.
+   Hosting kilidinden **bağımsız**.
+   - Canlı durum: `POST /api/v1/account/ai-consent` → **404** (ölçüldü
+     2026-10-23); canlı backend U17 sunucu kapılarını taşımıyor (çıkarım,
+     üst kutu); canlı kurallar ölçülemedi. Deploy'dan sonra kimliksiz aynı
+     yoklama 401 dönmeli.
+   - **B için önerilir, engel değil (B9a):** B10'dan önce yapılırsa ilk
+     iOS kurulumunda onay kaydı ölçülür. Yapılmazsa TestFlight sürer ama
+     A8/B'deki onay kaydı satırı "bekliyor" kalır; istemci hatayı yutup
+     bekleyen bayrağı yalnız o cihazda tutuyor (`ai_consent.dart:82-88`),
+     yani o arada kurulum yapıp uygulamayı silen test hesaplarının
+     kanıtı kalıcı kaybolur — bunu sahip kabul eder.
+   - **C için zorunlu (C10):** yapılmazsa uygulama içi engelleme sözü
+     canlıda doğru değil (1.2) ve inceleme hesabının onay kanıtı yazılmaz.
+2. **Hosting** — `firebase deploy --only hosting --project rhytoai`. Bugün
+   kilitli (üst kutu): AASA (cihaz testi için hemen gerekli) ve yeni
+   gizlilik metni (inceleme anında gerekli) **aynı deploy'da**. Canlı =
+   `e8cc253`; `e8cc253` → HEAD `web/` farkı yedi dosya (AASA,
+   `legal/gizlilik.html`, `en/legal/privacy.html`, `r/index.html`,
+   `index.html` ×2, `rytho-admin/sozluk.js`). Yapılmazsa Universal Link
+   iPhone'da uygulamayı açmaz (Safari'ye düşer; TestFlight'ta da) ve
+   gizlilik URL'si iOS paketinin davranışını anlatmaz. Deploy sonrası Apple
+   CDN adresi yeniden okunur, `292WJ9TP74.ai.rytho` görülmeden cihazda
+   bağlantı denenmez; cihaz AASA'yı kurulumda çektiği için uygulama silinip
+   yeniden kurulur.
+
+*(Düzeltme 2026-10-24: bu liste üç maddeydi — "1. Backend … B'den önce",
+"2. Firestore kuralları, ardından madde 1", "3. Hosting". Backend tek başına
+öne alınıyor, CLAUDE.md §7 adım 3'teki sayım atlanıyordu; üstelik belge
+backend deploy'unu bir yerde B'nin engeli, bir yerde "kurallardan sonra",
+bir yerde Öneri A + C'de hiç yapılmayan bir adım sayıyordu. Üçü tek dile
+çekildi: kurallar + backend birlikte, sayımdan sonra; B için önerilir, C
+için zorunlu.)*
+
+**Hosting kilidinin seçenekleri** (aşama harfleriyle karıştırma; karar
+sahibin):
+- **Seçenek A — önce Android 54.** CLAUDE.md §7 sırasının adım 1–6'sı
+  Windows'ta; hosting 54'ün yayın günü; iOS incelemeye ondan sonra girer.
+  Hukuk metni değişmez, özel ağaç gerekmez; bedeli iOS incelemesinin
+  Android'i beklemesi.
+- **Seçenek B — yalnız AASA (+ `/r/`).** Hosting `web/`'i tümden
+  değiştirdiği için tek dosya yayınlanamaz: `legal/gizlilik.html` ve
+  `en/legal/privacy.html` `e8cc253` hâlinde tutulmuş geçici bir ağaçtan
+  deploy edilir. Universal Link cihaz testini ve TestFlight'taki
+  bağlantıları hemen açar, gizlilik beklemesini bozmaz; ayrı bir dağıtım
+  adımı ve sahip onayı ister.
+- **Seçenek C — iOS iç TestFlight'ta bekler.** İç grupta Beta App Review
+  yok, gizlilik URL'si incelenmez (iç grupta inceleme olmamasından
+  çıkarım; ölçülmedi — dış grup açılırsa geçerli değil, B10); hosting 54
+  ile çıkar, inceleme ondan sonra. Bu sürede Universal Link ölçülemez (B
+  ile birleştirilebilir).
+- **Seçenek D — metni platformdan bağımsız yaz.** Gizlilik metni "şu
+  sürümden itibaren" (iOS ve Android 54) diye yeniden yazılıp hemen deploy
+  edilir. Hukuk metni değişikliği: CLAUDE.md §7 kuralı gereği önce sahibe
+  sorulur; 53'ün yeni kullanıcıları için beyan riski sahibin
+  değerlendirmesi.
+- **Öneri: A + C.** Cihaz testi ve iç TestFlight Android 54'ü beklemeden
+  ilerler: Universal Link satırı "bekliyor" kalır; onay kaydı satırı da,
+  kurallar + backend (madde 1 — CLAUDE.md §7 adım 3–4, Windows sırasında
+  54'ü yüklemeden önce) B10'dan önce yapılmadıysa "bekliyor" kalır.
+  İnceleme gönderimi hosting'den sonra yapılır; ne hukuk metni ne özel
+  deploy ağacı gerekir. Universal Link'in TestFlight'ta ölçülmesi
+  istenirse B eklenir. **Karar sahibin.**
+
+### Sahibin kararları (üç aşamanın içinden)
+
+| Karar | Adım | Öneri / not |
+|---|---|---|
+| Hosting kilidi | yukarıda | Seçenek A + C |
+| Derleme numarası | B8 | Öneri (karar verilmedi): iOS en az 54; pubspec Android 54 ile aynı commit'te. `infra/build-ipa.sh` öneriyi bugün kapı olarak kodluyor |
+| EULA | C5 | Apple standart EULA + açıklamada Koşullar bağlantısı |
+| Fiyat noktası | B5, C6 | Apple fiyat noktaları alıcıya görünen, vergi dahil tutardır; Play'in "Console'a KDV hariç gir" kuralı (CLAUDE.md §6) Apple'a taşınamaz — Apple belgesine dayanır, ölçülmedi. Play'de alıcı ₺239,99 görüyor (CLAUDE.md, `priceInPurchasedCurrency 239.99`); eşit görünmesi için ona en yakın Apple noktası. `docs/maliyet-calismasi.md`'ye Apple satırı (net farklı) |
+| Small Business Program | C6 | developer.apple.com → App Store Small Business Program → Enroll (bireysel hesap). %15 oranı başvuru ister — Apple belgesi, ölçülmedi. Belgelerde hiç geçmiyordu (ölçüldü) |
+| Aile Paylaşımı | B5 | Abonelik ürünündeki Family Sharing anahtarı. Apple belgesine göre bir kez açılınca kapatılamaz (ölçülmedi); tek cihaz kilidiyle (U32) birlikte düşünülür. Belgelerde karar yok (ölçüldü: yalnız Ask to Buy bağlamında geçiyor) |
+| Satıcı adı | B4 | Takım türü Individual (ölçüldü) — mağazada satıcı olarak kişi adı görünür; Apple politikasından çıkarım, mağaza sayfasında ölçülmedi |
+| U06'nın kalan riski | C13 | **Sahip kararı verildi** (CLAUDE.md §7, 2026-10-22/23): kutu sağlayıcı adını bilerek taşımaz, 53'ten gelen hesaplara bir şey sorulmaz, politika geçiş cümlesiyle anlatır. Ayrı ve AÇIK soru (sahibe sorulacak, kayıtlı cevap yok): bu modelin bilinen 5.1.2(i) riski (Apple sağlayıcıyı adıyla anan ekran bekleyebilir; Android ≤ 53'te kurulumu bitmiş hesap iOS'ta kutuyu görmez) kabul ediliyor mu? Cevap tarihiyle buraya yazılır. Kutuya ad eklemek modeli değiştirmektir, yalnız sahip yeniden açabilir. *(Düzeltme 2026-10-24: burada "kutuya sağlayıcı adı mı, yoksa riskin kayda yazılması mı; eski hesaplar" diye açık karar gibi duruyordu.)* |
+| Yaş / UGC | C4 | 13+, Messaging and Chat = Evet |
+| Şikâyete 24 saat sözü | C10 | U18: söz sahibin kararı. Şikâyetler bugün yalnız Firebase konsolundan okunuyor (panelde görünüm yok, U37); sahip o sürede okuyabileceğine karar verirse notlara ve Koşullar'a (TR+EN) yazılır. *(Düzeltme 2026-10-24: burada "panelde görünüm yokken verilmez" yazıyordu — kayıtlarda böyle bir kural yok, karar sahibin.)* |
+| `/openapi.json` ve `/docs` herkese açık | — | Üretimde kimliksiz 200, admin uçları dahil 89 yol (hazırlık denetimi, ölçüldü 2026-10-23). iOS'u engellemiyor. Kapatılırsa canlı rota ölçümü (bu belgedeki `/ai-consent` 404 gibi) `gcloud run revisions describe` ile yapılır. Karar sahibin |
+
+### Açık işler (ölçüldü 2026-10-23; bu turdan önce ne §4'te ne ilgili kayıtta adım olarak vardı)
+
+- Dış TestFlight grubu için Test Information ve Beta App Review bilgileri
+  — hiçbir belgede yok (B10; U21'e not düşüldü).
+- App Store Connect "New App" formu ve App Information alanları —
+  belgelerde yoktu (B4; U02'ye not).
+- iOS 27 ve iPad uyumluluk kipi gezintisi — iki simülatöre kuruldu ve
+  açıldı (2026-10-23/24), gezinti sonucu kayıtlı değil (C11; U21 ve U10'a
+  not).
+- Release/Profile cihaz testi için güvenli anahtar yolu yok: "yalnız iOS
+  anahtarını boşalt" yetmiyor (A7). Kod çaresi U05'in Düzeltme 3'ünde; bu
+  bulgu U05 kaydına bu turda işlenmedi (kayıt ayrı bir işin konusu).
+  → **Kapandı (kodda; buraya 2026-10-24'te işlendi):** U05 kod ağı
+  `09bbe23` — `test_` anahtarlı Release/Profile derlemesi `configure`
+  etmez, satın alma "kullanılamıyor" der; kodda doğrulandı, cihazda
+  ölçülmedi. U05 kaydına Ek olarak işlendi.
+- Kayıtlı cihaz ve dağıtım sertifikası yokken arşiv alınamaz (B9; U21'e
+  not).
+- Derleme numarası çakışması (B8; U29'a not).
+- Dört eklenti Swift Package Manager desteklemiyor: `flutter_contacts`,
+  `google_mlkit_commons`, `google_mlkit_face_detection`, `tflite_flutter`
+  (Release derleme çıktısı: "This will become an error in a future version
+  of Flutter"). Bugün engel değil; Flutter yükseltmesinden önce bakılır
+  (U55'e not).
+- ~~Crashlytics sembol fazı ölçüm derlemelerinde de dışa yükleme
+  yapıyor~~ → kapandı (`09bbe23`): faz imzasız derlemede atlanıyor,
+  imzalı Release/arşiv yine yükler; bekçi `test_ios_config.py` (U26).
+
+---
+
+**Ayrıntı ve tarihçe — 4.1…4.10.** Sıra artık yukarıdaki aşamalarda;
+buradaki "SEN" etiketleri aşama adımlarına işaret eder.
+
 ### 4.1 — Apple Developer Program üyeliği · **SEN**
 Yıllık ücretli. Bunsuz ne imzalama ne TestFlight ne App Store Connect var.
 Üyelikten çıkan **Team ID** (10 karakter) üç yerde birden lazım: Xcode
@@ -153,6 +882,12 @@ imzalama, `apple-app-site-association`, ve entitlements profili.
 **Durum (2026-10-22):** Team ID **`292WJ9TP74`** depoda (pbxproj + AASA,
 `c3dca0e`). Üyelik **ücretli ve etkin** (sahip teyidi, 2026-10-22) —
 Associated Domains (Universal Link) ücretsiz kişisel takımda açılamazdı.
+**Ek (ölçüldü 2026-10-23):** Xcode'un kayıtlı takımı `292WJ9TP74`,
+`teamType = Individual`, `isFreeProvisioningTeam = 0`; anahtar zincirindeki
+geliştirme sertifikasının OU'su aynı Team ID. Bu takımın varlığını ve
+ücretsiz olmadığını gösterir; üyeliğin bitiş tarihi portaldan okunmadı.
+Bireysel hesapta mağazada satıcı adı olarak kişi adı görünür (Apple
+politikasından çıkarım, ölçülmedi — §4 "Sahibin kararları").
 
 ### 4.2 — Firebase'de iOS kaydı · ✅ **BİTTİ** (2026-09-26)
 
@@ -204,12 +939,33 @@ kimliği. Bu Mac'te imza sertifikası **0** (`security find-identity -v -p
 codesigning`, 2026-10-22); otomatik imza ilk cihaz derlemesinde sertifikayı
 ve profili kendisi kurar — iPhone geldiğinde.
 
+**Düzeltme (ölçüldü 2026-10-23) — yukarıdaki "Kalan" ve "0" bayat:**
+Xcode → Settings → Accounts'ta takım hesabı **ekli** (ücretli,
+`Individual`) ve anahtar zincirinde **1** geçerli `Apple Development`
+kimliği var (OU `292WJ9TP74`, 2026-10-22 07:18 GMT → 2027-10-22). "0"
+ölçümü büyük olasılıkla sertifika oluşmadan önce alındı; ölçüm anı kayıtlı
+olmadığı için kesin değil (üst kutu). Hâlâ eksik: **Apple
+Distribution** sertifikası (`security find-certificate -a -c "Apple
+Distribution"` boş), **provizyon profili** (iki profil dizini de yok),
+takımda **kayıtlı cihaz** (ölçülemedi; bağlı cihaz yok). Kalan adımlar
+§4 A3 (cihaz + profil) ve B9 (dağıtım imzası + arşiv).
+
 ### 4.5 — Yetenekler (Capabilities) · **SEN (Xcode'da)**
 Apple Developer portalında App ID üzerinde de **açık olmalı**, yalnız
 entitlements dosyası yetmez:
 - **Sign in with Apple** (App Store Guideline 4.8 gereği zorunlu)
 - **Push Notifications**
 - **Associated Domains**
+- **App Attest** — *eklendi 2026-10-23.* Liste bu güne kadar üç yetenek
+  sayıyordu, oysa iki entitlements dosyası da
+  `com.apple.developer.devicecheck.appattest-environment = production`
+  taşıyor (`54130b9`, U42; `Runner.entitlements:53-54`, ölçüldü
+  2026-10-23). App ID'de kapalıysa profil bu yetkiyi taşımaz ve imza
+  düşer; Release/TestFlight'ın App Check jetonu da buna dayanıyor (§4 A2,
+  B2).
+
+Portal durumu (App ID var mı, dört yetenek açık mı) bu Mac'ten
+**ölçülemedi** (2026-10-23).
 
 Depo tarafı hazır: `Runner.entitlements` (Debug/Profile) ve
 `RunnerRelease.entitlements` (Release) ikisi de yazıldı ve `pbxproj`
@@ -222,10 +978,21 @@ alır, sunucu üretim APNs'ine gönderir ve bildirim hiçbir yere düşmezdi:
 TestFlight'ta çalışır, mağazada ölür. Dosyalardan biri değişirse
 **diğeri de aynı şekilde değişmeli**.
 
+⚠️ **Bu gerekçe henüz ÖLÇÜLMEDİ (not 2026-10-23).** Apple belgesi
+`aps-environment` değerinin Xcode tarafından profile göre yazıldığını
+söylüyor ve dışa aktarma dağıtım profiliyle yeniden imzalıyor; doğruysa
+yukarıdaki "sandbox jetonu alır" gerekçesi yanlış olabilir. Ayrıca
+Release yapılandırması `production` isterken otomatik imza arşivi önce
+geliştirme profiliyle imzalıyor — ilk imzalı Release ya da arşiv
+"doesn't match the entitlements file's value for the aps-environment
+entitlement" ile düşebilir. İkisi de ilk imzalı Release'te ölçülür
+(§4 B9); o zamana dek dosyalar olduğu gibi kalır.
+
 ### 4.6 — APNs anahtarı · **SEN**
 Apple Developer → Keys → yeni **APNs Auth Key** (.p8) oluştur, Firebase
 Console → Project Settings → Cloud Messaging → iOS bölümüne yükle
 (Key ID + Team ID ile birlikte). Bunsuz FCM iOS'a bildirim gönderemez.
+Tam yol ve sıra: §4 A5. Durum 2026-10-23'te bu Mac'ten **ölçülemedi**.
 
 ### 4.7 — RevenueCat iOS anahtarı ve IAP ürünleri · **SEN**
 `dart_defines.local.json`'daki `REVENUECAT_IOS_KEY` şu an
@@ -239,6 +1006,15 @@ kodda sabit, **değiştirme**:
 RevenueCat'te abonelik `RhytoAI Pro` entitlement'ına bağlanır (paketler
 bağlanmaz) — panel adıyla **birebir** aynı olmalı.
 
+**Ek (2026-10-23):** Bu madde Paid Apps sözleşmesini, abonelik grubunu,
+In-App Purchase Key'i, ürünlerin ilk sürümle gönderilmesini ve EULA'yı
+anmıyordu (U02). Sıralı ve tam yollu hâli §4 B3, B5, B6, C2, C5. `test_`
+anahtarının Release'te açılışta BİLEREK çöktüğü ölçüldü (anahtar
+derlenmiş pakette, RevenueCat `Configuration.swift:471-495`) — §4 B6.
+2026-10-24: U05 kod ağı (`09bbe23`) sonrası uygulama bu anahtarla
+Release/Profile'da `configure` etmiyor; yayın kapısı `infra/build-ipa.sh`
+(§4 B7).
+
 ### 4.8 — `apple-app-site-association` · ✅ **depoda** (2026-09-27) · **yayın bekliyor**
 `web/.well-known/apple-app-site-association` içinde
 `"appID": "292WJ9TP74.ai.rytho"` — gerçek Team ID (Membership details'ten
@@ -248,6 +1024,15 @@ ayrışması `backend/tests/test_ios_config.py`'de bekçili. **Kalan:**
 `firebase deploy --only hosting --project rhytoai` — sahibe SORULUR; bu
 Mac'te `firebase` CLI yok. Yayın olmadan davet bağlantıları iOS'ta
 uygulamayı açmaz, tarayıcıya düşer.
+
+**Canlı (ölçüldü 2026-10-23, kimliksiz GET):** `rytho.app`,
+`www.rytho.app` ve `rhytoai.web.app` üçü de 200, `application/json`,
+yönlendirmesiz, 141 bayt — biçim doğru, içerik bayat:
+`{"appID": "TEAMID.ai.rytho", "paths": ["/i/*"]}`. Apple'ın önbelleği
+(`app-site-association.cdn-apple.com/a/v1/<alan>`) üç alanda da aynı
+gövdeyi veriyor (`X-Cache: hit-stale`). Depodaki `292WJ9TP74` ve `/r/*`
+(`c3dca0e`, `31ee208`) hiç yayınlanmadı. Yayın hosting kilidine bağlı —
+seçenekler §4 "Deploy bağımlılıkları ve hosting kilidi".
 
 Entitlements tarafı hazır: `applinks:rytho.app` **ve**
 `applinks:rhytoai.web.app` ikisi de yazılı (sahadaki eski davet bağlantıları
@@ -267,6 +1052,17 @@ Boş bırakılırsa zorunlu güncelleme ekranı iOS'ta mağaza düğmesi
 kurulan bağlantı mağazada "uygulama bulunamadı" açar ve kullanıcı o
 ekranda gerçekten kilitli kalır (bekçi:
 `test/force_update_screen_test.dart`).
+
+**Ek (2026-10-23):** Kaydın açılıp açılmadığı ölçülemedi (App Store
+Connect'e giriş yok); yerelde `dart_defines.local.json`'da
+`APPSTORE_APP_ID` anahtarı yok (ölçüldü). *(Düzeltme 2026-10-24: burada
+"Kayıt hâlâ açılmadı" yazıyordu; tek kanıt yerel anahtarın yokluğuydu.)*
+"Kayıt aç" tek cümlesinin ardındaki form (platform, ad, birincil dil, bundle, SKU, kategori, içerik
+hakları) §4 B4'te; kayıt cihaz gerektirmez, yalnız App ID'nin portalda
+kayıtlı olmasını ister (A2). Canlı zorunlu güncelleme eşiği bugün 0
+(`GET /api/v1/config/app` → `min_build: 0`, ölçüldü 2026-10-23), yani
+kimlik yokken iOS paketi kilitlenmez; eşik yükseltilirse düğmesiz ekran
+riski U29.
 
 ### 4.10 — Ortak (affiliate) bağlantısı iOS'ta · ✅ **kod** (`31ee208`) · ⏳ **deploy + cihaz ölçümü**
 
@@ -328,6 +1124,12 @@ erken yazılan bir metin herhangi bir makinenin ilk deploy'unda canlıya
    `https://app-site-association.cdn-apple.com/a/v1/rytho.app` deploy'dan
    sonra güncellenmeyebilir; önce oradan oku.
 
+**Canlı (ölçüldü 2026-10-23):** `/r/` sayfası `e8cc253` sürümünde (11.587
+bayt; depodaki 14.531) — iPhone'da "iOS sürümü hazırlanıyor" diyor,
+"Uygulamada aç" düğmesi yok (canlıda 0, depoda 5 geçiş). AASA'da `/r/*`
+yok (4.8). Yani 4.10'un hiçbir parçası canlıda değil; cihaz ölçümü
+hosting kilidini bekliyor (§4).
+
 Kurallar (Android'de ölçülenlerle aynı kalmalı): kullanıcı **kod yazmaz**,
 kullanıcıya ödül **yok**, ortak kendi kodunu kendi hesabında kullanamaz,
 sayılan şey **"bağlantıyı kullanan"** (kuran değil). Sunucu tarafı
@@ -343,6 +1145,8 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
   `ai.rytho` doğrulanmış ve Runner hedefinde — pakete giriyor (4.2).
 - **CocoaPods entegrasyonu** (`pod install`, `Podfile.lock` depoda) ve
   **imzasız cihaz derlemesi** Mac'te geçti (2026-09-26, Xcode 26.6).
+  Birleşmiş dalda yeniden ölçüldü: imzasız **Release** cihaz derlemesi
+  `ba6108b`'de geçti (2026-10-23; ayrıntı üst kutu).
 - **Google girişi** `Info.plist`'e bağlandı; iOS API anahtarı `ai.rytho`
   ile kısıtlandı (4.3).
 - **`ios/Podfile`** yazıldı, `platform :ios, '15.5'` **açık**. Flutter'ın
@@ -421,7 +1225,8 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
 - **`pod install` Xcode lisansı kabul edilmeden düşer.** Xcode'u bir kez
   aç, lisansı kabul et.
 - **`flutter build ipa` yalnız macOS'ta çalışır** — imzalama ve arşivleme
-  Apple araçlarına bağlı. Windows'tan iOS paketi üretilemez.
+  Apple araçlarına bağlı. Windows'tan iOS paketi üretilemez. Mağaza paketi
+  düz komutla değil `infra/build-ipa.sh` ile çıkar (§4 B7, CLAUDE.md §4).
 - **Simülatörde çalışmayan iki şey var:** TFLite (tflite_flutter README'si
   söylüyor) ve App Attest. İkisi de **gerçek cihaz** ister. Yüz okuma ve
   App Check'i simülatörde test etmeye çalışma.
@@ -465,6 +1270,12 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
   eklenir. (Burada eskiden "uygulama simülatörde HİÇ çalışmaz" yazıyordu;
   `e4789d4` onu onardı ama notu güncellemedi — bayat bulundu 2026-10-22.)
   Yüz okuma, App Attest, push ve Universal Link yalnız **cihazda**.
+  Gerçek cihazda da aynı kural (not 2026-10-23): Debug derlemesi her
+  kurulumda yeni bir debug jetonu basar ve o jeton Firebase'e eklenmeden
+  giriş/Firestore/Storage reddedilir; simülatörün jetonu cihaza geçmez
+  (§4 A6). *(2026-10-24: `APP_CHECK_DEBUG_TOKEN` define'ı doluysa jeton
+  sabittir ve aynı define'la derlenen her Debug kurulumuna — simülatör ya
+  da cihaz — aynı jeton gider; simülatörde ölçüldü, cihazda ölçülmedi.)*
 - **`flutter analyze` Mac'te `build/`'i taramasın.** Flutter burada SPM
   için eklenti kaynaklarını `build/ios/SourcePackages`'a indiriyor;
   dışlanmazsa üçüncü taraf testlerinden 864 sahte hata sayılıyordu.

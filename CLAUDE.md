@@ -59,7 +59,7 @@ Yeni bir makineye geçerken bunlar elle kopyalanır. Biri eksikken derleme
 
 | Dosya | Eksikse ne olur |
 |---|---|
-| `apps/mobile/dart_defines.local.json` | Paket RevenueCat anahtarsız çıkar; cihazda **tüm satın almalar** "kullanılamıyor" der. Derleme BAŞARILI görünür. |
+| `apps/mobile/dart_defines.local.json` | Paket RevenueCat anahtarsız çıkar; cihazda **tüm satın almalar** "kullanılamıyor" der. Derleme BAŞARILI görünür. iOS Debug'da sabit App Check jetonu (`APP_CHECK_DEBUG_TOKEN`, 2026-10-24) da onunla gider: örnekten yeniden kurulursa her kurulumda yeni jeton üretilir ve giriş "Bir şeyler ters gitti" ile düşer (§7). |
 | `apps/mobile/android/key.properties` | Yayın imzası kurulmaz. İçindeki `storeFile` mutlak yol — makineye göre düzeltilir. |
 | Keystore (`rytho-upload.jks`) | **Yeri doldurulamaz.** Kaybolursa uygulama bir daha güncellenemez. |
 | `backend/.env` | Yerel backend anahtarları. |
@@ -77,9 +77,24 @@ yokken `flutter test` hiç başlamaz** ("Failed to build asset bundle").
 RevenueCat anahtarı gerçekten pakette mi, `test_` önekli anahtar değil mi,
 imza debug'a düşmüş mü, kullanılmayan izin geri gelmiş mi (mağaza listesinde
 "Mikrofon" yazardı ve gizlilik metnimizi yalanlardı), kamera zorunlu mu.
+(2026-10-10'dan beri altıncısı da var: R8 optimizasyonu, AAB'nin
+`r8.json`'undan — §6; betiğin kaynağında okundu 2026-10-24.)
 
 Bir kez 1.5.0+17 düz komutla üretildi: derleme başarılı, testler yeşil, imza
 doğru — kusur ancak mağaza ekranında görüldü.
+
+**IPA ASLA düz `flutter build ipa` ile değil, `infra/build-ipa.sh` ile**
+(macOS, bash; U05, `09bbe23`). İmzasız ölçüm için `--yalniz-denetle
+<.app>` (imza kapıları ATLANDI der, GEÇTİ değil); `--yalniz-denetle <.ipa>`
+ve tam kip dağıtım imzası ister, imzasız IPA'da imza kapıları KALDI, çıkış 1.
+Derlemesiz ön kontrol için `--kuru`. Aynı sınıfın iOS hâli
+ölçüldü (2026-10-23): `test_` önekli RevenueCat anahtarıyla imzasız Release
+derlemesi hiçbir engele takılmadan "başarılı" çıktı. Betik hiçbir şeyi
+yüklemez. Xcode'un
+kendi Archive yolu kapılardan geçmez — o yol seçilirse arşivden ÖNCE
+`--kuru`, dışa aktarılan IPA'ya `--yalniz-denetle` koşulur: ikincisi yalnız
+paket kapılarıdır, Xcode sürümü / `APPSTORE_APP_ID` / takım ↔ AASA ön
+kapılarını koşmaz. Ayrıntı `docs/mac-devir.md` §4 B7.
 
 **Dağıtım:** backend `infra/deploy-backend.ps1`, hosting
 `firebase deploy --only hosting --project rhytoai`.
@@ -966,7 +981,11 @@ yenilendi): birleşmiş `web/legal/` gizlilik metni yapay zeka onayının
 kurulumun ilk adımındaki AYRI ve ZORUNLU kutuyla alındığını söylüyor;
 canlıdaki Android 1.20.0+53'te o kutu yok. Kutulu ilk paket (Android 54 ya
 da iOS) yayınlanmadan `firebase deploy --only hosting` canlı uygulama için
-yanlış beyan yayınlar. Ayrıntı `docs/mac-devir.md` üst kutu.
+yanlış beyan yayınlar. Ayrıntı `docs/mac-devir.md` üst kutu. Kilit iOS'u
+iki yerden tutuyor (2026-10-23): AASA (cihazda Universal Link — canlı ve
+Apple CDN hâlâ `TEAMID` + yalnız `/i/*`) ve gizlilik URL'si (inceleme).
+Seçenekler A–D ve öneri (A + C): `docs/mac-devir.md` §4 "Deploy
+bağımlılıkları ve hosting kilidi" — karar sahibin.
 
 ⚠️ **Yapay zeka onayı = kurulumda ikinci kutu, KAPI YOK** (sahip kararı
 2026-10-22/23). Mac'in U06'sı (her açılışta soran onay sayfası, "Şimdi
@@ -1028,6 +1047,29 @@ gerçek `appl_` RevenueCat anahtarı (şu anki `test_` önekli) · App Store
 Connect kaydı ve IAP ürünleri. Team ID `292WJ9TP74` (2026-09-27): AASA'ya
 ve pbxproj'e yazıldı (`CODE_SIGN_STYLE = Automatic`); AASA `/i/*` + `/r/*`
 taşıyor, hosting yayını bekliyor.
+→ **"İmza sertifikası 0" BAYAT (ölçüldü 2026-10-23):** anahtar zincirinde
+1 `Apple Development` kimliği (OU `292WJ9TP74`, 2026-10-22 → 2027-10-22),
+Xcode'da ücretli takım hesabı ekli (`Individual`). Bu Mac'te hâlâ 0
+(ölçüldü): Apple Distribution sertifikası, yerel provizyon profili, bağlı
+cihaz. Takımda kayıtlı cihaz ve App Store Connect kaydı **ölçülemedi**
+(portal ve hesap girişi yok; `devicectl` portaldaki kaydı göstermez).
+
+**Hazırlık hükmü (2026-10-23, Mac, `ba6108b`):** gerçek iPhone'da Debug
+testi, iç TestFlight, App Store incelemesi — **üçü de hazır değil**. Kod
+tarafı büyük ölçüde hazır (imzasız Release derlemesi geçti, 1.20.0 (53));
+kalan: sahibin konsol işleri, üç deploy (kurallar + backend BİRLİKTE ve
+yukarıdaki sıranın adım 3 sayımından sonra — backend `/ai-consent` canlıda
+404; hosting/AASA `e8cc253`'te) ve kod işleri. TestFlight'ın önünde U05
+(iOS yayın kapısı; kod yarısı `09bbe23`, 2026-10-23/24 — kalan konsol, ilk
+imzalı IPA, derleme numarası kararı); incelemenin önünde U17 şikâyet
+görünümü, U18 inceleme notları, U16 (App Store paket iadesi yok sayılıyor
+→ bedava kredi yolu; düzeltme + backend deploy, iOS satışı başlamadan
+önce), U28, U32, U35 ve U37 Koşullar maddesi (tam liste `docs/mac-devir.md`
+§4 C13).
+*(Düzeltme 2026-10-24: burada "kalan sahibin konsol işleri + üç deploy"
+yazıyordu; kod işleri düşmüştü.)* Sıralı sahip adımları, tam konsol yolları, hosting kilidinin seçenekleri (öneri A + C) ve
+derleme numarası önerisi (iOS en az 54): **`docs/mac-devir.md` §4 Aşama
+A/B/C.** Konsol durumlarının hiçbiri bu Mac'ten ölçülemedi.
 
 ### iOS tuzakları (ölçüldü)
 
@@ -1072,14 +1114,74 @@ görünür. Yeni bir eklenti eklerken iOS'ta podspec'i var mı bak.
 **Simülatörde çalışmayan ikili:** TFLite ve App Attest. İkisi de gerçek
 cihaz ister.
 
+**Gerçek cihazda App Check iki ayrı konsol adımı ister** (kaynaktan
+ölçüldü 2026-10-23): Debug `AppleDebugProvider` kullanır. Define dosyasında
+`APP_CHECK_DEBUG_TOKEN` YOKSA eklenti HER kurulumda yeni bir debug jetonu
+basar — Firebase → App Check → `ai.rytho` → Manage debug tokens'a eklenmeden
+giriş/Firestore/Storage reddedilir (şemada sabit jeton yok).
+**2026-10-24'ten beri sabit jeton var:** `APP_CHECK_DEBUG_TOKEN` doluysa
+(`main.dart` `kAppCheckDebugToken`) her Debug kurulumu o jetonu kullanır ve
+Firebase'e bir kez eklenir. Simülatörde ölçüldü: kayıtsızken
+`exchangeDebugToken` 403 ve giriş "Bir şeyler ters gitti", kayıtlıyken 200
+ve giriş çalıştı. Aynı define dosyasıyla derlenen cihaz Debug'ına da aynı
+jeton gider — cihazda ölçülmedi. Jeton sırdır (depoya, sohbete yazılmaz);
+imzasız Release paketinde 0 kez geçtiği ölçüldü ve `infra/build-ipa.sh`
+paket kapısı her yayın paketinde yeniden ölçer. Release/Profile/TestFlight
+`AppleAppAttestProvider` kullanır — Firebase iOS uygulamasında Team ID +
+App Check'te App Attest kaydı + App ID'de App Attest yeteneği ister.
+Belirti App Check'e özgü bir hata DEĞİL: iOS'ta `activate()` yalnız
+sağlayıcıyı kaydeder ve düşmez; kayıtsız jeton ancak jeton değişiminde
+reddedilir. Kullanıcı App Check'e özgü bir mesaj görmez: giriş genel "Bir
+şeyler ters gitti. Tekrar dene." metniyle düşer (`authFailed`; simülatörde
+ölçüldü 2026-10-24) — yanlış şifre metninden ("Giriş yapılamadı. Şifren
+hatalı olabilir…") farklı, ama başka beklenmedik hatalardan ayırt edilemez;
+Firestore/Storage'da izin hatası çıkar (`core/app_check_izi.dart`). Debug'da tek
+iz Xcode konsoludur; Release/TestFlight'ta Crashlytics'e `app-check-token`
+kaydı düşer (U30). Teşhisi `activate()` hatasında ARAMA — `main.dart`'taki
+catch bu durumda hiç çalışmaz. *(Düzeltme 2026-10-24: burada "`activate()`
+hatası yutulduğu için belirti sessiz giriş ekranı" yazıyordu; yanlış
+gerekçeydi.)*
+
+**`test_` RevenueCat anahtarı Release/Profile'da açılışta BİLEREK çöker**
+(RevenueCat 5.67.1 `Configuration.swift:471-495`, `#if !DEBUG` →
+`fatalError`; anahtar derlenmiş pakette bulundu, 2026-10-23). İmzasız
+Release derlemesi bununla "başarılı" çıkıyor — Android'deki 1.5.0+17
+sınıfı. Debug çökmez ama satın almalar Test Store simülasyonudur. "Yalnız
+iOS anahtarını boşalt" çaresi YETMEZ: `billingConfigured` iki anahtardan
+birine bakıyor, Android anahtarı onu true tutar ve giriş yolu
+yapılandırılmamış SDK'ya `logIn` gönderir (U05).
+→ **U05 kod ağı (`09bbe23`, 2026-10-23/24) sonrası:** `rcEtkinAnahtar` yalnız
+çalışılan platformun anahtarına bakar; Release + Profile'da `test_` =
+yapılandırılmamış, `configure` hiç çağrılmaz; `ensureBillingIdentity` ilk
+satırda kapı (geri yükleme düğmesi kapısızdı ve yapılandırılmamış SDK'da
+PurchasesHybridCommon 17.55.1 `CommonFunctionality.swift:18-22`
+`fatalError` yoluna gidiyordu). Yani `test_` anahtarlı Release/Profile
+artık çökmez, satın alma "kullanılamıyor" der; ayrı anahtarsız define
+dosyası gerekmez (kodda doğrulandı, cihazda ölçülmedi). Sessizliği
+`infra/build-ipa.sh` durdurur (§4). `Purchases.*` çağıran her yer
+`billingConfigured` kapısının arkasında DURMAK ZORUNDA; bunu
+`test/satin_alma_yapilandirma_test.dart` tutuyor (kanal kaydedicisiyle
+davranış + kaynak bekçisi: kayıtsız yeni çağrı, alta kayan, yoruma
+alınan ya da parantezsiz `if` gövdesine konan kapı KIRMIZI — U05 2. tur +
+2026-10-24 mutasyon turu; 1. turun çürütmesi kapıları hiçbir testin
+tutmadığını mutasyonla ölçmüştü).
+
 **Bu bölümde iki kez bayat not yakalandı** (2026-09-26): "associated-domains
 hâlâ `rhytoai.web.app` diyor" yazıyordu — oysa `Runner.entitlements` iki
 alan adını birden taşıyor, önceki bir turda düzeltilmiş ve not
 güncellenmemişti. İkincisi yukarıdaki Podfile gerekçesiydi. 2026-10-22'de
 üç tane daha: "uygulama simülatörde hiç açılmaz" (`e4789d4` onarmıştı),
 "`en.lproj` hâlâ bağlı değil" (U27 bağlamıştı), "bildirim delegesi
-cihazda ölçülecek" (U14 kaynaktan çözmüştü). **Bu bölümdeki hiçbir iddiaya
-ölçmeden güvenme.**
+cihazda ölçülecek" (U14 kaynaktan çözmüştü). 2026-10-23'te iki tane daha:
+"bu Mac'te imza sertifikası 0" (ölçüm büyük olasılıkla sertifika oluşmadan
+önce alınmış ve bir daha tekrarlanmamıştı — ölçüm anı kayıtlı değil; App
+Check `updateTime` dersinin aynısı) ve uyum kaydında "U52 açık" (`eed33c7`
+işlevsel kusuru kapatmıştı; lisans kaydı maddesi hâlâ eksik, kayıt
+2026-10-24'ten beri `⏳ açık (kısmen)`). 2026-10-24'te o turun kendi
+belgesinde üç tane daha yakalandı: ölçülmemiş konsol durumları ("kayıtlı
+cihaz 0", "ASC kaydı yok") ölçülmüş gibi yazılmıştı, App Check belirtisinin
+gerekçesi kodla çelişiyordu, backend deploy'u sayımı atlayıp öne
+alınmıştı. **Bu bölümdeki hiçbir iddiaya ölçmeden güvenme.**
 
 ---
 

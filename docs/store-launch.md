@@ -154,13 +154,30 @@ Burada yalnızca konsol tarafını ilgilendiren özet var.
 | Kural | Durum |
 |---|---|
 | **4.3 — Spam / duplicate** | En yüksek risk. Ayırt edici unsurlar ve kanıtları `store-review-notes.md` §2'de; inceleme notu §3'te kopyalanabilir hâlde. |
-| **5.1.1(v) — Hesap silme** | Karşılanıyor: Profil → Hesabı sil. |
-| **1.2 — UGC** | Uygulanmıyor: kullanıcılar arası **serbest metin yok**, yalnızca 12 maddelik kapalı tepki kümesi (`core/friends.dart kReactions`). Kullanıcının KENDİNE yazdığı sohbet/günlük metni vardır ama başka kullanıcıya gösterilmez. |
+| **5.1.1(v) — Hesap silme** | Karşılanıyor: **Profil → Hesap → Hesabı sil** (`profile_screen.dart:290` → `account_screen.dart:313` `showDeleteAccountSheet`); yazılı onaylı, Apple yetkisi iptali silmeden önce deneniyor (U15), backend ucu canlı (kimliksiz `DELETE /api/v1/account/me` → 401). *(Düzeltildi 2026-10-23: burada "Profil → Hesabı sil" yazıyordu; ara adım "Hesap" eksikti.)* |
+| **1.2 — UGC** | Kullanıcılar arası **serbest metin yok**, yalnızca 12 maddelik kapalı tepki kümesi (`core/friends.dart kReactions`); kullanıcının KENDİNE yazdığı sohbet/günlük metni başka kullanıcıya gösterilmez. **Ama görünen ad ve profil fotoğrafı başka kullanıcılara görünüyor** — UGC sayılabilir (U37). Engelle + Şikâyet et uygulamada var (`core/safety.dart`), fakat engellemenin sunucu kapılarının canlıda olmadığı çıkarım (canlı backend `/ai-consent` yolunu taşımıyor, yani U17 öncesi kod), canlı Firestore kuralları ölçülemedi (U17 ek); ikisi birlikte deploy edilir (`docs/mac-devir.md` §4 "Deploy bağımlılıkları" 1). Şikâyetler panelde görünmüyor (U37). Yaş anketinde Messaging and Chat = Evet, hedef 13+ (U37). *(Düzeltildi 2026-10-23: burada "Uygulanmıyor" yazıyordu; U37 bunu çürüttü. Düzeltildi 2026-10-24: "engelleme kuralları ve sunucu kapıları canlıda değil" kesin dille yazılmıştı; biri çıkarım, öteki ölçülemedi.)* |
 | **5.3.1 — Kumar/piyango** | Uygulanmıyor. I Ching para atma animasyonu bir kehanet ritüelidir; ödül, bahis veya şans oyunu mekaniği yok. Açıklamada netleştir. |
-| **3.1.1 — Uygulama içi satın alma** | Tek aylık abonelik, harici ödeme bağlantısı yok. |
+| **3.1.1 — Uygulama içi satın alma** | Aylık abonelik (`rytho_plus_monthly`) **+ üç tüketilebilir kredi paketi** (`rytho_tokens_small/medium/large`); fiyatların hepsi mağazadan, harici ödeme bağlantısı yok, satın alınan kredi yanmaz (`backend/core/wallet.py`). *(Düzeltildi 2026-10-23: burada "Tek aylık abonelik" yazıyordu; paketler 5. bölümde zaten vardı.)* |
+| **3.1.2 — Otomatik yenilenen abonelik** | Paywall'da geri yükleme, yenileme/iptal metni, Koşullar + Gizlilik bağlantıları var (U02 ek). Açık karar: **EULA** — Apple'ın standart EULA'sı + açıklamada Koşullar bağlantısı mı, Koşullar özel EULA mı (`docs/mac-devir.md` §4 C5). Koşullar'da bugün "EULA" ya da Apple standart EULA bağlantısı yok (ölçüldü 2026-10-23). |
+| **5.1.2(i) — Üçüncü taraf yapay zeka** | Onay kurulumun ilk adımında ayrı, zorunlu ikinci kutuyla (U06). Sahip kararı (CLAUDE.md §7): kutu sağlayıcı adını bilerek taşımaz, sağlayıcı gizlilik politikasında adıyla; 53'ten gelen hesaplara bir şey sorulmaz. Kalan risk — AÇIK soru, sahibe sorulacak, kayıtlı cevap yok: Apple sağlayıcıyı adıyla anan ekran bekleyebilir; bu risk kabul ediliyor mu? İnceleme yanı: kurulumu bitmiş demo hesapla inceleyici kutuyu hiç görmez — demo hesap kurulumdan geçirilerek açılır (U06 ek, U18 ek). *(Düzeltildi 2026-10-24: burada "Kalan risk ve karar" yazıyordu; karar verilmişti.)* |
+| **2.1 — Uygulama bütünlüğü** | İnceleme süresince yapay zeka ayakta olmalı: Gemini ön ödemeli bakiye sıfırlanırsa her çağrı 402 alır (CLAUDE.md "CANLI KESİNTİ 2") — AI Studio → Billing → Auto-reload (`docs/mac-devir.md` §4 C12; açık olduğu ölçülemedi). |
 
 - iOS derlemesi macOS gerektirir; TestFlight için Apple Developer Program
-  (99 USD/yıl).
+  (99 USD/yıl). Mağaza paketi düz `flutter build ipa` ile değil
+  `infra/build-ipa.sh` ile çıkar (CLAUDE.md §4, U05). *(Eklendi 2026-10-24.)*
+- **Sahibin sıralı Apple adımları** (cihazda Debug → iç TestFlight → App
+  Store incelemesi; tam konsol yollarıyla): `docs/mac-devir.md` §4. Uyum
+  kaydı (U01…U56): `docs/ios-uyum-denetimi.md`. *(Eklendi 2026-10-23.)*
+- Üyelik ücretli ve etkin (sahip teyidi 2026-10-22); takım `292WJ9TP74`,
+  türü **Individual** (Xcode'dan ölçüldü 2026-10-23) — mağazada satıcı
+  olarak kişi adı görünür (Apple politikasından çıkarım, ölçülmedi).
+- **Apple fiyatı Play mantığıyla girilmez.** Play Console'a fiyat KDV
+  HARİÇ giriliyor ve Play %20 ekliyor (`docs/konsol-gorevleri.md`
+  "KDV (B3)", CLAUDE.md §6); Apple
+  fiyat noktaları ise alıcıya görünen, vergi dahil tutardır ve %15 oranı
+  App Store Small Business Program başvurusu ister — ikisi de Apple
+  belgesine dayanır, ölçülmedi. Fiyat ve Aile Paylaşımı kararları
+  `docs/mac-devir.md` §4 "Sahibin kararları"nda. *(Eklendi 2026-10-23.)*
 - Mağaza açıklamasında **sağlık iddiası ("iyileştirir", "şifa") ve kesin
   kehanet dili kullanılmamalı.**
 

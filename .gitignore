@@ -74,6 +74,9 @@ docs/rag_corpus/chunks/
 # Magaza gorselleri: ham cihaz kayitlari kisisel veri tasiyor
 # (gercek ad, dogum haritasi) — yalniz uretilmis varliklar versiyonlanir.
 store/play/raw/
+# App Store ham yakalamalari (simulator, demo hesap): nihai kareler
+# Higgsfield kurgusundan sonra uretilmis varlik olarak eklenir.
+store/app-store/raw/
 
 # Reklam varliklari git'e GIRMEZ (4,9 GB olculdu). Ham cihaz kayitlari
 # kisisel veri tasiyor (gercek dogum haritasi), uretilmis kareler ve
