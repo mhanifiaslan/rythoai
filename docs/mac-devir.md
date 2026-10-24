@@ -231,6 +231,17 @@ bekçilerin gerekçeleri onları adıyla anıyor (ör. `test_ios_config.py`,
 
 ### Bugünkü hüküm (ölçüldü 2026-10-23; 2026-10-24'te düzeltildi)
 
+> **Konsol adımları — sahip beyanı (2026-10-24), bu Mac'ten ÖLÇÜLMEDİ:**
+> A2 (App ID'de dört yetenek; Sign in with Apple primary), A4 (Firebase'de
+> Apple sağlayıcısı), A5 (APNs anahtarı: 27 Eylül'de açılmış, ortamı
+> "Sandbox & Production"; Firebase'de development ve production
+> satırlarına aynı anahtar yüklendi), B1 (Team ID), B2 (App Attest kaydı)
+> ve C7'nin anahtar + Services ID + Firebase OAuth code flow yarısı
+> yapıldı. İlk gerçek ölçümleri: simülatörde push (development yarısı),
+> cihazda Apple ile giriş + hesap silmede iptal, `--profile` ile App
+> Attest, TestFlight'ta push (production yarısı). Kararlar: hosting A + C,
+> Mac/Vision Pro kapatılır, bağlantı testi ayrı test ortağıyla.
+
 *(Düzeltme 2026-10-24: B satırı "App Store Connect kaydı yok … kayıtlı
 cihaz yok" diyordu — ikisi de ölçülemedi; backend deploy'u da B'nin engeli
 sayılıyordu, oysa aşağıdaki Öneri A + C onu beklemiyor. `test_` anahtarının
@@ -756,7 +767,7 @@ yok).
   yalnız Türkiye; "iPhone and iPad Apps on Apple Silicon Macs" ve Apple
   Vision Pro işaretleri aşağıdaki KARAR'a göre (öneri: kaldırmak; U53).
   Fiyat: "Sahibin kararları".
-- **Mac / Vision Pro erişimi · KARAR (öneri: ikisi de kapatılır).**
+- **Mac / Vision Pro erişimi · KARAR VERİLDİ (2026-10-24): ikisi de kapatılır.**
   Apple'ın `DCAppAttestService.isSupported` belgesine göre Mac'te değer
   **false** — Apple silicon'da çalışan iOS uygulamaları DAHİL; AppCheckCore
   bu durumda jeton vermez, yani zorlama açıkken Mac kullanıcısı giriş
@@ -771,7 +782,8 @@ yok).
   Apple Silicon Mac" → Apple Silicon Mac Availability → "Make this app
   available" işaretini kaldır; "iPhone and iPad Apps on Apple Vision Pro"
   → "Make this app available on Apple Vision Pro" işaretini kaldır → Save.
-  **Karar sahibin.** *(Ek 2026-10-24: U53 bunu "kullanılamayabilir" diye
+  **Sahip kararı 2026-10-24: kapatılır** (adım App Store Connect kaydından
+  sonra yapılır; bugün yapılmadı). *(Ek 2026-10-24: U53 bunu "kullanılamayabilir" diye
   yumuşak anlatıyordu.)*
 
 **C7 — Apple yetkisi iptali ve Hide My Email (U15, U22) · SEN**
@@ -982,13 +994,14 @@ sahibin):
   54'ü yüklemeden önce) B10'dan önce yapılmadıysa "bekliyor" kalır.
   İnceleme gönderimi hosting'den sonra yapılır; ne hukuk metni ne özel
   deploy ağacı gerekir. Universal Link'in TestFlight'ta ölçülmesi
-  istenirse B eklenir. **Karar sahibin.**
+  istenirse B eklenir. **Sahip kararı 2026-10-24: A + C.** Hosting
+  Android 54'ün yayın günü deploy edilir; B eklenmedi.
 
 ### Sahibin kararları (üç aşamanın içinden)
 
 | Karar | Adım | Öneri / not |
 |---|---|---|
-| Hosting kilidi | yukarıda | Seçenek A + C |
+| Hosting kilidi | yukarıda | **Karar verildi (2026-10-24): A + C** — hosting Android 54'ün yayın günü; iOS o güne dek iç TestFlight'ta |
 | Derleme numarası | B8 | Öneri (karar verilmedi): iOS en az 54; pubspec Android 54 ile aynı commit'te. `infra/build-ipa.sh` öneriyi bugün kapı olarak kodluyor |
 | EULA | C5 | Apple standart EULA + açıklamada Koşullar bağlantısı |
 | Fiyat noktası | B5, C6 | Apple fiyat noktaları alıcıya görünen, vergi dahil tutardır; Play'in "Console'a KDV hariç gir" kuralı (CLAUDE.md §6) Apple'a taşınamaz — Apple belgesine dayanır, ölçülmedi. Play'de alıcı ₺239,99 görüyor (CLAUDE.md, `priceInPurchasedCurrency 239.99`); eşit görünmesi için ona en yakın Apple noktası. `docs/maliyet-calismasi.md`'ye Apple satırı (net farklı) |
@@ -997,7 +1010,7 @@ sahibin):
 | Satıcı adı | B4 | Takım türü Individual (ölçüldü) — mağazada satıcı olarak kişi adı görünür; Apple politikasından çıkarım, mağaza sayfasında ölçülmedi |
 | U06'nın kalan riski | C13 | **Sahip kararı verildi** (CLAUDE.md §7, 2026-10-22/23): kutu sağlayıcı adını bilerek taşımaz, 53'ten gelen hesaplara bir şey sorulmaz, politika geçiş cümlesiyle anlatır. Bu modelin bilinen 5.1.2(i) riski (Apple sağlayıcıyı adıyla anan ekran bekleyebilir; Android ≤ 53'te kurulumu bitmiş hesap iOS'ta kutuyu görmez): **Sahip kararı 2026-10-24: risk kabul edildi** — kutu adsız kalır; Apple itiraz ederse o gün yeniden konuşulur. Kutuya ad eklemek modeli değiştirmektir, yalnız sahip yeniden açabilir. *(Düzeltme 2026-10-24: burada "kutuya sağlayıcı adı mı, yoksa riskin kayda yazılması mı; eski hesaplar" diye açık karar gibi duruyordu.)* |
 | Yaş / UGC | C4 | 13+, Messaging and Chat = Evet |
-| Mac / Vision Pro erişimi | C6 | Öneri: ikisi de kapatılır — Apple'a göre Mac'te App Attest yok (`isSupported` false, iOS-on-Mac dahil), zorlama açıkken Mac kullanıcısı giriş yapamaz; açık kalırsa özel DeviceCheck yedeği gerekir (2026-10-24) |
+| Mac / Vision Pro erişimi | C6 | **Karar verildi (2026-10-24): ikisi de kapatılır** (App Store Connect kaydı açılınca) — Apple'a göre Mac'te App Attest yok (`isSupported` false, iOS-on-Mac dahil), zorlama açıkken Mac kullanıcısı giriş yapamaz; açık kalırsa özel DeviceCheck yedeği gerekir (2026-10-24) |
 | Apple anahtarları | A5, C7 | APNs: belgeyle uyumlu yol ortama özel iki anahtar; ekranda "Sandbox & Production" çıkarsa tek anahtar da seçenek. Apple ile Giriş anahtarı APNs'ten ayrı (öneri). Services ID adı (öneri `ai.rytho.signin`) (2026-10-24) |
 | Şikâyete 24 saat sözü | C10 | U18: söz sahibin kararı. Şikâyetler bugün yalnız Firebase konsolundan okunuyor (panelde görünüm yok, U37); sahip o sürede okuyabileceğine karar verirse notlara ve Koşullar'a (TR+EN) yazılır. *(Düzeltme 2026-10-24: burada "panelde görünüm yokken verilmez" yazıyordu — kayıtlarda böyle bir kural yok, karar sahibin.)* |
 | `/openapi.json` ve `/docs` herkese açık | — | Üretimde kimliksiz 200, admin uçları dahil 89 yol (hazırlık denetimi, ölçüldü 2026-10-23). iOS'u engellemiyor. Kapatılırsa canlı rota ölçümü (bu belgedeki `/ai-consent` 404 gibi) `gcloud run revisions describe` ile yapılır. Karar sahibin |
@@ -1313,8 +1326,9 @@ erken yazılan bir metin herhangi bir makinenin ilk deploy'unda canlıya
    ortağın detay sayfası → Ortak bağlantısı → Kod üret ("Kullanım limiti"
    planlanan deneme sayısı, "Son gün" yakın bir tarih — panelde kodu
    kapatan düğme yok, ortağı pasifleştirmek kodu durdurmuyor). Üretim
-   veritabanına yazar; ayrı test ortağı mı gerçek ortak mı, karar sahibin
-   (gerçek ortağın "bağlantıyı kullanan" sayacı kalıcı artar). **Kural:
+   veritabanına yazar. **Sahip kararı 2026-10-24: ayrı bir test ortağı**
+   (gerçek ortağın "bağlantıyı kullanan" sayacı kalıcı artardı); "Giriş
+   hesabı" için iPhone'da kullanılmayacak ikinci bir hesabın uid'i gerekir. **Kural:
    her yeni atıf denemesi = temiz kurulum (uygulamayı sil, yeniden kur) +
    daha önce kod kullanmamış yeni hesap (ortağın kendisi değil).**
    Oturumsuz dokunuş denenecekse başarılı atıftan ÖNCE yapılır (401

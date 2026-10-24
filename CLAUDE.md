@@ -996,8 +996,12 @@ da iOS) yayınlanmadan `firebase deploy --only hosting` canlı uygulama için
 yanlış beyan yayınlar. Ayrıntı `docs/mac-devir.md` üst kutu. Kilit iOS'u
 iki yerden tutuyor (2026-10-23): AASA (cihazda Universal Link — canlı ve
 Apple CDN hâlâ `TEAMID` + yalnız `/i/*`) ve gizlilik URL'si (inceleme).
-Seçenekler A–D ve öneri (A + C): `docs/mac-devir.md` §4 "Deploy
-bağımlılıkları ve hosting kilidi" — karar sahibin.
+Seçenekler A–D: `docs/mac-devir.md` §4 "Deploy bağımlılıkları ve hosting
+kilidi". **Sahip kararı 2026-10-24: A + C** — hosting Android 54'ün yayın
+günü deploy edilir; iOS o güne dek iç TestFlight'ta bekler, Universal Link
+o zamana kadar ölçülmez. Aynı gün: Mac/Vision Pro erişimi KAPATILACAK
+(App Store Connect kaydı açılınca, C6; App Attest Mac'te yok) ve bağlantı
+testi AYRI bir test ortağıyla yapılacak (§4 4.10).
 
 ⚠️ **Yapay zeka onayı = kurulumda ikinci kutu, KAPI YOK** (sahip kararı
 2026-10-22/23). Mac'in U06'sı (her açılışta soran onay sayfası, "Şimdi
@@ -1061,8 +1065,12 @@ gerçek `appl_` RevenueCat anahtarı (şu anki `test_` önekli) · App Store
 Connect kaydı ve IAP ürünleri · Firebase'de Apple sağlayıcısı (U01) ·
 Apple ile Giriş anahtarı, Services ID ve e-posta kaynağı kaydı (U15/U22)
 · Firebase iOS uygulamasında Team ID + App Check'te App Attest kaydı
-(U08). Tam yollar `docs/mac-devir.md` §4 A2, A4, A5, B1, B2, C7; hiçbirinin
-durumu ölçülmedi. *(Ek 2026-10-24: Apple ile Giriş ve App Attest
+(U08). Tam yollar `docs/mac-devir.md` §4 A2, A4, A5, B1, B2, C7.
+→ **Sahip beyanı 2026-10-24: A2, A4, A5, B1, B2 ve C7'nin anahtar/Services
+ID/OAuth yarısı YAPILDI** (APNs anahtarı "Sandbox & Production", Firebase'de
+iki satıra da aynı anahtar). Bu Mac'ten hiçbiri ölçülmedi; ilk ölçüm
+simülatörde push, sonra cihazda Apple girişi ve `--profile` App Attest.
+Kalanlar: App Store Connect kaydı + IAP, `appl_` anahtarı. *(Ek 2026-10-24: Apple ile Giriş ve App Attest
 önkoşulları bu listede yoktu.)* Team ID `292WJ9TP74` (2026-09-27): AASA'ya
 ve pbxproj'e yazıldı (`CODE_SIGN_STYLE = Automatic`); AASA `/i/*` + `/r/*`
 taşıyor, hosting yayını bekliyor.
@@ -1086,7 +1094,7 @@ görünümü, U18 inceleme notları, U16 (App Store paket iadesi yok sayılıyor
 önce), U28, U32, U35 ve U37 Koşullar maddesi (tam liste `docs/mac-devir.md`
 §4 C13).
 *(Düzeltme 2026-10-24: burada "kalan sahibin konsol işleri + üç deploy"
-yazıyordu; kod işleri düşmüştü.)* Sıralı sahip adımları, tam konsol yolları, hosting kilidinin seçenekleri (öneri A + C) ve
+yazıyordu; kod işleri düşmüştü.)* Sıralı sahip adımları, tam konsol yolları, hosting kilidinin seçenekleri (sahip kararı A + C, 2026-10-24) ve
 derleme numarası önerisi (iOS en az 54): **`docs/mac-devir.md` §4 Aşama
 A/B/C.** Konsol durumlarının hiçbiri bu Mac'ten ölçülemedi.
 
