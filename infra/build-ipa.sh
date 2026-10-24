@@ -380,6 +380,32 @@ elif komut == "rc-anahtar-pakette":
               "bile açılmaz.")
     sonuc(True, "anahtar ve yetki kimliği ('" + yetki + "') pakette")
 
+elif komut == "appcheck-jetonu-yok":
+    # APP_CHECK_DEBUG_TOKEN Firebase'de kayıtlıyken App Check'i aşar; aynı
+    # define dosyası yayın derlemesine de veriliyor. main.dart onu yalnız
+    # kDebugMode dalında okuyor ve imzasız Release paketinde 0 kez geçtiği
+    # ölçüldü (2026-10-24; aynı paketteki pozitif kontrol, yetki kimliği, 1
+    # kez). Kapı o ölçümü sabitler: jeton bir gün kDebugMode dışından
+    # okunursa mağaza paketiyle herkese dağılır ve derleme yine "başarılı"
+    # çıkar. Yalnız App ikilisi değil paketin TAMAMI taranır. Değer BASILMAZ.
+    d = define_oku(args[1])
+    jeton = str(d.get("APP_CHECK_DEBUG_TOKEN") or "").strip()
+    if not jeton:
+        sonuc(True, "define dosyasında APP_CHECK_DEBUG_TOKEN yok")
+    aranan = jeton.encode("utf-8")
+    for kok, _, dosyalar in os.walk(args[0]):
+        for ad in dosyalar:
+            yol = os.path.join(kok, ad)
+            if os.path.islink(yol):
+                continue
+            with open(yol, "rb") as f:
+                if aranan in f.read():
+                    sonuc(False, "App Check debug jetonu pakette: " + os.path.relpath(yol, args[0]) +
+                          ". Jeton yalnız kDebugMode dalında okunmalı (main.dart); bu paket "
+                          "yayınlanırsa jetonu bulan herkes App Check'i aşar. Firebase → App "
+                          "Check → Manage debug tokens'tan bu jetonu sil, yenisini üret.")
+    sonuc(True, "App Check debug jetonu pakette yok")
+
 elif komut == "simulator-taslagi-yok":
     app = args[0]
     info = plist_oku(os.path.join(app, "Info.plist"))
@@ -513,8 +539,10 @@ paket_kapilari() {
   kapi "paket-test-anahtari-yok" test-anahtari-yok "$app"
   if [ -f "$DEFINES" ]; then
     kapi "paket-revenuecat-anahtari" rc-anahtar-pakette "$app" "$DEFINES"
+    kapi "paket-appcheck-jetonu-yok" appcheck-jetonu-yok "$app" "$DEFINES"
   else
     atlandi "paket-revenuecat-anahtari" "define dosyası yok: $DEFINES"
+    atlandi "paket-appcheck-jetonu-yok" "define dosyası yok: $DEFINES"
   fi
   kapi "paket-simulator-taslagi-yok" simulator-taslagi-yok "$app"
   kapi "paket-mlkit-gercek" mlkit-gercek "$app"

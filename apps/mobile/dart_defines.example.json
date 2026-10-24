@@ -6,5 +6,7 @@
   "REVENUECAT_IOS_KEY": "appl_XXXXXXXXXXXXXXXX",
   "_appstore": "APPSTORE_APP_ID = App Store Connect kaydi olusturulunca alinan SAYISAL kimlik. Bos birakilirsa zorunlu guncelleme ekrani iOS'ta magaza dugmesi GOSTERMEZ (uydurma baglanti yerine durust mesaj).",
   "APPSTORE_APP_ID": "",
-  "RYTHO_PLUS_ENTITLEMENT": "RhytoAI Pro"
+  "RYTHO_PLUS_ENTITLEMENT": "RhytoAI Pro",
+  "_appcheck": "APP_CHECK_DEBUG_TOKEN = yalniz iOS Debug derlemesinin App Check jetonu (bir UUID). Ayni deger Firebase Console > App Check > Apps > ai.rytho (iOS) > Manage debug tokens'a BIR KEZ eklenir. Bos birakilirsa her kurulumda yeni jeton uretilir ve her seferinde eklenmesi gerekir. SIRDIR: depoya ve sohbete yazilmaz. Yayin paketine girmedigini infra/build-ipa.sh olcer.",
+  "APP_CHECK_DEBUG_TOKEN": ""
 }

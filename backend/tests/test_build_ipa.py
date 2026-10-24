@@ -449,7 +449,7 @@ def test_derleme_numarasi_yoksa_ya_da_sayi_degilse_kalir(agac, surum):
 # -------------------------------------------------------------- paket kapıları
 
 _PAKET_KAPILARI = ["paket-test-anahtari-yok", "paket-revenuecat-anahtari",
-                   "paket-simulator-taslagi-yok", "paket-mlkit-gercek",
+                   "paket-appcheck-jetonu-yok", "paket-simulator-taslagi-yok", "paket-mlkit-gercek",
                    "paket-izin-anahtarlari", "paket-gizlilik-manifesti",
                    "paket-derleme-numarasi"]
 _IMZA_KAPILARI = ["imza-aps-ortami", "imza-get-task-allow", "imza-yetkileri"]
@@ -507,6 +507,54 @@ def test_define_dosyasi_yoksa_anahtar_kapisi_ATLANDI(agac):
     (agac.mobil / "dart_defines.local.json").unlink()
     s = agac.kos("--yalniz-denetle", str(agac.app()))
     assert _durum(s.stdout, "paket-revenuecat-anahtari").startswith("ATLANDI")
+    assert _durum(s.stdout, "paket-appcheck-jetonu-yok").startswith("ATLANDI")
+
+
+# App Check debug jetonu: aynı define dosyası yayın derlemesine de gidiyor;
+# jeton Firebase'de kayıtlıyken App Check'i aşar (main.dart, 2026-10-24).
+JETON = "0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0"
+
+
+def test_appcheck_jetonu_App_ikilisinde_kalir_deger_basilmaz(agac):
+    agac.defines(APP_CHECK_DEBUG_TOKEN=JETON)
+    app = agac.app(app_ikilisi=b"\x00dart\x00" + IOS_ANAHTAR.encode() + b"\x00"
+                   + YETKI.encode() + b"\x00" + JETON.encode() + b"\x00")
+    s = agac.kos("--yalniz-denetle", str(app))
+    assert s.returncode == 1
+    assert _durum(s.stdout, "paket-appcheck-jetonu-yok") == "KALDI"
+    satir = _satir(s.stdout, "paket-appcheck-jetonu-yok")
+    assert "Frameworks/App.framework/App" in satir
+    assert JETON not in s.stdout + s.stderr, "jeton basılmamalı"
+    assert JETON[:8] not in s.stdout + s.stderr, "jetonun parçası da basılmamalı"
+
+
+def test_appcheck_jetonu_paketin_baska_dosyasinda_da_kalir(agac):
+    # Yalnız App ikilisi taranırsa jeton bir kaynak dosyasında (ör. bir
+    # plist ya da varlık) gözden kaçar.
+    agac.defines(APP_CHECK_DEBUG_TOKEN=JETON)
+    app = agac.app(ek_dosya=("Frameworks/X.framework/ayar.plist",
+                             b"<string>" + JETON.encode() + b"</string>"))
+    s = agac.kos("--yalniz-denetle", str(app))
+    assert _durum(s.stdout, "paket-appcheck-jetonu-yok") == "KALDI"
+    assert "Frameworks/X.framework/ayar.plist" in _satir(
+        s.stdout, "paket-appcheck-jetonu-yok")
+
+
+def test_appcheck_jetonu_definede_var_pakette_yoksa_gecer(agac):
+    # Bugünkü ölçülen hâl: jeton define dosyasında, Release paketinde 0 kez.
+    agac.defines(APP_CHECK_DEBUG_TOKEN=JETON)
+    s = agac.kos("--yalniz-denetle", str(agac.app()))
+    assert s.returncode == 0, s.stdout + s.stderr
+    assert _durum(s.stdout, "paket-appcheck-jetonu-yok") == "GEÇTİ"
+
+
+def test_appcheck_jetonu_definede_bosluklu_olsa_da_aranir(agac):
+    # Kırpılmış değer aranır: ham değerin alt dizesi olduğu için pakete
+    # boşluklu ya da boşluksuz girmesi kapıyı geçirmez.
+    agac.defines(APP_CHECK_DEBUG_TOKEN=" " + JETON + " ")
+    app = agac.app(ek_dosya=("jeton.txt", JETON.encode()))
+    s = agac.kos("--yalniz-denetle", str(app))
+    assert _durum(s.stdout, "paket-appcheck-jetonu-yok") == "KALDI"
 
 
 def test_simulator_taslagi_dizesi_kalir(agac):

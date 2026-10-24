@@ -80,6 +80,12 @@ const double kMaxTextScale = 1.3;
 const kServerClientId =
     '770582338651-0kimgrjfj4brfl6k5h3g6amn2rm7ue6a.apps.googleusercontent.com';
 
+/// iOS debug derlemesinin App Check jetonu (`APP_CHECK_DEBUG_TOKEN`,
+/// `dart_defines.local.json`; git'te YOK). Boşsa SDK kendi jetonunu üretir.
+/// Jeton Firebase'de kayıtlıyken App Check'i aşar — o yüzden sırdır: depoya,
+/// sohbete ya da günlüğe yazılmaz.
+const kAppCheckDebugToken = String.fromEnvironment('APP_CHECK_DEBUG_TOKEN');
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -158,8 +164,20 @@ Future<void> main() async {
       // Fallback'li varyanta gerek yok: App Attest iOS 14+ ister, taban
       // 15.5 (ios/Podfile). Simülatörde App Attest çalışmaz, debug
       // sağlayıcı o boşluğu kapatıyor — Android'deki desenin aynısı.
+      //
+      // Debug jetonu SABİT verilir (varsa): verilmezse SDK her kurulumda
+      // yeni bir jeton üretiyor ve Firebase'e her seferinde yeniden
+      // eklenmesi gerekiyordu — kayıtsız jeton `exchangeDebugToken` 403
+      // ("App attestation failed") alır ve giriş "Bir şeyler ters gitti"
+      // diye düşer (2026-10-24, simülatörde ölçüldü). Değer git'e girmeyen
+      // `dart_defines.local.json`'dan gelir ve yalnız bu dalda okunur:
+      // imzasız Release paketinde 0 kez geçtiği ölçüldü (2026-10-24) ve
+      // `infra/build-ipa.sh` paket kapısı her yayın paketinde yeniden
+      // ölçer — aynı define dosyası yayın derlemesine de veriliyor.
       providerApple: kDebugMode
-          ? const AppleDebugProvider()
+          ? AppleDebugProvider(
+              debugToken:
+                  kAppCheckDebugToken.isEmpty ? null : kAppCheckDebugToken)
           : const AppleAppAttestProvider(),
     );
     // iOS'ta App Attest arızası ancak jeton alınırken görünür; açılış onu
