@@ -733,10 +733,21 @@ isteği jetonlu yapmanın tek yolu okumayı SDK'ya taşımak (`ref.getData()`
 ya da backend üzerinden vekil); yeni bir AAB o satırlar değişmedikçe
 aynı jetonsuz GET'i atar.
 
-⚠️ **App Check'in depoda HİÇBİR bekçisi yok.** `main.dart:108`
-`activate()` çağrısı try/catch ile **yutuluyor**; kurulum düşse uygulama
-jetonsuz devam eder ve üç servis de zorlandığı için sessizce kapanır.
-Satır tamamen silinse ne test ne `infra/build-aab.ps1` kapısı fark eder.
+⚠️ **App Check bekçisi: çağrı tutuluyor, iOS'un yayın sağlayıcısı
+tutulmuyor** (kaynakta okundu 2026-10-24). `activate()` artık
+`main.dart:153`; hata yine **yutuluyor** (uygulama jetonsuz devam eder),
+ama yayında Crashlytics'e `app-check-activate` yazılıyor (U30) ve
+`test/app_check_izi_test.dart` çağrının varlığını, sırasını (activate →
+jeton yoklaması → `runApp`) ve catch'i tutuyor — satır silinirse kızarır.
+Bugünkü boşluk iOS'ta sağlayıcı seçimi: üçlü ifadenin YAYIN dalı
+(`AppleAppAttestProvider`, `main.dart:181`) başka bir sağlayıcıya dönerse
+Debug/simülatör debug sağlayıcıyla çalıştığı için hiçbir şey görünmez,
+ama Firebase'de planlanan tek iOS kaydı App Attest (`docs/mac-devir.md`
+§4 B2) olduğu için iOS yayın paketi giriş yapamaz — bunu tutan test yok
+(bekçi eklenecek). `providerApple`
+tamamen silinirse Debug da paketin varsayılanı DeviceCheck'e düşer ve
+hata simülatörde görünür. *(Düzeltme 2026-10-24: burada "HİÇBİR bekçisi
+yok … satır tamamen silinse ne test fark eder" yazıyordu; bayattı.)*
 
 Kapsamın kaynağı **servis kaydı değil ÖRNEK KİMLİĞİ** — koddan doğrulandı:
 `FirebaseAppCheckPlugin.kt:46-48` sağlayıcı fabrikasını
@@ -1046,7 +1057,12 @@ dosyada birden bağlıyor (pbxproj ×3, gradle, AASA, plist).
 **Hesap işleri:** üyelik ücretli ve etkin (sahip teyidi) ·
 Xcode'da takım hesabı (bu Mac'te imza sertifikası 0) · APNs anahtarı ·
 gerçek `appl_` RevenueCat anahtarı (şu anki `test_` önekli) · App Store
-Connect kaydı ve IAP ürünleri. Team ID `292WJ9TP74` (2026-09-27): AASA'ya
+Connect kaydı ve IAP ürünleri · Firebase'de Apple sağlayıcısı (U01) ·
+Apple ile Giriş anahtarı, Services ID ve e-posta kaynağı kaydı (U15/U22)
+· Firebase iOS uygulamasında Team ID + App Check'te App Attest kaydı
+(U08). Tam yollar `docs/mac-devir.md` §4 A2, A4, A5, B1, B2, C7; hiçbirinin
+durumu ölçülmedi. *(Ek 2026-10-24: Apple ile Giriş ve App Attest
+önkoşulları bu listede yoktu.)* Team ID `292WJ9TP74` (2026-09-27): AASA'ya
 ve pbxproj'e yazıldı (`CODE_SIGN_STYLE = Automatic`); AASA `/i/*` + `/r/*`
 taşıyor, hosting yayını bekliyor.
 → **"İmza sertifikası 0" BAYAT (ölçüldü 2026-10-23):** anahtar zincirinde
@@ -1084,12 +1100,22 @@ düşer. Yani "Podfile yok" tek başına doğru teşhis DEĞİLDİ — dosya
 **15.5 keyfî değil**, paketlerin dayattığı tabandır: ML Kit 15.5,
 Firebase 15.0. Düşürmek ancak yüz okumayı iOS'ta kapatmakla mümkün.
 
-**`aps-environment` tek dosyada tutulamaz.** Release arşivi `development`
-değeriyle çıkarsa cihaz SANDBOX jetonu alır, sunucu üretim APNs'ine
-gönderir ve bildirim hiçbir yere düşmez — TestFlight'ta çalışır, mağazada
-ölür. Bu yüzden `Runner.entitlements` (development) ve
-`RunnerRelease.entitlements` (production) ayrı; pbxproj Release bloğu
-ikincisine bakıyor. İkisi **yalnız o değerde** farklı kalmalı.
+**`aps-environment` iki dosyada — gerekçesi YANLIŞ yazılmıştı.**
+`Runner.entitlements` (development; Debug + Profile) ve
+`RunnerRelease.entitlements` (production; Release) ayrı, pbxproj Release
+bloğu ikincisine bakıyor, ikisi **yalnız o değerde** farklı. Eski gerekçe
+("Release arşivi `development` çıkarsa SANDBOX jetonu alır, sunucu üretim
+APNs'ine gönderir — TestFlight'ta çalışır, mağazada ölür") iki yerden
+çöktü (Apple belgesi + pod kaynağı, okundu 2026-10-24): Xcode
+`aps-environment` değerini provizyon profiline göre yazar ve dağıtım
+profiliyle imzalanan paket — TestFlight DAHİL — production kullanır, yani
+TestFlight ile mağaza aynı ortamda, biri çalışıp öteki ölemez; FCM de
+ortamı yetki dosyasından değil, SDK'nın gömülü profilden okuyup jetonla
+bildirdiği sandbox bayrağından seçer (`FIRMessagingUtilities.m`,
+`FIRMessagingTokenManager.m`). İki dosyanın gerçekten gerekip gerekmediği
+— ya da Release'in geliştirme imzasıyla "doesn't match … aps-environment"
+ile düşüp düşmediği — ilk imzalı Release'te ölçülür (`docs/mac-devir.md`
+§4 B9); o zamana dek dosyalar olduğu gibi kalır.
 
 **Dosyayı `Runner/` altına kopyalamak pakete SOKMAZ.** `project.pbxproj`
 klasör-senkronlu grup kullanmıyor (`objectVersion = 54`,

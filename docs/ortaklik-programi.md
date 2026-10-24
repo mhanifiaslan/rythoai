@@ -265,7 +265,10 @@ politikamızdaki "reklam kimliğini KULLANMAZ" cümlesini yalan yapardı.
 Bunlar **kusur değil**, bilinen ve kabul edilmiş boşluklardır. Gizlenirse
 bir gün "neden bu ortak hiç kazanmıyor" sorusu kök nedensiz kalır.
 
-**iOS'ta atıf YOK.** Play Install Referrer'ın iOS'ta dengi yoktur ve bu
+**iOS'ta KURULUM ÖNCESİ atıf yok.** *(Düzeltme 2026-10-24: başlık "iOS'ta
+atıf YOK" diyordu; aşağıdaki gövde kurulu uygulamada Universal Link ile
+atfın yazıldığını anlatıyor — başlık tek başına okununca yanlıştı.)*
+Play Install Referrer'ın iOS'ta dengi yoktur ve bu
 Apple'ın bilinçli kararı: `AdServices` yalnız Apple Search Ads içindir ve
 yükünde serbest alan yok; `ct=`/`pt=` yalnız App Store Connect
 analitiğinde görünür, uygulama okuyamaz; Universal Link uygulama kurulu

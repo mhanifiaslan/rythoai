@@ -201,12 +201,16 @@ Bu bölüm bir dönem "henüz yapılmamış" diye duruyordu ve kendi §12'siyle
       Console'dan kopyalanan ve EŞLEŞMEDİĞİ kanıtlanan iki eski kayıt
       (CC:95…, AE:3F… — zararsız, temizlenebilir). Magazadan inen pakette
       App Links doğrulanıyor.
-- [ ] **iOS Team ID eklenmeli.** `web/.well-known/apple-app-site-association`
-      icindeki `TEAMID.ai.rytho` gercek Team ID ile degistirilmeli
-      (Apple Developer hesabi gerekiyor).
-- [ ] Kendi alan adi alinirsa: `core/deep_links.dart` icindeki `kInviteHost`,
-      `AndroidManifest.xml` icindeki `android:host` ve Firebase Hosting
-      ozel alan adi ayari birlikte guncellenir.
+- [x] **iOS Team ID eklendi** (`c3dca0e`, 2026-09-27): AASA
+      `292WJ9TP74.ai.rytho` tasiyor (`/i/*` + `/r/*`). Kalan is Team ID
+      yazmak DEGIL: hosting deploy'u (kilitli — `docs/mac-devir.md` §4
+      "Deploy bagimliliklari ve hosting kilidi") ve ardindan Apple CDN'in
+      yeni govdeyi cekmesi (canli AASA ve CDN 2026-10-24'te hala
+      `TEAMID` + yalniz `/i/*`). *(Duzeltme 2026-10-24: bu madde
+      "TEAMID gercek Team ID ile degistirilmeli" diye acik duruyordu.)*
+- [x] Kendi alan adi alindi: `rytho.app` (2026-09-15), `kInviteHost =
+      'rytho.app'` (`core/deep_links.dart`). *(Duzeltme 2026-10-24: madde
+      "alinirsa" diye acik duruyordu.)*
 
 ## 13. Giris ekrani
 
@@ -240,3 +244,16 @@ Bu bölüm bir dönem "henüz yapılmamış" diye duruyordu ve kendi §12'siyle
       4. `web/.well-known/apple-app-site-association` icindeki TEAMID'yi
          gercek Team ID ile degistir ve hosting'i yeniden deploy et.
       Bu adimlar tamamlanmadan Apple dugmesi iOS'ta gorunur ama calismaz.
+      → **BAYAT (2026-10-24).** Uyelik ucretli ve etkin (sahip teyidi,
+      2026-10-22; CLAUDE.md §7) — "ERTELENDI" artik dogru degil. Adim 3
+      gereksiz: pbxproj `CODE_SIGN_ENTITLEMENTS`'i uc yapilandirmada zaten
+      bagliyor (Debug/Profile `Runner.entitlements`, Release
+      `RunnerRelease.entitlements`). Adim 4 depoda yapildi (`292WJ9TP74`,
+      `c3dca0e`); kalan yalniz hosting yayini (kilitli, §12). Adim 2'de
+      Services ID'nin Return URL yapilandirmasi eksikti. Guncel, tam yollu
+      sira `docs/mac-devir.md` §4: A2 (App ID'de Sign in with Apple,
+      primary), A4 (Firebase'de Apple saglayicisi — giris icin yalniz
+      Enable + Save yeter), C7 (Apple ile Giris anahtari, Services ID +
+      Return URL, Firebase'de OAuth code flow, e-posta kaynagi — hesap
+      silmede yetki iptali ve Hide My Email icin). Konsol durumlarinin
+      hicbiri olculmedi; bu madde konsol isleri bitince isaretlenir.

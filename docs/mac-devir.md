@@ -11,7 +11,10 @@ denetimi: dört ölçüm + eksik avcısı, HEAD `ba6108b`; §4 sahibin üç
 aşamasına göre yeniden sıralandı, "Mac durumu" kutusu düzeltildi) ve
 **2026-10-24** (o belgenin çürütme turu: deploy sırası CLAUDE.md §7'ye
 bağlandı, App Check belirtisi koda göre düzeltildi, ölçülemeyen konsol
-durumları "ölçülemedi" diye işaretlendi; U05'in kod yarısı `09bbe23`).
+durumları "ölçülemedi" diye işaretlendi; U05'in kod yarısı `09bbe23`) ve
+yine **2026-10-24** (konsol araştırması: A2/A4/A5/B1/B2/C6/C7 yolları
+Apple ve Firebase belgelerine göre, 4.5'in APNs gerekçesi, 4.10'un test
+kodu ve yayın günü listesi; konsol durumları yine ölçülmedi).
 Dal: `yuz-okuma-cihaz-usti-olcum`.
 
 > **Bugünkü durum (2026-10-22, Windows'tan ölçüldü):**
@@ -274,6 +277,19 @@ Eksik olan cihaz ve konsol.
   yoksa `+` → App IDs → App → Explicit Bundle ID `ai.rytho` ile açılır.
   Cihaz gerekmez; yani iPhone gelmeden yapılabilir ve B4'ün (App Store
   Connect kaydı) önkoşuludur.
+- Kutuların ayrıntısı (Apple yardım sayfaları, 2026-10-24; ekranda
+  doğrulanmadı): Sign in with Apple kutusu → yanındaki **Configure**
+  (portalda Edit görünebilir) → **Enable as a primary App ID** →
+  pencerede Save; aynı penceredeki "Server-to-Server Notification
+  Endpoint" boş kalabilir (zorunluluğu yalnız Kore merkezli
+  geliştiricilerde; backend'de böyle bir uç yok — karar sahibin, öneri
+  boş). Push'un yanındaki Configure sertifika içindir; `.p8` anahtar
+  kullanıldığı için dokunulmaz. App Attest'in ek ayarı yok. Sonra sağ
+  üstte Save → uyarı çıkarsa Confirm. Apple'a göre değişen App ID onu
+  içeren profilleri geçersiz kılar; otomatik imza yeniden üretir.
+  Sign in with Apple'ın **primary** ayarı C7'nin önkoşulu: anahtarın ve
+  Services ID'nin "Primary App ID" listesi yalnız bunu açılmış App ID'yi
+  gösterir.
 - Açar: provizyon profili bu yetkileri taşır. Entitlements dördünü de
   istiyor (`Runner.entitlements` ve `RunnerRelease.entitlements` :18-54).
 - Yapılmazsa: profil eksik yetkiyi taşımaz ve imza düşer. **App Attest bu
@@ -294,24 +310,55 @@ Eksik olan cihaz ve konsol.
 - Firebase Console (rhytoai) → Authentication → Sign-in method → Add new
   provider → **Apple** → Enable → Save. Yerel iOS girişi için yalnız bu
   anahtar yeter; Services ID ve OAuth code flow alanları jeton iptali
-  içindir (C7) ve aynı oturumda doldurulabilir.
+  içindir (C7) ve aynı oturumda doldurulabilir. Dayanak (2026-10-24):
+  Firebase belgesine göre yalnız Apple platformuna dağıtılan uygulamada
+  Services ID, Team ID, anahtar ve Key ID boş kalabilir — giriş için
+  Save yeter; hesap silmede Apple yetkisi iptali için yetmez (Firebase
+  iOS belgesinin jeton iptali bölümü iki alanı da istiyor → C7). Girişin
+  cihazda çalışması için A2'deki Sign in with Apple yeteneği de açık
+  olmalı.
 - Yapılmazsa: cihazda Apple ile giriş `operation-not-allowed` ile düşer;
   incelemede 4.8 + 2.1 reddi (U01).
 - Durum: **ölçülemedi.** Bu adım §4'te hiç yoktu (`grep -i "sign-in
   method"` boştu, ölçüldü 2026-10-23).
 
 **A5 — APNs anahtarı (U08) · SEN**
+- Önce bak: Keys listesinde APNs anahtarı ve Firebase'de yüklü anahtar
+  var mı (Apple ekip anahtarını ortam başına en çok 2 veriyor; gereksiz
+  anahtar sınırı doldurur).
 - developer.apple.com → Certificates, Identifiers & Profiles → Keys → `+`
-  → **Apple Push Notifications service (APNs)** → Configure: Environment
-  "Sandbox & Production", Key Restriction "Team Scoped (All Topics)" (ya
-  da yalnız `ai.rytho`; U08 adım 1) → Register → `.p8` **yalnız bir
-  kez** iner, Key ID not edilir. Firebase Console → Project settings → Cloud Messaging →
-  Apple app configuration (`ai.rytho`) → APNs Authentication Key → Upload:
-  `.p8` + Key ID + Team ID `292WJ9TP74`. Ayrıntı 4.6.
+  → Key Name → YALNIZ **Apple Push Notifications service (APNs)** →
+  Configure → Environment listesine bak; Key Restriction "Team Scoped
+  (All Topics)" (ya da yalnız `ai.rytho`; U08 adım 1) → Save → Continue
+  → Confirm → Download → Done. `.p8` **yalnız bir kez** iner, Key ID not
+  edilir. Apple'ın güncel belgesine göre ekip anahtarları **Sandbox YA DA
+  Production** ile sınırlı, ortam başına en çok 2; iki ortamda çalışan
+  anahtar yalnız MEVCUT olanlar için destekleniyor ve Apple ortama özel
+  anahtar öneriyor. Belgeyle uyumlu yol iki anahtar: "Rytho APNs Sandbox"
+  (Sandbox) ve "Rytho APNs Production" (Production). Listede "Sandbox &
+  Production" görünürse tek anahtar da bir seçenek — ekranda doğrulanır,
+  belgeyle değil; yeni anahtarda sunulup sunulmadığı ölçülemedi. Karar
+  sahibin. Apple ile Giriş bu anahtara eklenmez (C7'de ayrı anahtar;
+  öneri).
+- Firebase Console → ⚙ → Project settings → Cloud Messaging → Apple app
+  configuration (`ai.rytho`; Firebase belgesinde "iOS app configuration")
+  → APNs Authentication Key. Firebase belgesi (2026-10-22) development
+  ve production anahtarını AYRI sayıyor ("development key, production
+  key, or both" — en az biri şart). İki anahtar açıldıysa Sandbox olan
+  development, Production olan production yerine; her biri `.p8` + Key
+  ID + Team ID `292WJ9TP74` → Upload. Tek çift-ortam anahtarının iki
+  yere de yüklenip yüklenemeyeceği ekranda görülür (çıkarım, ölçülmedi).
+  Ayrıntı 4.6.
 - Yapılmazsa: cihaza hiçbir push gelmez (U14'ün ön plan banner'ı dahil);
   uygulamanın açılmasını engellemez. Firebase belgesine göre telefon
   doğrulamasının sessiz push yolu da çalışmaz ve reCAPTCHA'ya düşer
-  (ölçülmedi).
+  (ölçülmedi). Yalnız bir ortamın anahtarı yüklenirse öteki ortamın
+  jetonları düşer: Sandbox yarısı eksikse Debug/simülatör, Production
+  yarısı eksikse TestFlight/App Store. Bu sessiz DEĞİL: FCM
+  `THIRD_PARTY_AUTH_ERROR` (401) döner ve panelin "Kendime test gönder"i
+  "Gönderim başarısız" gösterir; sessiz kalan yalnız toplu koşulardaki
+  INFO düzeyindeki "Bildirim gonderilemedi" günlük satırı
+  (`push_service.py:163`).
 - Durum: **ölçülemedi**; paket tarafı hazır (`aps-environment`,
   `UIBackgroundModes = remote-notification`).
 
@@ -329,9 +376,10 @@ Eksik olan cihaz ve konsol.
   yayında yeniden ölçer). Aşağıdaki iki madde define BOŞKEN geçerli.
 - İlk `flutter run` (A7) konsola `Firebase App Check Debug Token: …`
   satırını basar; eklenti her kurulum için yeni jeton üretiyor
-  (`FirebaseAppCheckPlugin.swift:318-325`). Firebase Console → App Check →
-  Apps → `ai.rytho` (iOS) → ⋮ → **Manage debug tokens** → Add debug token
-  → yapıştır → uygulamayı yeniden başlat.
+  (`FirebaseAppCheckPlugin.swift:318-325`). Firebase Console → Security →
+  App Check → Apps → `ai.rytho` (iOS) → ⋮ → **Manage debug tokens** → Add
+  debug token → yapıştır → uygulamayı yeniden başlat. (App Check sol
+  menüde Security grubunun altında — Firebase belgesi 2026-10-22.)
 - ⚠️ Jeton gizli bir değerdir: depoya, sohbete, ekran görüntüsüne girmez.
   Uygulama silinip yeniden kurulunca değişir ve yeniden eklenir. Şemada
   sabit jeton yok (`Runner.xcscheme`'de `FIRAAppCheckDebugToken` ortam
@@ -400,6 +448,20 @@ Eksik olan cihaz ve konsol.
   "Resmi Kaydet" (U44); Sessiz anahtar + Apple Music (U24); silip yeniden
   kurunca giriş ekranı (U45); Apple düğmesinin iPhone SE + 1,3 yazı
   ölçeğinde görünmesi (U04).
+- **Hesap silme + Apple yetkisi iptali (U15'in tek doğrulaması; önkoşul
+  C7)** — AYRI bir test hesabıyla (gerçek veri silinmesin): Apple ile
+  giriş → Profil → Hesap → Hesabı sil → açılan Apple sayfasını onayla →
+  silme bitince iPhone Ayarlar → adın → "Apple ile Giriş" (Sign in with
+  Apple) listesinde **Rytho kalmamalı** (menünün tam yeri iOS sürümüne
+  göre değişebilir, ölçülmedi). Kalıyorsa iptal düşmüştür: Debug'da tek
+  iz Xcode konsolundaki "Apple yetkisi iptal edilemedi" satırı
+  (`auth_service.dart:281`), yayında Crashlytics `apple-revoke`. Apple
+  girişi testinde tuzak (U31): Apple Kimliğinin e-postası Rytho'da Google
+  ya da şifreyle kayıtlıysa ve "e-postamı paylaş" seçilirse giriş
+  `account-exists-with-different-credential` ile düşer — yapılandırma
+  kusuru değil; Hide My Email ya da Rytho'da kullanılmamış bir Apple
+  Kimliği seçilir. *(Ek 2026-10-24: silme/iptal denemesi hiçbir aşama
+  adımında yoktu.)*
 - **Deploy'a bağlı, "bekliyor" işaretlenir:** Universal Link `/i/` ve
   `/r/` (canlı AASA bayat — hosting kilidi), `users/{uid}/private/aiConsent`
   kaydı (canlıda uç yok) ve engelleme — ikisi de "Deploy bağımlılıkları"
@@ -410,23 +472,51 @@ Eksik olan cihaz ve konsol.
 ### Aşama B — iç TestFlight (Release, App Attest, StoreKit sandbox)
 
 **B1 — Firebase iOS uygulamasında Team ID · SEN**
-- Firebase Console → Project settings → General → Your apps → iOS
-  `ai.rytho` → **Team ID** = `292WJ9TP74`. App Attest kaydının önkoşulu
-  (U42, U08).
+- Firebase Console → ⚙ → Project settings → General → Your apps → iOS
+  `ai.rytho` → **Team ID** alanının yanındaki düzenleme simgesi (simgenin
+  adı belgede yok, ölçülmedi) → `292WJ9TP74` → Save. Doluysa ve aynıysa
+  dokunulmaz. App Attest kaydının önkoşulu (U42, U08).
 - Durum: **ölçülemedi.**
 
 **B2 — App Check'te App Attest kaydı (U08) · SEN**
-- Firebase Console → App Check → Apps → `ai.rytho` (iOS) → **App Attest**
-  → Save. App ID'de App Attest yeteneği açık olmalı (A2).
+- Firebase Console → **Security** → App Check → Apps sekmesi → `ai.rytho`
+  (iOS) → **App Attest** → Token time-to-live varsayılan (1 saat)
+  bırakılır → Save. Android satırına ve APIs sekmesindeki "Enforced"
+  ayarlarına dokunulmaz. Önce B1; App ID'de App Attest yeteneği açık
+  olmalı (A2). Bugün dağıtılmış iOS paketi olmadığı için kimseyi
+  etkilemez; ilk cihaz/TestFlight denemesinden ÖNCE yapılır.
 - Yapılmazsa: Release, Profile, TestFlight ve inceleme paketi
   `AppleAppAttestProvider` (`main.dart:181`) ile jeton alamaz; zorlama
-  açık olduğu için **giriş yapılamaz**. Cihazda `flutter run --release`
-  denemesi de giriş ekranında kalır.
-- Doğrulama: ilk TestFlight kurulumunda giriş çalışıyor ve Crashlytics'te
-  `app-check-token` / `app-check-activate` kaydı yok (U30).
-- Ölçülemedi: geliştirme profiliyle imzalı ama
-  `appattest-environment = production` taşıyan derlemenin Firebase'ce
-  kabulü — yalnız cihazda, kayıttan sonra görülür.
+  açık olduğu için **giriş yapılamaz**. Belirti büyük olasılıkla genel
+  "Bir şeyler ters gitti" (debug jetonu reddinde ölçülen sınıf — A6; App
+  Attest için ölçülmedi). *(Düzeltme 2026-10-24: burada "cihazda
+  `flutter run --release` denemesi de giriş ekranında kalır" yazıyordu —
+  hem belirti hem kip yanlıştı.)*
+- **Cihaz denemesi TestFlight'tan ÖNCE yapılabilir:** Apple'ın belgesine
+  göre yetki `production` iken geliştirme imzalı derleme de üretim App
+  Attest sunucularını kullanır; Firebase yalnız üretim jetonunu kabul
+  eder. A1 + A3'ten sonra Terminal'de `cd apps/mobile && LANG=en_US.UTF-8
+  flutter run --profile -d <cihaz kimliği>
+  --dart-define-from-file=dart_defines.local.json`; sırayla e-postayla
+  giriş, profilin yüklenmesi (Firestore), avatar yükleme (Storage).
+  Yalnız **`--profile`**: Debug App Attest'e hiç gitmez
+  (`AppleDebugProvider`); `--release` önerilmez — Release
+  `RunnerRelease.entitlements`'ı (`aps-environment = production`)
+  kullanıyor ve geliştirme profiliyle imzada düşebilir (B9, ölçülmedi);
+  Profile `Runner.entitlements`'ı kullanır (aps development, App Attest
+  production). Kayıttan önce denenip hata alındıysa ayarlardan sonra
+  uygulama tamamen kapatılıp açılır: AppCheckCore reddin ardından
+  bekleme süresini bellekte tutuyor, yeniden başlatma sıfırlar (koddan).
+  Profile'da `kDebugMode` false olduğu için jeton yoklaması ve
+  Crashlytics kaydı çalışır: `app-check-token` izi bu denemede de
+  aranabilir (koddan).
+- Doğrulama: Profile cihaz denemesinde ya da ilk TestFlight kurulumunda
+  giriş çalışıyor ve Crashlytics'te `app-check-token` /
+  `app-check-activate` kaydı yok (U30).
+- Ölçülmedi: yalnız Firebase'in geliştirme imzalı + `appattest-environment
+  = production` jetonunu kabulü (Apple yarısı belgeyle cevaplı: üretim
+  sunucuları) — cihazda, kayıttan sonra görülür. *(Düzeltme 2026-10-24:
+  madde iki yarıyı da "ölçülemedi" sayıyordu.)*
 
 **B3 — Paid Apps sözleşmesi, vergi, banka (U02 adım 1) · SEN**
 - App Store Connect → **Business** (eski adı Agreements, Tax, and
@@ -575,11 +665,16 @@ Eksik olan cihaz ve konsol.
   `RunnerRelease.entitlements`'ı (`aps-environment = production`)
   kullanıyor, otomatik imza ise önce geliştirme profiliyle imzalıyor;
   Xcode "doesn't match the entitlements file's value for the
-  aps-environment entitlement" ile durabilir. Durursa
-  `Runner.entitlements:11-17`'deki gerekçe ("development kalırsa üretim
-  arşivi sandbox jetonu alır") ve 4.5'teki aynı paragraf yeniden ölçülür.
+  aps-environment entitlement" ile durabilir. Durursa aday çare Release'i
+  `Runner.entitlements`'a bağlamak (Apple'a göre dışa aktarma dağıtım
+  profiliyle yeniden imzalayıp production'a çevirir — çıkarım, ölçülmedi)
+  ve `test_ios_config.py`'deki iki-dosya bekçisini buna göre değiştirmek;
+  durmazsa dosyalara dokunulmaz.
   Entitlements imzasız derlemede gömülmüyor; imzalı pakette `codesign -d
-  --entitlements :- Runner.app` ile okunur.
+  --entitlements :- Runner.app` ile okunur. *(Düzeltme 2026-10-24: burada
+  "development kalırsa üretim arşivi sandbox jetonu alır" gerekçesinin
+  yeniden ölçüleceği yazıyordu; Apple belgesi ve FCM SDK kaynağı ortamın
+  profilden geldiğini söylüyor, gerekçe yanlış — 4.5.)*
 
 **B9a — B10'dan önce: kurallar + backend deploy'u · SEN (onay; önerilir,
 TestFlight'ın engeli değil)** — aşağıdaki "Deploy bağımlılıkları" madde 1.
@@ -661,6 +756,23 @@ yok).
   yalnız Türkiye; "iPhone and iPad Apps on Apple Silicon Macs" ve Apple
   Vision Pro işaretleri kaldırılır (App Attest ve kamera orada
   doğrulanmadı — U53). Fiyat: "Sahibin kararları".
+- **Mac / Vision Pro erişimi · KARAR (öneri: ikisi de kapatılır).**
+  Apple'ın `DCAppAttestService.isSupported` belgesine göre Mac'te değer
+  **false** — Apple silicon'da çalışan iOS uygulamaları DAHİL; AppCheckCore
+  bu durumda jeton vermez, yani zorlama açıkken Mac kullanıcısı giriş
+  yapamaz. Eklentinin yedekli (DeviceCheck) varyantı yalnız iOS sürümüne
+  bakıyor (`FirebaseAppCheckPlugin.swift:333-338`), Mac'i kurtarmaz; açık
+  tutmanın tek yolu `isSupported`'a bakan özel bir yedek (yerel kod +
+  Firebase'de DeviceCheck kaydı + DeviceCheck `.p8`). Vision Pro'da
+  "Designed for iPad" için `isSupported` belgelenmedi; WWDC26 macOS 27'de
+  App Attest desteğinden söz ediyor ama Mac'te çalışan iOS uygulaması için
+  belgelenmedi — ikisi de belirsiz. Yol (önkoşul B4; ekranda
+  doğrulanmadı): Pricing and Availability → "iPhone and iPad Apps on
+  Apple Silicon Mac" → Apple Silicon Mac Availability → "Make this app
+  available" işaretini kaldır; "iPhone and iPad Apps on Apple Vision Pro"
+  → "Make this app available on Apple Vision Pro" işaretini kaldır → Save.
+  **Karar sahibin.** *(Ek 2026-10-24: U53 bunu "kullanılamayabilir" diye
+  yumuşak anlatıyordu.)*
 
 **C7 — Apple yetkisi iptali ve Hide My Email (U15, U22) · SEN**
 - developer.apple.com → Keys → `+` → **Sign in with Apple** (Primary App
@@ -673,6 +785,53 @@ yok).
   for Email Communication** → Configure → `noreply@rhytoai.firebaseapp.com`.
   Yapılmazsa Hide My Email seçen kullanıcıya şifre sıfırlama ve doğrulama
   postası ulaşmaz (U22).
+- **Tam sıra ve yollar (Apple + Firebase belgeleri, 2026-10-24; ekranda
+  doğrulanmadı, konsol durumu ölçülmedi).** *(Düzeltme 2026-10-24:
+  yukarıdaki iki madde Services ID'nin yapılandırmasını ve e-posta
+  kaynağının "Email Sources" adımını atlıyordu — yalnız kimliği
+  oluşturulmuş Services ID'de Apple ile Giriş açık değildir.)*
+  0. Önce A2: `ai.rytho`'da Sign in with Apple **primary** olmalı; yoksa
+     aşağıdaki "Primary App ID" listeleri boş gelir.
+  1. **Anahtar:** Keys → `+` → Key Name (ör. "Rytho Sign in with Apple")
+     → **Sign in with Apple** kutusu → yanındaki Configure → Primary App
+     ID `ai.rytho` → Save → Continue → Confirm → Download → Done. `.p8`
+     **yalnız bir kez** iner (kaybolursa anahtar iptal edilip yenisi
+     açılır); sayfadaki 10 karakterlik **Key ID not edilir** (Firebase'e
+     girilecek). Bir birincil App ID'ye en çok iki anahtar. APNs
+     anahtarından ayrı tutulması öneri (Apple'a göre iptal edilen anahtar
+     onu kullanan bütün servisleri bozar; karar sahibin). Dosya depo
+     klasörüne konmaz (`.gitignore` `*.p8`).
+  2. **Services ID:** Identifiers → `+` → Services IDs → Continue →
+     Description ("Rytho Sign in") · Identifier (öneri `ai.rytho.signin`;
+     bundle ID'den FARKLI olmalı — karar sahibin) → Continue → Register →
+     listede (sağ üstteki filtre: Services IDs) bu kimliği aç → **Sign in
+     with Apple** kutusu → **Configure** → Primary App ID `ai.rytho` →
+     Website URLs: Domains and Subdomains `rhytoai.firebaseapp.com`,
+     Return URLs `https://rhytoai.firebaseapp.com/__/auth/handler` →
+     Next → Done → Continue → Save. Firebase iOS belgesi Return URL
+     kaydını adım sayıyor; belgeye göre gerekli, Firebase'in iPhone'dan
+     gelen yetki kodunu iptal ederken Services ID'yi kullanıp kullanmadığı
+     ölçülmedi.
+  3. **Firebase:** Authentication → Sign-in method → Apple satırı →
+     Services ID (2'deki kimlik) → OAuth code flow configuration: Apple
+     team ID `292WJ9TP74`, Key ID (1), Private key (`.p8`'in tüm içeriği;
+     BEGIN/END satırlarıyla yapıştırmak yaygın pratik, resmi belgede
+     yazmıyor) → Save.
+  4. **E-posta kaynağı:** Certificates, Identifiers & Profiles → Services
+     → Sign in with Apple for Email Communication → Configure → **Email
+     Sources** → `+` → adres → Next → Register. Adres Firebase →
+     Authentication → Templates'teki **From** alanıyla BİREBİR aynı olmalı
+     (büyük olasılıkla `noreply@rhytoai.firebaseapp.com`; konsolda
+     okunmadı — SMTP settings'te özel sunucu varsa o adres). Alan adı
+     değil ADRES kaydedilir (`firebaseapp.com` Google'ın). Kayıttan sonra
+     tablodaki SPF sütununda "pass" beklenir — bu bir **çıkarım**:
+     `rhytoai.firebaseapp.com`'un SPF kaydı var (`v=spf1
+     redirect=_spf.google.com`, DNS 2026-10-24), ama Apple'ın teslim
+     kuralı zarf göndericisinin SPF'ine ya da DKIM `d=` eşleşmesine bakar
+     ve Firebase postasının Return-Path'i ölçülmedi. Sahibin DNS'te
+     yapacağı bir şey yok. Gerçek kanıt Hide My Email'li bir hesaba
+     şifre sıfırlama postasının ulaşması.
+  Doğrulama: A8'deki silme + iptal denemesi.
 
 **C8 — Ekran görüntüleri ve metaveri (U07, U19) · SEN + Mac**
 - 6,9" (1320x2868) iPhone 17 Pro Max simülatöründen; yalnız iOS arayüzü,
@@ -838,6 +997,8 @@ sahibin):
 | Satıcı adı | B4 | Takım türü Individual (ölçüldü) — mağazada satıcı olarak kişi adı görünür; Apple politikasından çıkarım, mağaza sayfasında ölçülmedi |
 | U06'nın kalan riski | C13 | **Sahip kararı verildi** (CLAUDE.md §7, 2026-10-22/23): kutu sağlayıcı adını bilerek taşımaz, 53'ten gelen hesaplara bir şey sorulmaz, politika geçiş cümlesiyle anlatır. Bu modelin bilinen 5.1.2(i) riski (Apple sağlayıcıyı adıyla anan ekran bekleyebilir; Android ≤ 53'te kurulumu bitmiş hesap iOS'ta kutuyu görmez): **Sahip kararı 2026-10-24: risk kabul edildi** — kutu adsız kalır; Apple itiraz ederse o gün yeniden konuşulur. Kutuya ad eklemek modeli değiştirmektir, yalnız sahip yeniden açabilir. *(Düzeltme 2026-10-24: burada "kutuya sağlayıcı adı mı, yoksa riskin kayda yazılması mı; eski hesaplar" diye açık karar gibi duruyordu.)* |
 | Yaş / UGC | C4 | 13+, Messaging and Chat = Evet |
+| Mac / Vision Pro erişimi | C6 | Öneri: ikisi de kapatılır — Apple'a göre Mac'te App Attest yok (`isSupported` false, iOS-on-Mac dahil), zorlama açıkken Mac kullanıcısı giriş yapamaz; açık kalırsa özel DeviceCheck yedeği gerekir (2026-10-24) |
+| Apple anahtarları | A5, C7 | APNs: belgeyle uyumlu yol ortama özel iki anahtar; ekranda "Sandbox & Production" çıkarsa tek anahtar da seçenek. Apple ile Giriş anahtarı APNs'ten ayrı (öneri). Services ID adı (öneri `ai.rytho.signin`) (2026-10-24) |
 | Şikâyete 24 saat sözü | C10 | U18: söz sahibin kararı. Şikâyetler bugün yalnız Firebase konsolundan okunuyor (panelde görünüm yok, U37); sahip o sürede okuyabileceğine karar verirse notlara ve Koşullar'a (TR+EN) yazılır. *(Düzeltme 2026-10-24: burada "panelde görünüm yokken verilmez" yazıyordu — kayıtlarda böyle bir kural yok, karar sahibin.)* |
 | `/openapi.json` ve `/docs` herkese açık | — | Üretimde kimliksiz 200, admin uçları dahil 89 yol (hazırlık denetimi, ölçüldü 2026-10-23). iOS'u engellemiyor. Kapatılırsa canlı rota ölçümü (bu belgedeki `/ai-consent` 404 gibi) `gcloud run revisions describe` ile yapılır. Karar sahibin |
 
@@ -961,8 +1122,11 @@ entitlements dosyası yetmez:
   `com.apple.developer.devicecheck.appattest-environment = production`
   taşıyor (`54130b9`, U42; `Runner.entitlements:53-54`, ölçüldü
   2026-10-23). App ID'de kapalıysa profil bu yetkiyi taşımaz ve imza
-  düşer; Release/TestFlight'ın App Check jetonu da buna dayanıyor (§4 A2,
-  B2).
+  düşer. Bu yeteneğe dayanan şey App Attest yetkisini taşıyan paketin
+  İMZASI ve geliştirme imzalı cihaz denemesi (§4 A2, B2); TestFlight/App
+  Store dağıtımında Apple yetkinin değerini yok sayıp production
+  kullanır. *(Düzeltme 2026-10-24: burada "Release/TestFlight'ın App Check
+  jetonu da buna dayanıyor" yazıyordu.)*
 
 Portal durumu (App ID var mı, dört yetenek açık mı) bu Mac'ten
 **ölçülemedi** (2026-10-23).
@@ -972,11 +1136,12 @@ Depo tarafı hazır: `Runner.entitlements` (Debug/Profile) ve
 Release bloğu ikincisine bakıyor.
 
 ⚠️ İkisi **yalnız `aps-environment` değerinde** farklı: `development` ve
-`production`. Bu ayrım bilinçli ve sessiz bir tuzağı kapatıyor — tek dosya
-kullanılıp `development` kalsaydı üretim paketi **sandbox** APNs jetonu
-alır, sunucu üretim APNs'ine gönderir ve bildirim hiçbir yere düşmezdi:
-TestFlight'ta çalışır, mağazada ölür. Dosyalardan biri değişirse
-**diğeri de aynı şekilde değişmeli**.
+`production`. Dosyalardan biri değişirse **diğeri de aynı şekilde
+değişmeli** (`test_ios_config.py` bunu şart koşuyor). Bu paragrafın eski
+gerekçesi — "tek dosya kullanılıp `development` kalsaydı üretim paketi
+**sandbox** APNs jetonu alır, sunucu üretim APNs'ine gönderir ve bildirim
+hiçbir yere düşmezdi: TestFlight'ta çalışır, mağazada ölür" — **yanlış**
+(aşağıdaki not).
 
 ⚠️ **Bu gerekçe henüz ÖLÇÜLMEDİ (not 2026-10-23).** Apple belgesi
 `aps-environment` değerinin Xcode tarafından profile göre yazıldığını
@@ -987,12 +1152,26 @@ geliştirme profiliyle imzalıyor — ilk imzalı Release ya da arşiv
 "doesn't match the entitlements file's value for the aps-environment
 entitlement" ile düşebilir. İkisi de ilk imzalı Release'te ölçülür
 (§4 B9); o zamana dek dosyalar olduğu gibi kalır.
+→ **Gerekçe yarısı belgeyle cevaplandı (2026-10-24):** Apple'ın
+`aps-environment` belgesine göre dağıtım profiliyle imzalanan paket —
+TestFlight DAHİL — production kullanır; TestFlight ile mağaza aynı
+ortamda, "biri çalışır öteki ölür" oluşamaz. FCM de ortamı yetki
+dosyasından değil SDK'nın gömülü profilden okuyup jetonla bildirdiği
+sandbox bayrağından seçiyor (pod kaynağı: `FIRMessagingUtilities.m`
+App Store ve TestFlight'ı production sayıyor; `FIRMessagingTokenManager.m`).
+Ölçülmemiş kalan yalnız imza yarısı: iki dosyanın gerçekten gerekip
+gerekmediği ve Release'in geliştirme imzasıyla düşüp düşmediği (§4 B9).
 
 ### 4.6 — APNs anahtarı · **SEN**
 Apple Developer → Keys → yeni **APNs Auth Key** (.p8) oluştur, Firebase
 Console → Project Settings → Cloud Messaging → iOS bölümüne yükle
 (Key ID + Team ID ile birlikte). Bunsuz FCM iOS'a bildirim gönderemez.
 Tam yol ve sıra: §4 A5. Durum 2026-10-23'te bu Mac'ten **ölçülemedi**.
+**Ek (2026-10-24):** "tek anahtar, tek alan" değil — Apple ekip
+anahtarlarını Sandbox ya da Production ile sınırlıyor (ortam başına en
+çok 2), Firebase de development ve production anahtarını ayrı yerlere
+alıyor (en az biri şart; eksik ortam `THIRD_PARTY_AUTH_ERROR` verir).
+Ayrıntı §4 A5.
 
 ### 4.7 — RevenueCat iOS anahtarı ve IAP ürünleri · **SEN**
 `dart_defines.local.json`'daki `REVENUECAT_IOS_KEY` şu an
@@ -1103,6 +1282,13 @@ kuralını bozar). Hiçbiri seçilmedi.
 erken yazılan bir metin herhangi bir makinenin ilk deploy'unda canlıya
 çıkardı:
 1. `web/r/index.html` → `APPSTORE_ID` (App Store Connect'in sayısal kimliği).
+   Aynı dosyada masaüstü/iPad metni (`diger` / `digerNot`, TR ve EN:
+   "iOS sürümü hazırlanıyor", "yalnız Android kurulumlarında sayılıyor")
+   yayından sonra da masaüstü ve iPad ziyaretçisine gösterilir —
+   güncellenir. `/i/` davet sayfasına App Store düğmesi (U34; bugün yalnız
+   Play). Deploy'dan sonra Safari'de `rytho.app/r/<KOD>` → "Uygulamada
+   aç" testi (aşağıdaki cihaz listesinin 2. maddesi). *(Ek 2026-10-24:
+   bu üçü listede yoktu.)*
 2. `web/ortaklik.html` (iPhone paragrafı) ve `web/en/partners.html`
    (aynısı) — "iPhone'dan gelen bağlantı sayılmaz" → "ikinci dokunuşta sayılır".
 3. `web/affiliate/ortak.js` iPhone dipnotları (TR + EN + kod yorumu):
@@ -1114,15 +1300,49 @@ erken yazılan bir metin herhangi bir makinenin ilk deploy'unda canlıya
 5. `docs/ortaklik-programi.md` §8 "Durum" satırı.
 
 **Cihazda ölçülecek (iPhone gelince):**
-1. Notlar'a `https://rytho.app/r/TESTKOD` yaz, dokun → uygulama açılır,
-   `users/{uid}/private/attribution` yazılır (oturum açıkken).
-2. Safari'de `rytho.app/r/TESTKOD` → "Uygulamada aç" (karşı host) →
-   uygulama açılır mı?
+0. **Test kodu GERÇEK olmalı** (koddan doğrulandı 2026-10-24). Uydurma
+   kod (`TESTKOD`) sunucuda 404 `not_found` alır ve atıf yazılmaz; daha
+   kötüsü istemci 401 DIŞINDAKİ her 4xx'i — 404, kendi kodunun 403'ü,
+   ikinci kodun 409'u, pasif/süresi geçmiş/dolmuş kodun 400'ü — VE
+   başarıyı **kurulum başına** kalıcı sayıp bayrağı yakar
+   (`partner_referrer.dart` `_gonder`); aynı kurulumda sonraki deneme
+   sessizce atlanır. Kod: `rytho.app/rytho-admin` → Ortaklar → Yeni ortak
+   ("Giriş hesabı" uid'i iPhone'da KULLANILMAYACAK başka bir hesabın) →
+   ortağın detay sayfası → Ortak bağlantısı → Kod üret ("Kullanım limiti"
+   planlanan deneme sayısı, "Son gün" yakın bir tarih — panelde kodu
+   kapatan düğme yok, ortağı pasifleştirmek kodu durdurmuyor). Üretim
+   veritabanına yazar; ayrı test ortağı mı gerçek ortak mı, karar sahibin
+   (gerçek ortağın "bağlantıyı kullanan" sayacı kalıcı artar). **Kural:
+   her yeni atıf denemesi = temiz kurulum (uygulamayı sil, yeniden kur) +
+   daha önce kod kullanmamış yeni hesap (ortağın kendisi değil).**
+   Oturumsuz dokunuş denenecekse başarılı atıftan ÖNCE yapılır (401
+   bayrağı yakmaz; başarı yakar).
+1. Notlar'a `https://rytho.app/r/<GERÇEK_KOD>` yaz, dokun → uygulama
+   açılır, `users/{uid}/private/attribution` yazılır (oturum açıkken).
+   *(Düzeltme 2026-10-24: bu madde ve 2. madde `TESTKOD` ile test
+   öneriyordu — yukarıdaki 0.)*
+2. Safari'de `rytho.app/r/<GERÇEK_KOD>` → "Uygulamada aç" (karşı host) →
+   uygulama açılır mı? ⚠️ **Ancak YAYIN GÜNÜ yapılabilir:** düğme
+   `APPSTORE_ID` boşken gizli (`web/r/index.html` iPhone dalı) ve
+   yukarıdaki yayın günü listesi kimliği App Store yayınından önce
+   yazdırmıyor — iki kural bu testi "iPhone gelince" değil yayın günü
+   yapılabilir kılıyor.
 3. Instagram / WhatsApp uygulama içi tarayıcısından dokunuş — Universal
    Link'i açmayabilirler; ölçülmeden hiçbir şey söylenmez.
 4. Apple'ın AASA önbelleği:
    `https://app-site-association.cdn-apple.com/a/v1/rytho.app` deploy'dan
-   sonra güncellenmeyebilir; önce oradan oku.
+   sonra güncellenmeyebilir; önce oradan oku. Apple'a göre CDN dosyayı
+   "24 saat içinde" çeker ve elle tazeleme yolu yok (TN3155); cihaz AASA'yı
+   kurulumda indirir, sonra yaklaşık haftada bir bakar — yeni gövde
+   CDN'de görülünce uygulama **silinip yeniden kurulur**. CDN'i atlamanın
+   resmi yolu TN3155'in geliştirici kipi: `applinks:rytho.app?mode=developer`
+   — yalnız geliştirme imzalı pakette ve cihazda Settings → Developer →
+   Associated Domains Development açıkken; cihaz AASA'yı doğrudan siteden
+   çeker. Hosting deploy'unu gereksiz kılmaz, App Store gönderiminden
+   ÖNCE kaldırılır. Depoda bedeli var: `test_ios_config.py` iki yetki
+   dosyasının yalnız `aps-environment`'ta ayrışmasını şart koşuyor, sonek
+   yalnız Debug/Profile dosyasına eklenirse o bekçi kızarır (kaynaktan);
+   yani geçici, bilinçli bir deneme olur. *(Ek 2026-10-24.)*
 
 **Canlı (ölçüldü 2026-10-23):** `/r/` sayfası `e8cc253` sürümünde (11.587
 bayt; depodaki 14.531) — iPhone'da "iOS sürümü hazırlanıyor" diyor,
