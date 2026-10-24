@@ -998,7 +998,9 @@ model: şartlar kutusunun altında ayrı, zorunlu ikinci kutu; ikisi
 işaretlenmeden Devam açılmaz. Kutu metni sağlayıcı adı TAŞIMAZ ("bugün
 Gemini yarın Claude"); sağlayıcıyı gizlilik politikası adıyla anar —
 sağlayıcı değişirse yalnız politikanın dört kopyası değişir. Geri alma =
-hesabı silmek. 53'ten güncelleyen hesap hiçbir şey görmez, adına kayıt
+hesabı silmek. Bu modelin Apple 5.1.2(i) riski (inceleyici sağlayıcıyı
+adıyla anan ekran isteyebilir) sahip kararıyla KABUL EDİLDİ (2026-10-24):
+kutu adsız kalır, Apple itiraz ederse o gün yeniden konuşulur. 53'ten güncelleyen hesap hiçbir şey görmez, adına kayıt
 yazılmaz; politikadaki geçiş cümlesi onları anlatır. Kanıt `POST
 /api/v1/account/ai-consent` → `users/{uid}/private/aiConsent`; sunucu ilk
 onay anını korur. ⚠️ `kTermsConsentVersion`/`kAiConsentVersion` metin

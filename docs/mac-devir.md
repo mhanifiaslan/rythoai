@@ -740,9 +740,9 @@ gizlilik metni Android çerçeveli), U32 (cihaz kilidi platform başına), U35
 iadesi — RevenueCat'in paket `CANCELLATION`'ı — yok sayılıyor → bedava
 kredi yolu; düzeltme + backend deploy, iOS satışı başlamadan önce),
 U05'in kalanı (B7). Yayın sonrası parite: U34, U50, U51, U36. U06 burada
-açık iş DEĞİL: modelin kendisi sahip kararı ("Sahibin kararları"). Ayrı
-ve AÇIK bir soru: bu modelin 5.1.2(i) riski kabul ediliyor mu — sahibe
-sorulacak, kayıtlı cevap yok. *(Düzeltme
+açık iş DEĞİL: modelin kendisi sahip kararı ("Sahibin kararları"). Bu
+modelin 5.1.2(i) riski de sahip kararıyla kabul edildi (2026-10-24; kutu
+adsız kalır, Apple itiraz ederse yeniden konuşulur). *(Düzeltme
 2026-10-24: U06 burada "kutu sağlayıcıyı adlandırmıyor, eski hesaplar onay
 vermiyor — karar" diye açık karar gibi duruyordu; U16 ve parite kalemleri
 yoktu.)*
@@ -836,7 +836,7 @@ sahibin):
 | Small Business Program | C6 | developer.apple.com → App Store Small Business Program → Enroll (bireysel hesap). %15 oranı başvuru ister — Apple belgesi, ölçülmedi. Belgelerde hiç geçmiyordu (ölçüldü) |
 | Aile Paylaşımı | B5 | Abonelik ürünündeki Family Sharing anahtarı. Apple belgesine göre bir kez açılınca kapatılamaz (ölçülmedi); tek cihaz kilidiyle (U32) birlikte düşünülür. Belgelerde karar yok (ölçüldü: yalnız Ask to Buy bağlamında geçiyor) |
 | Satıcı adı | B4 | Takım türü Individual (ölçüldü) — mağazada satıcı olarak kişi adı görünür; Apple politikasından çıkarım, mağaza sayfasında ölçülmedi |
-| U06'nın kalan riski | C13 | **Sahip kararı verildi** (CLAUDE.md §7, 2026-10-22/23): kutu sağlayıcı adını bilerek taşımaz, 53'ten gelen hesaplara bir şey sorulmaz, politika geçiş cümlesiyle anlatır. Ayrı ve AÇIK soru (sahibe sorulacak, kayıtlı cevap yok): bu modelin bilinen 5.1.2(i) riski (Apple sağlayıcıyı adıyla anan ekran bekleyebilir; Android ≤ 53'te kurulumu bitmiş hesap iOS'ta kutuyu görmez) kabul ediliyor mu? Cevap tarihiyle buraya yazılır. Kutuya ad eklemek modeli değiştirmektir, yalnız sahip yeniden açabilir. *(Düzeltme 2026-10-24: burada "kutuya sağlayıcı adı mı, yoksa riskin kayda yazılması mı; eski hesaplar" diye açık karar gibi duruyordu.)* |
+| U06'nın kalan riski | C13 | **Sahip kararı verildi** (CLAUDE.md §7, 2026-10-22/23): kutu sağlayıcı adını bilerek taşımaz, 53'ten gelen hesaplara bir şey sorulmaz, politika geçiş cümlesiyle anlatır. Bu modelin bilinen 5.1.2(i) riski (Apple sağlayıcıyı adıyla anan ekran bekleyebilir; Android ≤ 53'te kurulumu bitmiş hesap iOS'ta kutuyu görmez): **Sahip kararı 2026-10-24: risk kabul edildi** — kutu adsız kalır; Apple itiraz ederse o gün yeniden konuşulur. Kutuya ad eklemek modeli değiştirmektir, yalnız sahip yeniden açabilir. *(Düzeltme 2026-10-24: burada "kutuya sağlayıcı adı mı, yoksa riskin kayda yazılması mı; eski hesaplar" diye açık karar gibi duruyordu.)* |
 | Yaş / UGC | C4 | 13+, Messaging and Chat = Evet |
 | Şikâyete 24 saat sözü | C10 | U18: söz sahibin kararı. Şikâyetler bugün yalnız Firebase konsolundan okunuyor (panelde görünüm yok, U37); sahip o sürede okuyabileceğine karar verirse notlara ve Koşullar'a (TR+EN) yazılır. *(Düzeltme 2026-10-24: burada "panelde görünüm yokken verilmez" yazıyordu — kayıtlarda böyle bir kural yok, karar sahibin.)* |
 | `/openapi.json` ve `/docs` herkese açık | — | Üretimde kimliksiz 200, admin uçları dahil 89 yol (hazırlık denetimi, ölçüldü 2026-10-23). iOS'u engellemiyor. Kapatılırsa canlı rota ölçümü (bu belgedeki `/ai-consent` 404 gibi) `gcloud run revisions describe` ile yapılır. Karar sahibin |
