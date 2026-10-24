@@ -733,20 +733,21 @@ isteği jetonlu yapmanın tek yolu okumayı SDK'ya taşımak (`ref.getData()`
 ya da backend üzerinden vekil); yeni bir AAB o satırlar değişmedikçe
 aynı jetonsuz GET'i atar.
 
-⚠️ **App Check bekçisi: çağrı tutuluyor, iOS'un yayın sağlayıcısı
-tutulmuyor** (kaynakta okundu 2026-10-24). `activate()` artık
+⚠️ **App Check bekçisi: çağrı VE iki platformun yayın sağlayıcısı
+tutuluyor** (kaynakta okundu ve mutasyonla ölçüldü 2026-10-24). `activate()` artık
 `main.dart:153`; hata yine **yutuluyor** (uygulama jetonsuz devam eder),
 ama yayında Crashlytics'e `app-check-activate` yazılıyor (U30) ve
 `test/app_check_izi_test.dart` çağrının varlığını, sırasını (activate →
 jeton yoklaması → `runApp`) ve catch'i tutuyor — satır silinirse kızarır.
-Bugünkü boşluk iOS'ta sağlayıcı seçimi: üçlü ifadenin YAYIN dalı
-(`AppleAppAttestProvider`, `main.dart:181`) başka bir sağlayıcıya dönerse
-Debug/simülatör debug sağlayıcıyla çalıştığı için hiçbir şey görünmez,
-ama Firebase'de planlanan tek iOS kaydı App Attest (`docs/mac-devir.md`
-§4 B2) olduğu için iOS yayın paketi giriş yapamaz — bunu tutan test yok
-(bekçi eklenecek). `providerApple`
-tamamen silinirse Debug da paketin varsayılanı DeviceCheck'e düşer ve
-hata simülatörde görünür. *(Düzeltme 2026-10-24: burada "HİÇBİR bekçisi
+Sağlayıcı seçimi de artık tutuluyor: üçlü ifadelerin YAYIN dalı
+(`AppleAppAttestProvider`, `AndroidPlayIntegrityProvider`) başka bir
+sağlayıcıya dönerse Debug/simülatör/emülatör debug sağlayıcıyla çalıştığı
+için hiçbir şey görünmez, ama Firebase'de planlanan kayıtlar yalnız bunlar
+(iOS: `docs/mac-devir.md` §4 B2) olduğu için yayın paketi giriş yapamaz.
+`test/app_check_izi_test.dart` iki dalı da TAM eşitlikle çiviliyor
+(derinlik sayan üçlü ayrıştırıcı); iç içe üçlü, DeviceCheck, ters dallar ve
+debug dalına `??` kuyruğu ayrı ayrı denendi, hepsi kırmızı. İlk sürümün
+açgözlü deseni iç içe üçlüyü yutup yeşil kalıyordu (çürütme turu). *(Düzeltme 2026-10-24: burada "HİÇBİR bekçisi
 yok … satır tamamen silinse ne test fark eder" yazıyordu; bayattı.)*
 
 Kapsamın kaynağı **servis kaydı değil ÖRNEK KİMLİĞİ** — koddan doğrulandı:
@@ -1110,9 +1111,12 @@ APNs'ine gönderir — TestFlight'ta çalışır, mağazada ölür") iki yerden
 `aps-environment` değerini provizyon profiline göre yazar ve dağıtım
 profiliyle imzalanan paket — TestFlight DAHİL — production kullanır, yani
 TestFlight ile mağaza aynı ortamda, biri çalışıp öteki ölemez; FCM de
-ortamı yetki dosyasından değil, SDK'nın gömülü profilden okuyup jetonla
-bildirdiği sandbox bayrağından seçer (`FIRMessagingUtilities.m`,
-`FIRMessagingTokenManager.m`). İki dosyanın gerçekten gerekip gerekmediği
+ortamı (olağan yolda, swizzling açık) yetki dosyasından değil, SDK'nın
+gömülü profilden okuyup jetonla bildirdiği sandbox bayrağından seçer
+(`FIRMessagingUtilities.m`, `FIRMessagingTokenManager.m`); APNs jetonu
+FIRMessaging hazır olmadan gelirse eklentinin derleme zamanı DEBUG etiketi
+geçer, Profile'da sandbox jetonu production etiketlenebilir — Profile'da
+push testi güvenilmez. İki dosyanın gerçekten gerekip gerekmediği
 — ya da Release'in geliştirme imzasıyla "doesn't match … aps-environment"
 ile düşüp düşmediği — ilk imzalı Release'te ölçülür (`docs/mac-devir.md`
 §4 B9); o zamana dek dosyalar olduğu gibi kalır.
@@ -1145,7 +1149,7 @@ cihaz ister.
 **Gerçek cihazda App Check iki ayrı konsol adımı ister** (kaynaktan
 ölçüldü 2026-10-23): Debug `AppleDebugProvider` kullanır. Define dosyasında
 `APP_CHECK_DEBUG_TOKEN` YOKSA eklenti HER kurulumda yeni bir debug jetonu
-basar — Firebase → App Check → `ai.rytho` → Manage debug tokens'a eklenmeden
+basar — Firebase → Security → App Check → Apps → `ai.rytho` → Manage debug tokens'a eklenmeden
 giriş/Firestore/Storage reddedilir (şemada sabit jeton yok).
 **2026-10-24'ten beri sabit jeton var:** `APP_CHECK_DEBUG_TOKEN` doluysa
 (`main.dart` `kAppCheckDebugToken`) her Debug kurulumu o jetonu kullanır ve

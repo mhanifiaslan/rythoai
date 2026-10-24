@@ -208,6 +208,11 @@ Bu bölüm bir dönem "henüz yapılmamış" diye duruyordu ve kendi §12'siyle
       yeni govdeyi cekmesi (canli AASA ve CDN 2026-10-24'te hala
       `TEAMID` + yalniz `/i/*`). *(Duzeltme 2026-10-24: bu madde
       "TEAMID gercek Team ID ile degistirilmeli" diye acik duruyordu.)*
+- [ ] **iOS Universal Links canlida:** hosting deploy'u (kilitli,
+      `docs/mac-devir.md` §4) yapildi VE Apple CDN yeni govdeyi cekti —
+      canli AASA ve `app-site-association.cdn-apple.com/a/v1/rytho.app`
+      `292WJ9TP74.ai.rytho` + `/r/*` veriyor. Bu kutu isaretlenene kadar
+      iOS'ta `/i/` ve `/r/` baglantilari uygulamayi ACMAZ.
 - [x] Kendi alan adi alindi: `rytho.app` (2026-09-15), `kInviteHost =
       'rytho.app'` (`core/deep_links.dart`). *(Duzeltme 2026-10-24: madde
       "alinirsa" diye acik duruyordu.)*

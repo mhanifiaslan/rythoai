@@ -754,8 +754,8 @@ yok).
 **C6 — Pricing and Availability (U41, U53) · SEN**
 - App Store Connect → uygulama → **Pricing and Availability**: bölge
   yalnız Türkiye; "iPhone and iPad Apps on Apple Silicon Macs" ve Apple
-  Vision Pro işaretleri kaldırılır (App Attest ve kamera orada
-  doğrulanmadı — U53). Fiyat: "Sahibin kararları".
+  Vision Pro işaretleri aşağıdaki KARAR'a göre (öneri: kaldırmak; U53).
+  Fiyat: "Sahibin kararları".
 - **Mac / Vision Pro erişimi · KARAR (öneri: ikisi de kapatılır).**
   Apple'ın `DCAppAttestService.isSupported` belgesine göre Mac'te değer
   **false** — Apple silicon'da çalışan iOS uygulamaları DAHİL; AppCheckCore
@@ -1120,8 +1120,8 @@ entitlements dosyası yetmez:
 - **App Attest** — *eklendi 2026-10-23.* Liste bu güne kadar üç yetenek
   sayıyordu, oysa iki entitlements dosyası da
   `com.apple.developer.devicecheck.appattest-environment = production`
-  taşıyor (`54130b9`, U42; `Runner.entitlements:53-54`, ölçüldü
-  2026-10-23). App ID'de kapalıysa profil bu yetkiyi taşımaz ve imza
+  taşıyor (`54130b9`, U42; bugün `Runner.entitlements:85-86`, ölçüldü
+  2026-10-24). App ID'de kapalıysa profil bu yetkiyi taşımaz ve imza
   düşer. Bu yeteneğe dayanan şey App Attest yetkisini taşıyan paketin
   İMZASI ve geliştirme imzalı cihaz denemesi (§4 A2, B2); TestFlight/App
   Store dağıtımında Apple yetkinin değerini yok sayıp production
@@ -1156,9 +1156,11 @@ entitlement" ile düşebilir. İkisi de ilk imzalı Release'te ölçülür
 `aps-environment` belgesine göre dağıtım profiliyle imzalanan paket —
 TestFlight DAHİL — production kullanır; TestFlight ile mağaza aynı
 ortamda, "biri çalışır öteki ölür" oluşamaz. FCM de ortamı yetki
-dosyasından değil SDK'nın gömülü profilden okuyup jetonla bildirdiği
-sandbox bayrağından seçiyor (pod kaynağı: `FIRMessagingUtilities.m`
+dosyasından değil (olağan yolda) SDK'nın gömülü profilden okuyup jetonla
+bildirdiği sandbox bayrağından seçiyor (pod kaynağı: `FIRMessagingUtilities.m`
 App Store ve TestFlight'ı production sayıyor; `FIRMessagingTokenManager.m`).
+İstisna: APNs jetonu FIRMessaging hazır olmadan gelirse eklentinin derleme
+zamanı DEBUG etiketi geçer — Profile'da push testi güvenilmez.
 Ölçülmemiş kalan yalnız imza yarısı: iki dosyanın gerçekten gerekip
 gerekmediği ve Release'in geliştirme imzasıyla düşüp düşmediği (§4 B9).
 
@@ -1319,6 +1321,11 @@ erken yazılan bir metin herhangi bir makinenin ilk deploy'unda canlıya
    bayrağı yakmaz; başarı yakar).
 1. Notlar'a `https://rytho.app/r/<GERÇEK_KOD>` yaz, dokun → uygulama
    açılır, `users/{uid}/private/attribution` yazılır (oturum açıkken).
+   ⚠️ Debug derlemede yalnız uygulama `flutter run` ile AÇIKKEN dene:
+   uygulama kapalıyken bağlantıyla açılış Debug'da çalışmaz (app_links
+   7.2.1 Debug'da kendini kaydetmiyor; Flutter iOS JIT). Kapalı uygulama
+   yolu Profile/TestFlight'ta sınanır. Notlar'da uzun basınca "Safari'de
+   aç"ı SEÇME — o alan adı için varsayılan Safari olur.
    *(Düzeltme 2026-10-24: bu madde ve 2. madde `TESTKOD` ile test
    öneriyordu — yukarıdaki 0.)*
 2. Safari'de `rytho.app/r/<GERÇEK_KOD>` → "Uygulamada aç" (karşı host) →
@@ -1339,10 +1346,15 @@ erken yazılan bir metin herhangi bir makinenin ilk deploy'unda canlıya
    — yalnız geliştirme imzalı pakette ve cihazda Settings → Developer →
    Associated Domains Development açıkken; cihaz AASA'yı doğrudan siteden
    çeker. Hosting deploy'unu gereksiz kılmaz, App Store gönderiminden
-   ÖNCE kaldırılır. Depoda bedeli var: `test_ios_config.py` iki yetki
-   dosyasının yalnız `aps-environment`'ta ayrışmasını şart koşuyor, sonek
-   yalnız Debug/Profile dosyasına eklenirse o bekçi kızarır (kaynaktan);
-   yani geçici, bilinçli bir deneme olur. *(Ek 2026-10-24.)*
+   ÖNCE kaldırılır (çıkarım: Apple'ın Associated Domains belgesi "yalnız
+   geliştirme profiliyle imzalı uygulama geliştirici kipini kullanabilir"
+   diyor; kip adı ve kaldırma kuralı TN3155'te yazmıyor). Depoda bedeli
+   var ve YEŞİL kalan yol yok: sonek yalnız Debug/Profile dosyasına
+   eklenirse `test_ios_config.py` (iki dosya `aps-environment` dışında
+   ayrışmış), iki dosyaya birden eklenirse `test_web_seo.py` (`/r/`
+   sayfasının "Uygulamada aç" hedefi RunnerRelease'in applinks listesini
+   okuyor) kızarır — deneme bilinçli bir kırmızıyla yapılır. *(Ek
+   2026-10-24.)*
 
 **Canlı (ölçüldü 2026-10-23):** `/r/` sayfası `e8cc253` sürümünde (11.587
 bayt; depodaki 14.531) — iPhone'da "iOS sürümü hazırlanıyor" diyor,
