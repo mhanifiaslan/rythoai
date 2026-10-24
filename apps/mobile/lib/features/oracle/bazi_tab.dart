@@ -313,7 +313,12 @@ class BaziTab extends ConsumerWidget {
                                   color:
                                       RythoColors.gold.withValues(alpha: 0.4)),
                             ),
-                            child: Text('${y['name']} · ${y['pillar']}',
+                            // `pillar` sunucudan makine anahtarı gelir
+                            // (bazi_stars.py); çevrilmeden basılınca TR
+                            // arayüzde "Tao Hua · day" kalıyordu.
+                            child: Text(
+                                '${y['name']} · '
+                                '${baziSutunAdi(l10n, '${y['pillar']}')}',
                                 style: RythoText.body(11.5,
                                     color: RythoColors.goldBright)),
                           ),
@@ -541,6 +546,19 @@ class _PillarColumn extends StatelessWidget {
   }
 }
 
+/// Sunucunun sütun anahtarını ("year" · "month" · "day" · "hour") dört
+/// sütun tablosunun başlığıyla adlandırır — yıldız yongası ve hüküm
+/// dayanağı aynı sütunu tablodaki adıyla anar. Bilinmeyen anahtar olduğu
+/// gibi döner: yeni bir sütun türü sessizce yutulmasın.
+String baziSutunAdi(AppLocalizations l10n, String anahtar) =>
+    switch (anahtar) {
+      'year' => l10n.baziPillarYear,
+      'month' => l10n.baziPillarMonth,
+      'day' => l10n.baziPillarDay,
+      'hour' => l10n.baziPillarHour,
+      _ => anahtar,
+    };
+
 /// Güç hükmü plaketi (B9): hüküm + oran çubuğu + yararlı elementler +
 /// dayanağın en ağır kalemleri. "Neden bu hüküm?" sorusunun cevabı
 /// ekranda durur — sunucu bileşen dökümünü tam veriyor, biz okunur ilk
@@ -556,13 +574,7 @@ class _StrengthPlaque extends StatelessWidget {
     if (source == 'month_command') return l10n.baziSrcMonthCommand;
     final parca = source.split(':');
     if (parca.length == 3) {
-      final sutun = switch (parca[1]) {
-        'year' => l10n.baziPillarYear,
-        'month' => l10n.baziPillarMonth,
-        'day' => l10n.baziPillarDay,
-        'hour' => l10n.baziPillarHour,
-        _ => parca[1],
-      };
+      final sutun = baziSutunAdi(l10n, parca[1]);
       return parca[0] == 'root'
           ? l10n.baziSrcRoot(sutun, parca[2])
           : l10n.baziSrcStem(sutun, parca[2]);

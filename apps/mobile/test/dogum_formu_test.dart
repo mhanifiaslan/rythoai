@@ -128,6 +128,14 @@ void main() {
     expect(sehirEtiketi(null, null), '—');
   });
 
+  test('sehirEtiketi: GeoNames\'in "Istanbul"u Türkçe yazımla görünür', () {
+    // Mağaza çekimi (2026-10-24): kurulumun yer adımı ve doğum kaydı
+    // "🇹🇷 Istanbul" basıyordu. Kayıtlı değer GeoNames adı ("Istanbul") —
+    // sunucunun çözdüğü anahtar; düzeltme yalnız GÖSTERİMDE.
+    final tr = String.fromCharCodes([0x1F1F9, 0x1F1F7]);
+    expect(sehirEtiketi('Istanbul', 'TR'), '$tr İstanbul');
+  });
+
   testWidgets('SecimSatiri etiket + değer gösterir, dokunuş çalışır',
       (tester) async {
     var dokunuldu = 0;

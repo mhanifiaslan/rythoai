@@ -62,6 +62,73 @@ void main() {
     });
   });
 
+  // Mağaza çekimi (2026-10-24, tam rapor): model "4. evdeki Güneş ve retro
+  // Merkür yığılması…" diye bir CÜMLE yazdı; çözücü `\d+[.)]` önekini madde
+  // imi sayıp sayıyı attı, ekranda "• evdeki Güneş…" kaldı. Aynı desen
+  // gerçek numaralı listelerin de numarasını siliyordu (hepsi nokta oluyordu).
+  group('sayıyla başlayan satır', () {
+    const cumle = '### 2. Gezegen Vurguları: Kökler ve İçsel Sığınak\n\n'
+        '4. evdeki Güneş ve retro Merkür yığılması, yaşam enerjinin '
+        'büyük kısmını soy ağacına kurduğunu gösteriyor.';
+
+    test('Türkçe sıra sayısıyla başlayan cümle paragraf kalır, sayı yutulmaz',
+        () {
+      final bloklar = parseBlocks(cumle);
+      expect(bloklar.where((b) => b.type == MarkdownBlockType.bullet),
+          isEmpty,
+          reason: 'cümle madde imi sanıldı');
+      expect(bloklar.last.type, MarkdownBlockType.paragraph);
+      expect(bloklar.last.text, startsWith('4. evdeki Güneş'));
+    });
+
+    test('gerçek numaralı liste numarasını taşır', () {
+      final maddeler = parseBlocks(
+              '1. **Kariyer**: sabır ister.\n2. **Aşk**: açıklık ister.')
+          .where((b) => b.type == MarkdownBlockType.bullet)
+          .toList();
+      expect(maddeler.map((b) => b.numara), [1, 2]);
+      expect(maddeler.map((b) => b.text),
+          ['**Kariyer**: sabır ister.', '**Aşk**: açıklık ister.']);
+    });
+
+    test('küçük harfle başlayan gerçek liste de liste kalır', () {
+      // Sıra sayısı sezgisi (küçük harf → cümle) listeyi bölmesin: 1 ile
+      // açılan ve ardışık süren dizi listedir.
+      final bloklar =
+          parseBlocks('1. sabah yürüyüşü\n2. akşam günlüğü\n3. erken uyku');
+      expect(bloklar.map((b) => b.type),
+          everyElement(MarkdownBlockType.bullet));
+      expect(bloklar.map((b) => b.numara), [1, 2, 3]);
+    });
+
+    test('tire maddesi numarasız kalır', () {
+      final madde = parseBlocks('- Ateş baskın').single;
+      expect(madde.type, MarkdownBlockType.bullet);
+      expect(madde.numara, isNull);
+    });
+
+    test('düz metinde sayı ve numara korunur', () {
+      final duz = markdownToPlain('$cumle\n\n1. Kariyer\n2. Aşk');
+      expect(duz, contains('4. evdeki Güneş'));
+      expect(duz, contains('1. Kariyer'));
+      expect(duz, contains('2. Aşk'));
+      expect(duz, isNot(contains('• evdeki')));
+    });
+
+    testWidgets('ekranda cümle sayısıyla, liste numarasıyla çizilir',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: SingleChildScrollView(
+            child: MarkdownText('$cumle\n\n1. Kariyer\n2. Aşk'))),
+      ));
+      await tester.pump();
+
+      expect(find.textContaining('4. evdeki Güneş'), findsOneWidget);
+      expect(find.text('1.'), findsOneWidget);
+      expect(find.text('2.'), findsOneWidget);
+    });
+  });
+
   group('duz metne cevirme (paylasim karti)', () {
     test('isaretler soyulur, yapi korunur', () {
       final duz = markdownToPlain(_ornek);

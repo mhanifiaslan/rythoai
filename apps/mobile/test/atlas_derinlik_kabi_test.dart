@@ -265,7 +265,8 @@ final _yuzeyler = <_Yuzey>[
           solarReturnProvider
               .overrideWith((ref) async => _yilHaritasiYuku(yedek: yedek)),
         ],
-    olcumIzi: '2026-05-12',
+    // Dönüş anının yerel günü, kullanıcının dilinde (yil_haritasi_tarih_test).
+    olcumIzi: '12 Mayıs 2026',
   ),
   (
     ad: 'Doğum Kapısı',

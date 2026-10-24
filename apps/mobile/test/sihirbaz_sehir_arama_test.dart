@@ -84,4 +84,62 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.byType(ErrorCard), findsOneWidget);
   });
+
+  /// Gerçek dizinle arama ekranını [sorgu] ile açar; seçimi [secildi]'ye
+  /// verir.
+  Future<void> aramayiAc(WidgetTester tester, String sorgu,
+      {void Function(CityPick?)? secildi}) async {
+    final dizin = (await tester.runAsync(CityDirectory.load))!;
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('tr'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      theme: buildRythoTheme(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+              onPressed: () async {
+                // `secildi?.call(await …)` YAZILMAZ: `?.` boşken argümanı
+                // hiç değerlendirmez, sayfa açılmaz.
+                final secim = await showCitySearch(context,
+                    initialQuery: sorgu, yukle: () async => dizin);
+                secildi?.call(secim);
+              },
+              child: const Text('AÇ')),
+        ),
+      ),
+    ));
+    await _ac(tester);
+    // Arama 120 ms bekletmeli.
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+
+  testWidgets('liste Türkçe yazımı gösterir, seçim GeoNames adını taşır',
+      (tester) async {
+    // Gösterim "İstanbul", kayıt "Istanbul": sunucunun çözdüğü ad ve
+    // mevcut profillerdeki değer aynı kalır.
+    CityPick? secim;
+    await aramayiAc(tester, 'istanbul', secildi: (s) => secim = s);
+
+    expect(find.text('İstanbul'), findsOneWidget);
+    expect(find.text('Istanbul'), findsNothing);
+
+    await tester.tap(find.text('İstanbul'));
+    await tester.pump();
+    await tester.pump(RythoMotion.route);
+    expect(secim?.name, 'Istanbul');
+    expect(secim?.nation, 'TR');
+  });
+
+  testWidgets('ilçenin il satırı da Türkçe yazımla', (tester) async {
+    await aramayiAc(tester, 'umraniye');
+
+    expect(find.text('Ümraniye'), findsOneWidget);
+    expect(find.text('İstanbul, TR'), findsOneWidget);
+    expect(find.text('Istanbul, TR'), findsNothing);
+  });
 }

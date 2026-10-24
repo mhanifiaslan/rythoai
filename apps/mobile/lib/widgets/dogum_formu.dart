@@ -14,6 +14,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../core/city_directory.dart' show sehirGorunenAdi;
 import '../l10n/app_localizations.dart';
 import '../theme/rytho_theme.dart';
 import '../theme/rytho_tokens.dart';
@@ -165,9 +166,10 @@ class SaatBilinmiyorKutusu extends StatelessWidget {
 }
 
 /// Şehir satırının değeri: `🇹🇷 İstanbul`; ülke bilinmiyorsa yalnız ad,
-/// şehir yoksa `—` (boş değer, doldurulmuş gibi görünmesin).
+/// şehir yoksa `—` (boş değer, doldurulmuş gibi görünmesin). Ad
+/// [sehirGorunenAdi]'ndan geçer: kayıtlı "Istanbul" ekranda "İstanbul".
 String sehirEtiketi(String? sehir, String? ulke) {
-  final ad = sehir?.trim() ?? '';
+  final ad = sehirGorunenAdi(sehir?.trim() ?? '', ulke);
   if (ad.isEmpty) return '—';
   final bayrak = (ulke == null || ulke.isEmpty) ? '' : flagEmoji(ulke);
   return bayrak.isEmpty ? ad : '$bayrak $ad';

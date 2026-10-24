@@ -154,12 +154,14 @@ class _CitySearchScreenState extends State<_CitySearchScreen> {
                   ListTile(
                     leading: Text(flagEmoji(s.nation),
                         style: const TextStyle(fontSize: 22)),
-                    title: Text(s.name,
+                    // Görünen ad Türkçe yazımlı; `pop(s)` GeoNames adını
+                    // taşır — kayıt sunucunun çözdüğü anahtar kalır.
+                    title: Text(sehirGorunenAdi(s.name, s.nation),
                         style: RythoText.body(15, w: FontWeight.w600)),
                     subtitle: Text(
                         [
                           if (s.admin1.isNotEmpty && s.admin1 != s.name)
-                            s.admin1,
+                            sehirGorunenAdi(s.admin1, s.nation),
                           s.nation,
                         ].join(', '),
                         style: RythoText.body(12,

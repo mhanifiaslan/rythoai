@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:rytho/core/city_directory.dart';
@@ -52,6 +55,49 @@ void main() {
 
     test('iki harften kisa sorgu aranmaz', () {
       expect(dizin.search('a'), isEmpty);
+    });
+  });
+
+  // Mağaza çekimi (2026-10-24): TR arayüzde "Istanbul" (İ yok). Kaynak
+  // GeoNames cities15000'in `name` sütunu: TR kayıtlarının çoğu Türkçe
+  // yazımlı (İzmir, İzmit, Küçükçekmece), İstanbul uluslararası adıyla.
+  group('sehirGorunenAdi', () {
+    test('Türkiye kaydının uluslararası/ASCII yazımı Türkçeye döner', () {
+      expect(sehirGorunenAdi('Istanbul', 'TR'), 'İstanbul');
+      expect(sehirGorunenAdi('Umraniye', 'TR'), 'Ümraniye');
+      expect(sehirGorunenAdi('Canakkale', 'TR'), 'Çanakkale');
+    });
+
+    test('zaten doğru adlara dokunmaz — noktasız I Türkçede de var', () {
+      // Kaba bir "baştaki I → İ" kuralı bunları bozardı.
+      for (final ad in ['Isparta', 'Iğdır', 'Ilgın', 'İzmir', 'Ankara']) {
+        expect(sehirGorunenAdi(ad, 'TR'), ad);
+      }
+    });
+
+    test('başka ülke ve serbest metin olduğu gibi kalır', () {
+      expect(sehirGorunenAdi('Munich', 'DE'), 'Munich');
+      // Serbest metin kullanıcının kendi yazımı — düzeltilmez.
+      expect(sehirGorunenAdi('Istanbul', ''), 'Istanbul');
+      expect(sehirGorunenAdi('Istanbul', null), 'Istanbul');
+    });
+
+    test('tablo yalnız YAZIM düzeltir ve her anahtar veride yaşar', () async {
+      final ham = await rootBundle.loadString('assets/data/cities.json');
+      final kayitlar =
+          (jsonDecode(ham) as Map<String, dynamic>)['cities'] as List;
+      final trAdlari = <String>{
+        for (final k in kayitlar)
+          if (k[1] == 'TR') ...[k[0] as String, k[2] as String],
+      };
+      trYazimDuzeltmeleri.forEach((geonames, turkce) {
+        // Katlanmış biçim aynı: yalnız harf işaretleri değişiyor, yer
+        // değişmiyor (arama ve sunucu çözümü katlanmış adla çalışır).
+        expect(foldTurkish(turkce), foldTurkish(geonames), reason: geonames);
+        // Veri yenilenip ad düzelirse girdi ölü kalır — bekçi söyler.
+        expect(trAdlari, contains(geonames),
+            reason: '$geonames artık TR kayıtlarında yok');
+      });
     });
   });
 }

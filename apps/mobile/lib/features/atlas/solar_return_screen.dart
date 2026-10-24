@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/api.dart' show friendlyError;
 import '../../core/okuma_durumu.dart';
@@ -32,6 +33,7 @@ class SolarReturnScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final dil = Localizations.localeOf(context).toLanguageTag();
     // ÜÇ DURUMLU kapı (P2): sağlayıcının `null`ı artık YALNIZ "abone değil"
     // demek. Cevap gelmeden kilit çizmek, ödemiş kullanıcıya her girişte
     // "abone değilsin" demekti.
@@ -108,6 +110,9 @@ class SolarReturnScreen extends ConsumerWidget {
             for (final p in (sr['points'] as List? ?? const []))
               if (p is Map) Map<String, dynamic>.from(p),
           ];
+          // Çubuğun oranı İKİ ANIN farkından: UTC'ye çevrilmiş olmaları
+          // doğru (an karşılaştırması). Uçlardaki GÜN ise duvar saatinden
+          // okunur (bkz. [_tarih]).
           final bas = DateTime.tryParse('${sr['return_at_local'] ?? ''}');
           final son =
               DateTime.tryParse('${sr['next_return_at_local'] ?? ''}');
@@ -129,7 +134,12 @@ class SolarReturnScreen extends ConsumerWidget {
               if (bas != null && son != null)
                 RythoReveal(
                   index: 0,
-                  child: _YilCubugu(bas: bas, son: son),
+                  child: _YilCubugu(
+                    bas: bas,
+                    son: son,
+                    basEtiketi: _tarih(sr['return_at_local'], dil),
+                    sonEtiketi: _tarih(sr['next_return_at_local'], dil),
+                  ),
                 ),
               RythoReveal(index: 1, child: _YilEvrenleri(noktalar: noktalar)),
               if (ayIklimi != null)
@@ -170,7 +180,7 @@ class SolarReturnScreen extends ConsumerWidget {
                       title: l10n.solarReturnTitle,
                       // Kartın tarihi yılın AÇILIŞ anı — üretim günü değil;
                       // yıl haritası o tarihle anılır.
-                      dateLabel: _tarih(sr['return_at_local']),
+                      dateLabel: _tarih(sr['return_at_local'], dil),
                       badges: rozetler,
                       glyph: PlusOzellik.solarReturn.emoji,
                     ),
@@ -185,10 +195,10 @@ class SolarReturnScreen extends ConsumerWidget {
                 index: 5,
                 child: _DonusKarti(
                   label: l10n.solarReturnMoment,
-                  tarih: _tarih(sr['return_at_local']),
+                  tarih: _tarih(sr['return_at_local'], dil),
                   saat: _saat(sr['return_at_local']),
-                  altYazi:
-                      l10n.solarReturnNext(_an(sr['next_return_at_local'])),
+                  altYazi: l10n.solarReturnNext(
+                      _an(sr['next_return_at_local'], dil)),
                 ),
               ),
               // Yılın kimliği: üç rozet yan yana. Eskiden etiket–değer
@@ -240,22 +250,49 @@ class SolarReturnScreen extends ConsumerWidget {
     );
   }
 
-  /// "2026-05-12T20:16:00+03:00" → "2026-05-12 20:16" — saniye ve dilim
-  /// eki ekranda gürültü; hesap hassasiyeti raporun konusu değil.
-  static String _an(Object? iso) {
-    final s = (iso ?? '').toString();
-    return s.length >= 16 ? '${s.substring(0, 10)} ${s.substring(11, 16)}' : s;
+  static final _isoBasi =
+      RegExp(r'^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?');
+
+  /// ISO dizgesinin YAZILDIĞI yerin duvar saati — ofset atılır.
+  ///
+  /// NEDEN `DateTime.parse` değil: Dart ofsetli ISO'yu UTC'ye çevirir.
+  /// Yıl çubuğu öyle yapıyordu ve dönüş kartıyla aynı ekranda başka gün
+  /// yazıyordu (mağaza çekimi 2026-10-24: "2026-01-09" ↔ "2026-01-10").
+  /// Ölçüldü: demo hesabın dönüşü 2026-01-09T21:03Z = İstanbul'da 10 Ocak
+  /// 00:03 — yıl haritanın kurulduğu yerde 10 Ocak'ta açılıyor; UTC günü
+  /// orada hiç yaşanmadı. `toLocal()` da çare değil: telefonun dilimini
+  /// verir, haritanın kurulduğu yerinkini değil. Sunucunun `*_local`
+  /// alanı o yerin saatini taşıyor (`predict_service.py`).
+  static ({DateTime an, bool saatli})? _duvarSaati(Object? iso) {
+    final m = _isoBasi.firstMatch('${iso ?? ''}');
+    if (m == null) return null;
+    int sayi(int i) => int.parse(m.group(i) ?? '0');
+    return (
+      an: DateTime(sayi(1), sayi(2), sayi(3), sayi(4), sayi(5)),
+      saatli: m.group(4) != null,
+    );
   }
 
-  static String _tarih(Object? iso) {
-    final s = (iso ?? '').toString();
-    return s.length >= 10 ? s.substring(0, 10) : s;
+  /// "2026-01-10T00:03:35+03:00" → "10 Ocak 2026" (EN "10 January 2026").
+  /// Biçim `intl` sembol verisinden, profildeki doğum tarihiyle aynı kalıp.
+  /// Ayrıştırılamayan değer olduğu gibi döner: bozuk yükü gizlemek,
+  /// görülmesi gerekeni saklamak olurdu.
+  static String _tarih(Object? iso, String dil) {
+    final d = _duvarSaati(iso);
+    return d == null
+        ? '${iso ?? ''}'
+        : DateFormat('d MMMM yyyy', dil).format(d.an);
   }
 
+  /// Duvar saatinin "00:03"ü — saniye ve dilim eki ekranda gürültü; hesap
+  /// hassasiyeti raporun konusu değil.
   static String _saat(Object? iso) {
-    final s = (iso ?? '').toString();
-    return s.length >= 16 ? s.substring(11, 16) : '';
+    final d = _duvarSaati(iso);
+    return d == null || !d.saatli ? '' : DateFormat('HH:mm').format(d.an);
   }
+
+  static String _an(Object? iso, String dil) =>
+      [_tarih(iso, dil), _saat(iso)].where((s) => s.isNotEmpty).join(' ');
 }
 
 /// Yılın açılış anı — ekranın taşıyıcı görseli.
@@ -338,10 +375,21 @@ class _Rozet extends StatelessWidget {
 /// Yılın neresindesin: dönüşten bir sonraki dönüşe çubuk + "şu an" işareti.
 /// İki uç da ölçülmüş an (`return_at_local`, `next_return_at_local`).
 class _YilCubugu extends StatelessWidget {
-  const _YilCubugu({required this.bas, required this.son});
+  const _YilCubugu({
+    required this.bas,
+    required this.son,
+    required this.basEtiketi,
+    required this.sonEtiketi,
+  });
 
+  /// Oran için anlar (UTC'ye çevrilmiş olabilir — karşılaştırma doğru).
   final DateTime bas;
   final DateTime son;
+
+  /// Uçların GÜNÜ, dönüş kartıyla aynı yoldan (`_tarih`): anlardan
+  /// üretilseydi UTC günü basılırdı.
+  final String basEtiketi;
+  final String sonEtiketi;
 
   @override
   Widget build(BuildContext context) {
@@ -364,11 +412,8 @@ class _YilCubugu extends StatelessWidget {
         ),
         const SizedBox(height: RythoSpace.xs),
         Row(children: [
-          Expanded(
-              child: Text(SolarReturnScreen._tarih(bas.toIso8601String()),
-                  style: RythoType.caption)),
-          Text(SolarReturnScreen._tarih(son.toIso8601String()),
-              style: RythoType.caption),
+          Expanded(child: Text(basEtiketi, style: RythoType.caption)),
+          Text(sonEtiketi, style: RythoType.caption),
         ]),
       ]),
     );

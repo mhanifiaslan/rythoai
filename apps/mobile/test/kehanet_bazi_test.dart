@@ -1,6 +1,6 @@
 // D6 bekçileri — BaZi sekmesinin hoşgörülü ayrıştırması ve şans yönü beyanı.
 //
-// İki ölçülmüş kusur:
+// Üç ölçülmüş kusur:
 //  1. `chart['missing_elements'] as List` hoşgörüsüz cast'ti: alan
 //     gelmezse `Null is not a List` fırlar ve sekmenin TAMAMI çöker (Yıl
 //     Haritası aynı riski bir üretim olayından sonra kapatmıştı, BaZi
@@ -10,6 +10,10 @@
 //     `luck_pillar_candidates` altında (bazi_service.py:465-483). Alanın
 //     okuyucusu yoktu — sekme 104 px'lik boş bir şerit çiziyor, beyan
 //     etmiyordu ("okuyucusu olmayan" sınıfı, D0 notu).
+//  3. Shen Sha yongaları sütunu sunucunun MAKİNE anahtarıyla basıyordu
+//     ("Tao Hua · day"; mağaza çekimi 2026-10-24, TR arayüz). Sunucu
+//     `name`/`meaning`i dile çeviriyor, `pillar`ı bilerek anahtar bırakıyor
+//     (bazi_stars.py) — çeviri istemcinin işi ve yapılmıyordu.
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,12 +23,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/core/providers.dart';
 import 'package:rytho/features/oracle/bazi_tab.dart';
 import 'package:rytho/l10n/app_localizations.dart';
+import 'package:rytho/l10n/app_localizations_en.dart';
 import 'package:rytho/l10n/app_localizations_tr.dart';
 import 'package:rytho/theme/rytho_theme.dart';
 
 final _tr = AppLocalizationsTr();
+final _en = AppLocalizationsEn();
 
-Widget _sar(Widget govde, {List<Override> overrides = const []}) =>
+Widget _sar(Widget govde,
+        {List<Override> overrides = const [],
+        Locale locale = const Locale('tr')}) =>
     ProviderScope(
       // Bedel kapısı (D7) cüzdanı izliyor: `unknown` → kapı sorulmaz,
       // ekran kapı öncesi davranışında kalır; gerçek sağlayıcı Dio'ya
@@ -36,7 +44,7 @@ Widget _sar(Widget govde, {List<Override> overrides = const []}) =>
         ...overrides,
       ],
       child: MaterialApp(
-        locale: const Locale('tr'),
+        locale: locale,
         localizationsDelegates: const [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -182,5 +190,39 @@ void main() {
       expect(find.textContaining('2000-2010'), findsOneWidget);
       expect(find.textContaining(_tr.baziCurrentTag), findsOneWidget);
     });
+  });
+
+  group('Shen Sha sütun adı', () {
+    final yildizlar = [
+      {'key': 'tao_hua', 'name': 'Tao Hua', 'pillar': 'day', 'meaning': 'x'},
+      {'key': 'yi_ma', 'name': 'Yi Ma', 'pillar': 'hour', 'meaning': 'y'},
+      {'key': 'tian_yi', 'name': 'Tian Yi', 'pillar': 'year', 'meaning': 'z'},
+      {'key': 'kong_wang', 'name': 'Kong Wang', 'pillar': 'month',
+        'meaning': 'w'},
+    ];
+
+    for (final (dil, l10n) in [
+      (const Locale('tr'), _tr as AppLocalizations),
+      (const Locale('en'), _en as AppLocalizations),
+    ]) {
+      testWidgets('${dil.languageCode}: sütun dört sütun tablosunun adıyla',
+          (tester) async {
+        _uzunYuzey(tester);
+        await tester.pumpWidget(_sar(const BaziTab(),
+            locale: dil,
+            overrides: _overrides(_harita({'shen_sha': yildizlar}))));
+        await _yerles(tester);
+
+        expect(find.text('Tao Hua · ${l10n.baziPillarDay}'), findsOneWidget);
+        expect(find.text('Yi Ma · ${l10n.baziPillarHour}'), findsOneWidget);
+        expect(find.text('Tian Yi · ${l10n.baziPillarYear}'), findsOneWidget);
+        expect(find.text('Kong Wang · ${l10n.baziPillarMonth}'),
+            findsOneWidget);
+        for (final anahtar in ['day', 'hour', 'year', 'month']) {
+          expect(find.textContaining('· $anahtar'), findsNothing,
+              reason: 'sunucunun makine anahtarı ekranda: $anahtar');
+        }
+      });
+    }
   });
 }

@@ -65,6 +65,42 @@ String foldTurkish(String s) {
   return b.toString();
 }
 
+/// GeoNames `name` sütununun Türkiye kayıtlarında Türkçe harfi düşmüş
+/// yazımlar → Türkçe yazım.
+///
+/// NEDEN var: TR kayıtlarının çoğu Türkçe yazımla geliyor (İzmir, İzmit,
+/// Küçükçekmece) ama birkaçı uluslararası ya da ASCII adla — en görüneni
+/// "Istanbul" (mağaza çekimi 2026-10-24: kurulumun yer adımı ve doğum
+/// kaydı "🇹🇷 Istanbul" basıyordu). Liste ölçüldü: 2026-08-07 anlık
+/// görüntüsünün 430 TR kaydı (224 ASCII, 206 Türkçe harfli ad) ve il
+/// adları tek tek okundu.
+/// Yazımından emin olunamayan iki ad (Cikcilli, Cimin) bilerek YOK —
+/// yanlış "düzeltme" ASCII yazımdan kötüdür.
+///
+/// NEDEN veri değil gösterim: kayıtlı `birthCity` GeoNames adıdır ve
+/// sunucu onu çözer; mevcut profillerde "Istanbul" yazılı. Veriyi
+/// değiştirmek yeni seçimleri düzeltir ama bugünkü kayıtları düzeltmezdi.
+/// İl adı (admin1) aynı tablodan geçer; "Bursa Province" türü İngilizce
+/// ekler yazım değil, burada değil.
+const trYazimDuzeltmeleri = <String, String>{
+  'Istanbul': 'İstanbul',
+  'Umraniye': 'Ümraniye',
+  'Batikent': 'Batıkent',
+  'Sarigerme': 'Sarıgerme',
+  'İnegol': 'İnegöl',
+  'Canakkale': 'Çanakkale',
+};
+
+/// Şehir ya da il adının ekranda görünen yazımı.
+///
+/// Yalnız Türkiye kaydı düzeltilir: tablo GeoNames'in TR kayıtlarını
+/// tanır. Ülkesiz ad serbest metindir — kullanıcının kendi yazımı olduğu
+/// gibi kalır. Dilden bağımsız: veri TR şehirlerini iki arayüzde de
+/// Türkçe yazımla taşıyor (EN arayüz de "İzmir" görüyor); İstanbul o
+/// kuralın istisnası değil.
+String sehirGorunenAdi(String ad, String? ulke) =>
+    ulke == 'TR' ? (trYazimDuzeltmeleri[ad] ?? ad) : ad;
+
 /// Tek seferlik yüklenen, bellekte aranan dizin.
 class CityDirectory {
   CityDirectory._(this._kayitlar);
