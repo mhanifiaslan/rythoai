@@ -59,8 +59,27 @@ if (-not $androidKey) {
     throw "dart_defines.local.json icinde REVENUECAT_ANDROID_KEY yok."
 }
 if ($androidKey.StartsWith("test_")) {
-    # KT4: uyari yetmez - test anahtarli yayin AAB'si magazada satin
-    # almayi sessizce simulasyona cevirir. Yayin betigi bunu URETMEZ.
+    # KT4: uyari yetmez - Test Store anahtari gercek magaza odemesi ALMAZ
+    # (satin almayi kendi simulasyon penceresiyle bitirir; iOS kaynaginda
+    # SimulatedStorePurchaseHandler.swift, Android'de olculmedi), yani bu
+    # anahtarla cikan yayin AAB'si hicbir halde satamaz. Yayin betigi bunu
+    # URETMEZ.
+    # Yayin derlemesinde SDK'nin NE yaptigi platforma gore olcum durumu:
+    # - iOS: kaynaktan OLCULDU (RevenueCat 5.67.1 Configuration.swift
+    #   :471-495) - `#if !DEBUG` altinda hata logu + uyari penceresi +
+    #   BILEREK fatalError, yani uygulama COKER.
+    # - Android: purchases-android kaynagi OLCULMEDI (bu yorumun yazildigi
+    #   Mac'te yoktu); RevenueCat'in Test Store duyurusu yayinda "uyari +
+    #   cokme" diyor, o da burada okunup dogrulanmadi.
+    # Bu satirin eski gerekcesi "magazada satin almayi sessizce
+    # simulasyona cevirir" idi: dayandigi bir olcum kayitta yok, ayni SDK
+    # ailesinin iOS'ta olculen davranisi bunun TERSI (sessiz degil, coker)
+    # ve Android'de iki iddia da olculmedi. Yanlis ya da olculmemis gerekce
+    # olculmus gibi durmaz (CLAUDE.md 1).
+    # Uygulama da artik yayinda test_ anahtarini yapilandirilmamis sayar
+    # (lib/core/subscription.dart rcEtkinAnahtar): configure cagrilmaz,
+    # satin alma "kullanilamiyor" der. Kapinin kendisi degismedi; yalniz
+    # gerekcesi olculene cekildi.
     throw ("REVENUECAT_ANDROID_KEY 'test_' onekli (RevenueCat Test Store). " +
            "Yayin AAB'si gercek 'goog_' anahtari ister; " +
            "dart_defines.local.json'u duzelt.")

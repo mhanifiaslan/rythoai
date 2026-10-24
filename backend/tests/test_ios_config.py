@@ -18,9 +18,14 @@ bozuluyordu.
 """
 from __future__ import annotations
 
+import os
 import pathlib
 import plistlib
 import re
+import shutil
+import subprocess
+
+import pytest
 
 _KOK = pathlib.Path(__file__).resolve().parents[2]
 _IOS = _KOK / "apps" / "mobile" / "ios"
@@ -197,3 +202,86 @@ def test_aasa_android_app_links_yollarini_kapsiyor():
     assert not eksik, (
         f"Android bu yolları uygulamaya devrediyor ama AASA devretmiyor: "
         f"{eksik} — iPhone'da bu bağlantılar tarayıcıya düşer")
+
+
+def _crashlytics_betigi() -> str:
+    """pbxproj'deki 'Crashlytics dSYM yukle' fazının ÇÖZÜLMÜŞ kabuk betiği.
+
+    pbxproj bir OpenStep plist'i: `shellScript` tırnaklı bir dize ve içinde
+    `\\n`, `\\"` kaçışları var. Çözücü Windows'ta da çalışsın diye elle
+    yazıldı (`plutil` yalnız macOS'ta).
+    """
+    m = re.search(r"/\* Crashlytics dSYM yukle \*/ = \{(.*?)\n\t\t\};",
+                  _pbxproj(), re.S)
+    assert m, "pbxproj'de 'Crashlytics dSYM yukle' fazı yok"
+    s = re.search(r'shellScript = "((?:[^"\\]|\\.)*)";', m.group(1))
+    assert s, "Crashlytics fazında shellScript yok"
+    return re.sub(r"\\(.)",
+                  lambda k: {"n": "\n", "t": "\t"}.get(k.group(1), k.group(1)),
+                  s.group(1))
+
+
+def test_crashlytics_fazi_imzasiz_derlemede_atlamayi_run_dan_once_yapar():
+    """İmzasız ölçüm derlemesi (`flutter build ios --no-codesign` →
+    xcodebuild'e `CODE_SIGNING_ALLOWED=NO`) sembol YÜKLEMEMELİ.
+
+    Ölçüldü (2026-10-23): faz Debug dışındaki HER derlemede koşuyordu ve
+    imzasız Release ölçüm derlemesinde `upload-symbols` çalışıp "Symbol
+    uploading will proceed in the background" dedi — cihaza hiç
+    kurulamayacak bir paketin sembolleri üretim projesine yola çıktı
+    (sunucuya ulaştığı ölçülemedi). CLAUDE.md §5 "testler üretime
+    yazabiliyordu" ile aynı sınıf: dış dünyaya çıkan her yazımın bir
+    kapısı olmalı. Onarımdan sonra ölçüldü (2026-10-24, imzasız Release,
+    xcactivitylog): faz "yukleme ATLANDI" yazdı, `upload-symbols` 0 kez.
+
+    Bu yapısal yarı (her işletim sisteminde koşar): atlama satırı `run`
+    çağrısından ÖNCE ve `exit 0` ile. Yorum satırları önce atılır — atlamayı
+    ANLATAN yorum atlamanın kendisi sayılmasın (CLAUDE.md §5).
+    """
+    satirlar = [s.strip() for s in _crashlytics_betigi().splitlines()
+                if s.strip() and not s.strip().startswith("#")]
+    kapi = 'if [ "${CODE_SIGNING_ALLOWED}" = "NO" ]; then'
+    run = '"${PODS_ROOT}/FirebaseCrashlytics/run"'
+    assert kapi in satirlar, "imzasız derlemede atlama yok"
+    assert run in satirlar, "Crashlytics run çağrısı fazdan düşmüş"
+    i = satirlar.index(kapi)
+    assert i < satirlar.index(run), "atlama run çağrısından SONRA"
+    blok = satirlar[i + 1:satirlar.index("fi", i)]
+    assert "exit 0" in blok, f"atlama bloğu çıkmıyor: {blok}"
+
+
+@pytest.mark.skipif(os.name == "nt" or shutil.which("sh") is None,
+                    reason="fazın betiği POSIX sh ile koşturuluyor")
+@pytest.mark.parametrize("yapilandirma, imza, yuklenir", [
+    # Ölçüm derlemesi: imzasız Release — YÜKLEMEZ.
+    ("Release", "NO", False),
+    ("Profile", "NO", False),
+    # Yayın yolu (`flutter build ipa`, Xcode arşivi): imza açık — YÜKLER.
+    # Bu satır aşırı geniş bir atlamaya karşı: dSYM olmadan TestFlight ve
+    # mağaza çökmeleri okunamaz adres olarak kalır.
+    ("Release", "YES", True),
+    ("Release", None, True),
+    # Debug'da dSYM yok (eski kural, değişmedi).
+    ("Debug", "YES", False),
+])
+def test_crashlytics_fazi_davranisi(tmp_path, yapilandirma, imza, yuklenir):
+    """Fazın gerçek betiği sahte bir PODS_ROOT ile koşturulur; `run`
+    çağrılırsa iz bırakır. Ağ yok, Crashlytics yok."""
+    betik = tmp_path / "faz.sh"
+    betik.write_text(_crashlytics_betigi(), encoding="utf-8")
+    run = tmp_path / "Pods" / "FirebaseCrashlytics" / "run"
+    run.parent.mkdir(parents=True)
+    iz = tmp_path / "run-cagrildi"
+    run.write_text(f'#!/bin/sh\ntouch "{iz}"\n', encoding="utf-8")
+    run.chmod(0o755)
+    ortam = {"PATH": os.environ.get("PATH", ""),
+             "CONFIGURATION": yapilandirma,
+             "PODS_ROOT": str(tmp_path / "Pods")}
+    if imza is not None:
+        ortam["CODE_SIGNING_ALLOWED"] = imza
+    s = subprocess.run(["sh", str(betik)], env=ortam, capture_output=True,
+                       text=True, timeout=30)
+    assert s.returncode == 0, s.stdout + s.stderr
+    assert iz.exists() is yuklenir, (
+        f"{yapilandirma}/CODE_SIGNING_ALLOWED={imza}: run "
+        f"{'çağrılmadı' if yuklenir else 'ÇAĞRILDI'}\n{s.stdout}")

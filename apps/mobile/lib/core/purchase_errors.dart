@@ -27,6 +27,20 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import '../l10n/app_localizations.dart';
 import 'api.dart' show friendlyError;
 
+/// Bu derlemede mağaza SDK'sı YAPILANDIRILMADI: anahtar yok ya da yayın
+/// derlemesinde `test_` önekli (bkz. `subscription.dart` `rcEtkinAnahtar`).
+///
+/// Ayrı bir tür, çünkü bu hâl ne mağaza ne ağ hatası: `friendlyError`a
+/// düşseydi kullanıcı "beklenmeyen sorun" okurdu, oysa söylenecek doğru
+/// cümle listeleri boş gelen paywall'ınkiyle aynı — satın alma şu an
+/// kullanılamıyor.
+class SatinAlmaYapilandirilmamis implements Exception {
+  const SatinAlmaYapilandirilmamis();
+
+  @override
+  String toString() => 'SatinAlmaYapilandirilmamis';
+}
+
 /// Bilinmeyen mağaza kodunu Crashlytics'e yazan varsayılan kanal.
 void varsayilanMagazaHatasiKaydedici(String mesaj) {
   if (!kDebugMode) {
@@ -81,6 +95,7 @@ String magazaVeyaAgHatasi(Object e, AppLocalizations l10n) {
 /// hatalar (ağ, zaman aşımı, sunucu) `friendlyError`dan.
 String purchaseErrorText(Object e, AppLocalizations l10n,
     {required bool abonelik}) {
+  if (e is SatinAlmaYapilandirilmamis) return l10n.billingUnavailable;
   if (e is! PlatformException) return friendlyError(e, l10n);
   if (PurchasesErrorHelper.getErrorCode(e) ==
       PurchasesErrorCode.productAlreadyPurchasedError) {

@@ -193,8 +193,13 @@ Future<void> main() async {
   } catch (_) {
     // Web'de serverClientId gerekmez; sessizce geç.
   }
-  // Abonelik SDK'sı: anahtar tanımlı değilse sessizce atlanır, uygulama
-  // ücretsiz katmanla normal çalışır.
+  // Abonelik SDK'sı İKİ hâlde sessizce atlanır: bu platformun anahtarı
+  // tanımlı değilse, ya da yayın derlemesinde (Release/Profile) anahtar
+  // `test_` önekliyse — RevenueCat yayında Test Store anahtarını görünce
+  // BİLEREK çöküyor (iOS kaynağından ölçüldü; Android SDK'sı ölçülmedi),
+  // yani `configure` hiç çağrılmamalı. Karar tek yerde
+  // (`subscription.dart` `rcEtkinAnahtar`); uygulama ücretsiz katmanla
+  // normal çalışır, satın alma yolları "kullanılamıyor" der.
   await initBilling();
 
   // U45: iOS anahtar zinciri oturumu yeniden kurulumdan sağ çıkarıyor;

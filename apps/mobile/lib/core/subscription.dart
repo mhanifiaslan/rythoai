@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'providers.dart';
+import 'purchase_errors.dart' show SatinAlmaYapilandirilmamis;
 import 'wallet.dart' show cuzdanTazelemeProvider, walletProvider;
 
 /// Rytho+ aboneliği.
@@ -34,10 +35,85 @@ import 'wallet.dart' show cuzdanTazelemeProvider, walletProvider;
 ///
 /// UYARI: `test_` önekli anahtarlar RevenueCat Test Store'a aittir ve satın
 /// almaları **simüle eder**. Yayın öncesi gerçek mağaza anahtarlarıyla
-/// (`appl_...` / `goog_...`) değiştirilmelidir.
+/// (`appl_...` / `goog_...`) değiştirilmelidir. Yayın derlemesinde `test_`
+/// anahtarı artık YAPILANDIRILMAMIŞ sayılır — gerekçe [rcEtkinAnahtar]'da.
+///
+/// Bu iki sabit YALNIZ [_etkinRcAnahtari] içinden okunur; başka bir yer
+/// onları doğrudan okursa platform ve yayın kapısını atlamış olur
+/// (bekçi: `test/satin_alma_yapilandirma_test.dart`).
 const String kRevenueCatAndroidKey =
     String.fromEnvironment('REVENUECAT_ANDROID_KEY');
 const String kRevenueCatIosKey = String.fromEnvironment('REVENUECAT_IOS_KEY');
+
+/// RevenueCat Test Store anahtarlarının öneki — SDK'nın kendi tanımı
+/// (RevenueCat 5.67.1 `Configuration.swift:420` `simulatedStoreKeyPrefix`).
+const String kRcTestStoreOneki = 'test_';
+
+/// Bu derlemede `Purchases.configure`'a verilecek anahtar; `null` = satın
+/// alma YAPILANDIRILMAMIŞ ([billingConfigured] false, SDK'ya hiç dokunulmaz).
+///
+/// Saf işlev, bilerek: girdilerin üçü derleme anı sabiti (`kReleaseMode`,
+/// dart-define'lar) ve `flutter test` içinde değiştirilemez; karar ancak
+/// böyle platform × kip × önek tablosuyla sınanabiliyor.
+///
+/// **Yalnız çalışılan platformun anahtarı.** Eski kapı "iki anahtardan BİRİ
+/// doluysa yapılandırılmış" diyordu; iOS anahtarı boş, Android anahtarı
+/// doluyken `billingConfigured` true kalıyor, `initBilling` ise iOS
+/// anahtarını boş bulup `configure` etmeden dönüyordu. Ardından
+/// [billingIdentityProvider] ve satın alma yolları YAPILANDIRILMAMIŞ SDK'yı
+/// çağırıyordu — iOS'ta bu yerel bir çöküş: PurchasesHybridCommon 17.55.1
+/// `CommonFunctionality.swift:18-22` `sharedInstance` yapılandırma yoksa
+/// `fatalError` veriyor; `appUserID` (:36), `logIn` (:433) ve
+/// `restorePurchases` (:277) oradan geçiyor.
+/// Yani hazırlık denetiminin önerdiği "iOS anahtarını boşalt" çaresi
+/// (2026-10-23) eski kapıyla çökmeyi açılıştaki `configure`'dan oturum
+/// açılır açılmaz koşan `Purchases.logIn`'e taşırdı ([billingIdentityProvider],
+/// `fireImmediately`).
+/// iOS ve Android dışında tanımlı bir anahtar yok; eski hâl Android
+/// anahtarını iOS dışındaki HER platforma veriyordu.
+///
+/// **Yayın derlemesinde `test_` = yapılandırılmamış.** RevenueCat 5.67.1
+/// `Configuration.swift:471-495` `#if !DEBUG` altında Test Store anahtarını
+/// görünce uyarı penceresi açıp BİLEREK `fatalError` veriyor
+/// (`Purchases.swift:360`, `configure` yolu). Podfile `Profile` ve
+/// `Release`'i `:release`'e eşliyor, yani DEBUG ikisinde de tanımsız: bu
+/// yüzden kip `kReleaseMode || kProfileMode`, yalnız `kReleaseMode` değil.
+/// `initBilling`'deki try/catch yerel çöküşü YAKALAYAMAZ; tek çare
+/// `configure`'u hiç çağırmamak. Kullanıcı çökme yerine paywall'da ve geri
+/// yüklemede "Satın alma şu an kullanılamıyor", kredi mağazasında "Paketler
+/// şu an listelenemiyor" görür. Debug'da `test_` çalışmaya devam eder (Test
+/// Store simülasyonu; DEBUG altında çökme bloğu derlenmiyor).
+///
+/// Android'de aynı kural iki gerekçeyle zararsız: (1) `infra/build-aab.ps1`
+/// `test_` önekli Android anahtarını REDDEDİYOR (:61-67), yani kapıdan
+/// geçen hiçbir Android yayın paketinde bu dal tetiklenmez; (2) RevenueCat'in
+/// Test Store duyurusu yayın derlemesinde bu anahtarın "uyarı + çökme"
+/// verdiğini söylüyor — Android SDK kaynağı bu makinede yok, o kısım
+/// kaynaktan ÖLÇÜLMEDİ. Kapıdan geçen Android durumlarında kararın eskisiyle
+/// aynı kaldığı testte tablo olarak gösteriliyor.
+String? rcEtkinAnahtar({
+  required TargetPlatform platform,
+  required bool yayinDerlemesi,
+  required String androidAnahtari,
+  required String iosAnahtari,
+}) {
+  final anahtar = switch (platform) {
+    TargetPlatform.iOS => iosAnahtari,
+    TargetPlatform.android => androidAnahtari,
+    _ => '',
+  };
+  if (anahtar.isEmpty) return null;
+  if (yayinDerlemesi && anahtar.startsWith(kRcTestStoreOneki)) return null;
+  return anahtar;
+}
+
+/// Üretim girdileriyle [rcEtkinAnahtar] — iki sabitin TEK okuyucusu.
+String? get _etkinRcAnahtari => rcEtkinAnahtar(
+      platform: defaultTargetPlatform,
+      yayinDerlemesi: kReleaseMode || kProfileMode,
+      androidAnahtari: kRevenueCatAndroidKey,
+      iosAnahtari: kRevenueCatIosKey,
+    );
 
 /// RevenueCat panelinde tanımlı yetki (entitlement) kimliği.
 /// Paneldeki adla birebir aynı olmalı; farklıysa satın alma sonrası
@@ -50,8 +126,10 @@ const String kPlusEntitlement = String.fromEnvironment(
     'RYTHO_PLUS_ENTITLEMENT',
     defaultValue: 'RhytoAI Pro');
 
-bool get billingConfigured =>
-    kRevenueCatAndroidKey.isNotEmpty || kRevenueCatIosKey.isNotEmpty;
+/// SDK bu derlemede yapılandırıldı mı? Her `Purchases.*` çağrısı bunun
+/// arkasında durmak ZORUNDA: yapılandırılmamış SDK'ya giden tek çağrı iOS'ta
+/// yerel çöküştür (gerekçe [rcEtkinAnahtar]'da).
+bool get billingConfigured => _etkinRcAnahtari != null;
 
 class SubscriptionStatus {
   const SubscriptionStatus({
@@ -105,19 +183,19 @@ class SubscriptionStatus {
   }
 }
 
-/// RevenueCat SDK kurulumu. Anahtar yoksa sessizce atlanır.
+/// RevenueCat SDK kurulumu. Bu platformun anahtarı yoksa ya da yayın
+/// derlemesinde `test_` önekliyse sessizce atlanır ([rcEtkinAnahtar]).
+///
+/// Anahtar [billingConfigured] ile AYNI seçiciden gelir: ikisi ayrı ayrı
+/// karar verdiğinde "yapılandırıldı" deyip `configure` etmeyen hâl doğmuştu.
 ///
 /// Burada **kullanıcı bağlanmaz**: uygulama açılırken Firebase oturumu henüz
 /// geri yüklenmemiş olabilir ve `currentUser` null döner. Kimlik bağlama
 /// [billingIdentityProvider] ile oturum akışına bağlıdır.
 Future<void> initBilling() async {
-  if (!billingConfigured) return;
+  final key = _etkinRcAnahtari;
+  if (key == null) return;
   try {
-    final key = defaultTargetPlatform == TargetPlatform.iOS
-        ? kRevenueCatIosKey
-        : kRevenueCatAndroidKey;
-    if (key.isEmpty) return;
-
     await Purchases.setLogLevel(LogLevel.warn);
     await Purchases.configure(PurchasesConfiguration(key));
   } catch (e) {
@@ -657,7 +735,18 @@ Future<Store?> abonelikKaynakMagazasi(MusteriBilgisiGetirici? getirici) async {
 /// anonim dokümana işledi, kullanıcının uid'i boş kaldı, ödeme yapılmış
 /// ama her şey kilitli görünmüştü (iç test, 2026-08-10, Feyza vakası).
 /// Paranın el değiştirdiği anda kimliği şansa bırakmıyoruz.
+///
+/// İlk satır [billingConfigured] KAPISI ve satın alma, paket alımı ve geri
+/// yüklemenin üçü de buradan geçtiği için kapı tek yerde. Teklif ve ürün
+/// listeleri yapılandırılmamış derlemede zaten boş dönüyor, ama "Satın
+/// alımları geri yükle" düğmesi paywall'da ve Abonelik ekranında HER ZAMAN
+/// görünür (mağaza kuralı). Kapı yokken o dokunuş `Purchases.appUserID`'ye
+/// gidiyordu ve iOS'ta yapılandırılmamış SDK yerel `fatalError` veriyor
+/// (ölçüldü: PurchasesHybridCommon 17.55.1 `CommonFunctionality.swift:21`).
+/// Yayında `test_` anahtarını reddetmek açılış çöküşünü bu düğmeye
+/// taşımasın diye kapı Firebase'e bile dokunmadan ÖNCE duruyor.
 Future<void> ensureBillingIdentity() async {
+  if (!billingConfigured) throw const SatinAlmaYapilandirilmamis();
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) {
     // Paywall yalnız oturumlu ekranlardan açılır; buraya düşmek anormal.
