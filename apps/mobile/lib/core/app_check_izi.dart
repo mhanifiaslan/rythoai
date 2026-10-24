@@ -1,9 +1,11 @@
 /// App Check arızasının yayın derlemesinde iz bırakması (U30).
 ///
 /// Zorlama 2026-09-26'da Firestore ve identitytoolkit için açıldı. O andan
-/// beri App Check'in düşmesi kullanıcıya yalnız "Giriş yapılamadı" ya da
-/// Firestore izin hatası olarak görünüyor — yanlış şifreden ya da kural
-/// hatasından ayırt edilemiyor. `activate()` hatası da yalnız `debugPrint`
+/// beri App Check'in düşmesi kullanıcıya yalnız genel "Bir şeyler ters
+/// gitti" (`authFailed` — `authErrorText`'in `default` dalı; simülatörde
+/// ölçüldü 2026-10-24) ya da Firestore izin hatası olarak görünüyor: başka
+/// beklenmedik hatalardan ve kural hatasından ayırt edilemiyor (yanlış
+/// şifrenin kendi metni var). `activate()` hatası da yalnız `debugPrint`
 /// ediliyordu, yani yayında hiçbir yere gitmiyordu.
 ///
 /// iOS'ta bu kör nokta en pahalısı: App Attest simülatörde çalışmıyor ve

@@ -141,16 +141,84 @@ String _bildirimAdi(String ilkSatir) {
   return ilkSatir.trim();
 }
 
+/// Yorumları atar, satır sonlarını KORUR (bildirim bölme sütun 0'a bakıyor).
+///
+/// Yalnız tam satır `//` yorumlarını atmak yetmiyordu (mutasyonla ölçüldü
+/// 2026-10-24): kapı `/* … */` içine ya da bir satırın SONUNDAKİ `//`
+/// yorumuna alındığında dize kaynakta durduğu için "kapı var" sayılıyordu;
+/// `purchasePackage`, `purchaseTokenPack` ve `yetkiToplayiciProvider`'ı bu
+/// dosyada yalnız bu bekçi tuttuğu için üçü de yeşil kaldı. Dize
+/// literallerinin içi yorum sayılmaz (`'https://…'` kodu yutmasın); Dart'ın
+/// blok yorumları iç içe geçebildiği için derinlik tutulur.
+String _yorumsuz(String kaynak) {
+  final s = kaynak.replaceAll('\r\n', '\n');
+  final b = StringBuffer();
+  var i = 0;
+  while (i < s.length) {
+    final c = s[i];
+    final sonraki = i + 1 < s.length ? s[i + 1] : '';
+    if (c == '/' && sonraki == '/') {
+      while (i < s.length && s[i] != '\n') {
+        i++;
+      }
+      continue;
+    }
+    if (c == '/' && sonraki == '*') {
+      var derinlik = 0;
+      while (i < s.length) {
+        if (s.startsWith('/*', i)) {
+          derinlik++;
+          i += 2;
+        } else if (s.startsWith('*/', i)) {
+          derinlik--;
+          i += 2;
+          if (derinlik == 0) break;
+        } else {
+          if (s[i] == '\n') b.write('\n');
+          i++;
+        }
+      }
+      b.write(' ');
+      continue;
+    }
+    if (c == "'" || c == '"') {
+      final ham = i > 0 && s[i - 1] == 'r';
+      final uclu = s.startsWith(c * 3, i);
+      final bitis = uclu ? c * 3 : c;
+      b.write(bitis);
+      i += bitis.length;
+      while (i < s.length && !s.startsWith(bitis, i)) {
+        if (!ham && s[i] == r'\' && i + 1 < s.length) {
+          b.write(s.substring(i, i + 2));
+          i += 2;
+          continue;
+        }
+        // Tek tırnaklı dize satırı aşamaz; aşıyorsa tarayıcı yanlış
+        // eşleşmiştir, satır sonunda kendini toparlar.
+        if (!uclu && s[i] == '\n') break;
+        b.write(s[i]);
+        i++;
+      }
+      if (s.startsWith(bitis, i)) {
+        b.write(bitis);
+        i += bitis.length;
+      }
+      continue;
+    }
+    b.write(c);
+    i++;
+  }
+  return b.toString();
+}
+
 /// Kaynağı üst düzey bildirimlere böler: `dart format` gövdeleri
 /// girintiliyor, yani SÜTUN 0'da başlayan her satır yeni bir bildirim.
-/// Kapanış satırları (`}`, `)`, `]`) önceki bildirime aittir. Tam satır
-/// yorumlar ÖNCE atılır — bir çağrıyı ANLATAN yorum çağrı sayılmasın
-/// (CLAUDE.md §5). Gövde boşlukları teke indirilmiş döner.
+/// Kapanış satırları (`}`, `)`, `]`) önceki bildirime aittir. Yorumlar ÖNCE
+/// atılır (`_yorumsuz`) — bir çağrıyı ANLATAN yorum çağrı, yoruma alınmış
+/// kapı kapı sayılmasın (CLAUDE.md §5). Gövde boşlukları teke indirilmiş
+/// döner.
 List<({String ad, String govde})> _ustDuzeyBildirimler(String kaynak) {
-  final satirlar = kaynak
-      .replaceAll('\r\n', '\n')
-      .split('\n')
-      .where((s) => !s.trimLeft().startsWith('//'));
+  final satirlar = _yorumsuz(kaynak).split('\n');
   final sonuc = <({String ad, String govde})>[];
   String? ad;
   var govde = StringBuffer();
@@ -212,6 +280,16 @@ List<String> _kapiDenetimi(
       if (derinlik != 1) {
         sorunlar.add('$anahtar: kapı en dış blokta değil (derinlik '
             '$derinlik) — iç daldaki kapı çağrıyı korumaz');
+        continue;
+      }
+      // Süslü parantez sayımı parantezsiz dalı görmez: `if (false) await
+      // ensureBillingIdentity();` derinlik 1'de ve çağrıdan önce durup hiç
+      // koşmaz (mutasyonla ölçüldü 2026-10-24). Kapı bir DEYİMİN başında
+      // olmalı: ondan önceki ilk boşluk dışı karakter `{`, `;` ya da `}`.
+      final onceki = once.trimRight();
+      if (onceki.isNotEmpty && !'{;}'.contains(onceki[onceki.length - 1])) {
+        sorunlar.add('$anahtar: kapı bir deyimin başında değil '
+            '(parantezsiz if/else gövdesi?) — çağrıyı korumaz');
       }
     }
   }
@@ -534,6 +612,76 @@ void main() {
           _kapiDenetimi({
             yol: 'void kapili() {\n'
                 '  // Purchases.logOut() burada çağrılmıyor.\n'
+                '}\n',
+          }, kayit),
+          [contains('kayıt bayat')]);
+    });
+
+    // 2026-10-24 mutasyon turunun dört yeşili (E06, E07, E09, E12): kapı
+    // dizesi kaynakta durup hiç koşmuyordu.
+    test('tuzak: blok ya da satır sonu yorumuna alınmış kapı KIRMIZI', () {
+      expect(
+          _kapiDenetimi({
+            yol: 'void kapili() {\n'
+                '  /* if (!billingConfigured) return; */\n'
+                '  Purchases.logOut();\n'
+                '}\n',
+          }, kayit),
+          [contains('kapı YOK')]);
+      expect(
+          _kapiDenetimi({
+            yol: 'void kapili() {\n'
+                '  ; // if (!billingConfigured) return;\n'
+                '  Purchases.logOut();\n'
+                '}\n',
+          }, kayit),
+          [contains('kapı YOK')]);
+      // İç içe blok yorum (Dart'ta geçerli) da tamamen atılır.
+      expect(
+          _kapiDenetimi({
+            yol: 'void kapili() {\n'
+                '  /* dış /* iç */ if (!billingConfigured) return; */\n'
+                '  Purchases.logOut();\n'
+                '}\n',
+          }, kayit),
+          [contains('kapı YOK')]);
+    });
+
+    test('tuzak: parantezsiz if/else gövdesindeki kapı KIRMIZI', () {
+      const satinAl = {'$yol::satinAl': 'await ensureBillingIdentity();'};
+      expect(
+          _kapiDenetimi({
+            yol: 'Future<void> satinAl() async {\n'
+                '  if (false) await ensureBillingIdentity();\n'
+                '  await Purchases.purchase(p);\n'
+                '}\n',
+          }, satinAl),
+          [contains('deyimin başında değil')]);
+      expect(
+          _kapiDenetimi({
+            yol: 'Future<void> satinAl(bool x) async {\n'
+                '  if (x) {\n'
+                '  } else await ensureBillingIdentity();\n'
+                '  await Purchases.purchase(p);\n'
+                '}\n',
+          }, satinAl),
+          [contains('deyimin başında değil')]);
+    });
+
+    test('dize içindeki // ve /* yorum sayılmaz, kapıyı yutmaz', () {
+      expect(
+          _kapiDenetimi({
+            yol: "void kapili() {\n"
+                "  final u = 'https://rytho.app/*'; if (!billingConfigured) return;\n"
+                '  final v = "a // b"; Purchases.logOut();\n'
+                '}\n',
+          }, kayit),
+          isEmpty);
+      // Yorumdaki çağrı çağrı sayılmaz (blok yorum dahil) → kayıt bayat.
+      expect(
+          _kapiDenetimi({
+            yol: 'void kapili() {\n'
+                '  /* Purchases.logOut(); */\n'
                 '}\n',
           }, kayit),
           [contains('kayıt bayat')]);

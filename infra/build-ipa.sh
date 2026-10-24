@@ -76,7 +76,10 @@ export RYTHO_KIMLIK="ai.rytho"
 # DEĞİL: 41'in altını ve 42/45/47'yi CLAUDE.md kaydetmiyor. Tabanın altında
 # kaldıkları için hepsi zaten kapıda kalır; liste yalnız MESAJI keskinleştirir.
 # Asıl işini TABANIN ÜSTÜNDE görür: Android 54 ve sonrasını yaktıkça buraya
-# eklenmeli, yoksa iOS aynı sayıyı farklı içerikle alır.
+# eklenmeli, yoksa iOS aynı sayıyı farklı içerikle alır. TEK istisna: iOS
+# paketi Android'le AYNI commit'ten aynı numarayla çıkacaksa o kod buraya
+# EKLENMEZ — içerik aynı, sunucu aynası ikisini doğru gösterir; eklenirse kapı
+# o iOS paketini durdurur (docs/mac-devir.md §4 B8).
 export RYTHO_YANMIS_KODLAR="17 41 43 44 46 48 50 52 53"
 # Kullanılıp kullanılmadığı BİLİNMEYEN kodlar: 51 (CLAUDE.md §6: "51'in
 # Console'a yüklenip yüklenmediği bilinmiyordu", sıra bu yüzden 52'ye
