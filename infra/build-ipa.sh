@@ -487,9 +487,17 @@ elif komut in ("imza-aps-ortami", "imza-get-task-allow", "imza-yetkileri"):
         sonuc(False, "imzadaki yetkiler okunamadı: " + str(e))
     if komut == "imza-aps-ortami":
         v = yetkiler.get("aps-environment")
+        # Neden production: Apple'a göre imzadaki değeri provizyon profili
+        # yazar ve DAĞITIM profili production yazar; dağıtım imzalı pakette
+        # başka bir değer yanlış profil ya da imzaya hiç girmemiş push
+        # yetkisi demek. Eski metin ("mağaza paketi sandbox jetonu alırsa
+        # sunucu üretim APNs'ine gönderir") yanlıştı: FCM ortamı gömülü
+        # profilden okuyup jetonla birlikte bildiriyor, sunucu tahmin etmiyor.
         if v != "production":
-            sonuc(False, "aps-environment = " + repr(v) + ". Mağaza paketi SANDBOX jetonu "
-                  "alırsa sunucu üretim APNs'ine gönderir ve bildirim hiçbir yere düşmez.")
+            sonuc(False, "aps-environment = " + repr(v) + ". Dağıtım imzalı pakette production "
+                  "beklenir (Apple bu değeri provizyon profilinden yazar). 'development' "
+                  "geliştirme profiliyle imza demek; değer yoksa push yetkisi imzada yok "
+                  "ve cihazda APNs kaydı düşer: iOS'a bildirim hiç gitmez.")
         sonuc(True, "aps-environment = production")
     if komut == "imza-get-task-allow":
         if yetkiler.get("get-task-allow", False) is not False:

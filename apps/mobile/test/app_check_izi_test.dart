@@ -1,10 +1,16 @@
 // App Check izi bekçileri (K3-bildirim turu: U30).
 //
-// Zorlama açıkken App Check'in düşmesi kullanıcıya yalnız "Giriş
-// yapılamadı" ya da izin hatası olarak görünüyor; yayında Crashlytics'e
-// hiçbir şey gitmiyordu. iOS'ta App Attest arızası `activate()`'te değil
-// ancak jeton alınırken ortaya çıkıyor — bu yüzden bir de jeton yoklaması
-// var. İki değişmez: yoklama açılışı ASLA bekletmez ve ASLA fırlatmaz.
+// Zorlama açıkken App Check'in düşmesi kullanıcıya yalnız genel "Bir
+// şeyler ters gitti" (`authFailed`; simülatörde ölçüldü 2026-10-24) ya da
+// izin hatası olarak görünüyor; yayında Crashlytics'e hiçbir şey
+// gitmiyordu. iOS'ta App Attest arızası `activate()`'te değil ancak jeton
+// alınırken ortaya çıkıyor — bu yüzden bir de jeton yoklaması var. İki
+// değişmez: yoklama açılışı ASLA bekletmez ve ASLA fırlatmaz.
+//
+// Sağlayıcı seçimi de burada çivili ('Apple yayın dalı' testi): yayın dalı
+// App Attest'ten başka bir sağlayıcıya dönerse simülatör ve Debug bunu
+// GÖSTERMEZ (ikisi de debug sağlayıcıda), kusur ilk TestFlight paketinde
+// görünür.
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -20,6 +26,44 @@ String _yorumsuz(String yol) => File(yol)
     .split('\n')
     .where((s) => !s.trimLeft().startsWith('//'))
     .join('\n');
+
+/// [cagri] (açılış parantezi dahil, ör. `activate(`) ile başlayan İLK
+/// çağrının [ad] adlı argümanı, boşlukları atılmış hâlde; yoksa `null`.
+///
+/// Argümanlar parantez/köşeli/süslü DERİNLİĞİ sayılarak bölünür: iç içe
+/// bir çağrının aynı adlı argümanı ya da çağrının DIŞINDAKİ bir metin
+/// eşleşmeye karışmasın. Dizeler ayrıştırılmaz (bu çağrıda dize yok):
+/// dengesiz parantezli bir dize bölmeyi bozar ve argüman bulunamaz — bekçi
+/// sessizce yeşil kalmaz, kırmızıya döner.
+String? _adliArguman(String kaynak, String cagri, String ad) {
+  final bas = kaynak.indexOf(cagri);
+  if (bas < 0) return null;
+  final argumanlar = <String>[];
+  var derinlik = 0;
+  var parca = StringBuffer();
+  for (var i = bas + cagri.length; i < kaynak.length; i++) {
+    final c = kaynak[i];
+    if (c == '(' || c == '[' || c == '{') derinlik++;
+    if (c == ')' || c == ']' || c == '}') {
+      if (derinlik == 0) {
+        argumanlar.add(parca.toString());
+        break;
+      }
+      derinlik--;
+    }
+    if (c == ',' && derinlik == 0) {
+      argumanlar.add(parca.toString());
+      parca = StringBuffer();
+      continue;
+    }
+    parca.write(c);
+  }
+  for (final a in argumanlar) {
+    final s = a.replaceAll(RegExp(r'\s'), '');
+    if (s.startsWith('$ad:')) return s.substring(ad.length + 1);
+  }
+  return null;
+}
 
 class _Kayit {
   final hatalar = <Object>[];
@@ -153,6 +197,35 @@ void main() {
       expect(etkinlestir, greaterThan(0));
       expect(yoklama, greaterThan(etkinlestir));
       expect(uygulama, greaterThan(yoklama));
+    });
+
+    // Neden kaynak bekçisi: yayın dalı yalnız `kDebugMode == false` iken
+    // koşar; testte, simülatörde ve Debug cihazda HİÇ koşmaz. Dal
+    // `AppleDeviceCheckProvider`'a dönse (ya da `providerApple` silinip
+    // paket varsayılanı DeviceCheck'e düşse) yayın paketi Firebase'den
+    // DeviceCheck kanıtıyla jeton ister; kurulum planı yalnız App Attest'i
+    // kaydediyor (docs/mac-devir.md §4; DeviceCheck kaydı kendi .p8
+    // anahtarını ister ve planda yok — konsol durumu depodan ölçülemez).
+    // Kayıtsız sağlayıcıyla jeton alınamaz ve zorlanan üç servis iOS'u
+    // reddeder — bunu gösteren ilk yer TestFlight.
+    // `providerApple` tamamen silinirse Debug da DeviceCheck'e düşer ve
+    // simülatörde görünür; görünmeyen tek hâl yayın dalının değişmesi.
+    test('Apple yayın dalı App Attest, debug dalı debug sağlayıcı', () {
+      final ifade = _adliArguman(
+          kaynak, 'FirebaseAppCheck.instance.activate(', 'providerApple');
+      expect(ifade, isNotNull,
+          reason: 'activate çağrısında providerApple yok: paket sessizce '
+              'AppleDeviceCheckProvider kullanır (firebase_app_check '
+              '0.4.5+2, firebase_app_check.dart:110)');
+      // Üçlü ifadenin biçimi sabit: koşul kDebugMode, doğru dal debug
+      // sağlayıcı, yanlış (yayın) dal App Attest. Dallar ters çevrilirse
+      // yayın paketi debug sağlayıcıyla çıkar — o da reddedilir.
+      expect(
+          RegExp(r'^kDebugMode\?AppleDebugProvider\(.*\):'
+                  r'(const)?AppleAppAttestProvider\(\)$')
+              .hasMatch(ifade!),
+          isTrue,
+          reason: 'providerApple beklenen üçlü değil: $ifade');
     });
   });
 }

@@ -3,18 +3,32 @@
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Uzak bildirim ortami. Bu anahtar entitlements'ta yokken iOS uygulamaya
-	     APNs jetonu VERMEZ; firebase_messaging jeton bekler ve hicbir hata
-	     gostermeden askida kalir. Info.plist'teki UIBackgroundModes /
-	     remote-notification ile BIRLIKTE gerekir, tek basina hicbiri yetmez.
+	<!-- Uzak bildirim ortami. Uzak bildirimin paketteki sarti bu yetki.
+	     Imzada yoksa iOS APNs kaydini REDDEDER: kayit
+	     didFailToRegisterForRemoteNotificationsWithError ile duser (Apple,
+	     "Registering your app with APNs"). Hata yalniz Xcode konsoluna
+	     yazilir (firebase_messaging eklentisi ve FIRMessaging vekili
+	     NSLog'u), uygulamada gorunmez; APNs jetonu gelmedigi icin
+	     cihazFcmJetonu beklemeden null doner (lib/core/notifications.dart),
+	     profile fcmToken yazilmaz ve iOS'a bildirim HIC gitmez.
+	     Info.plist'teki remote-notification kipi gorunur bildirim icin
+	     DEGIL (gerekcesi orada).
 
-	     DEGER YAPILANDIRMAYA GORE DEGISIR ve bu sessiz bir tuzaktir: burada
-	     `development` yazarken uretim arsivi alinirsa cihaz SANDBOX jetonu
-	     alir, sunucu uretim APNs'ine gonderir ve bildirim hicbir yere dusmez.
-	     Test derlemesinde calisir, magazada olur. Bu yuzden Release AYRI bir
-	     dosya kullaniyor: Runner/RunnerRelease.entitlements (pbxproj
-	     CODE_SIGN_ENTITLEMENTS, Release blogu).
-	     Ikisi aps-environment DISINDA birebir ayni kalmali. -->
+	     Deger: Debug/Profile `development` (Runner.entitlements), Release
+	     `production` (Runner/RunnerRelease.entitlements; pbxproj
+	     CODE_SIGN_ENTITLEMENTS, Release blogu). Imzadaki asil degeri
+	     PROVIZYON PROFILI belirler: Apple'a gore Xcode degeri profile gore
+	     yazar ve dagitim profili (TestFlight + App Store) production yazar;
+	     FCM de ortami bu dosyadan degil gomulu profilden okur
+	     (FIRMessagingUtilities.m) ve jetonla birlikte bildirir. Yani
+	     TestFlight ile magaza AYNI ortamda; "TestFlight'ta calisir,
+	     magazada olur" diye bir ariza yok (eski gerekce buydu ve yanlisti).
+	     Ayri Release dosyasinin GEREKIP GEREKMEDIGI olculmedi: ilk imzali
+	     Release'te bakilir (docs/mac-devir.md B9). Gelistirme profiliyle
+	     imzalanan Release, production degeriyle "doesn't match the
+	     entitlements file's value" diye durabilir; o da olculmedi.
+	     Ikisi aps-environment DISINDA birebir ayni kalmali
+	     (backend/tests/test_ios_config.py). -->
 	<key>aps-environment</key>
 	<string>production</string>
 
@@ -37,19 +51,32 @@
 	     2026-09-27) ve pbxproj DEVELOPMENT_TEAM ile ayni olmasi
 	     backend/tests/test_ios_config.py'de bekcili; ama iOS ancak
 	     hosting YAYINLANDIKTAN sonra goruyor
-	     (web/.well-known/apple-app-site-association). -->
+	     (web/.well-known/apple-app-site-association). Yayin da tek
+	     basina yetmez: cihaz dosyayi Apple CDN'inden okur, CDN onu
+	     yayindan sonra cekiyor (Apple: 24 saat icinde, elle tazeleme yolu
+	     yok) ve onceden kurulmus uygulama yeni dosyayi ancak YENIDEN
+	     KURULUNCA aliyor (Apple TN3155). -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:rytho.app</string>
 		<string>applinks:rhytoai.web.app</string>
 	</array>
-	<!-- App Check / App Attest ortami. Firebase App Attest kurulumu bu
-	     yetenegi ister; yoksa release derlemesinde App Attest anahtari
-	     uretilemez, App Check jetonu alinamaz ve Firestore + Auth
-	     (ikisinde de zorlama ACIK) iOS'u reddeder. Deger IKI dosyada da
-	     production: Debug zaten AppleDebugProvider kullaniyor, App Attest'e
-	     hic gitmiyor. Apple Developer'da App ID uzerinde "App Attest"
-	     yetenegi de ACIK olmali, yoksa imzalama duser. -->
+	<!-- App Check / App Attest ortami. Degerin isi GELISTIRME IMZALI
+	     cihaz derlemesinde: Apple'a gore yetki yokken gelistirme imzali
+	     paket App Attest'in SANDBOX sunucusuna gider (anahtar yine uretilir)
+	     ve Firebase sandbox kanitini kabul etmez; `production`, Profile
+	     cihaz derlemesini (flutter run, profile kipi) uretim sunucusuna
+	     yollar; App Attest boylece TestFlight'tan once cihazda denenebilir
+	     (Firebase'in o jetonu kabulu cihazda olculmedi).
+	     TestFlight, App Store ve Enterprise dagitiminda Apple bu degeri
+	     YOK SAYAR ve her zaman uretimi kullanir: yayin paketinin dayandigi
+	     sey bu satir degil, App ID'deki "App Attest" izni ve imza.
+	     Firebase'in App Attest kurulum belgesi de yetkiyi istiyor. Deger
+	     IKI dosyada da production: Debug AppleDebugProvider kullaniyor
+	     (lib/main.dart), App Attest'e hic gitmiyor. Zorlama Firestore,
+	     Auth ve Storage'da ACIK (2026-09-26); App Check jetonu alinamazsa
+	     uc servis de iOS'u reddeder. Apple Developer'da App ID uzerinde
+	     "App Attest" yetenegi de ACIK olmali, yoksa imzalama duser. -->
 	<key>com.apple.developer.devicecheck.appattest-environment</key>
 	<string>production</string>
 </dict>

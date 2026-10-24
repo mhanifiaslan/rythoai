@@ -84,10 +84,17 @@ String? usernameFromInviteLink(Uri uri) {
 /// Ortak bağlantısından (`https://rytho.app/r/KOD`) çıkarılan kod; değilse
 /// ``null``.
 ///
-/// Bu yol YALNIZ uygulama zaten kuruluyken iş görür. Kurulu değilken link
-/// tarayıcıda açılır, `web/r/index.html` Play'e `&referrer=` ile yönlendirir
-/// ve kod kurulumdan sonra Install Referrer'dan okunur
-/// (`partner_referrer.dart`). İki yol da aynı uca çıkar.
+/// Bu yol YALNIZ uygulama zaten kuruluyken iş görür (Android'de App Links
+/// `/r/` intent-filter'ı, iOS'ta Universal Link — AASA `/r/*`). Kurulu
+/// değilken link tarayıcıda açılır ve platformlar AYRILIR:
+/// - Android: `web/r/index.html` Play'e `&referrer=` ile yönlendirir, kod
+///   kurulumdan sonra Install Referrer'dan okunur (`partner_referrer.dart`).
+/// - iPhone: sayfa Play'e YÖNLENDİRMEZ, Install Referrer'ın dengi yok.
+///   App Store kimliği tanımlıyken "kur, hesabını aç, bağlantıya bir kez
+///   daha dokun" der ve kod o ikinci dokunuşta BU yoldan sayılır (oturum
+///   ister; 401 terminal sayılmaz). Kimlik boşken sayfa kodun taşınamadığını
+///   yazar — o kurulum hiç sayılmaz.
+/// Sayılan her yol aynı uca çıkar.
 ///
 /// Desen ve büyük harfe çevirme `partner_referrer.dart` ile paylaşılıyor —
 /// backend `partner_service._KOD_DESENI` ve sayfanın kendi kopyası ile

@@ -96,16 +96,30 @@ def test_google_girisi_info_pliste_bagli():
 
 
 def test_push_ortami_yapilandirmaya_gore_ayrilmis():
-    """Tek dosyada `development` kalsaydı üretim paketi SANDBOX jetonu alır,
-    sunucu üretim APNs'ine gönderir ve bildirim hiçbir yere düşmezdi:
-    TestFlight'ta çalışır, mağazada ölür."""
+    """Debug/Profile `development`, Release `production` ve iki dosya
+    aps-environment DIŞINDA aynı.
+
+    Asıl koruma ikinci yarı: Release ayrı dosyaya baktığı için oraya
+    düşmeyen bir yetki yalnız yayın paketinden eksik kalır ve Debug'da
+    hiçbir şey görünmez.
+
+    ⚠️ Ayrımın eski gerekçesi YANLIŞTI ("tek dosyada `development` kalsa
+    üretim paketi sandbox jetonu alır, sunucu üretim APNs'ine gönderir:
+    TestFlight'ta çalışır, mağazada ölür"). Apple'a göre imzadaki değeri
+    provizyon profili belirler ve dağıtım profili (TestFlight + App Store)
+    production yazar; FCM de ortamı gömülü profilden okuyup jetonla
+    bildirir. TestFlight ile mağaza aynı ortamda. Ayrı Release dosyasının
+    gerekip gerekmediği ölçülmedi — ilk imzalı Release'te bakılır
+    (docs/mac-devir.md B9); ölçüm "gerekmiyor" derse ayrım ve bu iki
+    değer iddiası birlikte değişir."""
     dev = _plist(_RUNNER / "Runner.entitlements")
     yayin = _plist(_RUNNER / "RunnerRelease.entitlements")
     assert dev["aps-environment"] == "development"
     assert yayin["aps-environment"] == "production"
 
     # İkisi aps-environment DIŞINDA birebir aynı kalmalı; ayrılırsa üretim
-    # paketi Apple ile Giriş ya da Universal Links olmadan çıkar.
+    # paketi Apple ile Giriş, Universal Links ya da App Attest yetkisi
+    # olmadan çıkar.
     a = {k: v for k, v in dev.items() if k != "aps-environment"}
     b = {k: v for k, v in yayin.items() if k != "aps-environment"}
     assert a == b, "iki entitlements dosyası aps-environment dışında ayrışmış"
@@ -114,7 +128,13 @@ def test_push_ortami_yapilandirmaya_gore_ayrilmis():
     assert "CODE_SIGN_ENTITLEMENTS = Runner/RunnerRelease.entitlements;" in pbx, (
         "Release yapılandırması üretim entitlements dosyasına bakmıyor")
 
-    # Başlık tek başına yetmez; Info.plist tarafı da gerekli.
+    # remote-notification arka plan kipi görünür bildirim için DEĞİL
+    # (Apple: uyarısız arka plan bildirimi içindir; uzak bildirimin
+    # paketteki şartı yukarıdaki aps-environment). Firebase'in iOS telefon
+    # doğrulaması sessiz push yolunu kullandığı ve Flutter kurulum belgesi
+    # istediği için duruyor (gerekçe Info.plist'teki yorumda). Kaybı
+    # SESSİZDİR: görünür push gelmeye devam eder, yalnız telefon
+    # doğrulaması reCAPTCHA'ya düşer (Firebase belgesi; cihazda ölçülmedi).
     info = _plist(_RUNNER / "Info.plist")
     assert "remote-notification" in info.get("UIBackgroundModes", [])
 

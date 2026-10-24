@@ -111,9 +111,18 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<!-- Uzak bildirim. Android tarafinda karsiligi manifest izni; iOS'ta
-	     BU anahtar VE entitlements'taki aps-environment BIRLIKTE gerekir.
-	     Biri eksikken push SESSIZCE calismaz: jeton alinir, bildirim gelmez. -->
+	<!-- Arka plan uzak bildirimi. Apple'a gore bu kip UYARI GOSTERMEYEN
+	     arka plan (content-available) bildirimleri icindir; gorunur
+	     bildirim icin GEREKMEZ. Backend her mesajda notification blogu
+	     gonderiyor (backend/services/push_service.py, bekcisi
+	     backend/tests/test_push_yuku.py); paketteki sart entitlements'taki
+	     aps-environment.
+	     Yine de KALIR: Firebase'in iOS telefon dogrulamasi
+	     (verifyPhoneNumber) sessiz push yolunu kullaniyor, push gelmezse
+	     reCAPTCHA'ya dusuyor; Firebase'in Flutter kurulum belgesi de bu
+	     kipi istiyor. Ayni belgeler 'fetch' kipini de sayiyor; onu
+	     kullanan kod yok ve BILEREK eklenmedi (kullanilmayan arka plan
+	     kipi incelemede soru dogurabilir; cikarim, olculmedi). -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

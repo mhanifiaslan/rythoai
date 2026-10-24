@@ -87,8 +87,9 @@ Future<void> ensurePartnerReferrer(Dio dio) async {
 /// Uygulama ZATEN KURULUYKEN gelen `rytho.app/r/KOD` bağlantısı için.
 ///
 /// O durumda Play devreye hiç girmez: işletim sistemi linki doğrudan
-/// uygulamaya verir (AndroidManifest'teki `/r/` intent-filter) ve kod
-/// URL'den okunur. İki yol da aynı uca çıkar ve aynı bayrağı paylaşır.
+/// uygulamaya verir (Android'de AndroidManifest'teki `/r/` intent-filter,
+/// iOS'ta `apple-app-site-association` `/r/*` Universal Link) ve kod URL'den
+/// okunur. İki yol da aynı uca çıkar ve aynı bayrağı paylaşır.
 Future<void> applyPartnerCode(Dio dio, String kod) async {
   final temiz = kod.trim().toUpperCase();
   if (!kOrtakKodDeseni.hasMatch(temiz)) return;

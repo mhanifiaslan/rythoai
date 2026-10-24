@@ -157,13 +157,19 @@ Future<void> main() async {
       // Apple tarafı SESSİZCE varsayılana düşüyordu. `providerApple`
       // verilmezse paket `AppleDeviceCheckProvider()` kullanıyor
       // (firebase_app_check 0.4.5+2, firebase_app_check.dart:110) — App
-      // Attest'ten zayıf bir kanıt. Zorlama 2026-09-26'da Firestore ve
-      // identitytoolkit için AÇILDI, yani yanlış sağlayıcıyla çıkan bir
-      // iOS paketi sunucuya hiç bağlanamaz ve bu ancak cihazda görülür.
+      // Attest'ten zayıf bir kanıt. Zorlama 2026-09-26'da Firestore,
+      // identitytoolkit ve Storage için AÇILDI, yani yanlış sağlayıcıyla
+      // çıkan bir iOS paketi sunucuya hiç bağlanamaz ve bu ancak cihazda
+      // görülür (yayın dalının bekçisi test/app_check_izi_test.dart).
       //
       // Fallback'li varyanta gerek yok: App Attest iOS 14+ ister, taban
       // 15.5 (ios/Podfile). Simülatörde App Attest çalışmaz, debug
       // sağlayıcı o boşluğu kapatıyor — Android'deki desenin aynısı.
+      // Yedekli varyant da yalnız iOS SÜRÜMÜNE bakıyor (eklentinin
+      // FirebaseAppCheckPlugin.swift'i), `isSupported`'a değil: Apple'a
+      // göre Mac'te (Apple silicon'da çalışan iOS uygulaması dahil) App
+      // Attest yok ve yedek bunu kurtarmaz. O boşluğun çaresi Mac
+      // erişimi kararı (docs/ios-uyum-denetimi.md U53).
       //
       // Debug jetonu SABİT verilir (varsa): verilmezse SDK her kurulumda
       // yeni bir jeton üretiyor ve Firebase'e her seferinde yeniden
