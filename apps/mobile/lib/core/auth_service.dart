@@ -110,21 +110,26 @@ Future<void> signInWithGoogle() async {
 /// olduğunu** doğrular. Nonce'un ham hâli Firebase'e, SHA-256 özeti Apple'a
 /// gider; Apple özeti belirtecin içine gömer ve Firebase ikisini karşılaştırır.
 /// Olmadan yeniden oynatma (replay) saldırısı mümkün olur.
-Future<void> signInWithApple() async {
+///
+/// [appleSayfasi] ve [kimlikleGir] test dikişi: girişin Firebase'e hangi
+/// kimlikle gittiği ([appleKimligi]) ancak çağrı yerinde tutulabilir.
+Future<void> signInWithApple({
+  Future<AuthorizationCredentialAppleID> Function(String nonceOzeti)?
+      appleSayfasi,
+  Future<UserCredential> Function(AuthCredential kimlik)? kimlikleGir,
+}) async {
   final rawNonce = _randomNonce();
-  final credential = await SignInWithApple.getAppleIDCredential(
-    scopes: [
-      AppleIDAuthorizationScopes.email,
-      AppleIDAuthorizationScopes.fullName,
-    ],
-    nonce: _nonceOzeti(rawNonce),
-  );
+  final credential =
+      await (appleSayfasi ?? _girisSayfasiniAc)(_nonceOzeti(rawNonce));
 
-  final userCredential = await FirebaseAuth.instance.signInWithCredential(
-    OAuthProvider('apple.com').credential(
-      idToken: credential.identityToken,
-      rawNonce: rawNonce,
-    ),
+  final idToken = credential.identityToken;
+  if (idToken == null) {
+    throw StateError('Apple kimlik belirteci boş döndü');
+  }
+  final userCredential =
+      await (kimlikleGir ?? FirebaseAuth.instance.signInWithCredential)(
+    appleKimligi(idToken, rawNonce,
+        ad: credential.givenName, soyad: credential.familyName),
   );
 
   // Apple adı YALNIZCA ilk girişte döndürür; kaçırılırsa bir daha alınamaz.
@@ -137,6 +142,32 @@ Future<void> signInWithApple() async {
     await userCredential.user?.updateDisplayName(ad);
   }
 }
+
+/// Firebase'e giden Apple kimliği; giriş de silme öncesi yeniden doğrulama
+/// da ([appleYetkisiniIptalEt]) buradan kurar — iki kopya ayrışırdı ve
+/// ayrıştı: giriş onarıldığında silme yolu eski kimlikte kalmıştı.
+///
+/// Apple'a ÖZEL kimlik, genel `OAuthProvider('apple.com')` DEĞİL:
+/// firebase_auth 6.5.6'nın iOS eklentisi genel kimliği `signInMethod =
+/// oauth` dalından `credentialWithProviderID:...accessToken:nil` ile
+/// kuruyor; iPad'de (iPadOS 17.5.1, 2026-10-28) bu yol her denemede
+/// `invalid-credential — Invalid OAuth response from apple.com` aldı,
+/// Apple sayfası ve belirteç sağlamken. Bu kimliğin `signInMethod`'u
+/// `apple.com` ve eklenti onu `appleCredentialWithIDToken:rawNonce:fullName:`
+/// ile kuruyor (FlutterFire belgesinin Apple platformu yolu).
+OAuthCredential appleKimligi(String idToken, String hamNonce,
+        {String? ad, String? soyad}) =>
+    AppleAuthProvider.credentialWithIDToken(idToken, hamNonce,
+        AppleFullPersonName(givenName: ad, familyName: soyad));
+
+Future<AuthorizationCredentialAppleID> _girisSayfasiniAc(String nonceOzeti) =>
+    SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      nonce: nonceOzeti,
+    );
 
 String _randomNonce([int uzunluk = 32]) {
   const harfler =
@@ -197,6 +228,21 @@ enum AppleIptalSonucu {
   basarisiz,
 }
 
+/// Bu oturum iOS'ta Apple ile Giriş'e bağlı mı? Silme öncesi Apple adımının
+/// ([appleYetkisiniIptalEt]) ve silme sayfasındaki "Apple onay isteyecek"
+/// uyarısının ORTAK kapısı: ikisi ayrı hesaplasa sayfa, gelmeyecek bir
+/// onayı haber verebilir ya da gelecek olanı saklayabilirdi.
+///
+/// [saglayicilar] test dikişi; varsayılanı oturumdaki sağlayıcılar.
+bool appleHesabaBagli([Iterable<String>? saglayicilar]) {
+  if (!appleSignInAvailable) return false;
+  final kimlikler = saglayicilar ??
+      (FirebaseAuth.instance.currentUser?.providerData
+              .map((p) => p.providerId) ??
+          const <String>[]);
+  return kimlikler.contains('apple.com');
+}
+
 /// Hesap silinmeden önce "Apple ile Giriş" yetkisini Apple'da iptal eder
 /// (U15, App Store 5.1.1(v)).
 ///
@@ -224,7 +270,12 @@ enum AppleIptalSonucu {
 /// Kapı: yalnız iOS ([appleSignInAvailable]) VE sağlayıcılarda `apple.com`.
 /// Android'de ve Apple'sız hesapta hiçbir şeye dokunmadan döner.
 ///
-/// Parametrelerin hepsi test dikişi; varsayılanlar gerçek Firebase/Apple.
+/// [onayVerildi]: kullanıcı Apple sayfasını onayladığı an (yeniden
+/// doğrulama ve iptal ağ çağrılarından ÖNCE) çağrılır — silme sayfası
+/// "siliniyor" satırını ancak o andan sonra gösterir; onaydan önce henüz
+/// hiçbir şey silinmiyor ve sayfa kapatılırsa silinmeyebilir.
+///
+/// Diğer parametreler test dikişi; varsayılanlar gerçek Firebase/Apple.
 Future<AppleIptalSonucu> appleYetkisiniIptalEt({
   Iterable<String>? saglayicilar,
   Future<AuthorizationCredentialAppleID> Function(String nonceOzeti)?
@@ -232,13 +283,9 @@ Future<AppleIptalSonucu> appleYetkisiniIptalEt({
   Future<void> Function(AuthCredential kimlik)? yenidenDogrula,
   Future<void> Function(String yetkiKodu)? iptalEt,
   void Function(Object hata, StackTrace iz)? hataKaydi,
+  void Function()? onayVerildi,
 }) async {
-  if (!appleSignInAvailable) return AppleIptalSonucu.gerekmedi;
-  final kimlikler = saglayicilar ??
-      (FirebaseAuth.instance.currentUser?.providerData
-              .map((p) => p.providerId) ??
-          const <String>[]);
-  if (!kimlikler.contains('apple.com')) return AppleIptalSonucu.gerekmedi;
+  if (!appleHesabaBagli(saglayicilar)) return AppleIptalSonucu.gerekmedi;
 
   final kaydet = hataKaydi ?? _appleIptalHatasiniKaydet;
   final hamNonce = _randomNonce();
@@ -251,14 +298,15 @@ Future<AppleIptalSonucu> appleYetkisiniIptalEt({
     kaydet(e, iz);
     return AppleIptalSonucu.basarisiz;
   }
+  onayVerildi?.call();
 
   try {
+    final idToken = apple.identityToken;
+    if (idToken == null) {
+      throw StateError('Apple kimlik belirteci boş döndü');
+    }
     await (yenidenDogrula ?? _mevcutKullaniciyiYenidenDogrula)(
-      OAuthProvider('apple.com').credential(
-        idToken: apple.identityToken,
-        rawNonce: hamNonce,
-      ),
-    );
+        appleKimligi(idToken, hamNonce));
     await (iptalEt ?? FirebaseAuth.instance.revokeTokenWithAuthorizationCode)(
         apple.authorizationCode);
     return AppleIptalSonucu.iptalEdildi;
@@ -357,6 +405,41 @@ String authErrorText(AppLocalizations l10n, FirebaseAuthException e) {
       return l10n.authFailed;
   }
 }
+
+/// Sosyal girişte (Google/Apple) gelen FirebaseAuth hatasının metni.
+///
+/// [authErrorText] şifre formu için yazıldı: orada `invalid-credential`
+/// "e-posta ya da şifre yanlış" demek. Sosyal girişte kullanıcı ne e-posta
+/// ne şifre yazdı; aynı kod SAĞLAYICI belirtecinin reddidir. iPad'de Apple
+/// girişi `invalid-credential — Invalid OAuth response from apple.com`
+/// alırken ekranda "E-posta veya şifre hatalı." yazıyordu (2026-10-28) —
+/// kullanıcıyı şifresinden şüphelendiren yanlış bir beyan. Anlamı aynı
+/// kalan kodlar (hesap başka yöntemle açılmış, ağ, çok deneme) haritadan
+/// gelir. `operation-not-allowed` şifre formunda "e-posta girişi kapalı"
+/// demek; sosyal girişte kapalı olan SAĞLAYICIDIR, e-posta değil.
+String sosyalGirisHataMetni(AppLocalizations l10n, FirebaseAuthException e) =>
+    switch (e.code) {
+      'invalid-credential' ||
+      'wrong-password' ||
+      'user-not-found' ||
+      'operation-not-allowed' => l10n.authFailed,
+      _ => authErrorText(l10n, e),
+    };
+
+/// Sosyal giriş hatası Crashlytics'e yazılsın mı?
+///
+/// Yalnız yapılandırma ya da sağlayıcı arızası anlamına gelen kodlar: bunlar
+/// yayında hiçbir yerde görünmüyordu (genel `catch` yalnız Firebase DIŞI
+/// istisnaları yazıyor), yani Apple girişi canlıda bozulsa kimse fark
+/// etmezdi. Kullanıcının kendi hâli olan kodlar (hesap başka yöntemle açık,
+/// ağ, çok deneme) arıza değil; yazılırsa sayaç şişer ve gerçek arıza
+/// gömülür.
+bool sosyalGirisHatasiKaydedilir(String kod) => const {
+  'invalid-credential',
+  'operation-not-allowed',
+  'internal-error',
+  'unknown',
+}.contains(kod);
 
 // Sağlayıcı çakışması hakkında bir not:
 //

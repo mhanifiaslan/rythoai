@@ -25,6 +25,9 @@ import '../theme/rytho_tokens.dart';
 /// * [klavyeyeUy]: giriş alanı taşıyan sayfa `true` verir; alt dolgu
 ///   klavye kadar büyür. Dolgu SAYFANIN context'inden okunur — dıştaki
 ///   context klavye açılınca yeniden kurulmuyor, dolgu 0 kalıyordu.
+/// * [enableDrag]: aşağı sürükleyerek kapatma. Sürükleme `PopScope`a
+///   SORMADAN kapatır (SDK `bottom_sheet.dart` `onClosing` → `pop`); uçuşta
+///   bir işi olan sayfa (hesap silme) onu kapatır.
 ///
 /// `isScrollControlled` hep açık: sayfanın 9/16 tavanı kalkar, uzun içerik
 /// ekranı kullanır. `useSafeArea` da açık: tavan kalkınca tam boy sayfa
@@ -34,10 +37,12 @@ Future<T?> showRythoSheet<T>(
   required WidgetBuilder builder,
   bool scrollable = true,
   bool klavyeyeUy = false,
+  bool enableDrag = true,
   String? baslik,
 }) {
   return showModalBottomSheet<T>(
     context: context,
+    enableDrag: enableDrag,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: RythoColors.inkLight,

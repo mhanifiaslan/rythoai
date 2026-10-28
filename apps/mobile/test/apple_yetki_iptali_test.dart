@@ -81,6 +81,7 @@ Future<AppleIptalSonucu> _calistir(
       yenidenDogrula: dogrula ?? k.dogrula,
       iptalEt: iptal ?? k.iptal,
       hataKaydi: k.kaydet,
+      onayVerildi: () => k.adimlar.add('onay'),
     );
 
 /// Sabit yanıt veren sahte sunucu; istekleri saklar.
@@ -132,7 +133,7 @@ Future<void> _silmeyiOnayla(
               context,
               klavyeyeUy: true,
               builder: (_) =>
-                  DeleteAccountSheet(appleIptali: apple, cikis: cikis),
+                  DeleteAccountSheet(appleIptali: (_) => apple(), cikis: cikis),
             ),
             child: const Text('aç'),
           ),
@@ -176,7 +177,9 @@ void main() {
     test('sıra: sayfa → yeniden doğrulama → iptal', () async {
       final k = _Kayit();
       expect(await _calistir(k), AppleIptalSonucu.iptalEdildi);
-      expect(k.adimlar, ['sayfa', 'dogrula', 'iptal']);
+      // 'onay' sayfa döner dönmez, ağ çağrılarından ÖNCE: silme sayfası
+      // "siliniyor" satırını bu andan sonra gösterir.
+      expect(k.adimlar, ['sayfa', 'onay', 'dogrula', 'iptal']);
       expect(k.iptalKodu, 'yetki-kodu-1');
       expect(k.hatalar, isEmpty);
     });
@@ -189,6 +192,12 @@ void main() {
       await _calistir(k);
       final kimlik = k.kimlik as OAuthCredential;
       expect(kimlik.providerId, 'apple.com');
+      // Genel `OAuthProvider('apple.com')` kimliği de providerId'yi
+      // `apple.com` taşır ama `signInMethod`u `oauth`tur — iOS eklentisi onu
+      // başka bir daldan kuruyor ve iPad'de (2026-10-28) girişte her seferinde
+      // `invalid-credential` aldı. Silme yolu giriş onarılırken o kimlikte
+      // kalmıştı; bu satır ikisini aynı kurucuya bağlı tutar.
+      expect(kimlik.signInMethod, 'apple.com');
       expect(kimlik.idToken, 'kimlik-jetonu');
       expect(sha256.convert(utf8.encode(kimlik.rawNonce!)).toString(),
           k.nonceOzeti);
@@ -212,6 +221,28 @@ void main() {
               code: AuthorizationErrorCode.unknown, message: '1000'));
       expect(sonuc, AppleIptalSonucu.basarisiz);
       expect(k.hatalar, hasLength(1));
+      expect(k.adimlar, isEmpty, reason: 'onaysız düşen sayfada onay yok');
+    });
+
+    test('Apple belirteci boş dönerse: doğrulama ve iptal KOŞMAZ, '
+        'kaydedilir, silme sürer', () async {
+      final k = _Kayit();
+      final sonuc = await _calistir(k, sayfa: (ozet) async {
+        k.adimlar.add('sayfa');
+        return const AuthorizationCredentialAppleID(
+          userIdentifier: '001.abc',
+          givenName: null,
+          familyName: null,
+          authorizationCode: 'yetki-kodu-1',
+          email: null,
+          identityToken: null,
+          state: null,
+        );
+      });
+      expect(sonuc, AppleIptalSonucu.basarisiz);
+      expect(k.adimlar, ['sayfa', 'onay']);
+      expect(k.iptalKodu, isNull);
+      expect(k.hatalar, hasLength(1));
     });
 
     test('başka Apple Kimliği seçildi (user-mismatch): iptal KOŞMAZ',
@@ -223,7 +254,7 @@ void main() {
           dogrula: (_) async =>
               throw FirebaseAuthException(code: 'user-mismatch'));
       expect(sonuc, AppleIptalSonucu.basarisiz);
-      expect(k.adimlar, ['sayfa']);
+      expect(k.adimlar, ['sayfa', 'onay']);
       expect(k.iptalKodu, isNull);
       expect(k.hatalar, hasLength(1));
     });

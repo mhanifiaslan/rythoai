@@ -2,6 +2,13 @@
 // alt ağacını değiştirir; üstte basılı bir rota (sohbet, yüz okuma, kehanet)
 // varsa yeni ekran onun ALTINDA kalır ve "Bu cihazda kullan" düğmesine
 // ulaşılamazdı. `GateRootGuard` kapı kapandığı an yığını köke indirir.
+//
+// Üçüncü kapı oturumun kapanması (iPad, 2026-10-28): hesap Hesap
+// sayfasından silinince giriş sayfası kökte kuruluyor, Hesap sayfası
+// üstünde kalıyordu.
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart' show User;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
@@ -9,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rytho/core/app_config.dart' show mustForceUpdateProvider;
 import 'package:rytho/core/device_session.dart';
 import 'package:rytho/core/gate_guard.dart';
+import 'package:rytho/core/providers.dart' show authStateProvider;
 
 /// Zorunlu güncelleme kapısının test anahtarı; gerçek sağlayıcı açılış
 /// okuması + PackageInfo ister.
@@ -17,14 +25,26 @@ final _zorla = StateProvider<bool>((_) => false);
 const _kok = Key('kok');
 const _basili = Key('basili');
 
+/// Oturum akışına konacak sahte kullanıcı; bekçi yalnız null olup
+/// olmadığına bakıyor, diğer üyeler `noSuchMethod`a düşer.
+class _SahteKullanici implements User {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      super.noSuchMethod(invocation);
+}
+
 class _Harness {
   _Harness() : key = GlobalKey<NavigatorState>();
   final GlobalKey<NavigatorState> key;
   late final ProviderContainer kap;
 
+  /// Oturum akışı; gerçek sağlayıcı `FirebaseAuth.instance` ister.
+  final oturum = StreamController<User?>.broadcast();
+
   Widget build() {
     kap = ProviderContainer(overrides: [
       mustForceUpdateProvider.overrideWith((ref) => ref.watch(_zorla)),
+      authStateProvider.overrideWith((_) => oturum.stream),
     ]);
     return UncontrolledProviderScope(
       container: kap,
@@ -131,5 +151,59 @@ void main() {
 
     // Açılışın kendisi hiçbir şeyi indirmemeli; rota durur.
     expect(find.byKey(_basili), findsOneWidget);
+  });
+
+  group('oturum kapanınca', () {
+    testWidgets('açık → kapalı: basılı rota iner, kök (giriş) görünür',
+        (tester) async {
+      final h = _Harness();
+      // Sıra LIFO: önce konteyner atılır (akış aboneliği iptal), sonra akış
+      // kapanır. Konteyner atılmadan `close()` beklenince test askıda
+      // kaldı (ölçüldü): Riverpod 3 dinleyicisi kalmayan aboneliği iptal
+      // etmez, DURAKLATIR (`element.dart`) ve `done` hiç teslim edilmez.
+      addTearDown(h.oturum.close);
+      await tester.pumpWidget(h.build());
+      addTearDown(h.kap.dispose);
+      h.oturum.add(_SahteKullanici());
+      await tester.pumpAndSettle();
+      await h.bas(tester);
+
+      h.oturum.add(null);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(_basili), findsNothing,
+          reason: 'silinen hesabın Hesap sayfası girişin üstünde kalıyordu');
+      expect(find.byKey(_kok), findsOneWidget);
+    });
+
+    testWidgets('soğuk açılış (yükleme → çıkışlı) yığına dokunmaz',
+        (tester) async {
+      final h = _Harness();
+      addTearDown(h.oturum.close);
+      await tester.pumpWidget(h.build());
+      addTearDown(h.kap.dispose);
+      await h.bas(tester);
+
+      h.oturum.add(null);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(_basili), findsOneWidget);
+    });
+
+    testWidgets('oturum açıkken yeniden yayın (aynı ya da başka kullanıcı) '
+        'yığına dokunmaz', (tester) async {
+      final h = _Harness();
+      addTearDown(h.oturum.close);
+      await tester.pumpWidget(h.build());
+      addTearDown(h.kap.dispose);
+      h.oturum.add(_SahteKullanici());
+      await tester.pumpAndSettle();
+      await h.bas(tester);
+
+      h.oturum.add(_SahteKullanici());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(_basili), findsOneWidget);
+    });
   });
 }

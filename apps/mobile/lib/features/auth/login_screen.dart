@@ -154,7 +154,16 @@ class _LoginScreenState extends State<LoginScreen> {
           _showSnack(l10n.authReauthNeeded);
         case AuthHataSonucu.genel:
           if (e is FirebaseAuthException) {
-            _showSnack(_authErrorMessage(e));
+            if (!kDebugMode && sosyalGirisHatasiKaydedilir(e.code)) {
+              // Mesaj da yazılır: arızanın sebebi orada ("Invalid OAuth
+              // response from apple.com"); bu kodların mesajı e-posta
+              // taşımıyor (hesap çakışması bilerek kümede değil).
+              FirebaseCrashlytics.instance.recordError(
+                  'social-signin-firebase: ${e.code} ${e.message}',
+                  StackTrace.current,
+                  fatal: false);
+            }
+            _showSnack(sosyalGirisHataMetni(l10n, e));
             break;
           }
           if (!kDebugMode) {

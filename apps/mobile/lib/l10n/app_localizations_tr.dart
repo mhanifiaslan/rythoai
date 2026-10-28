@@ -1410,6 +1410,13 @@ class AppLocalizationsTr extends AppLocalizations {
       'Hesabın silinmedi: Apple onayı kapatıldı. Bu onay, Rytho\'nun Apple ile Giriş yetkisini kaldırmak için isteniyor. Silmek için tekrar dene ve onayı tamamla.';
 
   @override
+  String get deleteAccountAppleNotice =>
+      'Silmeden önce Apple kendi sayfasında bir onay isteyecek: bu, Rytho\'nun Apple ile Giriş yetkisini kaldırmak için.';
+
+  @override
+  String get deleteAccountInProgress => 'Hesabın siliniyor, lütfen bekle.';
+
+  @override
   String get deleteAccountReauth =>
       'Güvenlik için tekrar giriş yapman gerekiyor. Çıkış yapıp yeniden giriş yaptıktan sonra bu işlemi tekrarla.';
 

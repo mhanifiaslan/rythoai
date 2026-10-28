@@ -9,6 +9,9 @@
 //
 // İstisna türleri kurulu paketlerden ÖLÇÜLDÜ (bkz. auth_service.dart
 // `isAuthCancelled` yorumu); burada uydurma kod yok.
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +64,27 @@ Future<void> _dokun(WidgetTester tester, String metin) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
 }
+
+/// `signInWithApple`ın dönüşünden yalnız `user` okunuyor (ad yazımı).
+class _SahteGiris implements UserCredential {
+  @override
+  User? get user => null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      super.noSuchMethod(invocation);
+}
+
+AuthorizationCredentialAppleID _appleSayfasi({String? jeton = 'jeton'}) =>
+    AuthorizationCredentialAppleID(
+      userIdentifier: '001.abc',
+      givenName: null,
+      familyName: null,
+      authorizationCode: 'kod',
+      email: null,
+      identityToken: jeton,
+      state: null,
+    );
 
 void main() {
   group('isAuthCancelled', () {
@@ -177,6 +201,138 @@ void main() {
       await _dokun(tester, _tr.signInWithGoogle);
       expect(find.text(_tr.authNetwork), findsOneWidget);
       expect(find.text(_tr.authFailed), findsNothing);
+    });
+
+    // iPad'de ölçülen (2026-10-28): Apple belirteci Firebase'de
+    // `invalid-credential` ile reddedilince ekranda "E-posta veya şifre
+    // hatalı." yazıyordu — kullanıcı ne e-posta ne şifre yazmıştı.
+    testWidgets('Apple belirteci reddi şifre hatası gibi gösterilmez (iOS)',
+        (tester) async {
+      await _ekran(
+          tester,
+          LoginScreen(
+              appleSignIn: () async => throw FirebaseAuthException(
+                  code: 'invalid-credential',
+                  message: 'Invalid OAuth response from apple.com')));
+      await _dokun(tester, _tr.signInWithApple);
+
+      expect(find.text(_tr.authFailed), findsOneWidget);
+      expect(find.text(_tr.authWrongCredentials), findsNothing);
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  });
+
+  group('Apple kimliği', () {
+    test('Apple\'a özel kimlik: signInMethod apple.com, nonce ve ad taşınır',
+        () {
+      // Genel `OAuthProvider('apple.com')` kimliği `oauth` taşır; iOS
+      // eklentisinde o dal iPad'de `invalid-credential` aldı (2026-10-28).
+      final k = appleKimligi('jeton', 'ham', ad: 'Ada', soyad: 'Yıldız');
+      expect(k.providerId, 'apple.com');
+      expect(k.signInMethod, 'apple.com');
+      expect(k.idToken, 'jeton');
+      expect(k.rawNonce, 'ham');
+      expect(k.appleFullPersonName?.givenName, 'Ada');
+      expect(k.appleFullPersonName?.familyName, 'Yıldız');
+    });
+
+    // Çağrı yeri: `appleKimligi`nin gövdesi doğru olsa da giriş onu
+    // çağırmazsa (eski `OAuthProvider` satırı geri gelirse) iPad'deki red
+    // geri gelir ve yalnız kurucuyu sınayan test yeşil kalırdı.
+    test('signInWithApple Firebase\'e Apple\'a özel kimlikle ve AYNI nonce '
+        'ile gider', () async {
+      String? ozet;
+      AuthCredential? giden;
+      await signInWithApple(
+        appleSayfasi: (o) async {
+          ozet = o;
+          return _appleSayfasi();
+        },
+        kimlikleGir: (k) async {
+          giden = k;
+          return _SahteGiris();
+        },
+      );
+      final k = giden! as OAuthCredential;
+      expect(k.signInMethod, 'apple.com');
+      expect(k.providerId, 'apple.com');
+      expect(k.idToken, 'jeton');
+      expect(sha256.convert(utf8.encode(k.rawNonce!)).toString(), ozet);
+    });
+
+    test('Apple belirteci boşsa Firebase\'e hiç gidilmez', () async {
+      var gidildi = false;
+      await expectLater(
+        signInWithApple(
+          appleSayfasi: (_) async => _appleSayfasi(jeton: null),
+          kimlikleGir: (_) async {
+            gidildi = true;
+            return _SahteGiris();
+          },
+        ),
+        throwsStateError,
+      );
+      expect(gidildi, isFalse);
+    });
+  });
+
+  group('sosyal giriş hata haritası', () {
+    test('şifreye özgü kodlar sosyal girişte genel metne iner', () {
+      for (final kod in ['invalid-credential', 'wrong-password', 'user-not-found']) {
+        expect(sosyalGirisHataMetni(_tr, FirebaseAuthException(code: kod)),
+            _tr.authFailed,
+            reason: kod);
+        // Şifre formunun haritası değişmedi: orada aynı kod şifre hatası.
+        expect(authErrorText(_tr, FirebaseAuthException(code: kod)),
+            _tr.authWrongCredentials,
+            reason: kod);
+      }
+    });
+
+    test('anlamı aynı kalan kodlar ortak haritadan gelir', () {
+      expect(
+          sosyalGirisHataMetni(_tr,
+              FirebaseAuthException(
+                  code: 'account-exists-with-different-credential')),
+          _tr.authAccountExistsOtherMethod);
+      expect(
+          sosyalGirisHataMetni(
+              _tr, FirebaseAuthException(code: 'network-request-failed')),
+          _tr.authNetwork);
+    });
+
+    test('operation-not-allowed sosyal girişte "e-posta girişi kapalı" '
+        'demez', () {
+      // Sosyal girişte kapalı olan sağlayıcıdır, e-posta değil.
+      expect(
+          sosyalGirisHataMetni(
+              _tr, FirebaseAuthException(code: 'operation-not-allowed')),
+          _tr.authFailed);
+      // Şifre formunun haritası değişmedi.
+      expect(
+          authErrorText(
+              _tr, FirebaseAuthException(code: 'operation-not-allowed')),
+          _tr.authDisabled);
+    });
+
+    test('yalnız arıza kodları Crashlytics\'e yazılır', () {
+      for (final kod in [
+        'invalid-credential',
+        'operation-not-allowed',
+        'internal-error',
+        'unknown',
+      ]) {
+        expect(sosyalGirisHatasiKaydedilir(kod), isTrue, reason: kod);
+      }
+      // Kullanıcının kendi hâli: yazılırsa sayaç şişer, arıza gömülür.
+      for (final kod in [
+        'account-exists-with-different-credential',
+        'network-request-failed',
+        'too-many-requests',
+        'canceled',
+      ]) {
+        expect(sosyalGirisHatasiKaydedilir(kod), isFalse, reason: kod);
+      }
     });
   });
 }

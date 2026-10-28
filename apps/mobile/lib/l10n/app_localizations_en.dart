@@ -1448,6 +1448,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your account was not deleted: the Apple confirmation was closed. We ask for it so that Rytho\'s Sign in with Apple access can be removed too. To delete your account, try again and complete it.';
 
   @override
+  String get deleteAccountAppleNotice =>
+      'Before deleting, Apple will ask you to confirm on its own page: this removes Rytho\'s Sign in with Apple access.';
+
+  @override
+  String get deleteAccountInProgress => 'Deleting your account, please wait.';
+
+  @override
   String get deleteAccountReauth =>
       'For security you need to sign in again. Sign out, sign back in, and repeat this step.';
 

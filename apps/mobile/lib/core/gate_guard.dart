@@ -16,13 +16,23 @@
 /// dönüşte yeniden okuma: hepsi aynı iki sağlayıcıdan geçer. Kapı AÇILINCA
 /// (devralma başarılı, eşik sıfırlandı) bir şey yapılmaz; `_Gate` kabuğu
 /// kökte zaten yeniden kurar.
+///
+/// Üçüncü kapı OTURUMUN KAPANMASI: `_Gate` kökü giriş sayfasına çevirir,
+/// basılı rota yine üstte kalır. iPad'de ölçüldü (2026-10-28): Hesap
+/// sayfasından hesap silinince silme alt sayfası kapanıyor, giriş sayfası
+/// kökte kuruluyordu ama ekranda silinmiş hesabın Hesap sayfası — adı,
+/// "Kaydet", "Hesabı sil" — duruyordu. Çıkışın her yolu (silme, 401
+/// sonrası çıkış, onboarding'den çıkış, iptal edilen oturum) buradan geçer;
+/// tek tek ekranlara bırakılsaydı her yeni çıkış yolu aynı kusuru taşırdı.
 library;
 
+import 'package:firebase_auth/firebase_auth.dart' show User;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app_config.dart' show mustForceUpdateProvider;
 import 'device_session.dart' show DeviceConflict, deviceConflictProvider;
+import 'providers.dart' show authStateProvider;
 
 class GateRootGuard extends ConsumerWidget {
   const GateRootGuard(
@@ -51,6 +61,13 @@ class GateRootGuard extends ConsumerWidget {
     });
     ref.listen<DeviceConflict?>(deviceConflictProvider, (onceki, simdi) {
       if (simdi != null && onceki == null) _kokeDon();
+    });
+    // Yalnız AÇIK → KAPALI kenarı: soğuk açılıştaki yükleme → çıkışlı
+    // geçişte önceki değer zaten null'dır, yığına dokunulmaz.
+    ref.listen<AsyncValue<User?>>(authStateProvider, (onceki, simdi) {
+      if (onceki?.value != null && simdi.hasValue && simdi.value == null) {
+        _kokeDon();
+      }
     });
     return child;
   }

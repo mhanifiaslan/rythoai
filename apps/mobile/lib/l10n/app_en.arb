@@ -687,6 +687,8 @@
   "deleteAccountAction": "Permanently delete my account",
   "deleteAccountFailed": "The account could not be deleted. Please retry.",
   "deleteAccountAppleCanceled": "Your account was not deleted: the Apple confirmation was closed. We ask for it so that Rytho's Sign in with Apple access can be removed too. To delete your account, try again and complete it.",
+  "deleteAccountAppleNotice": "Before deleting, Apple will ask you to confirm on its own page: this removes Rytho's Sign in with Apple access.",
+  "deleteAccountInProgress": "Deleting your account, please wait.",
   "deleteAccountReauth": "For security you need to sign in again. Sign out, sign back in, and repeat this step.",
   "cancel": "Cancel",
   "insightDisclaimer": "Rytho is built on real ephemeris calculation, but interpretation is not a method of prediction. Readings are for insight; they are not medical, legal or financial advice. For ages 13 and up.",

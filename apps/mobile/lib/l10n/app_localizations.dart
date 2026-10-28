@@ -2558,6 +2558,18 @@ abstract class AppLocalizations {
   /// **'Hesabın silinmedi: Apple onayı kapatıldı. Bu onay, Rytho\'nun Apple ile Giriş yetkisini kaldırmak için isteniyor. Silmek için tekrar dene ve onayı tamamla.'**
   String get deleteAccountAppleCanceled;
 
+  /// No description provided for @deleteAccountAppleNotice.
+  ///
+  /// In tr, this message translates to:
+  /// **'Silmeden önce Apple kendi sayfasında bir onay isteyecek: bu, Rytho\'nun Apple ile Giriş yetkisini kaldırmak için.'**
+  String get deleteAccountAppleNotice;
+
+  /// No description provided for @deleteAccountInProgress.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hesabın siliniyor, lütfen bekle.'**
+  String get deleteAccountInProgress;
+
   /// No description provided for @deleteAccountReauth.
   ///
   /// In tr, this message translates to:
