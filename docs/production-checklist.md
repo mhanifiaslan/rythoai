@@ -262,3 +262,8 @@ Bu bölüm bir dönem "henüz yapılmamış" diye duruyordu ve kendi §12'siyle
       Return URL, Firebase'de OAuth code flow, e-posta kaynagi — hesap
       silmede yetki iptali ve Hide My Email icin). Konsol durumlarinin
       hicbiri olculmedi; bu madde konsol isleri bitince isaretlenir.
+      → **2026-10-28 (iPad, gelistirme imzali Profile):** Apple ile Giris
+      calisti — saglayici acik (A4; U01 kapandi), once bir KOD kusuru
+      onarildi (U57). Silmede Apple yetkisi iptali Ayarlar'daki listeyle
+      olculdu (C7, U15; ilk-kez sayfasinin donmemesi acik). Kalan: e-posta
+      kaynagi kaydi (U22) olculmedi — madde o yuzden isaretsiz.

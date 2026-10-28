@@ -14,7 +14,12 @@ bağlandı, App Check belirtisi koda göre düzeltildi, ölçülemeyen konsol
 durumları "ölçülemedi" diye işaretlendi; U05'in kod yarısı `09bbe23`) ve
 yine **2026-10-24** (konsol araştırması: A2/A4/A5/B1/B2/C6/C7 yolları
 Apple ve Firebase belgelerine göre, 4.5'in APNs gerekçesi, 4.10'un test
-kodu ve yayın günü listesi; konsol durumları yine ölçülmedi).
+kodu ve yayın günü listesi; konsol durumları yine ölçülmedi) ve
+**2026-10-27/28** (iPad oturumu — ilk gerçek cihaz: Geliştirici Modu,
+cihaz kaydı ve geliştirme profili, Profile kipte App Attest ve yüz okuma,
+Apple ile Giriş kod onarımı, hesap silmede Apple iptali; üst kutu, §3, §4
+tablo, A1–A4, A6–A8, B1, B2, B6, B9, C7, C11, Açık işler, 4.4, 4.5, 4.10,
+§5, §7).
 Dal: `yuz-okuma-cihaz-usti-olcum`.
 
 > **Bugünkü durum (2026-10-22, Windows'tan ölçüldü):**
@@ -38,7 +43,8 @@ Dal: `yuz-okuma-cihaz-usti-olcum`.
 >   da sayılması** — bkz. **4.10**.
 
 > **Mac durumu (2026-10-22, Mac'ten ölçüldü; 2026-10-23'te yeniden ölçülüp
-> düzeltildi — düzeltilen satırlar yerinde, eskisi silinmeden):**
+> düzeltildi; 2026-10-28'de iPad oturumuyla güncellendi — düzeltilen
+> satırlar yerinde, eskisi silinmeden):**
 > - **Hazırlık hükmü (2026-10-23):** gerçek iPhone'da Debug testi, iç
 >   TestFlight ve App Store incelemesi — üçü de bugün **hazır değil**;
 >   kod tarafı büyük ölçüde hazır, kalanların çoğu sahibin konsol işi ve
@@ -46,6 +52,11 @@ Dal: `yuz-okuma-cihaz-usti-olcum`.
 >   U05'in kalanı (kod yarısı `09bbe23`; §4 B7), §4 C13 ve U17
 >   şikâyet görünümü, U18 notları, U37 Koşullar maddesi. Sıralı adımlar §4
 >   (Aşama A/B/C).
+>   → **2026-10-28:** A'nın cihaz ölçümlerinin bir kısmı gerçek bir iPad'de
+>   **Profile** kipte yapıldı (giriş, kurulum, profil, yüz okuma, Apple ile
+>   giriş, hesap silme — §4 A8; A8 listesinin geri kalanı ve push kayıtlı
+>   değil); iPhone'da ve Debug kipte cihaz denemesi yok. B ve C hükmü
+>   değişmedi (§4 tablo).
 > - Mac'in iOS/App Store işi (`ios-hazirlik`, 2026-09-26/27, 16 commit,
 >   15'i push edilmemişti) bu dala **birleşti**: `8d6f67b`. U-kimlikli
 >   kayıt `docs/ios-uyum-denetimi.md`'de (55 kayıt + birleşme notları).
@@ -77,6 +88,15 @@ Dal: `yuz-okuma-cihaz-usti-olcum`.
 >   *(Düzeltme 2026-10-24: bu satır "bağlı ya da kayıtlı cihaz 0" diyordu
 >   ve "0" ölçümünün sertifikadan önce alındığını kesin bilgi gibi
 >   yazıyordu.)*
+>   → **Güncel (ölçüldü 2026-10-27/28, iPad oturumu, Xcode 26.6):** bağlı
+>   cihaz **1** — iPad Air 13 inç (M2), iPadOS 17.5.1, USB. Yerel
+>   provizyon profili **1** — "iOS Team Provisioning Profile: ai.rytho"
+>   (otomatik imza; oluşturma 2026-10-27T10:50:18Z, bitiş 2027-10-27;
+>   içinde 1 cihaz = bu iPad; `~/Library/Developer/Xcode/UserData/Provisioning
+>   Profiles`). Cihaz takıma `flutter run --profile -d` ile kaydedildi
+>   (§4 A3). İmza kimliği: 1 geçerli `Apple Development`, **Apple
+>   Distribution hâlâ 0** (`security find-identity`, 2026-10-28) — B9
+>   bekliyor. App Store Connect kaydı yine ölçülemedi.
 > - **İmzasız Release derlemesi geçti** (ölçüldü 2026-10-23, `ba6108b`):
 >   `flutter build ios --release --no-codesign
 >   --dart-define-from-file=dart_defines.local.json` → çıkış 0, Runner.app
@@ -199,7 +219,9 @@ test` **1668/1668**, `pytest` **2795 + 2 atlandı + aynı 1**. Eşitlik artık
 platformdan bağımsız bozuluyor (`4c64335`, rag-esitlik) ve U17 de girdi
 (`b061ec0`): **`flutter test` 1707/1707, `pytest` 2831 geçti + 2 atlandı, 0
 kaldı** (2026-10-22, Mac). `flutter analyze` Mac'te `build/**` dışlanmazsa
-864 sahte hata sayar (§7; dışlama birleşmeyle geldi).
+864 sahte hata sayar (§7; dışlama birleşmeyle geldi). iPad oturumunun
+kodunda (2026-10-28, Mac): `flutter test` **1810/1810**, `flutter analyze`
+temiz; `pytest` sonucu o turda kayıtlı değil.
 
 Betikler macOS'a hazır (ölçüldü): `infra/deploy-backend.ps1` venv düzenini
 iki platformda da buluyor (`Scripts/python.exe` → `bin/python`),
@@ -229,7 +251,7 @@ adımları onlara işaret eder. Numaraları değiştirilmez: başka belgeler ve
 bekçilerin gerekçeleri onları adıyla anıyor (ör. `test_ios_config.py`,
 `test_web_seo.py` → "mac-devir 4.10"; uyum kaydı → "§4.7").
 
-### Bugünkü hüküm (ölçüldü 2026-10-23; 2026-10-24'te düzeltildi)
+### Bugünkü hüküm (ölçüldü 2026-10-23; 2026-10-24'te düzeltildi; 2026-10-28'de iPad ölçümleriyle güncellendi)
 
 > **Konsol adımları — sahip beyanı (2026-10-24), bu Mac'ten ÖLÇÜLMEDİ:**
 > A2 (App ID'de dört yetenek; Sign in with Apple primary), A4 (Firebase'de
@@ -241,17 +263,33 @@ bekçilerin gerekçeleri onları adıyla anıyor (ör. `test_ios_config.py`,
 > cihazda Apple ile giriş + hesap silmede iptal, `--profile` ile App
 > Attest, TestFlight'ta push (production yarısı). Kararlar: hosting A + C,
 > Mac/Vision Pro kapatılır, bağlantı testi ayrı test ortağıyla.
+> → **iPad'de ölçülen (2026-10-27/28, Profile, geliştirme imzası):** A2 —
+> otomatik imzanın ürettiği profil dört yetkiyi taşıyor (portal ekranı
+> görülmedi); A4 — Apple ile giriş, bir KOD kusuru onarıldıktan sonra
+> çalıştı (sağlayıcı açık; konsol ekranı görülmedi); B1 + B2 — geliştirme
+> imzalı Profile paketinde App Attest kabul edildi (sonuçtan; konsol
+> ekranları görülmedi); C7 — silmeden sonra Rytho, Ayarlar'daki Apple ile
+> Giriş listesinden çıktı (iki silmede) — iptalin üç ölçüsünden yalnız bu
+> kayıtlı (account.apple.com ve Apple'ın iptal e-postası okunmadı) ve bir
+> açık gözlem var (C7). Ölçülmedi: cihazda push, TestFlight/dağıtım
+> imzası, e-posta kaynağı kaydı (U22; sahibin yapıp yapmadığı bilinmiyor).
 
 *(Düzeltme 2026-10-24: B satırı "App Store Connect kaydı yok … kayıtlı
 cihaz yok" diyordu — ikisi de ölçülemedi; backend deploy'u da B'nin engeli
 sayılıyordu, oysa aşağıdaki Öneri A + C onu beklemiyor. `test_` anahtarının
 çökmesi U05 kod ağıyla değişti.)*
 
+*(Düzeltme 2026-10-28: A satırı "iPhone bağlı değil, provizyon profili 0"
+diyordu; B satırı App Attest kaydını ve takımda kayıtlı cihazı
+"ölçülemedi" sayıyordu. iPad oturumu profili ve cihaz kaydını ölçtü, App
+Attest kaydını yalnız sonuçtan (giriş çalıştı) gösterdi; iPhone hâlâ
+bağlı değil — aşağıda.)*
+
 | Aşama | Hazır mı | Kalan engel |
 |---|---|---|
-| **A** — cihazda Debug | **Hayır** — kod tarafı büyük ölçüde hazır | iPhone bağlı değil, provizyon profili 0; üç konsol adımı (App ID yetenekleri, Firebase'de Apple sağlayıcısı, APNs). App Check debug jetonu sabit ve Firebase'de kayıtlı (A6; simülatörde ölçüldü, cihazda ölçülmedi). Universal Link canlı AASA bayat olduğu için ölçülemez |
-| **B** — iç TestFlight | **Hayır** | Gerçek `appl_` anahtarı yok (bugünkü `test_`: U05 kod ağıyla Release açılışta çökmez ama satın alma kapalı çıkar, `infra/build-ipa.sh` paketi durdurur); U05'in kalanı (ilk imzalı IPA, derleme numarası kararı); App Store Connect kaydı ölçülemedi (yerelde `APPSTORE_APP_ID` yok); App Attest kaydı ölçülemedi; dağıtım sertifikası bu Mac'te yok; takımda kayıtlı cihaz ölçülemedi. **Engel değil, önerilir:** kurallar + backend deploy'u ("Deploy bağımlılıkları" 1) — yapılmazsa onay kaydı satırı "bekliyor" kalır |
-| **C** — App Store incelemesi | **Hayır** | IAP + sözleşmeler, inceleme notları, gizlilik etiketi, yaş derecesi, 6,9" ekran görüntüleri, EULA kararı; canlı gizlilik metni eski (hosting kilidi); kurallar + backend deploy'u (engellemenin sunucu kapıları canlıda değil — çıkarım; canlı kurallar ölçülemedi); iOS 27 ve iPad uyumluluk kipinde gezinti sonucu kayıtlı değil (iki simülatöre kuruldu ve açıldı, C11) |
+| **A** — cihazda Debug | **Kısmen** — cihaz ölçümlerinin bir kısmı iPad'de **Profile** kipte yapıldı (2026-10-27/28, A8) | Kalkan engeller: cihaz (iPad) takımda kayıtlı, geliştirme profili var (A3); App ID yetkileri profilde, Apple sağlayıcısı çalışıyor (A2, A4). Kalan, ölçülmedi: iPhone, Debug kipte cihaz (A6 sabit jetonu cihazda ölçülmedi), cihazda push (A5 yalnız sahip beyanı), kamera reddi, telefon doğrulaması ve A8 listesinin geri kalanı. Universal Link canlı AASA bayat olduğu için ölçülemez |
+| **B** — iç TestFlight | **Hayır** | Gerçek `appl_` anahtarı yok (bugünkü `test_`: U05 kod ağıyla Release açılışta çökmez ama satın alma kapalı çıkar, `infra/build-ipa.sh` paketi durdurur); U05'in kalanı (ilk imzalı IPA, derleme numarası kararı); App Store Connect kaydı ölçülemedi (yerelde `APPSTORE_APP_ID` yok); dağıtım sertifikası bu Mac'te hâlâ 0 (2026-10-28). App Attest: geliştirme imzalı Profile paketinde iPad'de kabul edildi (B2) — dağıtım imzalı (TestFlight) paketle **ölçülmedi**. Takımda kayıtlı cihaz: iPad (A3; geliştirme profili 1 cihaz taşıyor, portal ekranı görülmedi) — B9'un cihaz önkoşulu karşılandı. **Engel değil, önerilir:** kurallar + backend deploy'u ("Deploy bağımlılıkları" 1) — yapılmazsa onay kaydı satırı "bekliyor" kalır |
+| **C** — App Store incelemesi | **Hayır** | IAP + sözleşmeler, inceleme notları, gizlilik etiketi, yaş derecesi, 6,9" ekran görüntüleri, EULA kararı; canlı gizlilik metni eski (hosting kilidi); kurallar + backend deploy'u (engellemenin sunucu kapıları canlıda değil — çıkarım; canlı kurallar ölçülemedi); iOS 27 gezintisi kayıtlı değil (simülatörde kuruldu ve açıldı); iPad uyumluluk kipi gerçek iPad'de (iPadOS 17.5.1) kısmen gezildi, klavye ve paylaşım sayfası ölçülmedi (C11) |
 
 ### Aşama A — gerçek iPhone'da debug testi (`flutter run`, Debug kip)
 
@@ -271,6 +309,11 @@ Eksik olan cihaz ve konsol.
   ölçülmedi — cihaz yok.)
 - Yapılmazsa: cihaza hiçbir şey kurulamaz. Bugün `xcrun devicectl list
   devices` yalnız üç simülatör gösteriyor (ölçüldü 2026-10-23).
+- → **Ölçüldü (2026-10-27, iPad Air 13 inç M2, iPadOS 17.5.1, USB):**
+  Geliştirici Modu (Ayarlar → Gizlilik ve Güvenlik → Geliştirici Modu)
+  kapalıyken `xcodebuild` "Unable to find a destination" verdi ve Xcode
+  uyardı; açılınca geçti. Yani "Unable to find a destination" görülünce
+  önce bu anahtara bakılır. iPhone'da ayrıca ölçülmedi.
 - ⚠️ Telefon **iOS 27**'deyse Xcode 26.6 (iPhoneOS 26.5 SDK) ile kurulum
   ve hata ayıklama **ölçülmedi**; Xcode 27 bu depoyu derleyemiyor (§7). Bu
   Mac'te Xcode 27'nin bıraktığı kişiselleştirilmiş DDI duruyor (CoreDevice
@@ -308,6 +351,13 @@ Eksik olan cihaz ve konsol.
   2026-10-23.
 - Durum: **ölçülemedi** (portal). Otomatik imzanın eksik yeteneği
   kendiliğinden açıp açmadığı ilk cihaz derlemesinde görülür.
+  → **İlk cihaz derlemesi (2026-10-27):** otomatik imza (`flutter run
+  --profile`, A3) bir geliştirme profili üretti ve profilin yetkileri
+  dördünü de taşıyor —
+  `aps-environment` development, `applesignin`, `associated-domains` `*`,
+  `appattest-environment` development + production (ölçüldü, profil
+  dosyasından). Portal ekranı yine görülmedi; yeteneklerin sahibin
+  A2'sinden mi otomatik imzadan mı geldiği ayırt edilmedi.
 
 **A3 — Cihaz kaydı ve geliştirme profili · SEN (Xcode'da)**
 - `apps/mobile/ios/Runner.xcworkspace` → Runner hedefi → Signing &
@@ -316,6 +366,15 @@ Eksik olan cihaz ve konsol.
 - Yapılmazsa: imzalı cihaz derlemesi yok. Bugün iki profil dizini de yok
   (ölçüldü 2026-10-23). Aynı kayıt B9'u da açar: takımda cihaz yokken
   otomatik imzalı arşiv alınamaz.
+- → **Yapıldı (2026-10-27, iPad) — ve kaydı yapan Xcode penceresi değil
+  `flutter run` oldu:** Geliştirici Modu açıkken (A1) `flutter run
+  --profile -d <cihaz kimliği>` (B2'deki komut) otomatik imzayla cihazı
+  takıma kaydetti ve "iOS Team Provisioning Profile: ai.rytho"
+  profilini üretti (2026-10-27 → 2027-10-27, 1 cihaz; üst kutu).
+  ⚠️ Yalnız `flutter build ios` cihazı KAYDETMEZ: kayıttan önce "Your
+  team has no devices" ile düştü (ölçüldü). Yeni bir cihaz (iPhone) için
+  aynı yol beklenir — iPhone'da ölçülmedi. İlk Xcode derlemesi 214,6 sn,
+  sonrakiler ~40 sn.
 
 **A4 — Firebase Auth'ta Apple sağlayıcısı (U01) · SEN**
 - Firebase Console (rhytoai) → Authentication → Sign-in method → Add new
@@ -332,6 +391,26 @@ Eksik olan cihaz ve konsol.
   incelemede 4.8 + 2.1 reddi (U01).
 - Durum: **ölçülemedi.** Bu adım §4'te hiç yoktu (`grep -i "sign-in
   method"` boştu, ölçüldü 2026-10-23).
+  → **Ölçüldü dolaylı (2026-10-27/28, iPad, Profile):** onarımdan sonra
+  Apple ile giriş birden çok kez yeni hesap açtı — sağlayıcı açık
+  (konsol ekranı görülmedi).
+- ⚠️ **Cihazda çıkan engel konsol değil KODDU (U01, iPad'de ölçüldü):**
+  onarımdan önce HER denemede `FirebaseAuthException` `invalid-credential`
+  "Invalid OAuth response from apple.com", ekranda "E-posta veya şifre
+  hatalı." (şifre formunun hata haritası). Sebep: kimlik
+  `OAuthProvider('apple.com').credential(idToken, rawNonce)` ile
+  kuruluyordu → signInMethod `oauth` → firebase_auth 6.5.6 iOS
+  eklentisinin genel dalı. Onarım: `AppleAuthProvider.credentialWithIDToken`
+  (signInMethod `apple.com`, eklentide `appleCredentialWithIDToken:rawNonce:fullName:`),
+  ortak kurucu `appleKimligi` (`lib/core/auth_service.dart`); hesap
+  silmedeki yeniden doğrulama da aynı kurucuya bağlandı (C7). Sosyal
+  girişte `invalid-credential` / `wrong-password` / `user-not-found` /
+  `operation-not-allowed` artık genel "Bir şeyler ters gitti" metnine
+  iniyor (`sosyalGirisHataMetni`) ve `invalid-credential`,
+  `operation-not-allowed`, `internal-error`, `unknown` yayın derlemesinde
+  Crashlytics'e `social-signin-firebase` diye yazılıyor. Ders:
+  `invalid-credential` yalnız konsol eksiği anlamına gelmez — konsola
+  bakmadan önce kimliğin hangi kurucuyla yapıldığına bakılır.
 
 **A5 — APNs anahtarı (U08) · SEN**
 - Önce bak: Keys listesinde APNs anahtarı ve Firebase'de yüklü anahtar
@@ -397,7 +476,7 @@ Eksik olan cihaz ve konsol.
   değişkeni yok, ölçüldü 2026-10-23).
 - Yapılmazsa: zorlama Auth + Firestore + Storage'da açık (CLAUDE.md, son
   ölçüm 2026-10-10) ve Debug derlemesi `AppleDebugProvider` kullanıyor
-  (`main.dart:177-181`) → kayıtsız jetonla giriş, Firestore ve Storage
+  (`main.dart:183-187`) → kayıtsız jetonla giriş, Firestore ve Storage
   reddedilir. Belirti App Check'e özgü bir hata DEĞİL: iOS'ta
   `activate()` yalnız sağlayıcıyı kaydeder ve düşmez; kayıtsız jeton
   ancak jeton değişiminde reddedilir. Kullanıcı App Check'e özgü bir
@@ -410,8 +489,8 @@ Eksik olan cihaz ve konsol.
   (U30). Simülatörün kendi ürettiği jeton cihaza geçmez; sabit jeton
   (yukarıdaki ilk madde) ise define dosyasıyla birlikte geçer. *(Düzeltme 2026-10-24: burada "`activate()`
   hatası yutulduğu için belirti sessiz giriş ekranı" yazıyordu; kod
-  tersini söylüyor — `main.dart:188-190`'daki catch bu durumda hiç
-  çalışmaz.)*
+  tersini söylüyor — `main.dart:194-196`'daki catch bu durumda hiç
+  çalışmaz. Satır numaraları 2026-10-28'de koda göre güncellendi.)*
 
 **A7 — Derle ve koş · birlikte**
 - `cd apps/mobile && LANG=en_US.UTF-8 flutter run
@@ -446,6 +525,11 @@ Eksik olan cihaz ve konsol.
   `offeringsProvider`, `tokenPacksProvider`) hiçbir testin tutmadığını
   ölçtü; 2. tur bekçiyi kurdu (`test/satin_alma_yapilandirma_test.dart`,
   aynı commit `09bbe23`).
+- → **Cihazda koşulan (2026-10-27/28, iPad):** yalnız **Profile**
+  (`flutter run --profile -d <cihaz kimliği>`, B2) — Debug cihazda
+  koşulmadı. Ekran görüntüsü ve günlük okuma tuzakları §7'de
+  (`flutter screenshot` iPad'de çalışmadı; günlükte bir satırın
+  yokluğu her koşuda kanıt değil).
 
 **A8 — Cihazda ölçülecekler · birlikte**
 - U21'in A5 satırlarından Debug'da ölçülebilenler (Release'e bağlı olanlar
@@ -459,14 +543,32 @@ Eksik olan cihaz ve konsol.
   "Resmi Kaydet" (U44); Sessiz anahtar + Apple Music (U24); silip yeniden
   kurunca giriş ekranı (U45); Apple düğmesinin iPhone SE + 1,3 yazı
   ölçeğinde görünmesi (U04).
+  → **iPad'de ölçülen (2026-10-27/28, Profile, iPadOS 17.5.1, iPhone
+  uyumluluk penceresi — C11):** temiz kurulumda giriş, Firestore okuma ve
+  yazma (kurulum, profil) çalıştı; Apple ile giriş U01 kod onarımından
+  sonra çalıştı (A4); e-posta ve Google girişinin cihazda ayrı sonucu
+  kayıtlı değil. Yüz okuma: ML Kit yüz algılama + TFLite segmentasyon
+  çalıştı (sahip gözlemi; günlükte "Initialized TensorFlow Lite runtime",
+  "Created TensorFlow Lite XNNPACK delegate for CPU") — U09'un alt
+  soruları (alın, iki lens) ayrıca kayıtlı değil. Günlükte iki kez ML Kit
+  uyarısı "Multiple instances of CCTClearcutUploader were instantiated"
+  (pil uyarısı) — **incelenmedi**. Listenin geri kalanının (kurulumdaki
+  iki kutu, bildirim izninin ânı, `fcmToken`, kamera reddi, telefon
+  doğrulaması, "Resmi Kaydet", U24, U45, U04) cihaz sonucu kayıtlı değil;
+  push (APNs → FCM) ve bildirime dokununca yönlendirme cihazda
+  ölçülmedi.
 - **Hesap silme + Apple yetkisi iptali (U15'in tek doğrulaması; önkoşul
   C7)** — AYRI bir test hesabıyla (gerçek veri silinmesin): Apple ile
   giriş → Profil → Hesap → Hesabı sil → açılan Apple sayfasını onayla →
   silme bitince iPhone Ayarlar → adın → "Apple ile Giriş" (Sign in with
   Apple) listesinde **Rytho kalmamalı** (menünün tam yeri iOS sürümüne
-  göre değişebilir, ölçülmedi). Kalıyorsa iptal düşmüştür: Debug'da tek
+  göre değişebilir; iPadOS 17.5.1'de Ayarlar → [ad] → Oturum Açma ve
+  Güvenlik → Apple ile Giriş, ölçüldü 2026-10-27/28; iPhone'da
+  ölçülmedi). Kalıyorsa
+  iptal düşmüştür: Debug'da tek
   iz Xcode konsolundaki "Apple yetkisi iptal edilemedi" satırı
-  (`auth_service.dart:281`), yayında Crashlytics `apple-revoke`. Apple
+  (`auth_service.dart:329`; satır 2026-10-28'de güncellendi), yayında
+  Crashlytics `apple-revoke`. **iPad sonucu ve açık gözlem: C7.** Apple
   girişi testinde tuzak (U31): Apple Kimliğinin e-postası Rytho'da Google
   ya da şifreyle kayıtlıysa ve "e-postamı paylaş" seçilirse giriş
   `account-exists-with-different-credential` ile düşer — yapılandırma
@@ -487,7 +589,9 @@ Eksik olan cihaz ve konsol.
   `ai.rytho` → **Team ID** alanının yanındaki düzenleme simgesi (simgenin
   adı belgede yok, ölçülmedi) → `292WJ9TP74` → Save. Doluysa ve aynıysa
   dokunulmaz. App Attest kaydının önkoşulu (U42, U08).
-- Durum: **ölçülemedi.**
+- Durum: **ölçülemedi.** → 2026-10-28: dolaylı — iPad'de App Attest
+  kabul edildi (B2), bu da Team ID'nin yerinde olduğunu gösterir
+  (çıkarım; konsol ekranı görülmedi).
 
 **B2 — App Check'te App Attest kaydı (U08) · SEN**
 - Firebase Console → **Security** → App Check → Apps sekmesi → `ai.rytho`
@@ -497,13 +601,14 @@ Eksik olan cihaz ve konsol.
   olmalı (A2). Bugün dağıtılmış iOS paketi olmadığı için kimseyi
   etkilemez; ilk cihaz/TestFlight denemesinden ÖNCE yapılır.
 - Yapılmazsa: Release, Profile, TestFlight ve inceleme paketi
-  `AppleAppAttestProvider` (`main.dart:181`) ile jeton alamaz; zorlama
+  `AppleAppAttestProvider` (`main.dart:187`) ile jeton alamaz; zorlama
   açık olduğu için **giriş yapılamaz**. Belirti büyük olasılıkla genel
   "Bir şeyler ters gitti" (debug jetonu reddinde ölçülen sınıf — A6; App
   Attest için ölçülmedi). *(Düzeltme 2026-10-24: burada "cihazda
   `flutter run --release` denemesi de giriş ekranında kalır" yazıyordu —
   hem belirti hem kip yanlıştı.)*
-- **Cihaz denemesi TestFlight'tan ÖNCE yapılabilir:** Apple'ın belgesine
+- **Cihaz denemesi TestFlight'tan ÖNCE yapılabilir** (yapıldı 2026-10-27,
+  iPad; aşağıdaki komut A3'ün cihaz kaydını da yaptı): Apple'ın belgesine
   göre yetki `production` iken geliştirme imzalı derleme de üretim App
   Attest sunucularını kullanır; Firebase yalnız üretim jetonunu kabul
   eder. A1 + A3'ten sonra Terminal'de `cd apps/mobile && LANG=en_US.UTF-8
@@ -528,6 +633,16 @@ Eksik olan cihaz ve konsol.
   = production` jetonunu kabulü (Apple yarısı belgeyle cevaplı: üretim
   sunucuları) — cihazda, kayıttan sonra görülür. *(Düzeltme 2026-10-24:
   madde iki yarıyı da "ölçülemedi" sayıyordu.)*
+  → **iPad sonucu (ölçüldü 2026-10-27/28):** Profile derlemesi
+  `AppleAppAttestProvider` kullanır (`kDebugMode` false) ve zorlama üç
+  serviste açık (son ölçüm 2026-10-10); iPad'de temiz kurulumda bu paketle
+  giriş, Firestore okuma/yazma (kurulum, profil) ve yüz okuma çalıştı →
+  **geliştirme imzalı Profile paketinin App Attest jetonu kabul edildi**,
+  yani B1 + B2 ve A2'nin App Attest yeteneği yerinde (konsol ekranları
+  görülmedi; sonuçtan). **Ölçülmedi:** dağıtım imzalı (TestFlight/App
+  Store) paket; Crashlytics'te `app-check-token` / `app-check-activate`
+  kaydının yokluğu bu oturumda okunmadı; Storage (avatar yükleme) ayrıca
+  kayıtlı değil.
 
 **B3 — Paid Apps sözleşmesi, vergi, banka (U02 adım 1) · SEN**
 - App Store Connect → **Business** (eski adı Agreements, Tax, and
@@ -585,7 +700,7 @@ Eksik olan cihaz ve konsol.
   **açılışta BİLEREK çöker** — RevenueCat 5.67.1
   `Configuration.swift:471-495`, `#if !DEBUG` altında Test Store anahtarı
   → uyarı penceresi + `fatalError`; `initBilling` arayüzden önce
-  çağrılıyor (`ba6108b`'de `main.dart:198`; HEAD'de `:221`). Anahtar 2026-10-23'teki imzasız Release
+  çağrılıyor (`ba6108b`'de `main.dart:198`; 2026-10-28'de `:227`). Anahtar 2026-10-23'teki imzasız Release
   paketinde `App.framework/App` içinde bulundu (ölçüldü). **U05 kod ağı
   (`09bbe23`) sonrası:** uygulama Release/Profile'da `test_` anahtarıyla
   `configure` etmez; çökme yerine satın alma kapalı çıkar ve
@@ -656,8 +771,13 @@ Eksik olan cihaz ve konsol.
   profil üretemez (Xcode'un bilinen "Your team has no devices…" davranışı —
   burada ölçülmedi). Daha erken yüklemek gerekirse portalda Devices → `+`
   ile bir UDID kaydedilir.
+  → **2026-10-27:** mesajın kendisi ölçüldü, ama arşivde değil geliştirme
+  derlemesinde — cihaz kaydından önce `flutter build ios` "Your team has
+  no devices" ile düştü; iPad kaydedildi (A3), önkoşul karşılandı. Arşiv
+  yolu yine ölçülmedi.
 - Dağıtım sertifikası bu Mac'te **yok** (`security find-certificate -a -c
-  "Apple Distribution"` boş, ölçüldü 2026-10-23). Organizer → Distribute
+  "Apple Distribution"` boş, ölçüldü 2026-10-23; `security find-identity`
+  ile 2026-10-28'de hâlâ 0). Organizer → Distribute
   App → App Store Connect yolu otomatik imzayla oluşturur; ya da Xcode →
   Settings → Accounts → takım → Manage Certificates → `+` → Apple
   Distribution. Bireysel hesabın sahibi buna yetkili.
@@ -844,6 +964,49 @@ yok).
      yapacağı bir şey yok. Gerçek kanıt Hide My Email'li bir hesaba
      şifre sıfırlama postasının ulaşması.
   Doğrulama: A8'deki silme + iptal denemesi.
+- **iPad sonucu (ölçüldü 2026-10-27/28, Profile; U15):**
+  - Giriş yarısı U01 kod onarımıyla açıldı (A4). Silme öncesi Apple ile
+    yeniden doğrulama da aynı genel `oauth` kimliğini kullanıyordu → aynı
+    kurucuya (`appleKimligi`) bağlandı.
+  - Apple sayfasında "Devam" → silme tamamlandı. Sahip, Ayarlar → [ad] →
+    Oturum Açma ve Güvenlik → Apple ile Giriş listesinde Rytho'yu
+    girişten sonra GÖRDÜ, silmeden sonra GÖRMEDİ — iki ayrı silmede.
+  - Kapatma yolu (düzeltmeli pakette): Apple sayfası kapatılınca ekranda
+    "Hesabın silinmedi: Apple onayı kapatıldı", hesap kaldı ve uygulama
+    kullanılmaya devam etti; o koşuda uygulama çıktısı günlüğe
+    düşüyordu ve "Apple yetkisi iptal edilemedi" satırı YOKTU →
+    `canceled` yolu (2026-10-28).
+  - ⚠️ **AÇIK GÖZLEM — ilk-kez sayfası dönmedi:** silmeden sonra Apple ile
+    yeniden girişte Apple'ın ilk-kez sayfası (Ad + "E-postamı
+    paylaş/gizle") çıkmadı, kısa "Devam" sayfası çıktı. Apple TN3194
+    gerçek iptalden sonra ilk-kez akışının döneceğini ima ediyor;
+    gecikmeye dair kaynak bulunamadı. Firebase `revokeToken`'ın hatasız
+    dönmesi tek başına kanıt DEĞİL (Firebase REST belgesi: tekrar eden
+    istek yok sayılıp hemen döner; Apple `/auth/revoke` daha önce
+    geçersizlenmiş jetona da 200 döner). Firebase'in iPhone'dan gelen
+    yetki kodunu hangi `client_id` ile değiştirdiği birincil kaynakta
+    bulunamadı (yukarıdaki adım 2'nin açık sorusu). İptalin ölçüsü
+    Ayarlar listesi + account.apple.com + Apple'ın iptal e-postasıdır; bu
+    oturumda kayıtlı olan yalnız Ayarlar listesi.
+  - ⚠️ **AÇIK — kod 1000:** yeniden doğrulama onarımından önceki bir
+    pakette günlükte Apple sayfasından bir kez
+    `AuthorizationErrorCode.unknown` (1000) vardı ve hesap silinmedi
+    (başarılı silmede çıkan "Çıkışta jeton profilden silinemedi …
+    not-found" satırı o koşuda yok). Uygulama kodu 1000'i `basarisiz`
+    sayar ve silmeyi SÜRDÜRÜR; neden silinmediği ölçülmedi (sunucu
+    günlüğü bu Mac'ten okunamıyor — `gcloud` yok). 1000'in kapatmadan mı
+    başka bir Apple hatasından mı geldiği de ölçülmedi.
+  - Silme sonrası gezinme: silinmiş hesabın Hesap sayfası ekranda
+    kalıyordu (iPad ekran görüntüsü); `GateRootGuard` artık oturumun
+    açık → kapalı kenarında yığını köke indiriyor ve iPad'de silme
+    doğrudan giriş sayfasına döndü (sahip, iki kez). Apple bağlı hesapta
+    silmeden önceki uyarı ("Silmeden önce Apple kendi sayfasında bir onay
+    isteyecek…") ve "Hesabın siliniyor, lütfen bekle." metni **cihazda
+    görüldü** (2026-10-28: uyarı iPad ekran görüntüsünde Sil düğmesinin
+    üstünde + sahip; "siliniyor" sahip). Silme uçarken sayfanın
+    kapanmaması kodda ve testte, cihazda denenmedi.
+  - E-posta kaynağı kaydı (adım 4, U22): sahibin yapıp yapmadığı
+    bilinmiyor; Hide My Email'e posta ölçülmedi.
 
 **C8 — Ekran görüntüleri ve metaveri (U07, U19) · SEN + Mac**
 - 6,9" (1320x2868) iPhone 17 Pro Max simülatöründen; yalnız iOS arayüzü,
@@ -880,7 +1043,7 @@ madde 1 (kurallar + backend birlikte, salt okuma sayımından sonra; B9a'da
 yapılmadıysa C'den önce ZORUNLU). Şikâyet görünümü panel kodu işi (U17
 Kalan 4, U37).
 
-**C11 — iOS 27 ve iPad uyumluluk kipi · Mac (kuruldu ve açıldı; gezinti sonucu kayıtlı değil)**
+**C11 — iOS 27 ve iPad uyumluluk kipi · Mac (simülatörde kuruldu ve açıldı; iPad yarısı gerçek iPad'de kısmen gezildi 2026-10-27/28)**
 - iOS 27: bu Mac'te iOS 26.5 ve 27.0 simülatör çalışma ortamları kurulu.
   2026-10-23 ölçümünde Rytho yalnız iki iOS 26.5 simülatöründeydi; o
   ölçüm sonraki kurulumlardan ÖNCE alındı → 2026-10-24 (ölçüldü, simülatör veri kabından): Rytho'nun simülatör derlemesi 1.20.0 (53) iOS 27.0'da iki simülatöre kuruldu ve açıldı — iPhone 18 Pro (2026-10-24 01:06; tercihlerde şartlar onayı, tanıtım paywall'ı ve bildirim izni bayrakları var, yani kurulum akışı geçildi) ve iPad (A16) (2026-10-23 20:53; yalnız açılış bayrakları, giriş yok). Gezilen ekranların görsel/işlev sonucu kayıtlı değil. Yani
@@ -895,6 +1058,13 @@ Kalan 4, U37).
   simülatörüne kuruldu ve açıldı (2026-10-23 20:53, giriş yok); doğru
   çalıştığı ölçülmedi. Bir iPad simülatöründe giriş, kurulum, klavye,
   paylaşım sayfası ve kamera izni akışı gezilir (kamera simülatörde yok).
+  → **Gerçek iPad (ölçüldü 2026-10-27/28, iPad Air 13 inç M2, iPadOS
+  17.5.1, Profile):** uygulama iPhone uyumluluk penceresinde açılıyor
+  (ekran görüntüsünde iPhone boyutlu pencere + büyütme düğmesi; pbxproj
+  `TARGETED_DEVICE_FAMILY = 1` üç yapılandırmada) — kusur değil,
+  beklenen kip. Bu pencerede giriş, kurulum, profil, yüz okuma ve hesap
+  silme çalıştı (A8, C7). Ölçülmedi: klavye, paylaşım
+  sayfası, kamera reddi, büyütülmüş pencere, iPadOS 26/27.
 - Simülatör sonucu cihaz sonucu sayılmaz; A8 satırları geçmeden gönderim
   yapılmaz.
 
@@ -1023,7 +1193,8 @@ sahibin):
   belgelerde yoktu (B4; U02'ye not).
 - iOS 27 ve iPad uyumluluk kipi gezintisi — iki simülatöre kuruldu ve
   açıldı (2026-10-23/24), gezinti sonucu kayıtlı değil (C11; U21 ve U10'a
-  not).
+  not). → iPad yarısı gerçek iPad'de (iPadOS 17.5.1) kısmen gezildi
+  (2026-10-27/28, C11); iOS 27 yarısı açık.
 - Release/Profile cihaz testi için güvenli anahtar yolu yok: "yalnız iOS
   anahtarını boşalt" yetmiyor (A7). Kod çaresi U05'in Düzeltme 3'ünde; bu
   bulgu U05 kaydına bu turda işlenmedi (kayıt ayrı bir işin konusu).
@@ -1032,7 +1203,8 @@ sahibin):
   etmez, satın alma "kullanılamıyor" der; kodda doğrulandı, cihazda
   ölçülmedi. U05 kaydına Ek olarak işlendi.
 - Kayıtlı cihaz ve dağıtım sertifikası yokken arşiv alınamaz (B9; U21'e
-  not).
+  not). → Cihaz yarısı kapandı (iPad kaydedildi, A3, 2026-10-27);
+  dağıtım sertifikası hâlâ 0 (2026-10-28).
 - Derleme numarası çakışması (B8; U29'a not).
 - Dört eklenti Swift Package Manager desteklemiyor: `flutter_contacts`,
   `google_mlkit_commons`, `google_mlkit_face_detection`, `tflite_flutter`
@@ -1123,6 +1295,10 @@ Distribution** sertifikası (`security find-certificate -a -c "Apple
 Distribution"` boş), **provizyon profili** (iki profil dizini de yok),
 takımda **kayıtlı cihaz** (ölçülemedi; bağlı cihaz yok). Kalan adımlar
 §4 A3 (cihaz + profil) ve B9 (dağıtım imzası + arşiv).
+→ **2026-10-27/28 (iPad oturumu):** geliştirme profili ve takımda kayıtlı
+cihaz artık VAR (iPad; otomatik imza ilk cihaz derlemesinde profili
+kendisi kurdu — §4 A3); imzalı Profile derlemesi cihazda koştu. **Apple
+Distribution hâlâ 0** (`security find-identity`, 2026-10-28) — kalan B9.
 
 ### 4.5 — Yetenekler (Capabilities) · **SEN (Xcode'da)**
 Apple Developer portalında App ID üzerinde de **açık olmalı**, yalnız
@@ -1142,7 +1318,9 @@ entitlements dosyası yetmez:
   jetonu da buna dayanıyor" yazıyordu.)*
 
 Portal durumu (App ID var mı, dört yetenek açık mı) bu Mac'ten
-**ölçülemedi** (2026-10-23).
+**ölçülemedi** (2026-10-23). → 2026-10-27/28: otomatik imzanın ürettiği
+geliştirme profili dört yetkiyi de taşıyor ve App Attest'li Profile
+paketi iPad'de kabul edildi (§4 A2, B2); portal ekranı yine görülmedi.
 
 Depo tarafı hazır: `Runner.entitlements` (Debug/Profile) ve
 `RunnerRelease.entitlements` (Release) ikisi de yazıldı ve `pbxproj`
@@ -1314,7 +1492,10 @@ erken yazılan bir metin herhangi bir makinenin ilk deploy'unda canlıya
    "iPhone'da ne zaman?" SSS'i.
 5. `docs/ortaklik-programi.md` §8 "Durum" satırı.
 
-**Cihazda ölçülecek (iPhone gelince):**
+**Cihazda ölçülecek (iPhone gelince):** *(2026-10-28: cihaz var — iPad,
+§4 A3 — ama canlı AASA bayat olduğu için aşağıdakilerin hiçbiri
+ölçülmedi; engel cihaz değil hosting kilidi, 2. madde ayrıca yayın gününü
+bekler.)*
 0. **Test kodu GERÇEK olmalı** (koddan doğrulandı 2026-10-24). Uydurma
    kod (`TESTKOD`) sunucuda 404 `not_found` alır ve atıf yazılmaz; daha
    kötüsü istemci 401 DIŞINDAKİ her 4xx'i — 404, kendi kodunun 403'ü,
@@ -1392,7 +1573,9 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
 - **CocoaPods entegrasyonu** (`pod install`, `Podfile.lock` depoda) ve
   **imzasız cihaz derlemesi** Mac'te geçti (2026-09-26, Xcode 26.6).
   Birleşmiş dalda yeniden ölçüldü: imzasız **Release** cihaz derlemesi
-  `ba6108b`'de geçti (2026-10-23; ayrıntı üst kutu).
+  `ba6108b`'de geçti (2026-10-23; ayrıntı üst kutu). İlk **imzalı**
+  (geliştirme) cihaz derlemesi — Profile — iPad'de koştu (2026-10-27;
+  §4 A3).
 - **Google girişi** `Info.plist`'e bağlandı; iOS API anahtarı `ai.rytho`
   ile kısıtlandı (4.3).
 - **`ios/Podfile`** yazıldı, `platform :ios, '15.5'` **açık**. Flutter'ın
@@ -1475,7 +1658,21 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
   düz komutla değil `infra/build-ipa.sh` ile çıkar (§4 B7, CLAUDE.md §4).
 - **Simülatörde çalışmayan iki şey var:** TFLite (tflite_flutter README'si
   söylüyor) ve App Attest. İkisi de **gerçek cihaz** ister. Yüz okuma ve
-  App Check'i simülatörde test etmeye çalışma.
+  App Check'i simülatörde test etmeye çalışma. (İkisi de gerçek iPad'de
+  Profile kipte çalıştı — ölçüldü 2026-10-27/28, §4 A8, B2.)
+- **İlk cihaz:** Geliştirici Modu kapalıyken `xcodebuild` "Unable to find
+  a destination" der; yalnız `flutter build ios` cihazı takıma kaydetmez
+  ("Your team has no devices"), `flutter run --profile -d <cihaz>`
+  kaydeder ve profili üretir (ölçüldü 2026-10-27, iPad; §4 A1, A3).
+- **Cihaz ekran görüntüsü:** `xcrun devicectl device capture screenshot
+  --device <cihaz> --destination <dosya.png>` çalışıyor; `flutter
+  screenshot` iPad'de "not supported" dedi (ölçüldü 2026-10-27/28).
+- **`flutter run` günlüğünde bir satırın YOKLUĞU tek başına kanıt
+  değil.** Bir koşuda `flutter run` uygulamayı Xcode otomasyonuyla
+  başlattı ("Xcode is taking longer than expected to start debugging") ve
+  o koşuda uygulamanın `print` çıktısı flutter günlüğüne HİÇ düşmedi;
+  diğer koşularda düştü (iPad, 2026-10-27/28). Kural: "şu satır yok" ancak
+  o koşuda başka `flutter:` satırları görünüyorsa kanıttır.
 - **`gcloud`'un varsayılan projesi kayabiliyor.** Her komutta
   `--project rhytoai` yaz; yoksa komutlar **sessizce yanlış projeye**
   gider. Bu bir kez yanlış bir "panelde hiç admin yok" blocker'ı ürettirdi.
@@ -1516,6 +1713,9 @@ Mac'te bunları yeniden yapma, yapıldı ve testten geçti:
   eklenir. (Burada eskiden "uygulama simülatörde HİÇ çalışmaz" yazıyordu;
   `e4789d4` onu onardı ama notu güncellemedi — bayat bulundu 2026-10-22.)
   Yüz okuma, App Attest, push ve Universal Link yalnız **cihazda**.
+  → iPad'de ölçülen (2026-10-27/28, Profile): yüz okuma (ML Kit + TFLite)
+  ve App Attest çalıştı; push cihazda ölçülmedi, Universal Link canlı AASA
+  bayat olduğu için ölçülemez (§4 A8, B2, 4.10).
   Gerçek cihazda da aynı kural (not 2026-10-23): Debug derlemesi her
   kurulumda yeni bir debug jetonu basar ve o jeton Firebase'e eklenmeden
   giriş/Firestore/Storage reddedilir; simülatörün jetonu cihaza geçmez
