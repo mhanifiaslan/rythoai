@@ -25,11 +25,14 @@ from __future__ import annotations
 
 import os
 
+import google.auth
 import pytest
+from google.auth import exceptions as google_auth_hatalari
 
 from core import app_gate, config
 from core import firestore as firestore_client
-from services import account_service, gemini_service, partner_service, push_service
+from services import (account_service, gemini_service, partner_service,
+                      push_service, sky_service)
 
 #: Toplama anında yakalanır: henüz hiçbir fixture koşmadı, bu gerçek
 #: istemci kurucusudur. Kıyas kimlikle (`is`) — sahte istemci kuran her
@@ -93,6 +96,14 @@ def depolama_hermetik(monkeypatch):
     başlatırsa, makinede ADC varken aynı 18 test ÜRETİM kovasında
     `list_blobs` + `delete` koşar. Kaza ile güvenli olan şey güvence
     değildir; pin bunu yapısal hâle getiriyor.
+
+    ⚠️ "Hiç başlatılmadığı için" öncülü YANLIŞTI (ölçüldü 2026-10-28):
+    `Bearer` başlıklı her test isteği `core.auth._init_firebase` üzerinden
+    varsayılan uygulamayı KURUYORDU — soket izinde `verify_id_token`
+    kimlik çözümüne vardı, uygulama yokken varamazdı. Yani "ileride"
+    denen durum zaten vardı ve kalkan sıraya bağlıydı; bu pin o yüzden
+    gerekliydi. Altındaki ikinci kalkan artık `adc_hermetik`: uygulama
+    kurulsa da kimlik çözülemez.
 
     `kapi_hermetik`in Firestore pini ile aynı doktrin ve aynı çıkış yolu:
     kovayı BİLEREK sınayan test `_kova`'yı kendi sahtesiyle değiştirir
@@ -167,6 +178,12 @@ def auth_hermetik(monkeypatch):
     **kaza ile guvenli olan sey guvence degildir**; bir gun baska bir
     test `initialize_app` cagirdiginda bu kalkan sessizce duserdi.
 
+    ⚠️ "Baslatilmadigi icin" onculu YANLISTI (olculdu 2026-10-28): o gun
+    zaten gelmisti — `Bearer` baslikli test istekleri `core.auth.
+    _init_firebase` uzerinden varsayilan uygulamayi kuruyordu (gerekce
+    `depolama_hermetik`te). Pin bu yuzden gercek bir boslugu kapatiyor;
+    alttaki ikinci kalkan `adc_hermetik`.
+
     Auth'u BILEREK sinayan test `_auth_modulu`yu kendi sahtesiyle
     degistirir (test_partner_rewards `_auth_pinle`) ve o yama bunun
     USTUNE yazdigi icin kazanir — `kapi_hermetik`/`depolama_hermetik`
@@ -174,6 +191,103 @@ def auth_hermetik(monkeypatch):
     """
     monkeypatch.setattr(partner_service, "_auth_modulu",
                         lambda: _AuthYok)
+
+
+#: `adc_hermetik` pininin hata metni. Bekcileri (test_auth_gate) bu imzayi
+#: arar: gercek `default()` da ayni turde hata firlatir, ayirt eden metindir.
+ADC_PIN_MESAJI = "ADC testte pinli (conftest.adc_hermetik)."
+
+
+def _pin_adc(*_a, **_k):
+    raise google_auth_hatalari.DefaultCredentialsError(ADC_PIN_MESAJI)
+
+
+@pytest.fixture(autouse=True)
+def adc_hermetik(monkeypatch):
+    """Hicbir test istemeden makinenin GERCEK kimlik bilgisini (ADC) cozemesin.
+
+    ⚠️ OLCULDU (2026-10-28, Mac, ADC YOK): tam takim 975 sn; en yavas iki
+    test (`test_hardening` kota testleri, 25'er istek) ~100'er sn. CPU %1 —
+    hesap degil BEKLEME. Soket izi: 99 sn'lik testte 169.254.169.254'e (GCE
+    meta veri sunucusu) 78 baglanti denemesi (~30 sn zaman asimi) ve 52
+    geri cekilme uykusu (~77 sn). Yol: `Bearer` baslikli her istek
+    `core.auth._verify` -> `firebase_admin.auth.verify_id_token` ->
+    `ApplicationDefault._load_credential` -> `google.auth.default()`; ADC
+    dosyasi olmayan makinede bu, meta veri sunucusuna 3 denemeli ping +
+    ustel geri cekilme demek: istek basina ~4 sn. Ayni cagriyi
+    `gcp_credentials` yoklamasi da her `TestClient` acilisinda yapiyor.
+
+    NEDEN istek basina: `firebase_admin` BASARISIZ kimlik cozumunu
+    onbellege almiyor (yalniz basariliyi), `core.auth._init_firebase` de
+    `_firebase_ready` mandalini yoklama sonuclanmadan (fail-open) kuruyor
+    ve `available()`a bir daha bakmiyor. Yani "yoklama bir kez" degismezi
+    dogrulama yolunda tutmuyor (uretim kodu; bu pin onu DEGISTIRMIYOR).
+
+    NEDEN kokten (`google.auth.default`), istemci istemci degil: §5'in
+    olculmus kok nedeni "makinede ADC var". Firebase Admin (Auth, Firestore,
+    Storage, FCM), `google.cloud` istemcileri ve `gcp_credentials`
+    yoklamasi kimligi HEP buradan aliyor (venv kaynaginda okundu: hepsi
+    cagri aninda `google.auth.default` niteligine bakiyor). ADC'li makinede
+    (Windows) unutulmus bir istemci pini artik uretime YAZAMAZ; ADC'siz
+    makinede (Mac) meta veri sunucusuna gidilmez.
+
+    Istemci pinlerinin YERINE degil ALTINDA: kimligi ADC'den almayan kapi
+    (Gemini, API anahtari) bunun kapsami disinda; §5 kurali (her istemciye
+    ayri pin) aynen gecerli.
+
+    Yeni davranis UYDURMUYOR: `DefaultCredentialsError` gercek `default()`un
+    "kimlik yok" hatasi ve uretim kodu o dali biliyor (`gcp_credentials`
+    "ADC cozulemedi", dogrulama DEV_MODE'a duser, Firestore istemcisi
+    kurulmaz).
+    Bu Mac'te takim zaten ADC'siz yesildi; pin yalniz bekleme suresini
+    siliyor ve ADC'li makineyi ayni hale getiriyor.
+
+    Cikis: `google.auth.default`i kendisi yamalayan test (test_auth_gate)
+    kendi degerini alir — testin setattr'i pinden sonra kosar. Bekcileri
+    davranissal, ikisi de test_auth_gate'te:
+    `test_pin_sahtelenmemis_dogrulama_adc_ye_ulasmaz` ve
+    `test_pin_sahtelenmemis_yoklama_adc_ye_ulasmaz`.
+    """
+    monkeypatch.setattr(google.auth, "default", _pin_adc)
+
+
+class _HorizonsYok:
+    """`sky_service`in `httpx` modulunun yerine: istemci KURULAMAZ."""
+
+    class Client:
+        def __init__(self, *_a, **_k):
+            raise RuntimeError(
+                "NASA Horizons testte pinli (conftest.horizons_hermetik).")
+
+
+@pytest.fixture(autouse=True)
+def horizons_hermetik(monkeypatch):
+    """Hicbir test istemeden GERCEK NASA JPL Horizons'a gidemesin.
+
+    OLCULDU (2026-10-28, Mac): `adc_hermetik` kurulduktan sonra da
+    `test_i18n::test_baslik_yoksa_turkce` 15,8 sn surdu, CPU %3. Soket izi
+    tek baglanti gosterdi: `ssd.jpl.nasa.gov:443`, yol `api/reports.py`
+    -> `get_sky_now` -> `_horizons_distances` — gezegen basina bir GET
+    (9 sirali istek, httpx tek baglantiyi yeniden kullaniyor, zaman yanit
+    beklemede). Gokyuzunu kullanan uc testleri onbellegi `tmp_path`e
+    izole ettigi icin (test_horoscope `temiz_onbellek`) HER test NASA'ya
+    yeniden gidiyordu. Uretime yazmiyor (halka acik, salt okuma) ama
+    takimin hem suresi hem SONUCU NASA'nin o anki ayakta olusuna bagliydi.
+    Uretim kodunda dogrudan HTTP yapan tek yer burasi (`api/services/core`
+    tarandi).
+
+    NEDEN `_horizons_distances` degil `sky_service.httpx`: islevin kendi
+    dallari (gunluk onbellek, `except` -> bos sozluk) kosmaya devam etsin.
+    Islevin kendisi pinlenseydi, Horizons ayristirmasini BILEREK sinayan
+    bir test onu dogrudan cagirdiginda pini cagirip SESSIZCE bos olcerdi.
+
+    Yeni davranis UYDURMUYOR: istemci kurulamayinca uretimin "Horizons
+    erisilemedi" dali calisir (modul docstring'i: "yalniz swisseph verisi
+    doner"), `distance_au` None. Cikis: `sky_service.httpx`i kendi
+    sahtesiyle degistiren test kendi degerini alir. Bekcisi davranissal:
+    `test_sky_horizons.py::test_pin_sahtelenmemis_gokyuzu_nasa_ya_ulasmaz`.
+    """
+    monkeypatch.setattr(sky_service, "httpx", _HorizonsYok)
 
 
 #: Canli LLM cagrisina ACIK izin. Anahtarin VARLIGI izin DEGILDIR.

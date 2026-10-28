@@ -103,11 +103,19 @@ kapılarını koşmaz. Ayrıntı `docs/mac-devir.md` §4 B7.
 
 ## 5. Tekrar eden tuzaklar
 
-**Testler üretime yazabiliyordu.** `conftest.py`'de üç autouse pin var
-(`kapi_hermetik`, `depolama_hermetik`, `firestore_hermetik`). Sebep ölçüldü:
+**Testler üretime yazabiliyordu.** `conftest.py`'de autouse pinler var
+(ilk üçü `kapi_hermetik`, `depolama_hermetik`, `firestore_hermetik`; sonra
+`auth`, `gemini`, `push`, `adc`, `horizons`). Sebep ölçüldü:
 üretimde `users/dev-user` dokümanı bulundu, içinde o gün yazılmış bir
 `termsConsent` vardı — `RYTHO_DEV_MODE` varsayılanı `"1"` ve makinede ADC var.
 Pin sonrası takım süresi **214 sn → 83 sn** düştü.
+**ADC'siz makinede (Mac) ikinci kök** (ölçüldü 2026-10-28): takım 975 sn,
+CPU %1. `Bearer` başlıklı her test isteği `verify_id_token` →
+`google.auth.default()` → GCE meta veri sunucusu (169.254.169.254)
+denemeleri + geri çekilme, istek başına ~4 sn; uç testleri ayrıca her
+seferinde NASA Horizons'a gidiyordu. `adc_hermetik` (`google.auth.default`
+kökten) + `horizons_hermetik` sonrası **975 sn → 127 sn**, izli tam koşuda
+dış ağa sıfır bağlantı. Takım dakikalar sürüyorsa önce ağ izine bak.
 **Kural: dış dünyaya çıkan her yeni istemci için `conftest`'e ayrı pin.**
 
 **Türkçe metin eşleştirme.** `str.lower()` Türkçe bilmez (`"İ".lower()` →

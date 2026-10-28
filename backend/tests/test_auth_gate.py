@@ -468,3 +468,79 @@ def test_dev_mode_anonim_yolunda_ayna_yok(ayna, monkeypatch):
         credentials=None, lang="tr", x_app_build="35"))
     assert kullanici.uid == "dev-user"
     assert ayna.yazimlar == []
+
+
+# ---------------------------------------------------------------------------
+# Hermetiklik pini (tests/conftest.py `adc_hermetik`)
+# ---------------------------------------------------------------------------
+
+#: Gercek `google.auth.default()`un sirayla yokladigi dort kimlik kaynagi.
+#: Pin yoksa en az ilki HER makinede cagrilir (ADC'li makinede dosyayi
+#: bulan ikincisi, ADC'siz makinede meta veri sunucusuna giden dorduncusu).
+_ADC_KAYNAKLARI = ("_get_explicit_environ_credentials",
+                   "_get_gcloud_sdk_credentials",
+                   "_get_gae_credentials",
+                   "_get_gce_credentials")
+
+
+def _adc_kaydedicisi(monkeypatch) -> list[str]:
+    """Gercek ADC kaynaklarinin yerine kaydedici koyar.
+
+    Kaydedici "kimlik yok" (None, None) doner ve AGA CIKMAZ: pin delikse
+    bile bekci meta veri sunucusunu beklemez, uretime de dokunmaz.
+    Kaynak duzeyinde olculmesinin NEDENI: yalniz hatanin turune bakmak
+    yetmezdi — ADC'siz makinede gercek `default()` da ayni turde hata
+    firlatiyor (sadece ~4 sn sonra).
+    """
+    from google.auth import _default as adc
+
+    ulasilan: list[str] = []
+    for ad in _ADC_KAYNAKLARI:
+        def kaydet(*_a, _ad=ad, **_k):
+            ulasilan.append(_ad)
+            return None, None
+        monkeypatch.setattr(adc, ad, kaydet)
+    return ulasilan
+
+
+def test_pin_sahtelenmemis_dogrulama_adc_ye_ulasmaz(monkeypatch):
+    """conftest `adc_hermetik` pininin BEYANI olculur, zamanin GITTIGI
+    kapidan: `_verify`i sahtelemeyen bir test (Bearer baslikli her
+    `TestClient` istegi) gercek ADC'yi HIC cozmez.
+
+    2026-10-28 olcumu: bu kapi pinsiz ADC'siz Mac'te istek basina ~4 sn
+    bekletiyordu (25 istekli kota testleri ~100 sn). Varsayilan Firebase
+    uygulamasi uretimdeki gibi kurulur — yoksa `verify_id_token` kimlige
+    hic varmadan "uygulama yok" diye duserdi ve bekci bos olcerdi.
+    """
+    import firebase_admin
+    from google.auth import exceptions as adc_hatalari
+
+    ulasilan = _adc_kaydedicisi(monkeypatch)
+    kurdum = not firebase_admin._apps
+    if kurdum:
+        firebase_admin.initialize_app(
+            options={"projectId": config.GOOGLE_CLOUD_PROJECT})
+    try:
+        with pytest.raises(adc_hatalari.DefaultCredentialsError,
+                           match="conftest.adc_hermetik"):
+            auth._verify("pin-bekcisi")
+    finally:
+        if kurdum:
+            firebase_admin.delete_app(firebase_admin.get_app())
+
+    assert ulasilan == [], (
+        f"pin delik: dogrulama gercek ADC kaynaklarina ulasti {ulasilan}")
+
+
+def test_pin_sahtelenmemis_yoklama_adc_ye_ulasmaz(monkeypatch):
+    """Ayni beyanin ikinci kapisi: her `TestClient` acilisinda (lifespan
+    `warm_up`) baslayan `gcp_credentials` yoklamasi. Pinliyken aninda
+    KESIN olumsuz sonuclanir — uretimin "ADC yok" dali, yeni dal degil."""
+    ulasilan = _adc_kaydedicisi(monkeypatch)
+
+    gcp_credentials.warm_up()
+
+    assert gcp_credentials._bekle(timeout=10) is False
+    assert ulasilan == [], (
+        f"pin delik: yoklama gercek ADC kaynaklarina ulasti {ulasilan}")
